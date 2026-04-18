@@ -1,0 +1,31 @@
+package model
+
+import "time"
+
+type RawListing struct {
+	Token        string
+	Manufacturer string
+	Model        string
+	SubModel     string
+	Year         int
+	Month        int
+	EngineVolume float64
+	HorsePower   int
+	EngineType   string
+	GearBox      string
+	Km           int
+	Hand         int
+	Price        int
+	City         string
+	Area         string
+	Description  string
+	ImageURL     string
+	PageLink     string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type Listing struct {
+	RawListing
+	SearchName string
+}
