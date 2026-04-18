@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"time"
@@ -15,13 +16,24 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
+const (
+	fetchTimeout     = 60 * time.Second
+	maxBackoff       = 4.0
+	minBackoff       = 1.0
+	pruneInterval    = 24 * time.Hour
+	maxRetries       = 3
+	retryBaseDelay   = 2 * time.Second
+)
+
 type Scheduler struct {
-	cfg      *config.Config
-	fetcher  fetcher.Fetcher
-	dedup    storage.DedupStore
-	notifier notifier.Notifier
-	logger   *slog.Logger
-	loc      *time.Location
+	cfg               *config.Config
+	fetcher           fetcher.Fetcher
+	dedup             storage.DedupStore
+	notifier          notifier.Notifier
+	logger            *slog.Logger
+	loc               *time.Location
+	backoffMultiplier float64
+	lastPruneTime     time.Time
 }
 
 func New(
@@ -36,12 +48,13 @@ func New(
 		return nil, err
 	}
 	return &Scheduler{
-		cfg:      cfg,
-		fetcher:  f,
-		dedup:    d,
-		notifier: n,
-		logger:   logger,
-		loc:      loc,
+		cfg:               cfg,
+		fetcher:           f,
+		dedup:             d,
+		notifier:          n,
+		logger:            logger,
+		loc:               loc,
+		backoffMultiplier: 1.0,
 	}, nil
 }
 
@@ -52,13 +65,28 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		"searches", len(s.cfg.Searches),
 	)
 
-	if err := s.runCycle(ctx); err != nil {
-		s.logger.Error("initial cycle failed", "error", err)
+	if s.isActiveHours() {
+		if err := s.runCycle(ctx); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return err
+			}
+			s.logger.Error("initial cycle failed", "error", err)
+		}
 	}
 
 	for {
 		delay := s.nextDelay()
-		s.logger.Info("next poll in", "delay", delay.Round(time.Second))
+
+		if !s.isActiveHours() {
+			if sleepUntil := s.durationUntilActiveStart(); sleepUntil > 0 {
+				s.logger.Info("outside active hours, sleeping until start",
+					"sleep", sleepUntil.Round(time.Minute),
+				)
+				delay = sleepUntil
+			}
+		}
+
+		s.logger.Info("next poll", "delay", delay.Round(time.Second))
 
 		select {
 		case <-ctx.Done():
@@ -68,7 +96,6 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		}
 
 		if !s.isActiveHours() {
-			s.logger.Info("outside active hours, skipping")
 			continue
 		}
 
@@ -84,34 +111,48 @@ func (s *Scheduler) Run(ctx context.Context) error {
 func (s *Scheduler) runCycle(ctx context.Context) error {
 	s.logger.Info("starting poll cycle")
 
+	allFailed := true
 	for _, search := range s.cfg.Searches {
 		if err := s.processSearch(ctx, search); err != nil {
 			s.logger.Error("search failed",
 				"search", search.Name,
 				"error", err,
 			)
+			if errors.Is(err, fetcher.ErrChallenge) {
+				s.backoffMultiplier = min(s.backoffMultiplier*2, maxBackoff)
+				s.logger.Warn("increased backoff", "multiplier", s.backoffMultiplier)
+			}
 			continue
 		}
+		allFailed = false
+		s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
 	}
 
-	if s.cfg.Storage.PruneAfter > 0 {
-		pruned, err := s.dedup.Prune(ctx, s.cfg.Storage.PruneAfter)
-		if err != nil {
-			s.logger.Error("prune failed", "error", err)
-		} else if pruned > 0 {
-			s.logger.Info("pruned old listings", "count", pruned)
+	if time.Since(s.lastPruneTime) > pruneInterval {
+		if s.cfg.Storage.PruneAfter > 0 {
+			pruned, err := s.dedup.Prune(ctx, s.cfg.Storage.PruneAfter)
+			if err != nil {
+				s.logger.Error("prune failed", "error", err)
+			} else if pruned > 0 {
+				s.logger.Info("pruned old listings", "count", pruned)
+			}
 		}
+		s.lastPruneTime = time.Now()
+	}
+
+	if allFailed && len(s.cfg.Searches) > 0 {
+		return fmt.Errorf("all %d searches failed", len(s.cfg.Searches))
 	}
 
 	return nil
 }
 
 func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfig) error {
-	raw, err := s.fetcher.Fetch(ctx, search.Params)
+	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
+
+	raw, err := s.fetchWithRetry(fetchCtx, search.Params)
 	if err != nil {
-		if errors.Is(err, fetcher.ErrChallenge) {
-			s.logger.Warn("anti-bot challenge detected, backing off")
-		}
 		return err
 	}
 
@@ -150,7 +191,7 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 	for _, recipient := range search.Recipients {
 		if err := s.notifier.Notify(ctx, recipient, newListings); err != nil {
 			s.logger.Error("notification failed",
-				"recipient", recipient,
+				"recipient", maskPhone(recipient),
 				"error", err,
 			)
 			continue
@@ -173,8 +214,38 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 	return nil
 }
 
+func (s *Scheduler) fetchWithRetry(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
+	var lastErr error
+	for attempt := range maxRetries {
+		listings, err := s.fetcher.Fetch(ctx, params)
+		if err == nil {
+			return listings, nil
+		}
+		lastErr = err
+
+		if errors.Is(err, fetcher.ErrChallenge) || errors.Is(err, context.Canceled) {
+			return nil, err
+		}
+
+		if attempt < maxRetries-1 {
+			delay := retryBaseDelay * (1 << attempt)
+			s.logger.Warn("fetch failed, retrying",
+				"attempt", attempt+1,
+				"delay", delay,
+				"error", err,
+			)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+	}
+	return nil, fmt.Errorf("all %d fetch attempts failed: %w", maxRetries, lastErr)
+}
+
 func (s *Scheduler) nextDelay() time.Duration {
-	base := s.cfg.Polling.Interval
+	base := time.Duration(float64(s.cfg.Polling.Interval) * s.backoffMultiplier)
 	jitter := s.cfg.Polling.Jitter
 	if jitter > 0 {
 		offset := time.Duration(rand.Int64N(int64(2*jitter))) - jitter
@@ -195,22 +266,44 @@ func (s *Scheduler) isActiveHours() bool {
 	now := time.Now().In(s.loc)
 	currentMinutes := now.Hour()*60 + now.Minute()
 
-	start, err := parseTimeOfDay(ah.Start)
-	if err != nil {
-		return true
-	}
-	end, err := parseTimeOfDay(ah.End)
-	if err != nil {
+	start := parseTimeOfDayOrZero(ah.Start)
+	end := parseTimeOfDayOrZero(ah.End)
+
+	if start == 0 && end == 0 {
 		return true
 	}
 
-	return currentMinutes >= start && currentMinutes <= end
+	return currentMinutes >= start && currentMinutes < end
 }
 
-func parseTimeOfDay(s string) (int, error) {
+func (s *Scheduler) durationUntilActiveStart() time.Duration {
+	ah := s.cfg.Polling.ActiveHours
+	if ah == nil {
+		return 0
+	}
+
+	startMinutes := parseTimeOfDayOrZero(ah.Start)
+	now := time.Now().In(s.loc)
+	currentMinutes := now.Hour()*60 + now.Minute()
+
+	diffMinutes := startMinutes - currentMinutes
+	if diffMinutes <= 0 {
+		diffMinutes += 24 * 60
+	}
+	return time.Duration(diffMinutes) * time.Minute
+}
+
+func parseTimeOfDayOrZero(s string) int {
 	t, err := time.Parse("15:04", s)
 	if err != nil {
-		return 0, err
+		return 0
 	}
-	return t.Hour()*60 + t.Minute(), nil
+	return t.Hour()*60 + t.Minute()
+}
+
+func maskPhone(phone string) string {
+	if len(phone) <= 4 {
+		return "***"
+	}
+	return phone[:len(phone)-4] + "****"
 }
