@@ -8,14 +8,11 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
 const challengeMarker = "Are you for real"
-
-type ErrChallenge struct{}
-
-func (e ErrChallenge) Error() string { return "yad2: anti-bot challenge detected" }
 
 func ParseListingsPage(body io.Reader) ([]model.RawListing, error) {
 	doc, err := goquery.NewDocumentFromReader(body)
@@ -24,7 +21,7 @@ func ParseListingsPage(body io.Reader) ([]model.RawListing, error) {
 	}
 
 	if strings.Contains(doc.Text(), challengeMarker) {
-		return nil, ErrChallenge{}
+		return nil, fmt.Errorf("yad2: %w", fetcher.ErrChallenge)
 	}
 
 	scriptContent := doc.Find("script#__NEXT_DATA__").First().Text()

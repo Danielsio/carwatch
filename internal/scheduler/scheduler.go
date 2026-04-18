@@ -9,7 +9,6 @@ import (
 
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
-	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/filter"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
@@ -110,8 +109,7 @@ func (s *Scheduler) runCycle(ctx context.Context) error {
 func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfig) error {
 	raw, err := s.fetcher.Fetch(ctx, search.Params)
 	if err != nil {
-		var challenge yad2.ErrChallenge
-		if errors.As(err, &challenge) {
+		if errors.Is(err, fetcher.ErrChallenge) {
 			s.logger.Warn("anti-bot challenge detected, backing off")
 		}
 		return err
