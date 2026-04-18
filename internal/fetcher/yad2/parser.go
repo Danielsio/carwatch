@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -15,6 +16,10 @@ import (
 const challengeMarker = "Are you for real"
 
 func ParseListingsPage(body io.Reader) ([]model.RawListing, error) {
+	return ParseListingsPageWithLogger(body, nil)
+}
+
+func ParseListingsPageWithLogger(body io.Reader, logger *slog.Logger) ([]model.RawListing, error) {
 	doc, err := goquery.NewDocumentFromReader(body)
 	if err != nil {
 		return nil, fmt.Errorf("parse HTML: %w", err)
@@ -29,10 +34,10 @@ func ParseListingsPage(body io.Reader) ([]model.RawListing, error) {
 		return nil, fmt.Errorf("__NEXT_DATA__ script tag not found")
 	}
 
-	return parseNextData([]byte(scriptContent))
+	return parseNextData([]byte(scriptContent), logger)
 }
 
-func parseNextData(data []byte) ([]model.RawListing, error) {
+func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error) {
 	var nextData nextDataEnvelope
 	if err := json.Unmarshal(data, &nextData); err != nil {
 		return nil, fmt.Errorf("unmarshal __NEXT_DATA__: %w", err)
@@ -44,12 +49,25 @@ func parseNextData(data []byte) ([]model.RawListing, error) {
 	}
 
 	listings := make([]model.RawListing, 0, len(items))
+	skipped := 0
 	for _, item := range items {
 		l, err := itemToListing(item)
 		if err != nil {
+			skipped++
+			if logger != nil {
+				logger.Warn("skipped feed item", "error", err)
+			}
 			continue
 		}
 		listings = append(listings, l)
+	}
+
+	if skipped > 0 && logger != nil {
+		logger.Warn("skipped items during parse",
+			"skipped", skipped,
+			"total", len(items),
+			"parsed", len(listings),
+		)
 	}
 
 	return listings, nil
@@ -125,8 +143,6 @@ func textFromField(f field) string {
 	return f.Text
 }
 
-// JSON structures matching Yad2's __NEXT_DATA__ schema
-
 type nextDataEnvelope struct {
 	Props struct {
 		PageProps struct {
@@ -152,19 +168,19 @@ type feedData struct {
 }
 
 type feedItem struct {
-	Token        string `json:"token"`
-	Manufacturer field  `json:"manufacturer"`
-	Model        field  `json:"model"`
-	SubModel     field  `json:"subModel"`
-	Year         int    `json:"year_of_production"`
-	Month        int    `json:"month_of_production"`
+	Token        string  `json:"token"`
+	Manufacturer field   `json:"manufacturer"`
+	Model        field   `json:"model"`
+	SubModel     field   `json:"subModel"`
+	Year         int     `json:"year_of_production"`
+	Month        int     `json:"month_of_production"`
 	EngineVolume float64 `json:"engine_volume"`
-	HorsePower   int    `json:"horsePower"`
-	EngineType   field  `json:"engineType"`
-	GearBox      field  `json:"gearBox"`
-	Km           int    `json:"km"`
-	Hand         int    `json:"hand"`
-	Price        int    `json:"price"`
+	HorsePower   int     `json:"horsePower"`
+	EngineType   field   `json:"engineType"`
+	GearBox      field   `json:"gearBox"`
+	Km           int     `json:"km"`
+	Hand         int     `json:"hand"`
+	Price        int     `json:"price"`
 	Address      struct {
 		City field `json:"city"`
 		Area field `json:"area"`

@@ -1,4 +1,4 @@
-.PHONY: build run test clean
+.PHONY: build run test lint clean ci docker-build docker-run
 
 build:
 	go build -o bot ./cmd/bot
@@ -9,15 +9,16 @@ run: build
 test:
 	go test ./...
 
-clean:
-	rm -f bot
-	rm -rf data/
-
 lint:
 	golangci-lint run ./...
 
+ci: lint test
+
+clean:
+	rm -f bot
+
 docker-build:
-	docker build -t car-bot .
+	docker build -t carwatch .
 
 docker-run:
 	docker compose up -d
