@@ -38,14 +38,19 @@ func migrate(db *sql.DB) error {
 	return err
 }
 
-func (s *Store) HasSeen(ctx context.Context, token string) (bool, error) {
-	var exists bool
-	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM seen_listings WHERE token = ?)", token).Scan(&exists)
-	return exists, err
+func (s *Store) ClaimNew(ctx context.Context, token string, searchName string) (bool, error) {
+	result, err := s.db.ExecContext(ctx,
+		"INSERT OR IGNORE INTO seen_listings (token, search_name) VALUES (?, ?)",
+		token, searchName)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	return rows > 0, err
 }
 
-func (s *Store) MarkSeen(ctx context.Context, token string, searchName string) error {
-	_, err := s.db.ExecContext(ctx, "INSERT OR IGNORE INTO seen_listings (token, search_name) VALUES (?, ?)", token, searchName)
+func (s *Store) ReleaseClaim(ctx context.Context, token string) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM seen_listings WHERE token = ?", token)
 	return err
 }
 

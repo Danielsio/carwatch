@@ -124,15 +124,12 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 
 	var newListings []model.Listing
 	for _, l := range filtered {
-		seen, err := s.dedup.HasSeen(ctx, l.Token)
+		isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.Name)
 		if err != nil {
 			return err
 		}
-		if seen {
+		if !isNew {
 			continue
-		}
-		if err := s.dedup.MarkSeen(ctx, l.Token, search.Name); err != nil {
-			return err
 		}
 		newListings = append(newListings, model.Listing{
 			RawListing: l,
@@ -149,12 +146,27 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 		return nil
 	}
 
+	anyDelivered := false
 	for _, recipient := range search.Recipients {
 		if err := s.notifier.Notify(ctx, recipient, newListings); err != nil {
 			s.logger.Error("notification failed",
 				"recipient", recipient,
 				"error", err,
 			)
+			continue
+		}
+		anyDelivered = true
+	}
+
+	if !anyDelivered {
+		s.logger.Warn("all recipients failed, releasing claims for retry",
+			"search", search.Name,
+			"count", len(newListings),
+		)
+		for _, l := range newListings {
+			if err := s.dedup.ReleaseClaim(ctx, l.Token); err != nil {
+				s.logger.Error("release claim failed", "token", l.Token, "error", err)
+			}
 		}
 	}
 

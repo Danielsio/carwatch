@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestStore(t *testing.T) {
+func TestClaimNew(t *testing.T) {
 	store, err := New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
@@ -15,32 +15,24 @@ func TestStore(t *testing.T) {
 
 	ctx := context.Background()
 
-	seen, err := store.HasSeen(ctx, "token1")
+	isNew, err := store.ClaimNew(ctx, "token1", "search1")
 	if err != nil {
-		t.Fatalf("HasSeen: %v", err)
+		t.Fatalf("ClaimNew: %v", err)
 	}
-	if seen {
-		t.Error("expected token1 to not be seen")
-	}
-
-	if err := store.MarkSeen(ctx, "token1", "search1"); err != nil {
-		t.Fatalf("MarkSeen: %v", err)
+	if !isNew {
+		t.Error("expected token1 to be new")
 	}
 
-	seen, err = store.HasSeen(ctx, "token1")
+	isNew, err = store.ClaimNew(ctx, "token1", "search1")
 	if err != nil {
-		t.Fatalf("HasSeen after mark: %v", err)
+		t.Fatalf("ClaimNew duplicate: %v", err)
 	}
-	if !seen {
-		t.Error("expected token1 to be seen")
-	}
-
-	if err := store.MarkSeen(ctx, "token1", "search1"); err != nil {
-		t.Fatalf("MarkSeen duplicate: %v", err)
+	if isNew {
+		t.Error("expected token1 to not be new on second claim")
 	}
 }
 
-func TestStore_Prune(t *testing.T) {
+func TestReleaseClaim(t *testing.T) {
 	store, err := New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
@@ -49,9 +41,31 @@ func TestStore_Prune(t *testing.T) {
 
 	ctx := context.Background()
 
-	if err := store.MarkSeen(ctx, "old-token", "search1"); err != nil {
-		t.Fatalf("MarkSeen: %v", err)
+	store.ClaimNew(ctx, "token1", "search1")
+
+	if err := store.ReleaseClaim(ctx, "token1"); err != nil {
+		t.Fatalf("ReleaseClaim: %v", err)
 	}
+
+	isNew, err := store.ClaimNew(ctx, "token1", "search1")
+	if err != nil {
+		t.Fatalf("ClaimNew after release: %v", err)
+	}
+	if !isNew {
+		t.Error("expected token1 to be new after release")
+	}
+}
+
+func TestPrune(t *testing.T) {
+	store, err := New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	store.ClaimNew(ctx, "old-token", "search1")
 
 	pruned, err := store.Prune(ctx, 0)
 	if err != nil {
@@ -61,13 +75,13 @@ func TestStore_Prune(t *testing.T) {
 		t.Errorf("expected 1 pruned, got %d", pruned)
 	}
 
-	seen, _ := store.HasSeen(ctx, "old-token")
-	if seen {
-		t.Error("expected old-token to be pruned")
+	isNew, _ := store.ClaimNew(ctx, "old-token", "search1")
+	if !isNew {
+		t.Error("expected old-token to be claimable after prune")
 	}
 }
 
-func TestStore_PruneKeepsRecent(t *testing.T) {
+func TestPruneKeepsRecent(t *testing.T) {
 	store, err := New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
@@ -76,9 +90,7 @@ func TestStore_PruneKeepsRecent(t *testing.T) {
 
 	ctx := context.Background()
 
-	if err := store.MarkSeen(ctx, "recent-token", "search1"); err != nil {
-		t.Fatalf("MarkSeen: %v", err)
-	}
+	store.ClaimNew(ctx, "recent-token", "search1")
 
 	pruned, err := store.Prune(ctx, 24*time.Hour)
 	if err != nil {
