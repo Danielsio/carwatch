@@ -1,0 +1,83 @@
+{
+  "props": {
+    "pageProps": {
+      "dehydratedState": {
+        "queries": [
+          {
+            "state": {
+              "data": {
+                "data": {
+                  "feed": {
+                    "feed_items": [
+                      {
+                        "token": "abc123",
+                        "manufacturer": {"text": "מאזדה", "english_text": "Mazda", "id": 27},
+                        "model": {"text": "3", "english_text": "3", "id": 10332},
+                        "subModel": {"text": "LUXURY", "english_text": "LUXURY", "id": 1},
+                        "year_of_production": 2021,
+                        "month_of_production": 6,
+                        "engine_volume": 1998,
+                        "horsePower": 165,
+                        "engineType": {"text": "בנזין", "english_text": "Gasoline", "id": 1},
+                        "gearBox": {"text": "אוטומטית", "english_text": "Automatic", "id": 2},
+                        "km": 85000,
+                        "hand": 2,
+                        "price": 95000,
+                        "address": {
+                          "city": {"text": "תל אביב", "english_text": "", "id": 5000},
+                          "area": {"text": "מרכז", "english_text": "", "id": 2}
+                        },
+                        "metaData": {
+                          "coverImage": "https://img.yad2.co.il/abc123.jpg",
+                          "description": "רכב במצב מעולה, יד שנייה, שמור מאוד"
+                        },
+                        "dates": {
+                          "createdAt": "2024-01-15T10:30:00Z",
+                          "updatedAt": "2024-01-16T08:00:00Z"
+                        }
+                      },
+                      {
+                        "token": "def456",
+                        "manufacturer": {"text": "מאזדה", "english_text": "Mazda", "id": 27},
+                        "model": {"text": "3", "english_text": "3", "id": 10332},
+                        "subModel": {"text": "", "english_text": "", "id": 0},
+                        "year_of_production": 2019,
+                        "month_of_production": 0,
+                        "engine_volume": 1496,
+                        "horsePower": 120,
+                        "engineType": {"text": "בנזין", "english_text": "Gasoline", "id": 1},
+                        "gearBox": {"text": "אוטומטית", "english_text": "Automatic", "id": 2},
+                        "km": 120000,
+                        "hand": 3,
+                        "price": 72000,
+                        "address": {
+                          "city": {"text": "חיפה", "english_text": "", "id": 4000},
+                          "area": {"text": "צפון", "english_text": "", "id": 4}
+                        },
+                        "metaData": {
+                          "coverImage": "https://img.yad2.co.il/def456.jpg",
+                          "description": ""
+                        },
+                        "dates": {
+                          "createdAt": "2024-01-14T12:00:00Z",
+                          "updatedAt": ""
+                        }
+                      },
+                      {
+                        "token": "",
+                        "manufacturer": {"text": "", "english_text": "", "id": 0},
+                        "model": {"text": "", "english_text": "", "id": 0},
+                        "year_of_production": 0,
+                        "price": 0
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
