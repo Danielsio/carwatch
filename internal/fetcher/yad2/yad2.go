@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -14,11 +15,15 @@ import (
 	"github.com/dsionov/carwatch/internal/model"
 )
 
-const baseURL = "https://www.yad2.co.il/vehicles/cars"
+const (
+	defaultBaseURL  = "https://www.yad2.co.il/vehicles/cars"
+	maxResponseSize = 10 * 1024 * 1024 // 10 MB
+)
 
 type Yad2Fetcher struct {
-	client *Client
-	logger *slog.Logger
+	client  *Client
+	baseURL string
+	logger  *slog.Logger
 }
 
 func NewFetcher(userAgents []string, proxy string, logger *slog.Logger) (*Yad2Fetcher, error) {
@@ -26,14 +31,14 @@ func NewFetcher(userAgents []string, proxy string, logger *slog.Logger) (*Yad2Fe
 	if err != nil {
 		return nil, err
 	}
-	return &Yad2Fetcher{client: client, logger: logger}, nil
+	return &Yad2Fetcher{client: client, baseURL: defaultBaseURL, logger: logger}, nil
 }
 
 func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
-	url := buildURL(params)
-	f.logger.Info("fetching listings", "url", url)
+	reqURL := buildURL(f.baseURL, params)
+	f.logger.Info("fetching listings", "url", reqURL)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -48,9 +53,9 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]
 		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 
-	var reader io.Reader = resp.Body
+	var reader io.Reader = io.LimitReader(resp.Body, maxResponseSize)
 	if strings.Contains(resp.Header.Get("Content-Encoding"), "gzip") {
-		gr, err := gzip.NewReader(resp.Body)
+		gr, err := gzip.NewReader(reader)
 		if err != nil {
 			return nil, fmt.Errorf("create gzip reader: %w", err)
 		}
@@ -67,15 +72,15 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]
 	return listings, nil
 }
 
-func buildURL(params config.SourceParams) string {
-	u := baseURL + "?"
-	parts := make([]string, 0, 6)
+func buildURL(base string, params config.SourceParams) string {
+	u, _ := url.Parse(base)
+	v := url.Values{}
 
 	if params.Manufacturer > 0 {
-		parts = append(parts, "manufacturer="+strconv.Itoa(params.Manufacturer))
+		v.Set("manufacturer", strconv.Itoa(params.Manufacturer))
 	}
 	if params.Model > 0 {
-		parts = append(parts, "model="+strconv.Itoa(params.Model))
+		v.Set("model", strconv.Itoa(params.Model))
 	}
 	if params.YearMin > 0 || params.YearMax > 0 {
 		yearMin := params.YearMin
@@ -86,7 +91,7 @@ func buildURL(params config.SourceParams) string {
 		if yearMax == 0 {
 			yearMax = 2030
 		}
-		parts = append(parts, "year="+strconv.Itoa(yearMin)+"-"+strconv.Itoa(yearMax))
+		v.Set("year", strconv.Itoa(yearMin)+"-"+strconv.Itoa(yearMax))
 	}
 	if params.PriceMin > 0 || params.PriceMax > 0 {
 		priceMin := params.PriceMin
@@ -94,9 +99,10 @@ func buildURL(params config.SourceParams) string {
 		if priceMax == 0 {
 			priceMax = 9999999
 		}
-		parts = append(parts, "price="+strconv.Itoa(priceMin)+"-"+strconv.Itoa(priceMax))
+		v.Set("price", strconv.Itoa(priceMin)+"-"+strconv.Itoa(priceMax))
 	}
-	parts = append(parts, "Order=1")
+	v.Set("Order", "1")
 
-	return u + strings.Join(parts, "&")
+	u.RawQuery = v.Encode()
+	return u.String()
 }
