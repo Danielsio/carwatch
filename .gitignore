@@ -1,5 +1,4 @@
 data/
 config.yaml
 *.db
-bot
 /bot

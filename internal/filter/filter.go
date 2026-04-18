@@ -18,10 +18,10 @@ func Apply(criteria config.FilterCriteria, listings []model.RawListing) []model.
 }
 
 func matches(c config.FilterCriteria, l model.RawListing) bool {
-	if c.EngineMin > 0 && l.EngineVolume < c.EngineMin {
+	if c.EngineMinCC > 0 && l.EngineVolume < c.EngineMinCC {
 		return false
 	}
-	if c.EngineMax > 0 && l.EngineVolume > c.EngineMax {
+	if c.EngineMaxCC > 0 && l.EngineVolume > c.EngineMaxCC {
 		return false
 	}
 	if c.MaxKm > 0 && l.Km > c.MaxKm {

@@ -15,8 +15,8 @@ func TestApply_EngineFilter(t *testing.T) {
 	}
 
 	criteria := config.FilterCriteria{
-		EngineMin: 1800,
-		EngineMax: 2100,
+		EngineMinCC: 1800,
+		EngineMaxCC: 2100,
 	}
 
 	result := Apply(criteria, listings)
@@ -103,8 +103,8 @@ func TestApply_CombinedFilters(t *testing.T) {
 	}
 
 	criteria := config.FilterCriteria{
-		EngineMin: 1800,
-		EngineMax: 2100,
+		EngineMinCC: 1800,
+		EngineMaxCC: 2100,
 		MaxKm:     150000,
 		MaxHand:   3,
 	}

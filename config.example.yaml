@@ -1,3 +1,5 @@
+log_level: info  # debug | info | warn | error
+
 polling:
   interval: 15m
   jitter: 5m
@@ -17,8 +19,8 @@ searches:
       price_min: 40000
       price_max: 200000
     filters:
-      engine_min: 1800     # cc (Yad2 reports in cc, e.g. 1998)
-      engine_max: 2100
+      engine_min_cc: 1800  # cubic centimeters (Yad2 reports in cc, e.g. 1998)
+      engine_max_cc: 2100
       max_km: 150000
       max_hand: 3
       # keywords: []       # require these words in description

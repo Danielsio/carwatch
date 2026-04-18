@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -14,6 +15,7 @@ type Config struct {
 	WhatsApp WhatsAppConfig `yaml:"whatsapp"`
 	Storage  StorageConfig  `yaml:"storage"`
 	HTTP     HTTPConfig     `yaml:"http"`
+	LogLevel string         `yaml:"log_level"`
 }
 
 type PollingConfig struct {
@@ -46,8 +48,8 @@ type SourceParams struct {
 }
 
 type FilterCriteria struct {
-	EngineMin   float64  `yaml:"engine_min"`
-	EngineMax   float64  `yaml:"engine_max"`
+	EngineMinCC float64  `yaml:"engine_min_cc"`
+	EngineMaxCC float64  `yaml:"engine_max_cc"`
 	MaxKm       int      `yaml:"max_km"`
 	MaxHand     int      `yaml:"max_hand"`
 	Keywords    []string `yaml:"keywords"`
@@ -74,30 +76,47 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 
-	cfg := &Config{
-		Polling: PollingConfig{
-			Interval: 15 * time.Minute,
-			Jitter:   5 * time.Minute,
-			Timezone: "Asia/Jerusalem",
-		},
-		WhatsApp: WhatsAppConfig{
-			DBPath: "./data/whatsapp.db",
-		},
-		Storage: StorageConfig{
-			DBPath:     "./data/dedup.db",
-			PruneAfter: 30 * 24 * time.Hour,
-		},
-	}
+	data = []byte(os.ExpandEnv(string(data)))
 
+	cfg := &Config{}
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+
+	applyDefaults(cfg)
 
 	if err := validate(cfg); err != nil {
 		return nil, fmt.Errorf("validate config: %w", err)
 	}
 
 	return cfg, nil
+}
+
+func applyDefaults(cfg *Config) {
+	if cfg.Polling.Interval == 0 {
+		cfg.Polling.Interval = 15 * time.Minute
+	}
+	if cfg.Polling.Jitter == 0 {
+		cfg.Polling.Jitter = 5 * time.Minute
+	}
+	if cfg.Polling.Timezone == "" {
+		cfg.Polling.Timezone = "Asia/Jerusalem"
+	}
+	if cfg.WhatsApp.DBPath == "" {
+		cfg.WhatsApp.DBPath = "./data/whatsapp.db"
+	}
+	if cfg.Storage.DBPath == "" {
+		cfg.Storage.DBPath = "./data/dedup.db"
+	}
+	if cfg.Storage.PruneAfter == 0 {
+		cfg.Storage.PruneAfter = 30 * 24 * time.Hour
+	}
+	if len(cfg.HTTP.UserAgents) == 0 {
+		cfg.HTTP.UserAgents = defaultUserAgents()
+	}
+	if cfg.LogLevel == "" {
+		cfg.LogLevel = "info"
+	}
 }
 
 func validate(cfg *Config) error {
@@ -114,11 +133,48 @@ func validate(cfg *Config) error {
 		if len(s.Recipients) == 0 {
 			return fmt.Errorf("search[%d] %q: at least one recipient is required", i, s.Name)
 		}
+		if s.Filters.EngineMinCC > 0 && s.Filters.EngineMinCC < 100 {
+			return fmt.Errorf("search[%d] %q: engine_min_cc=%.0f looks like liters, expected cc (e.g. 1800)", i, s.Name, s.Filters.EngineMinCC)
+		}
+		if s.Filters.EngineMaxCC > 0 && s.Filters.EngineMaxCC < 100 {
+			return fmt.Errorf("search[%d] %q: engine_max_cc=%.0f looks like liters, expected cc (e.g. 2100)", i, s.Name, s.Filters.EngineMaxCC)
+		}
 	}
-	if len(cfg.HTTP.UserAgents) == 0 {
-		cfg.HTTP.UserAgents = defaultUserAgents()
+	if ah := cfg.Polling.ActiveHours; ah != nil {
+		if _, err := parseTimeOfDay(ah.Start); err != nil {
+			return fmt.Errorf("active_hours.start %q: must be HH:MM format", ah.Start)
+		}
+		if _, err := parseTimeOfDay(ah.End); err != nil {
+			return fmt.Errorf("active_hours.end %q: must be HH:MM format", ah.End)
+		}
+	}
+	if _, err := ParseLogLevel(cfg.LogLevel); err != nil {
+		return fmt.Errorf("log_level %q: must be debug, info, warn, or error", cfg.LogLevel)
 	}
 	return nil
+}
+
+func ParseLogLevel(level string) (slog.Level, error) {
+	switch level {
+	case "debug":
+		return slog.LevelDebug, nil
+	case "info":
+		return slog.LevelInfo, nil
+	case "warn":
+		return slog.LevelWarn, nil
+	case "error":
+		return slog.LevelError, nil
+	default:
+		return 0, fmt.Errorf("unknown log level: %s", level)
+	}
+}
+
+func parseTimeOfDay(s string) (int, error) {
+	t, err := time.Parse("15:04", s)
+	if err != nil {
+		return 0, err
+	}
+	return t.Hour()*60 + t.Minute(), nil
 }
 
 func defaultUserAgents() []string {
