@@ -16,9 +16,21 @@ import (
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
 
+var (
+	version   = "dev"
+	gitCommit = "unknown"
+	buildTime = "unknown"
+)
+
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("carwatch %s (commit: %s, built: %s)\n", version, gitCommit, buildTime)
+		return
+	}
 
 	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
