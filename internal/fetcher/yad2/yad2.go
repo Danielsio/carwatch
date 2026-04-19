@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -21,9 +22,11 @@ const (
 )
 
 type Yad2Fetcher struct {
-	client  *Client
-	baseURL string
-	logger  *slog.Logger
+	client     *Client
+	baseURL    string
+	logger     *slog.Logger
+	userAgents []string
+	proxyPool  *fetcher.ProxyPool
 }
 
 func NewFetcher(userAgents []string, proxy string, logger *slog.Logger) (*Yad2Fetcher, error) {
@@ -31,10 +34,35 @@ func NewFetcher(userAgents []string, proxy string, logger *slog.Logger) (*Yad2Fe
 	if err != nil {
 		return nil, err
 	}
-	return &Yad2Fetcher{client: client, baseURL: defaultBaseURL, logger: logger}, nil
+	return &Yad2Fetcher{client: client, baseURL: defaultBaseURL, logger: logger, userAgents: userAgents}, nil
+}
+
+func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logger *slog.Logger) (*Yad2Fetcher, error) {
+	proxy := ""
+	if pool != nil {
+		proxy = pool.Next()
+	}
+	client, err := NewClient(userAgents, proxy)
+	if err != nil {
+		return nil, err
+	}
+	return &Yad2Fetcher{
+		client:     client,
+		baseURL:    defaultBaseURL,
+		logger:     logger,
+		userAgents: userAgents,
+		proxyPool:  pool,
+	}, nil
 }
 
 func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
+	if f.proxyPool != nil {
+		proxy := f.proxyPool.Next()
+		if client, err := NewClient(f.userAgents, proxy); err == nil {
+			f.client = client
+		}
+	}
+
 	reqURL := buildURL(f.baseURL, params)
 	f.logger.Info("fetching listings", "url", reqURL)
 
@@ -102,6 +130,9 @@ func buildURL(base string, params config.SourceParams) string {
 		v.Set("price", strconv.Itoa(priceMin)+"-"+strconv.Itoa(priceMax))
 	}
 	v.Set("Order", "1")
+	if params.Page > 0 {
+		v.Set("page", strconv.Itoa(params.Page))
+	}
 
 	u.RawQuery = v.Encode()
 	return u.String()

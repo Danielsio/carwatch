@@ -47,6 +47,17 @@ func (w *WhatsAppNotifier) Notify(ctx context.Context, recipient string, listing
 	return nil
 }
 
+func (w *WhatsAppNotifier) NotifyRaw(_ context.Context, recipient string, message string) error {
+	w.logger.Info("would send WhatsApp message (retry)",
+		"recipient", recipient,
+	)
+	fmt.Println("--- WhatsApp Message Retry ---")
+	fmt.Println("To:", recipient)
+	fmt.Println(message)
+	fmt.Println("--- End Retry ---")
+	return nil
+}
+
 func (w *WhatsAppNotifier) Disconnect() error {
 	w.logger.Info("whatsapp notifier: disconnect")
 	return nil

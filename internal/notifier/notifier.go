@@ -9,5 +9,6 @@ import (
 type Notifier interface {
 	Connect(ctx context.Context) error
 	Notify(ctx context.Context, recipient string, listings []model.Listing) error
+	NotifyRaw(ctx context.Context, recipient string, message string) error
 	Disconnect() error
 }

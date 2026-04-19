@@ -5,36 +5,39 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"regexp"
 	"strings"
 	"time"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
 const challengeMarker = "Are you for real"
 
+var nextDataRe = regexp.MustCompile(`(?s)<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>`)
+
 func ParseListingsPage(body io.Reader) ([]model.RawListing, error) {
 	return ParseListingsPageWithLogger(body, nil)
 }
 
 func ParseListingsPageWithLogger(body io.Reader, logger *slog.Logger) ([]model.RawListing, error) {
-	doc, err := goquery.NewDocumentFromReader(body)
+	raw, err := io.ReadAll(body)
 	if err != nil {
-		return nil, fmt.Errorf("parse HTML: %w", err)
+		return nil, fmt.Errorf("read response body: %w", err)
 	}
+	html := string(raw)
 
-	if strings.Contains(doc.Text(), challengeMarker) {
+	if strings.Contains(html, challengeMarker) {
 		return nil, fmt.Errorf("yad2: %w", fetcher.ErrChallenge)
 	}
 
-	scriptContent := doc.Find("script#__NEXT_DATA__").First().Text()
-	if scriptContent == "" {
+	matches := nextDataRe.FindStringSubmatch(html)
+	if len(matches) < 2 || matches[1] == "" {
 		return nil, fmt.Errorf("__NEXT_DATA__ script tag not found")
 	}
 
-	return parseNextData([]byte(scriptContent), logger)
+	return parseNextData([]byte(matches[1]), logger)
 }
 
 func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error) {
