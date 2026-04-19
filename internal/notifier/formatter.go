@@ -65,6 +65,40 @@ func FormatListing(l model.Listing) string {
 	return b.String()
 }
 
+func FormatPriceDrop(l model.Listing, oldPrice int) string {
+	var b strings.Builder
+
+	title := strings.TrimSpace(l.Manufacturer + " " + l.Model)
+	if l.SubModel != "" {
+		title += " " + l.SubModel
+	}
+	if l.Year > 0 {
+		title += fmt.Sprintf(" %d", l.Year)
+	}
+
+	drop := oldPrice - l.Price
+	b.WriteString(fmt.Sprintf("💰 *Price Drop!* %s: ₪%s → ₪%s (-₪%s)\n",
+		title,
+		formatNumber(oldPrice),
+		formatNumber(l.Price),
+		formatNumber(drop),
+	))
+
+	if l.Km > 0 {
+		b.WriteString(fmt.Sprintf("🛣️ %s km", formatNumber(l.Km)))
+		if l.Hand > 0 {
+			b.WriteString(fmt.Sprintf(" · ✋ Hand %d", l.Hand))
+		}
+		b.WriteString("\n")
+	}
+
+	if l.PageLink != "" {
+		b.WriteString(fmt.Sprintf("🔗 %s", l.PageLink))
+	}
+
+	return b.String()
+}
+
 func FormatBatch(listings []model.Listing) string {
 	if len(listings) == 1 {
 		return FormatListing(listings[0])

@@ -60,6 +60,26 @@ searches:
 	if len(cfg.HTTP.UserAgents) == 0 {
 		t.Error("expected default user agents")
 	}
+	if cfg.Telegram.MaxSearches != 3 {
+		t.Errorf("default max_searches = %d, want 3", cfg.Telegram.MaxSearches)
+	}
+}
+
+func TestLoad_MaxSearchesExplicit(t *testing.T) {
+	yaml := `
+telegram:
+  max_searches: 5
+searches:
+  - name: "test"
+    source: yad2
+    recipients:
+      - "+972123456789"
+`
+	cfg := loadFromString(t, yaml)
+
+	if cfg.Telegram.MaxSearches != 5 {
+		t.Errorf("max_searches = %d, want 5", cfg.Telegram.MaxSearches)
+	}
 }
 
 func TestLoad_NoSearches(t *testing.T) {

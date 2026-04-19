@@ -83,9 +83,14 @@ func run(configPath string, logger *slog.Logger) error {
 	fetcherFactory := fetcher.NewFactory()
 	fetcherFactory.Register("yad2", cachingFetcher)
 
+	h := health.New()
+	h.SetUserCounter(store)
+	h.SetSearchCounter(store)
+
 	botHandler := cwbot.New(nil, store, store, cwbot.Config{
 		AdminChatID: cfg.Telegram.AdminChatID,
 		MaxSearches: cfg.Telegram.MaxSearches,
+		Health:      h,
 	}, logger)
 
 	tgNotif, err := telegram.New(cfg.Telegram.Token, logger,
@@ -105,7 +110,6 @@ func run(configPath string, logger *slog.Logger) error {
 		return fmt.Errorf("connect telegram: %w", err)
 	}
 
-	h := health.New()
 	dash := dashboard.NewHandler(store)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.Handler())
