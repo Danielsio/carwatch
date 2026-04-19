@@ -9,8 +9,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/notifier"
@@ -58,10 +60,11 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	}))
 	logger.Info("config loaded", "searches", len(cfg.Searches), "log_level", cfg.LogLevel)
 
-	fetcher, err := yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, logger)
+	yad2Fetcher, err := yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, logger)
 	if err != nil {
 		return fmt.Errorf("create fetcher: %w", err)
 	}
+	cachingFetcher := fetcher.NewCachingFetcher(yad2Fetcher, 5*time.Minute)
 
 	store, err := sqlite.New(cfg.Storage.DBPath)
 	if err != nil {
@@ -96,7 +99,7 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	}()
 	defer srv.Close()
 
-	sched, err := scheduler.NewWithOptions(cfg, fetcher, store, notif, logger, scheduler.Options{
+	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, notif, logger, scheduler.Options{
 		Health:     h,
 		Queue:      store,
 		Prices:     store,
