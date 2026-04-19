@@ -10,13 +10,14 @@ import (
 )
 
 const (
-	cbPrefixMfr    = "mfr:"
-	cbPrefixModel  = "mdl:"
-	cbPrefixEngine = "eng:"
-	cbConfirm      = "confirm:yes"
-	cbEdit         = "confirm:edit"
-	cbCancel       = "confirm:cancel"
-	cbDeleteSearch = "del:"
+	cbPrefixMfr       = "mfr:"
+	cbPrefixModel     = "mdl:"
+	cbPrefixEngine    = "eng:"
+	cbConfirm         = "confirm:yes"
+	cbEdit            = "confirm:edit"
+	cbCancel          = "confirm:cancel"
+	cbDeleteSearch    = "del:"
+	cbPrefixShareCopy = "share_copy:"
 )
 
 func manufacturerKeyboard() *tgmodels.InlineKeyboardMarkup {

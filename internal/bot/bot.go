@@ -22,6 +22,7 @@ type Bot struct {
 	searches    storage.SearchStore
 	adminChatID int64
 	maxSearches int
+	botUsername  string
 	logger      *slog.Logger
 	health      *health.Status
 }
@@ -29,6 +30,7 @@ type Bot struct {
 type Config struct {
 	AdminChatID int64
 	MaxSearches int
+	BotUsername  string
 	Health      *health.Status
 }
 
@@ -42,6 +44,7 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		searches:    searches,
 		adminChatID: cfg.AdminChatID,
 		maxSearches: cfg.MaxSearches,
+		botUsername:  cfg.BotUsername,
 		logger:      logger,
 		health:      cfg.Health,
 	}
@@ -62,6 +65,7 @@ func (b *Bot) RegisterHandlers() {
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/stop", tgbot.MatchTypePrefix, b.handleStop)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/pause", tgbot.MatchTypePrefix, b.handlePause)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/resume", tgbot.MatchTypePrefix, b.handleResume)
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/share", tgbot.MatchTypePrefix, b.handleShare)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/cancel", tgbot.MatchTypeExact, b.handleCancel)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/help", tgbot.MatchTypeExact, b.handleHelp)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/settings", tgbot.MatchTypeExact, b.handleSettings)
@@ -97,11 +101,100 @@ func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	username := update.Message.From.Username
 	b.ensureUser(ctx, chatID, username)
 
+	// Check for deep-link parameter: /start share_123
+	parts := strings.Fields(update.Message.Text)
+	if len(parts) == 2 && strings.HasPrefix(parts[1], "share_") {
+		b.handleShareStart(ctx, chatID, parts[1])
+		return
+	}
+
 	b.send(ctx, chatID,
 		"Welcome to *CarWatch*! I monitor Yad2 car listings and send you alerts when new matches appear.\n\n"+
 			"Use /watch to set up a new car search.\n"+
 			"Use /list to see your active searches.\n"+
 			"Use /help for all commands.")
+}
+
+func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	chatID := update.Message.Chat.ID
+	b.ensureUser(ctx, chatID, update.Message.From.Username)
+
+	if b.botUsername == "" {
+		b.send(ctx, chatID, "Sharing is not configured. Bot username is missing.")
+		return
+	}
+
+	parts := strings.Fields(update.Message.Text)
+	if len(parts) < 2 {
+		b.send(ctx, chatID, "Usage: /share <search\\_id>\nUse /list to see your search IDs.")
+		return
+	}
+
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		b.send(ctx, chatID, "Invalid search ID. Use /list to see your searches.")
+		return
+	}
+
+	search, err := b.searches.GetSearch(ctx, id)
+	if err != nil || search == nil || search.ChatID != chatID {
+		b.send(ctx, chatID, "Search not found. Use /list to see your searches.")
+		return
+	}
+
+	link := ShareLink(b.botUsername, search.ID)
+	mfr := yad2.ManufacturerName(search.Manufacturer)
+	mdl := yad2.ModelName(search.Manufacturer, search.Model)
+
+	b.send(ctx, chatID, fmt.Sprintf(
+		"Share this link for *%s %s* search:\n\n%s",
+		mfr, mdl, link))
+}
+
+// ShareLink returns a Telegram deep link for sharing a search.
+func ShareLink(botUsername string, searchID int64) string {
+	return fmt.Sprintf("https://t.me/%s?start=share_%d", botUsername, searchID)
+}
+
+func (b *Bot) handleShareStart(ctx context.Context, chatID int64, param string) {
+	idStr := strings.TrimPrefix(param, "share_")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		b.send(ctx, chatID, "Invalid share link.")
+		return
+	}
+
+	search, err := b.searches.GetSearch(ctx, id)
+	if err != nil || search == nil {
+		b.send(ctx, chatID, "The shared search was not found. It may have been deleted.")
+		return
+	}
+
+	mfr := yad2.ManufacturerName(search.Manufacturer)
+	mdl := yad2.ModelName(search.Manufacturer, search.Model)
+
+	engineStr := "Any"
+	if search.EngineMinCC > 0 {
+		engineStr = fmt.Sprintf("%.1fL+", float64(search.EngineMinCC)/1000)
+	}
+
+	summary := fmt.Sprintf(
+		"*Shared search:*\n"+
+			"Car: %s %s\n"+
+			"Year: %d\u2013%d\n"+
+			"Max price: %s NIS\n"+
+			"Engine: %s\n\n"+
+			"Copy this search to start receiving alerts?",
+		mfr, mdl, search.YearMin, search.YearMax,
+		formatNumber(search.PriceMax), engineStr)
+
+	kb := &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{{
+			{Text: "Copy this search", CallbackData: cbPrefixShareCopy + strconv.FormatInt(id, 10)},
+		}},
+	}
+
+	b.sendWithKeyboard(ctx, chatID, summary, kb)
 }
 
 func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
@@ -270,6 +363,7 @@ func (b *Bot) handleHelp(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 			"/pause <id> — Pause a search\n"+
 			"/resume <id> — Resume a paused search\n"+
 			"/stop <id> — Delete a search\n"+
+			"/share <id> — Share a search via link\n"+
 			"/settings — View your current limits\n"+
 			"/cancel — Cancel current wizard\n"+
 			"/help — Show this message")
@@ -338,6 +432,8 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 		b.onCancelCallback(ctx, chatID)
 	case strings.HasPrefix(data, cbDeleteSearch):
 		b.onDeleteSearch(ctx, chatID, data)
+	case strings.HasPrefix(data, cbPrefixShareCopy):
+		b.onShareCopy(ctx, chatID, data)
 	}
 }
 
@@ -433,6 +529,56 @@ func (b *Bot) onDeleteSearch(ctx context.Context, chatID int64, data string) {
 		return
 	}
 	b.send(ctx, chatID, fmt.Sprintf("Search #%d deleted.", id))
+}
+
+func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
+	idStr := strings.TrimPrefix(data, cbPrefixShareCopy)
+	srcID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		b.send(ctx, chatID, "Invalid share link.")
+		return
+	}
+
+	src, err := b.searches.GetSearch(ctx, srcID)
+	if err != nil || src == nil {
+		b.send(ctx, chatID, "The shared search was not found. It may have been deleted.")
+		return
+	}
+
+	// Enforce per-user search limit.
+	count, _ := b.searches.CountSearches(ctx, chatID)
+	if count >= int64(b.maxSearches) {
+		b.send(ctx, chatID, fmt.Sprintf(
+			"You already have %d active searches (max %d). Use /stop to remove one first.",
+			count, b.maxSearches))
+		return
+	}
+
+	mfr := yad2.ManufacturerName(src.Manufacturer)
+	mdl := yad2.ModelName(src.Manufacturer, src.Model)
+	name := fmt.Sprintf("%s-%s", strings.ToLower(mfr), strings.ToLower(mdl))
+
+	newID, err := b.searches.CreateSearch(ctx, storage.Search{
+		ChatID:       chatID,
+		Name:         name,
+		Manufacturer: src.Manufacturer,
+		Model:        src.Model,
+		YearMin:      src.YearMin,
+		YearMax:      src.YearMax,
+		PriceMax:     src.PriceMax,
+		EngineMinCC:  src.EngineMinCC,
+		MaxKm:        src.MaxKm,
+		MaxHand:      src.MaxHand,
+	})
+	if err != nil {
+		b.logger.Error("clone search failed", "error", err)
+		b.send(ctx, chatID, "Failed to copy search. Please try again.")
+		return
+	}
+
+	b.send(ctx, chatID, fmt.Sprintf(
+		"Search #%d saved! I'll check Yad2 every 15 minutes and send you new listings.\n\nUse /list to see your searches.",
+		newID))
 }
 
 // --- Default Handler (free text during wizard) ---

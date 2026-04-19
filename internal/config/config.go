@@ -67,6 +67,7 @@ type TelegramConfig struct {
 	Token       string `yaml:"token"`
 	AdminChatID int64  `yaml:"admin_chat_id"`
 	MaxSearches int    `yaml:"max_searches"`
+	BotUsername string `yaml:"bot_username"`
 }
 
 type StorageConfig struct {

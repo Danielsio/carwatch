@@ -90,6 +90,7 @@ func run(configPath string, logger *slog.Logger) error {
 	botHandler := cwbot.New(nil, store, store, cwbot.Config{
 		AdminChatID: cfg.Telegram.AdminChatID,
 		MaxSearches: cfg.Telegram.MaxSearches,
+		BotUsername:  cfg.Telegram.BotUsername,
 		Health:      h,
 	}, logger)
 
