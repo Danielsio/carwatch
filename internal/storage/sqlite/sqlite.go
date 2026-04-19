@@ -57,6 +57,19 @@ func migrate(db *sql.DB) error {
 			observed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (token, price)
 		);
+		CREATE TABLE IF NOT EXISTS listing_history (
+			token TEXT PRIMARY KEY,
+			search_name TEXT NOT NULL,
+			manufacturer TEXT,
+			model TEXT,
+			year INTEGER,
+			price INTEGER,
+			km INTEGER,
+			hand INTEGER,
+			city TEXT,
+			page_link TEXT,
+			first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
 	`)
 	return err
 }
@@ -140,6 +153,37 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 		return prev, true, nil
 	}
 	return prev, false, nil
+}
+
+func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT OR REPLACE INTO listing_history
+		(token, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.Token, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
+		r.Km, r.Hand, r.City, r.PageLink, r.FirstSeenAt)
+	return err
+}
+
+func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT token, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at
+		FROM listing_history ORDER BY first_seen_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var listings []storage.ListingRecord
+	for rows.Next() {
+		var l storage.ListingRecord
+		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FirstSeenAt); err != nil {
+			return nil, err
+		}
+		listings = append(listings, l)
+	}
+	return listings, rows.Err()
 }
 
 func (s *Store) Close() error {

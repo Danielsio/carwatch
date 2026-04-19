@@ -44,6 +44,7 @@ type Scheduler struct {
 	queue             storage.NotificationQueue
 	prices            storage.PriceTracker
 	fetcherFactory    *fetcher.Factory
+	listingStore      storage.ListingStore
 }
 
 type Options struct {
@@ -52,6 +53,7 @@ type Options struct {
 	Prices         storage.PriceTracker
 	ConfigPath     string
 	FetcherFactory *fetcher.Factory
+	ListingStore   storage.ListingStore
 }
 
 func New(
@@ -90,6 +92,7 @@ func NewWithOptions(
 		queue:             opts.Queue,
 		prices:            opts.Prices,
 		fetcherFactory:    opts.FetcherFactory,
+		listingStore:      opts.ListingStore,
 	}, nil
 }
 
@@ -279,10 +282,27 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 		if !isNew {
 			continue
 		}
-		newListings = append(newListings, model.Listing{
+		listing := model.Listing{
 			RawListing: l,
 			SearchName: search.Name,
-		})
+		}
+		newListings = append(newListings, listing)
+
+		if s.listingStore != nil {
+			_ = s.listingStore.SaveListing(ctx, storage.ListingRecord{
+				Token:        l.Token,
+				SearchName:   search.Name,
+				Manufacturer: l.Manufacturer,
+				Model:        l.Model,
+				Year:         l.Year,
+				Price:        l.Price,
+				Km:           l.Km,
+				Hand:         l.Hand,
+				City:         l.City,
+				PageLink:     l.PageLink,
+				FirstSeenAt:  time.Now(),
+			})
+		}
 	}
 
 	s.logger.Info("new listings found",

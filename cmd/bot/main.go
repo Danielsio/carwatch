@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/dashboard"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
@@ -99,8 +100,10 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	defer func() { _ = notif.Disconnect() }()
 
 	h := health.New()
+	dash := dashboard.NewHandler(store)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.Handler())
+	mux.Handle("/dashboard", dash)
 	srv := &http.Server{Addr: ":8080", Handler: mux}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -115,6 +118,7 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 		Prices:         store,
 		ConfigPath:     configPath,
 		FetcherFactory: fetcherFactory,
+		ListingStore:   store,
 	})
 	if err != nil {
 		return fmt.Errorf("create scheduler: %w", err)

@@ -28,3 +28,21 @@ type NotificationQueue interface {
 type PriceTracker interface {
 	RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error)
 }
+
+type ListingRecord struct {
+	Token        string
+	SearchName   string
+	Manufacturer string
+	Model        string
+	Year         int
+	Price        int
+	Km           int
+	Hand         int
+	City         string
+	PageLink     string
+	FirstSeenAt  time.Time
+}
+
+type ListingStore interface {
+	SaveListing(ctx context.Context, r ListingRecord) error
+}
