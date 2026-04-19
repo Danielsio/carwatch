@@ -12,6 +12,7 @@ import (
 	tgmodels "github.com/go-telegram/bot/models"
 
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
+	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -22,11 +23,13 @@ type Bot struct {
 	adminChatID int64
 	maxSearches int
 	logger      *slog.Logger
+	health      *health.Status
 }
 
 type Config struct {
 	AdminChatID int64
 	MaxSearches int
+	Health      *health.Status
 }
 
 func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cfg Config, logger *slog.Logger) *Bot {
@@ -40,6 +43,7 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		adminChatID: cfg.AdminChatID,
 		maxSearches: cfg.MaxSearches,
 		logger:      logger,
+		health:      cfg.Health,
 	}
 }
 
@@ -203,8 +207,20 @@ func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 
 	users, _ := b.users.CountUsers(ctx)
 	searches, _ := b.searches.CountAllSearches(ctx)
-	b.send(ctx, chatID, fmt.Sprintf(
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(
 		"*CarWatch Stats:*\nUsers: %d\nActive searches: %d", users, searches))
+
+	if b.health != nil {
+		snap := b.health.Snapshot()
+		sb.WriteString(fmt.Sprintf("\n\n*Health:*\nStatus: %s\nUptime: %s\nCycles: %v\nErrors: %v",
+			snap["status"], snap["uptime"], snap["cycles"], snap["errors"]))
+		sb.WriteString(fmt.Sprintf("\nListings found: %v\nNotifications sent: %v",
+			snap["listings_found"], snap["notifications_sent"]))
+	}
+
+	b.send(ctx, chatID, sb.String())
 }
 
 // --- Callback Handler ---
