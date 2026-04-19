@@ -75,6 +75,7 @@ type StorageConfig struct {
 type HTTPConfig struct {
 	UserAgents []string `yaml:"user_agents"`
 	Proxy      string   `yaml:"proxy"`
+	Proxies    []string `yaml:"proxies"`
 }
 
 func Load(path string) (*Config, error) {

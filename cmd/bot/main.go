@@ -60,7 +60,13 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	}))
 	logger.Info("config loaded", "searches", len(cfg.Searches), "log_level", cfg.LogLevel)
 
-	yad2Fetcher, err := yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, logger)
+	var yad2Fetcher *yad2.Yad2Fetcher
+	if len(cfg.HTTP.Proxies) > 0 {
+		pool := fetcher.NewProxyPool(cfg.HTTP.Proxies)
+		yad2Fetcher, err = yad2.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, pool, logger)
+	} else {
+		yad2Fetcher, err = yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, logger)
+	}
 	if err != nil {
 		return fmt.Errorf("create fetcher: %w", err)
 	}
