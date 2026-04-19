@@ -15,6 +15,9 @@ type Client struct {
 
 func NewClient(userAgents []string, proxy string) (*Client, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = 10
+	transport.MaxIdleConnsPerHost = 5
+	transport.IdleConnTimeout = 90 * time.Second
 
 	if proxy != "" {
 		proxyURL, err := url.Parse(proxy)
