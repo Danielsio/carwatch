@@ -24,6 +24,7 @@ const (
 	pruneInterval    = 24 * time.Hour
 	maxRetries       = 3
 	retryBaseDelay   = 2 * time.Second
+	maxPages         = 3
 )
 
 type Scheduler struct {
@@ -184,15 +185,42 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 
-	raw, err := s.fetchWithRetry(fetchCtx, search.Params)
-	if err != nil {
-		return err
+	var allRaw []model.RawListing
+	for page := range maxPages {
+		params := search.Params
+		params.Page = page
+		raw, err := s.fetchWithRetry(fetchCtx, params)
+		if err != nil {
+			if page == 0 {
+				return err
+			}
+			break
+		}
+		if len(raw) == 0 {
+			break
+		}
+		allRaw = append(allRaw, raw...)
+
+		allNew := true
+		for _, l := range raw {
+			isNew, _ := s.dedup.ClaimNew(ctx, l.Token, search.Name)
+			if !isNew {
+				allNew = false
+			}
+			if isNew {
+				_ = s.dedup.ReleaseClaim(ctx, l.Token)
+			}
+		}
+		if !allNew {
+			break
+		}
+		s.logger.Info("all listings new on page, fetching next", "page", page, "search", search.Name)
 	}
 
-	filtered := filter.Apply(search.Filters, raw)
+	filtered := filter.Apply(search.Filters, allRaw)
 	s.logger.Info("filtered listings",
 		"search", search.Name,
-		"total", len(raw),
+		"total", len(allRaw),
 		"after_filter", len(filtered),
 	)
 

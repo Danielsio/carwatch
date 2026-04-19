@@ -102,6 +102,9 @@ func buildURL(base string, params config.SourceParams) string {
 		v.Set("price", strconv.Itoa(priceMin)+"-"+strconv.Itoa(priceMax))
 	}
 	v.Set("Order", "1")
+	if params.Page > 0 {
+		v.Set("page", strconv.Itoa(params.Page))
+	}
 
 	u.RawQuery = v.Encode()
 	return u.String()

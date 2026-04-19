@@ -47,6 +47,7 @@ type SourceParams struct {
 	YearMax      int `yaml:"year_max"`
 	PriceMin     int `yaml:"price_min"`
 	PriceMax     int `yaml:"price_max"`
+	Page         int `yaml:"-"`
 }
 
 type FilterCriteria struct {
