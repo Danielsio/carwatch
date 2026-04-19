@@ -86,7 +86,11 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	var notif notifier.Notifier
 	switch cfg.Notifier {
 	case "telegram":
-		notif = telegram.New(cfg.Telegram.Token, logger)
+		tgNotif, err := telegram.New(cfg.Telegram.Token, logger)
+		if err != nil {
+			return fmt.Errorf("create telegram notifier: %w", err)
+		}
+		notif = tgNotif
 	default:
 		notif = whatsapp.New(cfg.WhatsApp.DBPath, logger)
 	}

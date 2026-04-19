@@ -1,109 +1,72 @@
 package telegram
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
-	"time"
+	"strconv"
+
+	tgbot "github.com/go-telegram/bot"
+	tgmodels "github.com/go-telegram/bot/models"
 
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
 )
 
-type TelegramNotifier struct {
-	token  string
-	client *http.Client
+type Notifier struct {
+	bot    *tgbot.Bot
 	logger *slog.Logger
 }
 
-func New(token string, logger *slog.Logger) *TelegramNotifier {
-	return &TelegramNotifier{
-		token: token,
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		logger: logger,
+func New(token string, logger *slog.Logger) (*Notifier, error) {
+	b, err := tgbot.New(token, tgbot.WithDefaultHandler(func(_ context.Context, _ *tgbot.Bot, _ *tgmodels.Update) {}))
+	if err != nil {
+		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
+	return &Notifier{bot: b, logger: logger}, nil
 }
 
-func (t *TelegramNotifier) Connect(_ context.Context) error {
-	url := fmt.Sprintf("https://api.telegram.org/bot%s/getMe", t.token)
-	resp, err := t.client.Get(url)
+func (n *Notifier) Bot() *tgbot.Bot {
+	return n.bot
+}
+
+func (n *Notifier) Connect(ctx context.Context) error {
+	me, err := n.bot.GetMe(ctx)
 	if err != nil {
 		return fmt.Errorf("telegram getMe: %w", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("telegram getMe: status %d: %s", resp.StatusCode, body)
-	}
-
-	t.logger.Info("telegram notifier connected")
+	n.logger.Info("telegram bot connected", "username", me.Username)
 	return nil
 }
 
-func (t *TelegramNotifier) Notify(_ context.Context, chatID string, listings []model.Listing) error {
+func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.Listing) error {
 	msg := notifier.FormatBatch(listings)
+	return n.sendMessage(ctx, chatID, msg)
+}
 
-	payload := map[string]any{
-		"chat_id":    chatID,
-		"text":       msg,
-		"parse_mode": "Markdown",
-	}
+func (n *Notifier) NotifyRaw(ctx context.Context, chatID string, message string) error {
+	return n.sendMessage(ctx, chatID, message)
+}
 
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshal telegram payload: %w", err)
-	}
-
-	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.token)
-	resp, err := t.client.Post(url, "application/json", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("telegram sendMessage: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("telegram sendMessage: status %d: %s", resp.StatusCode, respBody)
-	}
-
-	t.logger.Info("sent telegram message", "chat_id", chatID, "listings", len(listings))
+func (n *Notifier) Disconnect() error {
 	return nil
 }
 
-func (t *TelegramNotifier) NotifyRaw(_ context.Context, chatID string, message string) error {
-	payload := map[string]any{
-		"chat_id":    chatID,
-		"text":       message,
-		"parse_mode": "Markdown",
-	}
-
-	body, err := json.Marshal(payload)
+func (n *Notifier) sendMessage(ctx context.Context, chatID string, text string) error {
+	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
-		return fmt.Errorf("marshal telegram payload: %w", err)
+		return fmt.Errorf("invalid chat ID %q: %w", chatID, err)
 	}
 
-	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.token)
-	resp, err := t.client.Post(url, "application/json", bytes.NewReader(body))
+	_, err = n.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+		ChatID:    id,
+		Text:      text,
+		ParseMode: tgmodels.ParseModeMarkdown,
+	})
 	if err != nil {
 		return fmt.Errorf("telegram sendMessage: %w", err)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("telegram sendMessage: status %d: %s", resp.StatusCode, respBody)
-	}
-
-	return nil
-}
-
-func (t *TelegramNotifier) Disconnect() error {
+	n.logger.Info("sent telegram message", "chat_id", chatID)
 	return nil
 }
