@@ -38,7 +38,7 @@ func newMockDedup() *mockDedup {
 	return &mockDedup{seen: make(map[string]bool)}
 }
 
-func (m *mockDedup) ClaimNew(_ context.Context, token string, _ string) (bool, error) {
+func (m *mockDedup) ClaimNew(_ context.Context, token string, _ int64, _ int64) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.seen[token] {
@@ -48,7 +48,7 @@ func (m *mockDedup) ClaimNew(_ context.Context, token string, _ string) (bool, e
 	return true, nil
 }
 
-func (m *mockDedup) ReleaseClaim(_ context.Context, token string) error {
+func (m *mockDedup) ReleaseClaim(_ context.Context, token string, _ int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.seen, token)

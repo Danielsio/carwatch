@@ -233,12 +233,12 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 
 		allNew := true
 		for _, l := range raw {
-			isNew, _ := s.dedup.ClaimNew(ctx, l.Token, search.Name)
+			isNew, _ := s.dedup.ClaimNew(ctx, l.Token, 0, 0)
 			if !isNew {
 				allNew = false
 			}
 			if isNew {
-				_ = s.dedup.ReleaseClaim(ctx, l.Token)
+				_ = s.dedup.ReleaseClaim(ctx, l.Token, 0)
 			}
 		}
 		if !allNew {
@@ -275,7 +275,7 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 			}
 		}
 
-		isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.Name)
+		isNew, err := s.dedup.ClaimNew(ctx, l.Token, 0, 0)
 		if err != nil {
 			return err
 		}
@@ -344,7 +344,7 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 			"count", len(newListings),
 		)
 		for _, l := range newListings {
-			if err := s.dedup.ReleaseClaim(ctx, l.Token); err != nil {
+			if err := s.dedup.ReleaseClaim(ctx, l.Token, 0); err != nil {
 				s.logger.Error("release claim failed", "token", l.Token, "error", err)
 			}
 		}
