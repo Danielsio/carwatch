@@ -97,9 +97,10 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	defer srv.Close()
 
 	sched, err := scheduler.NewWithOptions(cfg, fetcher, store, notif, logger, scheduler.Options{
-		Health: h,
-		Queue:  store,
-		Prices: store,
+		Health:     h,
+		Queue:      store,
+		Prices:     store,
+		ConfigPath: configPath,
 	})
 	if err != nil {
 		return fmt.Errorf("create scheduler: %w", err)

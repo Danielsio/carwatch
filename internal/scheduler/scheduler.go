@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/config"
@@ -29,6 +32,7 @@ const (
 
 type Scheduler struct {
 	cfg               *config.Config
+	configPath        string
 	fetcher           fetcher.Fetcher
 	dedup             storage.DedupStore
 	notifier          notifier.Notifier
@@ -42,9 +46,10 @@ type Scheduler struct {
 }
 
 type Options struct {
-	Health *health.Status
-	Queue  storage.NotificationQueue
-	Prices storage.PriceTracker
+	Health     *health.Status
+	Queue      storage.NotificationQueue
+	Prices     storage.PriceTracker
+	ConfigPath string
 }
 
 func New(
@@ -72,6 +77,7 @@ func NewWithOptions(
 	}
 	return &Scheduler{
 		cfg:               cfg,
+		configPath:        opts.ConfigPath,
 		fetcher:           f,
 		dedup:             d,
 		notifier:          n,
@@ -92,6 +98,10 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	)
 
 	s.retryPending(ctx)
+
+	sighup := make(chan os.Signal, 1)
+	signal.Notify(sighup, syscall.SIGHUP)
+	defer signal.Stop(sighup)
 
 	if s.isActiveHours() {
 		if err := s.runCycle(ctx); err != nil {
@@ -120,6 +130,9 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			s.logger.Info("scheduler stopping")
 			return ctx.Err()
+		case <-sighup:
+			s.reloadConfig()
+			continue
 		case <-time.After(delay):
 		}
 
@@ -372,6 +385,24 @@ func parseTimeOfDayOrZero(s string) int {
 		return 0
 	}
 	return t.Hour()*60 + t.Minute()
+}
+
+func (s *Scheduler) reloadConfig() {
+	if s.configPath == "" {
+		s.logger.Warn("SIGHUP received but no config path set, ignoring")
+		return
+	}
+	s.logger.Info("SIGHUP received, reloading config", "path", s.configPath)
+	newCfg, err := config.Load(s.configPath)
+	if err != nil {
+		s.logger.Error("config reload failed, keeping current config", "error", err)
+		return
+	}
+	s.cfg = newCfg
+	if loc, err := time.LoadLocation(newCfg.Polling.Timezone); err == nil {
+		s.loc = loc
+	}
+	s.logger.Info("config reloaded", "searches", len(newCfg.Searches))
 }
 
 func (s *Scheduler) retryPending(ctx context.Context) {
