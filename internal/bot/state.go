@@ -2,6 +2,7 @@ package bot
 
 const (
 	StateIdle            = "idle"
+	StateAskSource       = "ask_source"
 	StateAskManufacturer = "ask_manufacturer"
 	StateAskModel        = "ask_model"
 	StateAskYearMin      = "ask_year_min"
@@ -12,6 +13,7 @@ const (
 )
 
 type WizardData struct {
+	Source          string `json:"source,omitempty"`
 	Manufacturer    int    `json:"manufacturer,omitempty"`
 	ManufacturerName string `json:"manufacturer_name,omitempty"`
 	Model           int    `json:"model,omitempty"`

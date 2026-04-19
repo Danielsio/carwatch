@@ -115,6 +115,91 @@ func TestLoadWizardData_Populated(t *testing.T) {
 	}
 }
 
+func TestWizardData_Source(t *testing.T) {
+	data := `{"source":"winwin","manufacturer":27,"manufacturer_name":"Mazda"}`
+	var wd WizardData
+	if err := json.Unmarshal([]byte(data), &wd); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if wd.Source != "winwin" {
+		t.Errorf("Source = %q, want %q", wd.Source, "winwin")
+	}
+	if wd.Manufacturer != 27 {
+		t.Errorf("Manufacturer = %d, want 27", wd.Manufacturer)
+	}
+}
+
+func TestWizardCompleteFlow_WithSource(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.UpsertUser(ctx, 100, "alice")
+
+	wd := WizardData{
+		Source:           "winwin",
+		Manufacturer:     27,
+		ManufacturerName: "Mazda",
+		Model:            10332,
+		ModelName:        "3",
+		YearMin:          2018,
+		YearMax:          2024,
+		PriceMax:         150000,
+		EngineMinCC:      2000,
+	}
+
+	id, err := store.CreateSearch(ctx, storage.Search{
+		ChatID:       100,
+		Name:         "mazda-3",
+		Source:       wd.Source,
+		Manufacturer: wd.Manufacturer,
+		Model:        wd.Model,
+		YearMin:      wd.YearMin,
+		YearMax:      wd.YearMax,
+		PriceMax:     wd.PriceMax,
+		EngineMinCC:  wd.EngineMinCC,
+	})
+	if err != nil {
+		t.Fatalf("create search: %v", err)
+	}
+	if id == 0 {
+		t.Error("expected non-zero search ID")
+	}
+
+	searches, _ := store.ListSearches(ctx, 100)
+	if len(searches) != 1 {
+		t.Fatalf("expected 1 search, got %d", len(searches))
+	}
+	if searches[0].Source != "winwin" {
+		t.Errorf("Source = %q, want %q", searches[0].Source, "winwin")
+	}
+}
+
+func TestSourceDefaultsToYad2(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.UpsertUser(ctx, 100, "alice")
+
+	// Create search with empty source - should default to yad2.
+	_, err := store.CreateSearch(ctx, storage.Search{
+		ChatID:       100,
+		Name:         "mazda-3",
+		Manufacturer: 27,
+		Model:        10332,
+	})
+	if err != nil {
+		t.Fatalf("create search: %v", err)
+	}
+
+	searches, _ := store.ListSearches(ctx, 100)
+	if len(searches) != 1 {
+		t.Fatalf("expected 1 search, got %d", len(searches))
+	}
+	if searches[0].Source != "yad2" {
+		t.Errorf("Source = %q, want %q (default)", searches[0].Source, "yad2")
+	}
+}
+
 func TestSearchRateLimit(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

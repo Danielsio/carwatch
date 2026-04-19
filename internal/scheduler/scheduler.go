@@ -598,7 +598,11 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 
-	activeFetcher := s.fetcherForSource("yad2")
+	source := group.Source
+	if source == "" {
+		source = "yad2"
+	}
+	activeFetcher := s.fetcherForSource(source)
 	raw, err := s.fetchWithRetryUsing(fetchCtx, activeFetcher, group.Params)
 	if err != nil {
 		return err

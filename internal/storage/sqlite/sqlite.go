@@ -52,6 +52,7 @@ func migrate(db *sql.DB) error {
 			id            INTEGER PRIMARY KEY AUTOINCREMENT,
 			chat_id       INTEGER NOT NULL REFERENCES users(chat_id),
 			name          TEXT NOT NULL,
+			source        TEXT NOT NULL DEFAULT 'yad2',
 			manufacturer  INTEGER NOT NULL,
 			model         INTEGER NOT NULL,
 			year_min      INTEGER NOT NULL DEFAULT 2000,
@@ -212,10 +213,14 @@ func scanUsers(rows *sql.Rows) ([]storage.User, error) {
 // --- SearchStore ---
 
 func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64, error) {
+	source := search.Source
+	if source == "" {
+		source = "yad2"
+	}
 	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO searches (chat_id, name, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		search.ChatID, search.Name, search.Manufacturer, search.Model,
+		INSERT INTO searches (chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		search.ChatID, search.Name, source, search.Manufacturer, search.Model,
 		search.YearMin, search.YearMax, search.PriceMax,
 		search.EngineMinCC, search.MaxKm, search.MaxHand)
 	if err != nil {
@@ -226,7 +231,7 @@ func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64,
 
 func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Search, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, chat_id, name, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
+		SELECT id, chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
 		FROM searches WHERE chat_id = ? ORDER BY created_at DESC`, chatID)
 	if err != nil {
 		return nil, err
@@ -237,11 +242,11 @@ func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Searc
 
 func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, chat_id, name, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
+		SELECT id, chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
 		FROM searches WHERE id = ?`, id)
 
 	var search storage.Search
-	err := row.Scan(&search.ID, &search.ChatID, &search.Name, &search.Manufacturer, &search.Model,
+	err := row.Scan(&search.ID, &search.ChatID, &search.Name, &search.Source, &search.Manufacturer, &search.Model,
 		&search.YearMin, &search.YearMax, &search.PriceMax,
 		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
 		&search.Active, &search.CreatedAt)
@@ -268,11 +273,11 @@ func (s *Store) SetSearchActive(ctx context.Context, id int64, active bool) erro
 
 func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT s.id, s.chat_id, s.name, s.manufacturer, s.model, s.year_min, s.year_max, s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.active, s.created_at
+		SELECT s.id, s.chat_id, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max, s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.active, s.created_at
 		FROM searches s
 		JOIN users u ON s.chat_id = u.chat_id
 		WHERE s.active = true AND u.active = true
-		ORDER BY s.manufacturer, s.model`)
+		ORDER BY s.source, s.manufacturer, s.model`)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +304,7 @@ func scanSearches(rows *sql.Rows) ([]storage.Search, error) {
 	var searches []storage.Search
 	for rows.Next() {
 		var s storage.Search
-		if err := rows.Scan(&s.ID, &s.ChatID, &s.Name, &s.Manufacturer, &s.Model,
+		if err := rows.Scan(&s.ID, &s.ChatID, &s.Name, &s.Source, &s.Manufacturer, &s.Model,
 			&s.YearMin, &s.YearMax, &s.PriceMax,
 			&s.EngineMinCC, &s.MaxKm, &s.MaxHand,
 			&s.Active, &s.CreatedAt); err != nil {

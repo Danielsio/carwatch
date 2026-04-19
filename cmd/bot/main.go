@@ -17,6 +17,7 @@ import (
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/dashboard"
 	"github.com/dsionov/carwatch/internal/fetcher"
+	"github.com/dsionov/carwatch/internal/fetcher/winwin"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/notifier/telegram"
@@ -80,8 +81,22 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 
 	cachingFetcher := fetcher.NewCachingFetcher(yad2Fetcher, 5*time.Minute)
+
+	var winwinFetcher *winwin.WinWinFetcher
+	if len(cfg.HTTP.Proxies) > 0 {
+		pool := fetcher.NewProxyPool(cfg.HTTP.Proxies)
+		winwinFetcher, err = winwin.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, pool, logger)
+	} else {
+		winwinFetcher, err = winwin.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, logger)
+	}
+	if err != nil {
+		return fmt.Errorf("create winwin fetcher: %w", err)
+	}
+	cachingWinwin := fetcher.NewCachingFetcher(winwinFetcher, 5*time.Minute)
+
 	fetcherFactory := fetcher.NewFactory()
 	fetcherFactory.Register("yad2", cachingFetcher)
+	fetcherFactory.Register("winwin", cachingWinwin)
 
 	h := health.New()
 	h.SetUserCounter(store)

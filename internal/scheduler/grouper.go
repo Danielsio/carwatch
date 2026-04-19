@@ -6,6 +6,7 @@ import (
 )
 
 type CanonicalGroup struct {
+	Source       string
 	Manufacturer int
 	Model        int
 	Params       config.SourceParams
@@ -14,6 +15,7 @@ type CanonicalGroup struct {
 
 func GroupSearches(searches []storage.Search) []CanonicalGroup {
 	type groupKey struct {
+		Source       string
 		Manufacturer int
 		Model        int
 	}
@@ -21,10 +23,15 @@ func GroupSearches(searches []storage.Search) []CanonicalGroup {
 	grouped := make(map[groupKey]*CanonicalGroup)
 
 	for _, s := range searches {
-		key := groupKey{s.Manufacturer, s.Model}
+		source := s.Source
+		if source == "" {
+			source = "yad2"
+		}
+		key := groupKey{source, s.Manufacturer, s.Model}
 		g, ok := grouped[key]
 		if !ok {
 			g = &CanonicalGroup{
+				Source:       source,
 				Manufacturer: s.Manufacturer,
 				Model:        s.Model,
 				Params: config.SourceParams{

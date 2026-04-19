@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	cbPrefixSource    = "src:"
 	cbPrefixMfr       = "mfr:"
 	cbPrefixModel     = "mdl:"
 	cbPrefixEngine    = "eng:"
@@ -21,6 +22,17 @@ const (
 	cbDigestOn        = "digest:on"
 	cbDigestOff       = "digest:off"
 )
+
+func sourceKeyboard() *tgmodels.InlineKeyboardMarkup {
+	return &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+			{
+				{Text: "Yad2", CallbackData: cbPrefixSource + "yad2"},
+				{Text: "WinWin", CallbackData: cbPrefixSource + "winwin"},
+			},
+		},
+	}
+}
 
 func manufacturerKeyboard() *tgmodels.InlineKeyboardMarkup {
 	mfrs := yad2.Manufacturers()
@@ -76,18 +88,34 @@ func engineKeyboard() *tgmodels.InlineKeyboardMarkup {
 	}
 }
 
+func sourceDisplayName(source string) string {
+	switch source {
+	case "winwin":
+		return "WinWin"
+	default:
+		return "Yad2"
+	}
+}
+
 func confirmKeyboard(data WizardData) (*tgmodels.InlineKeyboardMarkup, string) {
 	engineStr := "Any"
 	if data.EngineMinCC > 0 {
 		engineStr = fmt.Sprintf("%.1fL+", float64(data.EngineMinCC)/1000)
 	}
 
+	source := data.Source
+	if source == "" {
+		source = "yad2"
+	}
+
 	summary := fmt.Sprintf(
 		"*Your search:*\n"+
+			"Source: %s\n"+
 			"Car: %s %s\n"+
 			"Year: %d–%d\n"+
 			"Max price: %s NIS\n"+
 			"Engine: %s",
+		sourceDisplayName(source),
 		data.ManufacturerName, data.ModelName,
 		data.YearMin, data.YearMax,
 		formatNumber(data.PriceMax),
