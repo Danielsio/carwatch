@@ -109,7 +109,7 @@ func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	}
 
 	b.send(ctx, chatID,
-		"Welcome to *CarWatch*! I monitor Yad2 car listings and send you alerts when new matches appear.\n\n"+
+		"Welcome to *CarWatch*! I monitor car listings on Yad2 and WinWin and send you alerts when new matches appear.\n\n"+
 			"Use /watch to set up a new car search.\n"+
 			"Use /list to see your active searches.\n"+
 			"Use /help for all commands.")
@@ -209,10 +209,10 @@ func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 		return
 	}
 
-	_ = b.users.UpdateUserState(ctx, chatID, StateAskManufacturer, "{}")
+	_ = b.users.UpdateUserState(ctx, chatID, StateAskSource, "{}")
 	b.sendWithKeyboard(ctx, chatID,
-		"What manufacturer are you looking for?",
-		manufacturerKeyboard())
+		"Which marketplace do you want to search?",
+		sourceKeyboard())
 }
 
 func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
@@ -247,9 +247,10 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 			status = "paused"
 		}
 
+		src := sourceDisplayName(s.Source)
 		sb.WriteString(fmt.Sprintf(
-			"%s#%d %s %s (%d\u2013%d, max %s NIS) [%s]\n",
-			prefix, s.ID, mfr, mdl, s.YearMin, s.YearMax, formatNumber(s.PriceMax), status))
+			"%s#%d [%s] %s %s (%d\u2013%d, max %s NIS) [%s]\n",
+			prefix, s.ID, src, mfr, mdl, s.YearMin, s.YearMax, formatNumber(s.PriceMax), status))
 
 		buttons = append(buttons, []tgmodels.InlineKeyboardButton{{
 			Text:         fmt.Sprintf("Delete #%d", s.ID),
@@ -418,6 +419,8 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	})
 
 	switch {
+	case strings.HasPrefix(data, cbPrefixSource):
+		b.onSourceSelected(ctx, chatID, data)
 	case strings.HasPrefix(data, cbPrefixMfr):
 		b.onManufacturerSelected(ctx, chatID, data)
 	case strings.HasPrefix(data, cbPrefixModel):
@@ -437,14 +440,23 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	}
 }
 
+func (b *Bot) onSourceSelected(ctx context.Context, chatID int64, data string) {
+	source := strings.TrimPrefix(data, cbPrefixSource)
+	wd := WizardData{Source: source}
+	b.saveWizardState(ctx, chatID, StateAskManufacturer, wd)
+
+	b.sendWithKeyboard(ctx, chatID,
+		"What manufacturer are you looking for?",
+		manufacturerKeyboard())
+}
+
 func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data string) {
 	idStr := strings.TrimPrefix(data, cbPrefixMfr)
 	id, _ := strconv.Atoi(idStr)
 
-	wd := WizardData{
-		Manufacturer:     id,
-		ManufacturerName: yad2.ManufacturerName(id),
-	}
+	wd := b.loadWizardData(ctx, chatID)
+	wd.Manufacturer = id
+	wd.ManufacturerName = yad2.ManufacturerName(id)
 	b.saveWizardState(ctx, chatID, StateAskModel, wd)
 
 	models := yad2.Models(id)
@@ -485,10 +497,16 @@ func (b *Bot) onEngineSelected(ctx context.Context, chatID int64, data string) {
 func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 	wd := b.loadWizardData(ctx, chatID)
 
+	source := wd.Source
+	if source == "" {
+		source = "yad2"
+	}
+
 	name := fmt.Sprintf("%s-%s", strings.ToLower(wd.ManufacturerName), strings.ToLower(wd.ModelName))
 	id, err := b.searches.CreateSearch(ctx, storage.Search{
 		ChatID:       chatID,
 		Name:         name,
+		Source:       source,
 		Manufacturer: wd.Manufacturer,
 		Model:        wd.Model,
 		YearMin:      wd.YearMin,
@@ -504,15 +522,15 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 
 	_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
 	b.send(ctx, chatID, fmt.Sprintf(
-		"Search #%d saved! I'll check Yad2 every 15 minutes and send you new listings.\n\nUse /list to see your searches.",
-		id))
+		"Search #%d saved! I'll check %s every 15 minutes and send you new listings.\n\nUse /list to see your searches.",
+		id, sourceDisplayName(source)))
 }
 
 func (b *Bot) onEdit(ctx context.Context, chatID int64) {
-	_ = b.users.UpdateUserState(ctx, chatID, StateAskManufacturer, "{}")
+	_ = b.users.UpdateUserState(ctx, chatID, StateAskSource, "{}")
 	b.sendWithKeyboard(ctx, chatID,
-		"Let's start over. What manufacturer?",
-		manufacturerKeyboard())
+		"Let's start over. Which marketplace?",
+		sourceKeyboard())
 }
 
 func (b *Bot) onCancelCallback(ctx context.Context, chatID int64) {
