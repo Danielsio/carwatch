@@ -58,6 +58,7 @@ func (b *Bot) RegisterHandlers() {
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/stop", tgbot.MatchTypePrefix, b.handleStop)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/cancel", tgbot.MatchTypeExact, b.handleCancel)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/help", tgbot.MatchTypeExact, b.handleHelp)
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/settings", tgbot.MatchTypeExact, b.handleSettings)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/stats", tgbot.MatchTypeExact, b.handleStats)
 	b.bot.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "", tgbot.MatchTypePrefix, b.handleCallback)
 }
@@ -190,8 +191,18 @@ func (b *Bot) handleHelp(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 			"/watch — Set up a new car search\n"+
 			"/list — Show your active searches\n"+
 			"/stop <id> — Delete a search\n"+
+			"/settings — View your current limits\n"+
 			"/cancel — Cancel current wizard\n"+
 			"/help — Show this message")
+}
+
+func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	chatID := update.Message.Chat.ID
+	b.ensureUser(ctx, chatID, update.Message.From.Username)
+
+	count, _ := b.searches.CountSearches(ctx, chatID)
+	b.send(ctx, chatID, fmt.Sprintf(
+		"*Your settings:*\nActive searches: %d/%d", count, b.maxSearches))
 }
 
 func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {

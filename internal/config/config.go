@@ -124,6 +124,9 @@ func applyDefaults(cfg *Config) {
 	if len(cfg.HTTP.UserAgents) == 0 {
 		cfg.HTTP.UserAgents = defaultUserAgents()
 	}
+	if cfg.Telegram.MaxSearches == 0 {
+		cfg.Telegram.MaxSearches = 3
+	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
 	}

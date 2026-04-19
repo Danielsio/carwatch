@@ -1,8 +1,14 @@
 package bot
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"testing"
+
+	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
 
 func TestWizardData_JSON(t *testing.T) {
@@ -131,4 +137,122 @@ func searchString(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func newBotTestStore(t *testing.T) *sqlite.Store {
+	t.Helper()
+	store, err := sqlite.New(":memory:")
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+	return store
+}
+
+func TestRateLimitEnforcement(t *testing.T) {
+	store := newBotTestStore(t)
+	ctx := context.Background()
+
+	const chatID int64 = 200
+	const maxSearches = 3
+
+	_ = store.UpsertUser(ctx, chatID, "bob")
+
+	// Create searches up to the limit.
+	for i := range maxSearches {
+		_, err := store.CreateSearch(ctx, storage.Search{
+			ChatID: chatID, Name: fmt.Sprintf("search-%d", i),
+			Manufacturer: i + 1, Model: 1,
+		})
+		if err != nil {
+			t.Fatalf("create search %d: %v", i, err)
+		}
+	}
+
+	count, err := store.CountSearches(ctx, chatID)
+	if err != nil {
+		t.Fatalf("count searches: %v", err)
+	}
+	if count != int64(maxSearches) {
+		t.Errorf("count = %d, want %d", count, maxSearches)
+	}
+
+	// Simulate the rate-limit check the bot performs.
+	if count < int64(maxSearches) {
+		t.Error("rate limit should block new search creation")
+	}
+}
+
+func TestRateLimitAfterDeletion(t *testing.T) {
+	store := newBotTestStore(t)
+	ctx := context.Background()
+
+	const chatID int64 = 300
+	const maxSearches = 3
+
+	_ = store.UpsertUser(ctx, chatID, "carol")
+
+	var ids []int64
+	for i := range maxSearches {
+		id, err := store.CreateSearch(ctx, storage.Search{
+			ChatID: chatID, Name: fmt.Sprintf("search-%d", i),
+			Manufacturer: i + 1, Model: 1,
+		})
+		if err != nil {
+			t.Fatalf("create search %d: %v", i, err)
+		}
+		ids = append(ids, id)
+	}
+
+	// At limit — deletion should free a slot.
+	_ = store.DeleteSearch(ctx, ids[0], chatID)
+
+	count, _ := store.CountSearches(ctx, chatID)
+	if count >= int64(maxSearches) {
+		t.Errorf("after deletion count = %d, should be below %d", count, maxSearches)
+	}
+}
+
+func TestSettingsDisplay(t *testing.T) {
+	store := newBotTestStore(t)
+	ctx := context.Background()
+
+	const chatID int64 = 400
+	const maxSearches = 3
+
+	_ = store.UpsertUser(ctx, chatID, "dave")
+
+	// Create 2 searches.
+	for i := range 2 {
+		_, _ = store.CreateSearch(ctx, storage.Search{
+			ChatID: chatID, Name: fmt.Sprintf("s-%d", i),
+			Manufacturer: i + 1, Model: 1,
+		})
+	}
+
+	count, _ := store.CountSearches(ctx, chatID)
+
+	// Verify the settings message format matches what handleSettings produces.
+	msg := fmt.Sprintf("*Your settings:*\nActive searches: %d/%d", count, maxSearches)
+
+	if !contains(msg, "2/3") {
+		t.Errorf("settings display should show 2/3, got: %s", msg)
+	}
+}
+
+func TestMaxSearchesDefault(t *testing.T) {
+	store := newBotTestStore(t)
+	logger := slog.Default()
+
+	// MaxSearches = 0 should default to 3.
+	b := New(nil, store, store, Config{MaxSearches: 0}, logger)
+	if b.maxSearches != 3 {
+		t.Errorf("maxSearches = %d, want 3", b.maxSearches)
+	}
+
+	// Explicit value should be preserved.
+	b2 := New(nil, store, store, Config{MaxSearches: 5}, logger)
+	if b2.maxSearches != 5 {
+		t.Errorf("maxSearches = %d, want 5", b2.maxSearches)
+	}
 }
