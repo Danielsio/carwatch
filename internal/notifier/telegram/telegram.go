@@ -18,8 +18,12 @@ type Notifier struct {
 	logger *slog.Logger
 }
 
-func New(token string, logger *slog.Logger) (*Notifier, error) {
-	b, err := tgbot.New(token, tgbot.WithDefaultHandler(func(_ context.Context, _ *tgbot.Bot, _ *tgmodels.Update) {}))
+func New(token string, logger *slog.Logger, opts ...tgbot.Option) (*Notifier, error) {
+	defaults := []tgbot.Option{
+		tgbot.WithDefaultHandler(func(_ context.Context, _ *tgbot.Bot, _ *tgmodels.Update) {}),
+	}
+	allOpts := append(defaults, opts...)
+	b, err := tgbot.New(token, allOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
