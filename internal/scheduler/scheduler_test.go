@@ -124,7 +124,7 @@ func TestProcessSearch_NewListings(t *testing.T) {
 	n := &mockNotifier{}
 	cfg := testConfig()
 
-	s, _ := New(cfg, f, d, n, testLogger())
+	s, _ := New(cfg, f, d, n, testLogger(), nil)
 	ctx := context.Background()
 
 	if err := s.processSearch(ctx, cfg.Searches[0]); err != nil {
@@ -153,7 +153,7 @@ func TestProcessSearch_AllSeen(t *testing.T) {
 	n := &mockNotifier{}
 	cfg := testConfig()
 
-	s, _ := New(cfg, f, d, n, testLogger())
+	s, _ := New(cfg, f, d, n, testLogger(), nil)
 	ctx := context.Background()
 
 	if err := s.processSearch(ctx, cfg.Searches[0]); err != nil {
@@ -176,7 +176,7 @@ func TestProcessSearch_NotifyFailure_ReleasesClaims(t *testing.T) {
 	n := &mockNotifier{err: errors.New("whatsapp down")}
 	cfg := testConfig()
 
-	s, _ := New(cfg, f, d, n, testLogger())
+	s, _ := New(cfg, f, d, n, testLogger(), nil)
 	ctx := context.Background()
 
 	if err := s.processSearch(ctx, cfg.Searches[0]); err != nil {
@@ -200,7 +200,7 @@ func TestProcessSearch_PartialNotifySuccess(t *testing.T) {
 		failOn: "+972111",
 	}
 
-	s, _ := New(cfg, f, d, customN, testLogger())
+	s, _ := New(cfg, f, d, customN, testLogger(), nil)
 	ctx := context.Background()
 
 	if err := s.processSearch(ctx, cfg.Searches[0]); err != nil {
@@ -231,7 +231,7 @@ func TestProcessSearch_FetchError(t *testing.T) {
 	n := &mockNotifier{}
 	cfg := testConfig()
 
-	s, _ := New(cfg, f, d, n, testLogger())
+	s, _ := New(cfg, f, d, n, testLogger(), nil)
 	ctx := context.Background()
 
 	err := s.processSearch(ctx, cfg.Searches[0])
@@ -246,7 +246,7 @@ func TestProcessSearch_ChallengeError(t *testing.T) {
 	n := &mockNotifier{}
 	cfg := testConfig()
 
-	s, _ := New(cfg, f, d, n, testLogger())
+	s, _ := New(cfg, f, d, n, testLogger(), nil)
 	ctx := context.Background()
 
 	err := s.processSearch(ctx, cfg.Searches[0])
@@ -261,7 +261,7 @@ func TestRunCycle_AllSearchesFail(t *testing.T) {
 	n := &mockNotifier{}
 	cfg := testConfig()
 
-	s, _ := New(cfg, f, d, n, testLogger())
+	s, _ := New(cfg, f, d, n, testLogger(), nil)
 	ctx := context.Background()
 
 	err := s.runCycle(ctx)
@@ -276,7 +276,7 @@ func TestRunCycle_ChallengeIncreasesBackoff(t *testing.T) {
 	n := &mockNotifier{}
 	cfg := testConfig()
 
-	s, _ := New(cfg, f, d, n, testLogger())
+	s, _ := New(cfg, f, d, n, testLogger(), nil)
 	ctx := context.Background()
 
 	initialBackoff := s.backoffMultiplier
@@ -293,7 +293,7 @@ func TestRunCycle_SuccessDecreasesBackoff(t *testing.T) {
 	n := &mockNotifier{}
 	cfg := testConfig()
 
-	s, _ := New(cfg, f, d, n, testLogger())
+	s, _ := New(cfg, f, d, n, testLogger(), nil)
 	s.backoffMultiplier = 4.0
 	ctx := context.Background()
 
@@ -307,7 +307,7 @@ func TestRunCycle_SuccessDecreasesBackoff(t *testing.T) {
 func TestFetchWithRetry_Success(t *testing.T) {
 	f := &mockFetcher{listings: []model.RawListing{{Token: "a"}}}
 	cfg := testConfig()
-	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger())
+	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), nil)
 
 	ctx := context.Background()
 	listings, err := s.fetchWithRetry(ctx, config.SourceParams{})
@@ -322,7 +322,7 @@ func TestFetchWithRetry_Success(t *testing.T) {
 func TestFetchWithRetry_ChallengeNoRetry(t *testing.T) {
 	f := &mockFetcher{err: fmt.Errorf("yad2: %w", fetcher.ErrChallenge)}
 	cfg := testConfig()
-	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger())
+	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), nil)
 
 	ctx := context.Background()
 	_, err := s.fetchWithRetry(ctx, config.SourceParams{})
@@ -337,7 +337,7 @@ func TestFetchWithRetry_ChallengeNoRetry(t *testing.T) {
 func TestFetchWithRetry_RetriesOnError(t *testing.T) {
 	f := &mockFetcher{err: errors.New("timeout")}
 	cfg := testConfig()
-	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger())
+	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), nil)
 
 	ctx := context.Background()
 	_, err := s.fetchWithRetry(ctx, config.SourceParams{})
@@ -354,7 +354,7 @@ func TestNextDelay_WithBackoff(t *testing.T) {
 	cfg.Polling.Interval = 10 * time.Minute
 	cfg.Polling.Jitter = 0
 
-	s, _ := New(cfg, nil, nil, nil, testLogger())
+	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
 	s.backoffMultiplier = 2.0
 
 	delay := s.nextDelay()
@@ -368,7 +368,7 @@ func TestNextDelay_MinimumOneMinute(t *testing.T) {
 	cfg.Polling.Interval = 30 * time.Second
 	cfg.Polling.Jitter = 0
 
-	s, _ := New(cfg, nil, nil, nil, testLogger())
+	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
 
 	delay := s.nextDelay()
 	if delay < time.Minute {
@@ -399,7 +399,7 @@ func TestIsActiveHours_NoConfig(t *testing.T) {
 	cfg := testConfig()
 	cfg.Polling.ActiveHours = nil
 
-	s, _ := New(cfg, nil, nil, nil, testLogger())
+	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
 	if !s.isActiveHours() {
 		t.Error("should be active when no active hours configured")
 	}
@@ -412,7 +412,7 @@ func TestIsActiveHours_WithinWindow(t *testing.T) {
 		End:   "23:59",
 	}
 
-	s, _ := New(cfg, nil, nil, nil, testLogger())
+	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
 	if !s.isActiveHours() {
 		t.Error("should be active within 00:00-23:59")
 	}

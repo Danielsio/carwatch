@@ -11,6 +11,7 @@ import (
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/filter"
+	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -34,6 +35,7 @@ type Scheduler struct {
 	loc               *time.Location
 	backoffMultiplier float64
 	lastPruneTime     time.Time
+	health            *health.Status
 }
 
 func New(
@@ -42,6 +44,7 @@ func New(
 	d storage.DedupStore,
 	n notifier.Notifier,
 	logger *slog.Logger,
+	h *health.Status,
 ) (*Scheduler, error) {
 	loc, err := time.LoadLocation(cfg.Polling.Timezone)
 	if err != nil {
@@ -55,6 +58,7 @@ func New(
 		logger:            logger,
 		loc:               loc,
 		backoffMultiplier: 1.0,
+		health:            h,
 	}, nil
 }
 
@@ -141,9 +145,15 @@ func (s *Scheduler) runCycle(ctx context.Context) error {
 	}
 
 	if allFailed && len(s.cfg.Searches) > 0 {
+		if s.health != nil {
+			s.health.RecordError()
+		}
 		return fmt.Errorf("all %d searches failed", len(s.cfg.Searches))
 	}
 
+	if s.health != nil {
+		s.health.RecordSuccess()
+	}
 	return nil
 }
 

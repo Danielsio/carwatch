@@ -5,12 +5,14 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
+	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/notifier/whatsapp"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
@@ -75,11 +77,22 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	}
 	defer func() { _ = notif.Disconnect() }()
 
-	sched, err := scheduler.New(cfg, fetcher, store, notif, logger)
+	h := health.New()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", h.Handler())
+	srv := &http.Server{Addr: ":8080", Handler: mux}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("health server failed", "error", err)
+		}
+	}()
+	defer srv.Close()
+
+	sched, err := scheduler.New(cfg, fetcher, store, notif, logger, h)
 	if err != nil {
 		return fmt.Errorf("create scheduler: %w", err)
 	}
 
-	logger.Info("bot starting")
+	logger.Info("bot starting", "health_endpoint", ":8080/healthz")
 	return sched.Run(ctx)
 }
