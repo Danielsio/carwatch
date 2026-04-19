@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -46,6 +47,7 @@ type Scheduler struct {
 	fetcherFactory    *fetcher.Factory
 	listingStore      storage.ListingStore
 	searchStore       storage.SearchStore
+	digestStore       storage.DigestStore
 }
 
 type Options struct {
@@ -56,6 +58,7 @@ type Options struct {
 	FetcherFactory *fetcher.Factory
 	ListingStore   storage.ListingStore
 	SearchStore    storage.SearchStore
+	DigestStore    storage.DigestStore
 }
 
 func New(
@@ -96,6 +99,7 @@ func NewWithOptions(
 		fetcherFactory:    opts.FetcherFactory,
 		listingStore:      opts.ListingStore,
 		searchStore:       opts.SearchStore,
+		digestStore:       opts.DigestStore,
 	}, nil
 }
 
@@ -575,6 +579,8 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		s.lastPruneTime = time.Now()
 	}
 
+	s.processDigests(ctx)
+
 	if allFailed && len(groups) > 0 {
 		if s.health != nil {
 			s.health.RecordError()
@@ -664,12 +670,29 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 
 		chatIDStr := fmt.Sprintf("%d", search.ChatID)
 
+		// Check if user is in digest mode.
+		digestMode := false
+		if s.digestStore != nil {
+			mode, _, err := s.digestStore.GetDigestMode(ctx, search.ChatID)
+			if err != nil {
+				s.logger.Error("get digest mode failed", "chat_id", search.ChatID, "error", err)
+			} else if mode == "digest" {
+				digestMode = true
+			}
+		}
+
 		for _, msg := range priceDropMessages {
-			if err := s.notifier.NotifyRaw(ctx, chatIDStr, msg); err != nil {
-				s.logger.Error("price drop notification failed",
-					"chat_id", search.ChatID,
-					"error", err,
-				)
+			if digestMode {
+				if err := s.digestStore.AddDigestItem(ctx, search.ChatID, msg); err != nil {
+					s.logger.Error("add digest item failed", "chat_id", search.ChatID, "error", err)
+				}
+			} else {
+				if err := s.notifier.NotifyRaw(ctx, chatIDStr, msg); err != nil {
+					s.logger.Error("price drop notification failed",
+						"chat_id", search.ChatID,
+						"error", err,
+					)
+				}
 			}
 		}
 
@@ -687,20 +710,110 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			"count", len(newListings),
 		)
 
-		if err := s.notifier.Notify(ctx, chatIDStr, newListings); err != nil {
-			s.logger.Error("notification failed",
-				"chat_id", search.ChatID,
-				"error", err,
-			)
-			for _, l := range newListings {
-				_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
+		if digestMode {
+			msg := notifier.FormatBatch(newListings)
+			if err := s.digestStore.AddDigestItem(ctx, search.ChatID, msg); err != nil {
+				s.logger.Error("add digest item failed",
+					"chat_id", search.ChatID,
+					"error", err,
+				)
+				for _, l := range newListings {
+					_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
+				}
 			}
-		} else if s.health != nil {
-			s.health.RecordNotificationSent()
+		} else {
+			if err := s.notifier.Notify(ctx, chatIDStr, newListings); err != nil {
+				s.logger.Error("notification failed",
+					"chat_id", search.ChatID,
+					"error", err,
+				)
+				for _, l := range newListings {
+					_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
+				}
+			} else if s.health != nil {
+				s.health.RecordNotificationSent()
+			}
 		}
 	}
 
 	return nil
+}
+
+func (s *Scheduler) processDigests(ctx context.Context) {
+	if s.digestStore == nil {
+		return
+	}
+
+	users, err := s.digestStore.PendingDigestUsers(ctx)
+	if err != nil {
+		s.logger.Error("list pending digest users failed", "error", err)
+		return
+	}
+
+	for _, chatID := range users {
+		mode, intervalStr, err := s.digestStore.GetDigestMode(ctx, chatID)
+		if err != nil {
+			s.logger.Error("get digest mode failed", "chat_id", chatID, "error", err)
+			continue
+		}
+		if mode != "digest" {
+			// User switched back to instant; flush and send immediately.
+			s.flushAndSendDigest(ctx, chatID)
+			continue
+		}
+
+		interval, err := time.ParseDuration(intervalStr)
+		if err != nil {
+			s.logger.Error("parse digest interval failed",
+				"chat_id", chatID,
+				"interval", intervalStr,
+				"error", err,
+			)
+			interval = 6 * time.Hour
+		}
+
+		lastFlushed, err := s.digestStore.DigestLastFlushed(ctx, chatID)
+		if err != nil {
+			s.logger.Error("get last flushed failed", "chat_id", chatID, "error", err)
+			continue
+		}
+
+		if time.Since(lastFlushed) >= interval {
+			s.flushAndSendDigest(ctx, chatID)
+		}
+	}
+}
+
+func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
+	payloads, err := s.digestStore.FlushDigest(ctx, chatID)
+	if err != nil {
+		s.logger.Error("flush digest failed", "chat_id", chatID, "error", err)
+		return
+	}
+	if len(payloads) == 0 {
+		return
+	}
+
+	chatIDStr := fmt.Sprintf("%d", chatID)
+	header := fmt.Sprintf("*Digest Summary (%d items):*\n", len(payloads))
+	combined := header + strings.Join(payloads, "\n\n━━━━━━━━━━━━━━━━━━━━\n\n")
+
+	if err := s.notifier.NotifyRaw(ctx, chatIDStr, combined); err != nil {
+		s.logger.Error("send digest failed",
+			"chat_id", chatID,
+			"items", len(payloads),
+			"error", err,
+		)
+		return
+	}
+
+	s.logger.Info("digest sent",
+		"chat_id", chatID,
+		"items", len(payloads),
+	)
+	if s.health != nil {
+		s.health.RecordNotificationSent()
+	}
 }
 
 func maskPhone(phone string) string {

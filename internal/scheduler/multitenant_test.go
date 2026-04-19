@@ -3,7 +3,9 @@ package scheduler
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
@@ -201,6 +203,270 @@ func TestProcessGroup_PriceDropNotification(t *testing.T) {
 	}
 	if !strings.Contains(msg, "₪95,000") || !strings.Contains(msg, "₪89,000") {
 		t.Errorf("message should contain old and new prices, got:\n%s", msg)
+	}
+}
+
+type mockDigestStore struct {
+	mu       sync.Mutex
+	modes    map[int64]struct{ mode, interval string }
+	items    map[int64][]string
+	flushed  map[int64]time.Time
+}
+
+func newMockDigestStore() *mockDigestStore {
+	return &mockDigestStore{
+		modes:   make(map[int64]struct{ mode, interval string }),
+		items:   make(map[int64][]string),
+		flushed: make(map[int64]time.Time),
+	}
+}
+
+func (m *mockDigestStore) SetDigestMode(_ context.Context, chatID int64, mode string, interval string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.modes[chatID] = struct{ mode, interval string }{mode, interval}
+	return nil
+}
+
+func (m *mockDigestStore) GetDigestMode(_ context.Context, chatID int64) (string, string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if v, ok := m.modes[chatID]; ok {
+		return v.mode, v.interval, nil
+	}
+	return "instant", "6h", nil
+}
+
+func (m *mockDigestStore) AddDigestItem(_ context.Context, chatID int64, payload string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.items[chatID] = append(m.items[chatID], payload)
+	return nil
+}
+
+func (m *mockDigestStore) FlushDigest(_ context.Context, chatID int64) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	items := m.items[chatID]
+	delete(m.items, chatID)
+	m.flushed[chatID] = time.Now()
+	return items, nil
+}
+
+func (m *mockDigestStore) PendingDigestUsers(_ context.Context) ([]int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var users []int64
+	for chatID := range m.items {
+		if len(m.items[chatID]) > 0 {
+			users = append(users, chatID)
+		}
+	}
+	return users, nil
+}
+
+func (m *mockDigestStore) DigestLastFlushed(_ context.Context, chatID int64) (time.Time, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.flushed[chatID], nil
+}
+
+func TestProcessGroup_DigestMode_StoresInsteadOfSending(t *testing.T) {
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
+		},
+	}
+	d := newMockDedup()
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	ds := newMockDigestStore()
+	_ = ds.SetDigestMode(context.Background(), 100, "digest", "6h")
+	// Set last flushed to now so processDigests won't flush immediately.
+	ds.flushed[100] = time.Now()
+
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "user1-mazda3", Manufacturer: 27, Model: 10332,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
+		},
+	}
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore: ss,
+		DigestStore: ds,
+	})
+	ctx := context.Background()
+
+	err := s.runMultiTenantCycle(ctx)
+	if err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
+	// Should NOT have sent any direct Notify calls.
+	n.mu.Lock()
+	notifyCount := len(n.messages)
+	rawCount := len(n.rawMessages)
+	n.mu.Unlock()
+	if notifyCount != 0 {
+		t.Errorf("expected 0 direct Notify calls, got %d", notifyCount)
+	}
+	if rawCount != 0 {
+		t.Errorf("expected 0 NotifyRaw calls (digest interval not elapsed), got %d", rawCount)
+	}
+
+	// Should have stored the item in the digest store.
+	ds.mu.Lock()
+	items := ds.items[100]
+	ds.mu.Unlock()
+	if len(items) != 1 {
+		t.Errorf("expected 1 digest item, got %d", len(items))
+	}
+}
+
+func TestProcessGroup_InstantMode_SendsDirectly(t *testing.T) {
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
+		},
+	}
+	d := newMockDedup()
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	ds := newMockDigestStore()
+	// Default is instant, no need to set.
+
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "user1-mazda3", Manufacturer: 27, Model: 10332,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
+		},
+	}
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore: ss,
+		DigestStore: ds,
+	})
+	ctx := context.Background()
+
+	err := s.runMultiTenantCycle(ctx)
+	if err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
+	// Should have sent directly.
+	n.mu.Lock()
+	notifyCount := len(n.messages)
+	n.mu.Unlock()
+	if notifyCount != 1 {
+		t.Errorf("expected 1 direct notification, got %d", notifyCount)
+	}
+
+	// Digest store should be empty.
+	ds.mu.Lock()
+	items := ds.items[100]
+	ds.mu.Unlock()
+	if len(items) != 0 {
+		t.Errorf("expected 0 digest items, got %d", len(items))
+	}
+}
+
+func TestProcessDigests_FlushesWhenIntervalElapsed(t *testing.T) {
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	ds := newMockDigestStore()
+	_ = ds.SetDigestMode(context.Background(), 100, "digest", "1ms")
+	ds.items[100] = []string{"listing A", "listing B"}
+	// Set last flushed to epoch so interval has elapsed.
+	ds.flushed[100] = time.Time{}
+
+	f := &mockFetcher{listings: []model.RawListing{}}
+	d := newMockDedup()
+
+	ss := &mockSearchStore{}
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore: ss,
+		DigestStore: ds,
+	})
+	ctx := context.Background()
+
+	s.processDigests(ctx)
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.rawMessages) != 1 {
+		t.Fatalf("expected 1 digest notification, got %d", len(n.rawMessages))
+	}
+
+	msg := n.rawMessages[0].message
+	if !strings.Contains(msg, "listing A") || !strings.Contains(msg, "listing B") {
+		t.Errorf("digest message should contain items, got: %s", msg)
+	}
+	if !strings.Contains(msg, "Digest Summary") {
+		t.Errorf("digest message should contain header, got: %s", msg)
+	}
+}
+
+func TestProcessDigests_SkipsWhenIntervalNotElapsed(t *testing.T) {
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	ds := newMockDigestStore()
+	_ = ds.SetDigestMode(context.Background(), 100, "digest", "24h")
+	ds.items[100] = []string{"listing A"}
+	ds.flushed[100] = time.Now() // Just flushed.
+
+	f := &mockFetcher{listings: []model.RawListing{}}
+	d := newMockDedup()
+	ss := &mockSearchStore{}
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore: ss,
+		DigestStore: ds,
+	})
+	ctx := context.Background()
+
+	s.processDigests(ctx)
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.rawMessages) != 0 {
+		t.Errorf("expected 0 digest notifications (interval not elapsed), got %d", len(n.rawMessages))
+	}
+}
+
+func TestProcessDigests_FlushesImmediatelyWhenSwitchedToInstant(t *testing.T) {
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	ds := newMockDigestStore()
+	// User has pending items but switched back to instant.
+	_ = ds.SetDigestMode(context.Background(), 100, "instant", "6h")
+	ds.items[100] = []string{"leftover listing"}
+
+	f := &mockFetcher{listings: []model.RawListing{}}
+	d := newMockDedup()
+	ss := &mockSearchStore{}
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore: ss,
+		DigestStore: ds,
+	})
+	ctx := context.Background()
+
+	s.processDigests(ctx)
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.rawMessages) != 1 {
+		t.Fatalf("expected 1 digest notification (flush on mode switch), got %d", len(n.rawMessages))
+	}
+	if !strings.Contains(n.rawMessages[0].message, "leftover listing") {
+		t.Errorf("flushed digest should contain pending items")
 	}
 }
 
