@@ -70,7 +70,11 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("create fetcher: %w", err)
 	}
+
 	cachingFetcher := fetcher.NewCachingFetcher(yad2Fetcher, 5*time.Minute)
+
+	fetcherFactory := fetcher.NewFactory()
+	fetcherFactory.Register("yad2", cachingFetcher)
 
 	store, err := sqlite.New(cfg.Storage.DBPath)
 	if err != nil {
@@ -106,10 +110,11 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	defer srv.Close()
 
 	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, notif, logger, scheduler.Options{
-		Health:     h,
-		Queue:      store,
-		Prices:     store,
-		ConfigPath: configPath,
+		Health:         h,
+		Queue:          store,
+		Prices:         store,
+		ConfigPath:     configPath,
+		FetcherFactory: fetcherFactory,
 	})
 	if err != nil {
 		return fmt.Errorf("create scheduler: %w", err)

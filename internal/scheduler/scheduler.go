@@ -43,13 +43,15 @@ type Scheduler struct {
 	health            *health.Status
 	queue             storage.NotificationQueue
 	prices            storage.PriceTracker
+	fetcherFactory    *fetcher.Factory
 }
 
 type Options struct {
-	Health     *health.Status
-	Queue      storage.NotificationQueue
-	Prices     storage.PriceTracker
-	ConfigPath string
+	Health         *health.Status
+	Queue          storage.NotificationQueue
+	Prices         storage.PriceTracker
+	ConfigPath     string
+	FetcherFactory *fetcher.Factory
 }
 
 func New(
@@ -87,6 +89,7 @@ func NewWithOptions(
 		health:            opts.Health,
 		queue:             opts.Queue,
 		prices:            opts.Prices,
+		fetcherFactory:    opts.FetcherFactory,
 	}, nil
 }
 
@@ -194,15 +197,26 @@ func (s *Scheduler) runCycle(ctx context.Context) error {
 	return nil
 }
 
+func (s *Scheduler) fetcherForSource(source string) fetcher.Fetcher {
+	if s.fetcherFactory != nil {
+		if f, ok := s.fetcherFactory.Get(source); ok {
+			return f
+		}
+	}
+	return s.fetcher
+}
+
 func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfig) error {
 	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
+
+	activeFetcher := s.fetcherForSource(search.Source)
 
 	var allRaw []model.RawListing
 	for page := range maxPages {
 		params := search.Params
 		params.Page = page
-		raw, err := s.fetchWithRetry(fetchCtx, params)
+		raw, err := s.fetchWithRetryUsing(fetchCtx, activeFetcher, params)
 		if err != nil {
 			if page == 0 {
 				return err
@@ -320,9 +334,13 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 }
 
 func (s *Scheduler) fetchWithRetry(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
+	return s.fetchWithRetryUsing(ctx, s.fetcher, params)
+}
+
+func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, params config.SourceParams) ([]model.RawListing, error) {
 	var lastErr error
 	for attempt := range maxRetries {
-		listings, err := s.fetcher.Fetch(ctx, params)
+		listings, err := f.Fetch(ctx, params)
 		if err == nil {
 			return listings, nil
 		}
