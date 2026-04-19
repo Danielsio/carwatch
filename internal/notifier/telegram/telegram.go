@@ -77,6 +77,33 @@ func (t *TelegramNotifier) Notify(_ context.Context, chatID string, listings []m
 	return nil
 }
 
+func (t *TelegramNotifier) NotifyRaw(_ context.Context, chatID string, message string) error {
+	payload := map[string]any{
+		"chat_id":    chatID,
+		"text":       message,
+		"parse_mode": "Markdown",
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal telegram payload: %w", err)
+	}
+
+	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.token)
+	resp, err := t.client.Post(url, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("telegram sendMessage: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("telegram sendMessage: status %d: %s", resp.StatusCode, respBody)
+	}
+
+	return nil
+}
+
 func (t *TelegramNotifier) Disconnect() error {
 	return nil
 }

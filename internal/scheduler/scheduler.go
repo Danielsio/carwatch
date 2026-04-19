@@ -36,6 +36,14 @@ type Scheduler struct {
 	backoffMultiplier float64
 	lastPruneTime     time.Time
 	health            *health.Status
+	queue             storage.NotificationQueue
+	prices            storage.PriceTracker
+}
+
+type Options struct {
+	Health *health.Status
+	Queue  storage.NotificationQueue
+	Prices storage.PriceTracker
 }
 
 func New(
@@ -45,6 +53,17 @@ func New(
 	n notifier.Notifier,
 	logger *slog.Logger,
 	h *health.Status,
+) (*Scheduler, error) {
+	return NewWithOptions(cfg, f, d, n, logger, Options{Health: h})
+}
+
+func NewWithOptions(
+	cfg *config.Config,
+	f fetcher.Fetcher,
+	d storage.DedupStore,
+	n notifier.Notifier,
+	logger *slog.Logger,
+	opts Options,
 ) (*Scheduler, error) {
 	loc, err := time.LoadLocation(cfg.Polling.Timezone)
 	if err != nil {
@@ -58,7 +77,9 @@ func New(
 		logger:            logger,
 		loc:               loc,
 		backoffMultiplier: 1.0,
-		health:            h,
+		health:            opts.Health,
+		queue:             opts.Queue,
+		prices:            opts.Prices,
 	}, nil
 }
 
@@ -68,6 +89,8 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		"jitter", s.cfg.Polling.Jitter,
 		"searches", len(s.cfg.Searches),
 	)
+
+	s.retryPending(ctx)
 
 	if s.isActiveHours() {
 		if err := s.runCycle(ctx); err != nil {
@@ -197,8 +220,16 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 		return nil
 	}
 
+	msg := notifier.FormatBatch(newListings)
+
 	anyDelivered := false
 	for _, recipient := range search.Recipients {
+		if s.queue != nil {
+			if err := s.queue.EnqueueNotification(ctx, recipient, search.Name, msg); err != nil {
+				s.logger.Error("enqueue notification failed", "error", err)
+			}
+		}
+
 		if err := s.notifier.Notify(ctx, recipient, newListings); err != nil {
 			s.logger.Error("notification failed",
 				"recipient", maskPhone(recipient),
@@ -207,6 +238,10 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 			continue
 		}
 		anyDelivered = true
+	}
+
+	if s.queue != nil {
+		s.ackDelivered(ctx, search.Name)
 	}
 
 	if !anyDelivered {
@@ -309,6 +344,45 @@ func parseTimeOfDayOrZero(s string) int {
 		return 0
 	}
 	return t.Hour()*60 + t.Minute()
+}
+
+func (s *Scheduler) retryPending(ctx context.Context) {
+	if s.queue == nil {
+		return
+	}
+	pending, err := s.queue.PendingNotifications(ctx)
+	if err != nil {
+		s.logger.Error("failed to load pending notifications", "error", err)
+		return
+	}
+	if len(pending) == 0 {
+		return
+	}
+	s.logger.Info("retrying pending notifications", "count", len(pending))
+	for _, p := range pending {
+		if err := s.notifier.NotifyRaw(ctx, p.Recipient, p.Payload); err != nil {
+			s.logger.Error("retry notification failed",
+				"recipient", maskPhone(p.Recipient),
+				"error", err,
+			)
+			continue
+		}
+		if err := s.queue.AckNotification(ctx, p.ID); err != nil {
+			s.logger.Error("ack notification failed", "id", p.ID, "error", err)
+		}
+	}
+}
+
+func (s *Scheduler) ackDelivered(ctx context.Context, searchName string) {
+	pending, err := s.queue.PendingNotifications(ctx)
+	if err != nil {
+		return
+	}
+	for _, p := range pending {
+		if p.SearchName == searchName {
+			_ = s.queue.AckNotification(ctx, p.ID)
+		}
+	}
 }
 
 func maskPhone(phone string) string {

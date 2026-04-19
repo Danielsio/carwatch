@@ -72,8 +72,9 @@ type notifyCall struct {
 	count     int
 }
 
-func (m *mockNotifier) Connect(_ context.Context) error { return nil }
-func (m *mockNotifier) Disconnect() error               { return nil }
+func (m *mockNotifier) Connect(_ context.Context) error                       { return nil }
+func (m *mockNotifier) Disconnect() error                                     { return nil }
+func (m *mockNotifier) NotifyRaw(_ context.Context, _ string, _ string) error { return nil }
 
 func (m *mockNotifier) Notify(_ context.Context, recipient string, listings []model.Listing) error {
 	m.mu.Lock()
@@ -216,8 +217,9 @@ type conditionalNotifier struct {
 	failOn string
 }
 
-func (c *conditionalNotifier) Connect(_ context.Context) error { return nil }
-func (c *conditionalNotifier) Disconnect() error               { return nil }
+func (c *conditionalNotifier) Connect(_ context.Context) error                       { return nil }
+func (c *conditionalNotifier) Disconnect() error                                     { return nil }
+func (c *conditionalNotifier) NotifyRaw(_ context.Context, _ string, _ string) error { return nil }
 func (c *conditionalNotifier) Notify(_ context.Context, recipient string, _ []model.Listing) error {
 	if recipient == c.failOn {
 		return fmt.Errorf("failed for %s", recipient)
