@@ -239,6 +239,25 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 
 	var newListings []model.Listing
 	for _, l := range filtered {
+		if s.prices != nil && l.Price > 0 {
+			oldPrice, changed, err := s.prices.RecordPrice(ctx, l.Token, l.Price)
+			if err != nil {
+				s.logger.Error("record price failed", "token", l.Token, "error", err)
+			} else if changed {
+				s.logger.Info("price drop detected",
+					"token", l.Token,
+					"old_price", oldPrice,
+					"new_price", l.Price,
+					"search", search.Name,
+				)
+				newListings = append(newListings, model.Listing{
+					RawListing: l,
+					SearchName: search.Name,
+				})
+				continue
+			}
+		}
+
 		isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.Name)
 		if err != nil {
 			return err
