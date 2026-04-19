@@ -45,6 +45,64 @@ func TestFormatListing(t *testing.T) {
 	}
 }
 
+func TestFormatPriceDrop(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token:        "abc123",
+			Manufacturer: "Mazda",
+			Model:        "3",
+			Year:         2021,
+			Price:        89000,
+			Km:           85000,
+			Hand:         2,
+			PageLink:     "https://www.yad2.co.il/item/abc123",
+		},
+	}
+
+	msg := FormatPriceDrop(l, 95000)
+
+	checks := []string{
+		"Price Drop!",
+		"Mazda 3 2021",
+		"₪95,000",
+		"₪89,000",
+		"-₪6,000",
+		"85,000 km",
+		"Hand 2",
+		"https://www.yad2.co.il/item/abc123",
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(msg, check) {
+			t.Errorf("message missing %q:\n%s", check, msg)
+		}
+	}
+}
+
+func TestFormatPriceDrop_MinimalFields(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token:        "xyz",
+			Manufacturer: "Toyota",
+			Model:        "Corolla",
+			SubModel:     "GLi",
+			Price:        70000,
+		},
+	}
+
+	msg := FormatPriceDrop(l, 80000)
+
+	if !strings.Contains(msg, "Toyota Corolla GLi") {
+		t.Errorf("should include submodel in title:\n%s", msg)
+	}
+	if !strings.Contains(msg, "-₪10,000") {
+		t.Errorf("should show correct drop amount:\n%s", msg)
+	}
+	if strings.Contains(msg, "km") {
+		t.Errorf("should not show mileage when zero:\n%s", msg)
+	}
+}
+
 func TestFormatNumber(t *testing.T) {
 	tests := []struct {
 		input int

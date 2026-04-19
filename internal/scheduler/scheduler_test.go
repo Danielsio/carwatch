@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -68,9 +69,10 @@ func (m *mockDedup) Prune(_ context.Context, _ time.Duration) (int64, error) {
 func (m *mockDedup) Close() error { return nil }
 
 type mockNotifier struct {
-	messages []notifyCall
-	err      error
-	mu       sync.Mutex
+	messages    []notifyCall
+	rawMessages []rawNotifyCall
+	err         error
+	mu          sync.Mutex
 }
 
 type notifyCall struct {
@@ -78,9 +80,20 @@ type notifyCall struct {
 	count     int
 }
 
-func (m *mockNotifier) Connect(_ context.Context) error                       { return nil }
-func (m *mockNotifier) Disconnect() error                                     { return nil }
-func (m *mockNotifier) NotifyRaw(_ context.Context, _ string, _ string) error { return nil }
+type rawNotifyCall struct {
+	recipient string
+	message   string
+}
+
+func (m *mockNotifier) Connect(_ context.Context) error { return nil }
+func (m *mockNotifier) Disconnect() error               { return nil }
+
+func (m *mockNotifier) NotifyRaw(_ context.Context, recipient string, message string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rawMessages = append(m.rawMessages, rawNotifyCall{recipient: recipient, message: message})
+	return nil
+}
 
 func (m *mockNotifier) Notify(_ context.Context, recipient string, listings []model.Listing) error {
 	m.mu.Lock()
@@ -90,6 +103,26 @@ func (m *mockNotifier) Notify(_ context.Context, recipient string, listings []mo
 	}
 	m.messages = append(m.messages, notifyCall{recipient: recipient, count: len(listings)})
 	return nil
+}
+
+type mockPriceTracker struct {
+	prices map[string]int
+	mu     sync.Mutex
+}
+
+func newMockPriceTracker() *mockPriceTracker {
+	return &mockPriceTracker{prices: make(map[string]int)}
+}
+
+func (m *mockPriceTracker) RecordPrice(_ context.Context, token string, price int) (int, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	old, exists := m.prices[token]
+	m.prices[token] = price
+	if exists && price < old {
+		return old, true, nil
+	}
+	return 0, false, nil
 }
 
 func testConfig() *config.Config {
@@ -400,6 +433,52 @@ func TestMaskPhone(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("maskPhone(%q) = %q, want %q", tt.input, got, tt.want)
 		}
+	}
+}
+
+func TestProcessSearch_PriceDropNotification(t *testing.T) {
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "a", Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 89000, Km: 85000},
+		},
+	}
+	d := newMockDedup()
+	// Pre-mark token as seen so the pagination pre-scan stops after page 0,
+	// avoiding duplicate copies of the same listing in allRaw.
+	d.seen[dedupKey{"a", 0}] = true
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	pt := newMockPriceTracker()
+	pt.prices["a"] = 95000
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{Prices: pt})
+	ctx := context.Background()
+
+	if err := s.processSearch(ctx, cfg.Searches[0]); err != nil {
+		t.Fatalf("processSearch: %v", err)
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if len(n.messages) != 0 {
+		t.Errorf("expected 0 Notify calls for price drop (should use NotifyRaw), got %d", len(n.messages))
+	}
+
+	if len(n.rawMessages) != 1 {
+		t.Fatalf("expected 1 NotifyRaw call for price drop, got %d", len(n.rawMessages))
+	}
+
+	msg := n.rawMessages[0].message
+	if !strings.Contains(msg, "Price Drop!") {
+		t.Errorf("price drop message should contain 'Price Drop!', got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "₪95,000") || !strings.Contains(msg, "₪89,000") {
+		t.Errorf("price drop message should contain old and new price, got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "-₪6,000") {
+		t.Errorf("price drop message should contain drop amount, got:\n%s", msg)
 	}
 }
 

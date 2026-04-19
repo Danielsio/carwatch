@@ -263,6 +263,7 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 	)
 
 	var newListings []model.Listing
+	var priceDropMessages []string
 	for _, l := range filtered {
 		if s.prices != nil && l.Price > 0 {
 			oldPrice, changed, err := s.prices.RecordPrice(ctx, l.Token, l.Price)
@@ -275,10 +276,8 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 					"new_price", l.Price,
 					"search", search.Name,
 				)
-				newListings = append(newListings, model.Listing{
-					RawListing: l,
-					SearchName: search.Name,
-				})
+				listing := model.Listing{RawListing: l, SearchName: search.Name}
+				priceDropMessages = append(priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice))
 				continue
 			}
 		}
@@ -310,6 +309,17 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 				PageLink:     l.PageLink,
 				FirstSeenAt:  time.Now(),
 			})
+		}
+	}
+
+	for _, msg := range priceDropMessages {
+		for _, recipient := range search.Recipients {
+			if err := s.notifier.NotifyRaw(ctx, recipient, msg); err != nil {
+				s.logger.Error("price drop notification failed",
+					"recipient", maskPhone(recipient),
+					"error", err,
+				)
+			}
 		}
 	}
 
@@ -605,6 +615,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 		filtered := filter.Apply(criteria, raw)
 
 		var newListings []model.Listing
+		var priceDropMessages []string
 		for _, l := range filtered {
 			if l.Price > search.PriceMax && search.PriceMax > 0 {
 				continue
@@ -623,7 +634,8 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 						"old_price", oldPrice,
 						"new_price", l.Price,
 					)
-					newListings = append(newListings, model.Listing{RawListing: l, SearchName: search.Name})
+					listing := model.Listing{RawListing: l, SearchName: search.Name}
+					priceDropMessages = append(priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice))
 					continue
 				}
 			}
@@ -650,6 +662,17 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			}
 		}
 
+		chatIDStr := fmt.Sprintf("%d", search.ChatID)
+
+		for _, msg := range priceDropMessages {
+			if err := s.notifier.NotifyRaw(ctx, chatIDStr, msg); err != nil {
+				s.logger.Error("price drop notification failed",
+					"chat_id", search.ChatID,
+					"error", err,
+				)
+			}
+		}
+
 		if len(newListings) == 0 {
 			continue
 		}
@@ -664,7 +687,6 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			"count", len(newListings),
 		)
 
-		chatIDStr := fmt.Sprintf("%d", search.ChatID)
 		if err := s.notifier.Notify(ctx, chatIDStr, newListings); err != nil {
 			s.logger.Error("notification failed",
 				"chat_id", search.ChatID,

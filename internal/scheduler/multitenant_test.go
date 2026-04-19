@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/dsionov/carwatch/internal/config"
@@ -145,6 +146,61 @@ func TestRunMultiTenantCycle_SharedScraping(t *testing.T) {
 	defer n.mu.Unlock()
 	if len(n.messages) != 2 {
 		t.Errorf("expected 2 notifications (one per user), got %d", len(n.messages))
+	}
+}
+
+func TestProcessGroup_PriceDropNotification(t *testing.T) {
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 89000, Year: 2021, EngineVolume: 2000, Km: 50000},
+		},
+	}
+	d := newMockDedup()
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	pt := newMockPriceTracker()
+	pt.prices["a"] = 95000
+
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "user1-mazda3", Manufacturer: 27, Model: 10332,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, Active: true},
+		},
+	}
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore: ss,
+		Prices:      pt,
+	})
+	ctx := context.Background()
+
+	err := s.runMultiTenantCycle(ctx)
+	if err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if len(n.messages) != 0 {
+		t.Errorf("expected 0 Notify calls for price drop, got %d", len(n.messages))
+	}
+
+	if len(n.rawMessages) != 1 {
+		t.Fatalf("expected 1 NotifyRaw call for price drop, got %d", len(n.rawMessages))
+	}
+
+	if n.rawMessages[0].recipient != "100" {
+		t.Errorf("expected recipient '100', got %q", n.rawMessages[0].recipient)
+	}
+
+	msg := n.rawMessages[0].message
+	if !strings.Contains(msg, "Price Drop!") {
+		t.Errorf("price drop message should contain 'Price Drop!', got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "₪95,000") || !strings.Contains(msg, "₪89,000") {
+		t.Errorf("message should contain old and new prices, got:\n%s", msg)
 	}
 }
 
