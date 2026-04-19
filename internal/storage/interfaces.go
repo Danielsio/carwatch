@@ -18,6 +18,7 @@ type Search struct {
 	ID           int64
 	ChatID       int64
 	Name         string
+	Source       string
 	Manufacturer int
 	Model        int
 	YearMin      int
