@@ -29,29 +29,35 @@ func (m *mockFetcher) Fetch(_ context.Context, _ config.SourceParams) ([]model.R
 	return m.listings, m.err
 }
 
+type dedupKey struct {
+	token  string
+	chatID int64
+}
+
 type mockDedup struct {
-	seen map[string]bool
+	seen map[dedupKey]bool
 	mu   sync.Mutex
 }
 
 func newMockDedup() *mockDedup {
-	return &mockDedup{seen: make(map[string]bool)}
+	return &mockDedup{seen: make(map[dedupKey]bool)}
 }
 
-func (m *mockDedup) ClaimNew(_ context.Context, token string, _ int64, _ int64) (bool, error) {
+func (m *mockDedup) ClaimNew(_ context.Context, token string, chatID int64, _ int64) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.seen[token] {
+	key := dedupKey{token, chatID}
+	if m.seen[key] {
 		return false, nil
 	}
-	m.seen[token] = true
+	m.seen[key] = true
 	return true, nil
 }
 
-func (m *mockDedup) ReleaseClaim(_ context.Context, token string, _ int64) error {
+func (m *mockDedup) ReleaseClaim(_ context.Context, token string, chatID int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.seen, token)
+	delete(m.seen, dedupKey{token, chatID})
 	return nil
 }
 
@@ -138,7 +144,7 @@ func TestProcessSearch_NewListings(t *testing.T) {
 	if n.messages[0].count != 2 {
 		t.Errorf("expected 2 listings, got %d", n.messages[0].count)
 	}
-	if !d.seen["a"] || !d.seen["b"] {
+	if !d.seen[dedupKey{"a", 0}] || !d.seen[dedupKey{"b", 0}] {
 		t.Error("tokens should be marked as seen")
 	}
 }
@@ -150,7 +156,7 @@ func TestProcessSearch_AllSeen(t *testing.T) {
 		},
 	}
 	d := newMockDedup()
-	d.seen["a"] = true
+	d.seen[dedupKey{"a", 0}] = true
 	n := &mockNotifier{}
 	cfg := testConfig()
 
@@ -184,7 +190,7 @@ func TestProcessSearch_NotifyFailure_ReleasesClaims(t *testing.T) {
 		t.Fatalf("processSearch: %v", err)
 	}
 
-	if d.seen["a"] || d.seen["b"] {
+	if d.seen[dedupKey{"a", 0}] || d.seen[dedupKey{"b", 0}] {
 		t.Error("claims should be released after notify failure")
 	}
 }
@@ -208,7 +214,7 @@ func TestProcessSearch_PartialNotifySuccess(t *testing.T) {
 		t.Fatalf("processSearch: %v", err)
 	}
 
-	if !d.seen["a"] {
+	if !d.seen[dedupKey{"a", 0}] {
 		t.Error("claim should be kept when at least one recipient succeeds")
 	}
 }
