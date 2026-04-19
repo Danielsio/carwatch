@@ -322,6 +322,10 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 		return nil
 	}
 
+	if s.health != nil {
+		s.health.RecordListingsFound(len(newListings))
+	}
+
 	msg := notifier.FormatBatch(newListings)
 
 	anyDelivered := false
@@ -340,6 +344,9 @@ func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfi
 			continue
 		}
 		anyDelivered = true
+		if s.health != nil {
+			s.health.RecordNotificationSent()
+		}
 	}
 
 	if s.queue != nil {
@@ -647,6 +654,10 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			continue
 		}
 
+		if s.health != nil {
+			s.health.RecordListingsFound(len(newListings))
+		}
+
 		s.logger.Info("new listings for user",
 			"chat_id", search.ChatID,
 			"search", search.Name,
@@ -662,6 +673,8 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			for _, l := range newListings {
 				_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
 			}
+		} else if s.health != nil {
+			s.health.RecordNotificationSent()
 		}
 	}
 

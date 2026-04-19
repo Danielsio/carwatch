@@ -19,5 +19,7 @@ RUN apk add --no-cache ca-certificates tzdata \
 USER bot
 COPY --from=builder /bot /bot
 VOLUME /data
+HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
+  CMD wget -q --spider http://localhost:8080/healthz || exit 1
 ENTRYPOINT ["/bot"]
 CMD ["-config", "/config.yaml"]
