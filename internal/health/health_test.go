@@ -42,7 +42,7 @@ func TestStatus_RecordError(t *testing.T) {
 	s.Handler()(w, req)
 
 	var resp map[string]any
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 	if resp["errors"].(float64) != 2 {
 		t.Errorf("errors = %v, want 2", resp["errors"])

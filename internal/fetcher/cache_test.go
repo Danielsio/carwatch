@@ -55,7 +55,7 @@ func TestCachingFetcher_FallsBackOnError(t *testing.T) {
 	ctx := context.Background()
 	params := config.SourceParams{Manufacturer: 1}
 
-	cf.Fetch(ctx, params)
+	_, _ = cf.Fetch(ctx, params)
 	time.Sleep(time.Millisecond)
 
 	inner.err = errors.New("network error")

@@ -16,7 +16,7 @@ func TestRun_InvalidConfigPath(t *testing.T) {
 func TestRun_InvalidConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.yaml")
-	os.WriteFile(path, []byte("invalid: {[broken yaml"), 0644)
+	_ = os.WriteFile(path, []byte("invalid: {[broken yaml"), 0644)
 
 	err := run(path, nil)
 	if err == nil {
@@ -27,7 +27,7 @@ func TestRun_InvalidConfig(t *testing.T) {
 func TestRun_NoSearches(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "empty.yaml")
-	os.WriteFile(path, []byte("log_level: info\n"), 0644)
+	_ = os.WriteFile(path, []byte("log_level: info\n"), 0644)
 
 	err := run(path, nil)
 	if err == nil {
