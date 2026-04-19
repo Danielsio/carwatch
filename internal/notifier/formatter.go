@@ -74,7 +74,7 @@ func FormatBatch(listings []model.Listing) string {
 	b.WriteString(fmt.Sprintf("🚗 *%d New Listings Found*\n", len(listings)))
 
 	for i, l := range listings {
-		b.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━━━\n"))
+		b.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
 		b.WriteString(fmt.Sprintf("*[%d/%d]*\n", i+1, len(listings)))
 		b.WriteString(FormatListing(l))
 	}

@@ -41,7 +41,7 @@ func TestReleaseClaim(t *testing.T) {
 
 	ctx := context.Background()
 
-	store.ClaimNew(ctx, "token1", "search1")
+	_, _ = store.ClaimNew(ctx, "token1", "search1")
 
 	if err := store.ReleaseClaim(ctx, "token1"); err != nil {
 		t.Fatalf("ReleaseClaim: %v", err)
@@ -65,7 +65,7 @@ func TestPrune(t *testing.T) {
 
 	ctx := context.Background()
 
-	store.ClaimNew(ctx, "old-token", "search1")
+	_, _ = store.ClaimNew(ctx, "old-token", "search1")
 
 	pruned, err := store.Prune(ctx, 0)
 	if err != nil {
@@ -90,7 +90,7 @@ func TestPruneKeepsRecent(t *testing.T) {
 
 	ctx := context.Background()
 
-	store.ClaimNew(ctx, "recent-token", "search1")
+	_, _ = store.ClaimNew(ctx, "recent-token", "search1")
 
 	pruned, err := store.Prune(ctx, 24*time.Hour)
 	if err != nil {
