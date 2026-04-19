@@ -60,6 +60,8 @@ func (b *Bot) RegisterHandlers() {
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/watch", tgbot.MatchTypeExact, b.handleWatch)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/list", tgbot.MatchTypeExact, b.handleList)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/stop", tgbot.MatchTypePrefix, b.handleStop)
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/pause", tgbot.MatchTypePrefix, b.handlePause)
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/resume", tgbot.MatchTypePrefix, b.handleResume)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/cancel", tgbot.MatchTypeExact, b.handleCancel)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/help", tgbot.MatchTypeExact, b.handleHelp)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/settings", tgbot.MatchTypeExact, b.handleSettings)
@@ -140,16 +142,21 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 
 	var buttons [][]tgmodels.InlineKeyboardButton
 	for _, s := range searches {
-		status := "active"
+		prefix := ""
 		if !s.Active {
-			status = "paused"
+			prefix = "\u23f8 "
 		}
 		mfr := yad2.ManufacturerName(s.Manufacturer)
 		mdl := yad2.ModelName(s.Manufacturer, s.Model)
 
+		status := "active"
+		if !s.Active {
+			status = "paused"
+		}
+
 		sb.WriteString(fmt.Sprintf(
-			"#%d %s %s (%d–%d, max %s NIS) [%s]\n",
-			s.ID, mfr, mdl, s.YearMin, s.YearMax, formatNumber(s.PriceMax), status))
+			"%s#%d %s %s (%d\u2013%d, max %s NIS) [%s]\n",
+			prefix, s.ID, mfr, mdl, s.YearMin, s.YearMax, formatNumber(s.PriceMax), status))
 
 		buttons = append(buttons, []tgmodels.InlineKeyboardButton{{
 			Text:         fmt.Sprintf("Delete #%d", s.ID),
@@ -183,6 +190,72 @@ func (b *Bot) handleStop(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 	b.send(ctx, chatID, fmt.Sprintf("Search #%d deleted.", id))
 }
 
+func (b *Bot) handlePause(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	chatID := update.Message.Chat.ID
+	parts := strings.Fields(update.Message.Text)
+	if len(parts) < 2 {
+		b.send(ctx, chatID, "Usage: /pause <search_id>\nUse /list to see your search IDs.")
+		return
+	}
+
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		b.send(ctx, chatID, "Invalid search ID. Use /list to see your searches.")
+		return
+	}
+
+	search, err := b.searches.GetSearch(ctx, id)
+	if err != nil || search == nil || search.ChatID != chatID {
+		b.send(ctx, chatID, "Search not found. Use /list to see your searches.")
+		return
+	}
+
+	if !search.Active {
+		b.send(ctx, chatID, fmt.Sprintf("Search #%d is already paused.", id))
+		return
+	}
+
+	if err := b.searches.SetSearchActive(ctx, id, false); err != nil {
+		b.send(ctx, chatID, "Failed to pause search.")
+		return
+	}
+
+	b.send(ctx, chatID, fmt.Sprintf("Search #%d paused. Use /resume %d to resume it.", id, id))
+}
+
+func (b *Bot) handleResume(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	chatID := update.Message.Chat.ID
+	parts := strings.Fields(update.Message.Text)
+	if len(parts) < 2 {
+		b.send(ctx, chatID, "Usage: /resume <search_id>\nUse /list to see your search IDs.")
+		return
+	}
+
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		b.send(ctx, chatID, "Invalid search ID. Use /list to see your searches.")
+		return
+	}
+
+	search, err := b.searches.GetSearch(ctx, id)
+	if err != nil || search == nil || search.ChatID != chatID {
+		b.send(ctx, chatID, "Search not found. Use /list to see your searches.")
+		return
+	}
+
+	if search.Active {
+		b.send(ctx, chatID, fmt.Sprintf("Search #%d is already active.", id))
+		return
+	}
+
+	if err := b.searches.SetSearchActive(ctx, id, true); err != nil {
+		b.send(ctx, chatID, "Failed to resume search.")
+		return
+	}
+
+	b.send(ctx, chatID, fmt.Sprintf("Search #%d resumed.", id))
+}
+
 func (b *Bot) handleCancel(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
 	_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
@@ -194,6 +267,8 @@ func (b *Bot) handleHelp(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 		"*CarWatch Commands:*\n\n"+
 			"/watch — Set up a new car search\n"+
 			"/list — Show your active searches\n"+
+			"/pause <id> — Pause a search\n"+
+			"/resume <id> — Resume a paused search\n"+
 			"/stop <id> — Delete a search\n"+
 			"/settings — View your current limits\n"+
 			"/cancel — Cancel current wizard\n"+
