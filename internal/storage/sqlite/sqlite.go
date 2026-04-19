@@ -468,7 +468,7 @@ func (s *Store) FlushDigest(ctx context.Context, chatID int64) ([]string, error)
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	rows, err := tx.QueryContext(ctx,
 		"SELECT listing_payload FROM pending_digest WHERE chat_id = ? ORDER BY created_at", chatID)
