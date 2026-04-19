@@ -24,7 +24,7 @@ func New(dbPath string) (*Store, error) {
 		}
 	}
 
-	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_busy_timeout=5000")
+	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=ON")
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
@@ -39,11 +39,39 @@ func New(dbPath string) (*Store, error) {
 
 func migrate(db *sql.DB) error {
 	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS seen_listings (
-			token TEXT PRIMARY KEY,
-			search_name TEXT NOT NULL,
-			first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		CREATE TABLE IF NOT EXISTS users (
+			chat_id     INTEGER PRIMARY KEY,
+			username    TEXT NOT NULL DEFAULT '',
+			state       TEXT NOT NULL DEFAULT 'idle',
+			state_data  TEXT NOT NULL DEFAULT '{}',
+			created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			active      BOOLEAN NOT NULL DEFAULT true
 		);
+
+		CREATE TABLE IF NOT EXISTS searches (
+			id            INTEGER PRIMARY KEY AUTOINCREMENT,
+			chat_id       INTEGER NOT NULL REFERENCES users(chat_id),
+			name          TEXT NOT NULL,
+			manufacturer  INTEGER NOT NULL,
+			model         INTEGER NOT NULL,
+			year_min      INTEGER NOT NULL DEFAULT 2000,
+			year_max      INTEGER NOT NULL DEFAULT 2030,
+			price_max     INTEGER NOT NULL DEFAULT 9999999,
+			engine_min_cc INTEGER NOT NULL DEFAULT 0,
+			max_km        INTEGER NOT NULL DEFAULT 0,
+			max_hand      INTEGER NOT NULL DEFAULT 0,
+			active        BOOLEAN NOT NULL DEFAULT true,
+			created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE TABLE IF NOT EXISTS seen_listings (
+			token       TEXT NOT NULL,
+			chat_id     INTEGER NOT NULL,
+			search_id   INTEGER NOT NULL,
+			first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (token, chat_id)
+		);
+
 		CREATE TABLE IF NOT EXISTS pending_notifications (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			recipient TEXT NOT NULL,
@@ -51,12 +79,14 @@ func migrate(db *sql.DB) error {
 			payload TEXT NOT NULL,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
+
 		CREATE TABLE IF NOT EXISTS price_history (
 			token TEXT NOT NULL,
 			price INTEGER NOT NULL,
 			observed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (token, price)
 		);
+
 		CREATE TABLE IF NOT EXISTS listing_history (
 			token TEXT PRIMARY KEY,
 			search_name TEXT NOT NULL,
@@ -74,10 +104,181 @@ func migrate(db *sql.DB) error {
 	return err
 }
 
-func (s *Store) ClaimNew(ctx context.Context, token string, searchName string) (bool, error) {
+// --- UserStore ---
+
+func (s *Store) UpsertUser(ctx context.Context, chatID int64, username string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO users (chat_id, username) VALUES (?, ?)
+		ON CONFLICT(chat_id) DO UPDATE SET username = excluded.username`,
+		chatID, username)
+	return err
+}
+
+func (s *Store) GetUser(ctx context.Context, chatID int64) (*storage.User, error) {
+	row := s.db.QueryRowContext(ctx,
+		"SELECT chat_id, username, state, state_data, created_at, active FROM users WHERE chat_id = ?",
+		chatID)
+
+	var u storage.User
+	err := row.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (s *Store) UpdateUserState(ctx context.Context, chatID int64, state string, stateData string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE users SET state = ?, state_data = ? WHERE chat_id = ?",
+		state, stateData, chatID)
+	return err
+}
+
+func (s *Store) ListActiveUsers(ctx context.Context) ([]storage.User, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT chat_id, username, state, state_data, created_at, active FROM users WHERE active = true")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanUsers(rows)
+}
+
+func (s *Store) SetUserActive(ctx context.Context, chatID int64, active bool) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE users SET active = ? WHERE chat_id = ?",
+		active, chatID)
+	return err
+}
+
+func (s *Store) CountUsers(ctx context.Context) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE active = true").Scan(&count)
+	return count, err
+}
+
+func scanUsers(rows *sql.Rows) ([]storage.User, error) {
+	var users []storage.User
+	for rows.Next() {
+		var u storage.User
+		if err := rows.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// --- SearchStore ---
+
+func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64, error) {
+	result, err := s.db.ExecContext(ctx, `
+		INSERT INTO searches (chat_id, name, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		search.ChatID, search.Name, search.Manufacturer, search.Model,
+		search.YearMin, search.YearMax, search.PriceMax,
+		search.EngineMinCC, search.MaxKm, search.MaxHand)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
+func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Search, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, chat_id, name, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
+		FROM searches WHERE chat_id = ? ORDER BY created_at DESC`, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanSearches(rows)
+}
+
+func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, chat_id, name, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
+		FROM searches WHERE id = ?`, id)
+
+	var search storage.Search
+	err := row.Scan(&search.ID, &search.ChatID, &search.Name, &search.Manufacturer, &search.Model,
+		&search.YearMin, &search.YearMax, &search.PriceMax,
+		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
+		&search.Active, &search.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &search, nil
+}
+
+func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM searches WHERE id = ? AND chat_id = ?", id, chatID)
+	return err
+}
+
+func (s *Store) SetSearchActive(ctx context.Context, id int64, active bool) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE searches SET active = ? WHERE id = ?", active, id)
+	return err
+}
+
+func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT s.id, s.chat_id, s.name, s.manufacturer, s.model, s.year_min, s.year_max, s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.active, s.created_at
+		FROM searches s
+		JOIN users u ON s.chat_id = u.chat_id
+		WHERE s.active = true AND u.active = true
+		ORDER BY s.manufacturer, s.model`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanSearches(rows)
+}
+
+func (s *Store) CountSearches(ctx context.Context, chatID int64) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM searches WHERE chat_id = ? AND active = true",
+		chatID).Scan(&count)
+	return count, err
+}
+
+func (s *Store) CountAllSearches(ctx context.Context) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM searches WHERE active = true").Scan(&count)
+	return count, err
+}
+
+func scanSearches(rows *sql.Rows) ([]storage.Search, error) {
+	var searches []storage.Search
+	for rows.Next() {
+		var s storage.Search
+		if err := rows.Scan(&s.ID, &s.ChatID, &s.Name, &s.Manufacturer, &s.Model,
+			&s.YearMin, &s.YearMax, &s.PriceMax,
+			&s.EngineMinCC, &s.MaxKm, &s.MaxHand,
+			&s.Active, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		searches = append(searches, s)
+	}
+	return searches, rows.Err()
+}
+
+// --- DedupStore (per-user) ---
+
+func (s *Store) ClaimNew(ctx context.Context, token string, chatID int64, searchID int64) (bool, error) {
 	result, err := s.db.ExecContext(ctx,
-		"INSERT OR IGNORE INTO seen_listings (token, search_name) VALUES (?, ?)",
-		token, searchName)
+		"INSERT OR IGNORE INTO seen_listings (token, chat_id, search_id) VALUES (?, ?, ?)",
+		token, chatID, searchID)
 	if err != nil {
 		return false, err
 	}
@@ -85,8 +286,9 @@ func (s *Store) ClaimNew(ctx context.Context, token string, searchName string) (
 	return rows > 0, err
 }
 
-func (s *Store) ReleaseClaim(ctx context.Context, token string) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM seen_listings WHERE token = ?", token)
+func (s *Store) ReleaseClaim(ctx context.Context, token string, chatID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM seen_listings WHERE token = ? AND chat_id = ?", token, chatID)
 	return err
 }
 
@@ -98,6 +300,8 @@ func (s *Store) Prune(ctx context.Context, olderThan time.Duration) (int64, erro
 	}
 	return result.RowsAffected()
 }
+
+// --- NotificationQueue ---
 
 func (s *Store) EnqueueNotification(ctx context.Context, recipient, searchName, payload string) error {
 	_, err := s.db.ExecContext(ctx,
@@ -130,6 +334,8 @@ func (s *Store) AckNotification(ctx context.Context, id int64) error {
 	return err
 }
 
+// --- PriceTracker ---
+
 func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error) {
 	row := s.db.QueryRowContext(ctx,
 		"SELECT price FROM price_history WHERE token = ? ORDER BY observed_at DESC LIMIT 1", token)
@@ -154,6 +360,8 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 	}
 	return prev, false, nil
 }
+
+// --- ListingStore ---
 
 func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
 	_, err := s.db.ExecContext(ctx, `
@@ -185,6 +393,8 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 	}
 	return listings, rows.Err()
 }
+
+// --- Close ---
 
 func (s *Store) Close() error {
 	return s.db.Close()

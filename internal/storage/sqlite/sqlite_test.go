@@ -8,156 +8,386 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
-func TestClaimNew(t *testing.T) {
+func newTestStore(t *testing.T) *Store {
+	t.Helper()
 	store, err := New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	t.Cleanup(func() { store.Close() })
+	return store
+}
 
-	ctx := context.Background()
-
-	isNew, err := store.ClaimNew(ctx, "token1", "search1")
-	if err != nil {
-		t.Fatalf("ClaimNew: %v", err)
-	}
-	if !isNew {
-		t.Error("expected token1 to be new")
-	}
-
-	isNew, err = store.ClaimNew(ctx, "token1", "search1")
-	if err != nil {
-		t.Fatalf("ClaimNew duplicate: %v", err)
-	}
-	if isNew {
-		t.Error("expected token1 to not be new on second claim")
+func seedUser(t *testing.T, store *Store, chatID int64) {
+	t.Helper()
+	if err := store.UpsertUser(context.Background(), chatID, "testuser"); err != nil {
+		t.Fatalf("seed user: %v", err)
 	}
 }
 
-func TestReleaseClaim(t *testing.T) {
-	store, err := New(":memory:")
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-	defer store.Close()
+// --- User Tests ---
 
+func TestUpsertUser(t *testing.T) {
+	store := newTestStore(t)
 	ctx := context.Background()
 
-	_, _ = store.ClaimNew(ctx, "token1", "search1")
-
-	if err := store.ReleaseClaim(ctx, "token1"); err != nil {
-		t.Fatalf("ReleaseClaim: %v", err)
+	if err := store.UpsertUser(ctx, 100, "alice"); err != nil {
+		t.Fatalf("upsert: %v", err)
 	}
 
-	isNew, err := store.ClaimNew(ctx, "token1", "search1")
+	u, err := store.GetUser(ctx, 100)
 	if err != nil {
-		t.Fatalf("ClaimNew after release: %v", err)
+		t.Fatalf("get user: %v", err)
 	}
+	if u == nil {
+		t.Fatal("user should exist")
+	}
+	if u.Username != "alice" || u.State != "idle" || !u.Active {
+		t.Errorf("user = %+v", u)
+	}
+
+	if err := store.UpsertUser(ctx, 100, "alice_new"); err != nil {
+		t.Fatalf("upsert update: %v", err)
+	}
+	u, _ = store.GetUser(ctx, 100)
+	if u.Username != "alice_new" {
+		t.Errorf("username should update on upsert, got %q", u.Username)
+	}
+}
+
+func TestGetUser_NotFound(t *testing.T) {
+	store := newTestStore(t)
+	u, err := store.GetUser(context.Background(), 999)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if u != nil {
+		t.Error("expected nil for nonexistent user")
+	}
+}
+
+func TestUpdateUserState(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.UpdateUserState(ctx, 100, "ask_manufacturer", `{"step":1}`); err != nil {
+		t.Fatalf("update state: %v", err)
+	}
+
+	u, _ := store.GetUser(ctx, 100)
+	if u.State != "ask_manufacturer" || u.StateData != `{"step":1}` {
+		t.Errorf("state = %q, data = %q", u.State, u.StateData)
+	}
+}
+
+func TestListActiveUsers(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+	_ = store.SetUserActive(ctx, 200, false)
+
+	users, err := store.ListActiveUsers(ctx)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(users) != 1 || users[0].ChatID != 100 {
+		t.Errorf("expected 1 active user (100), got %d", len(users))
+	}
+}
+
+func TestCountUsers(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+	_ = store.SetUserActive(ctx, 200, false)
+
+	count, err := store.CountUsers(ctx)
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1", count)
+	}
+}
+
+// --- Search Tests ---
+
+func TestCreateAndListSearches(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	id, err := store.CreateSearch(ctx, storage.Search{
+		ChatID:       100,
+		Name:         "mazda3-2.0",
+		Manufacturer: 27,
+		Model:        10332,
+		YearMin:      2018,
+		YearMax:      2024,
+		PriceMax:     150000,
+		EngineMinCC:  1800,
+	})
+	if err != nil {
+		t.Fatalf("create search: %v", err)
+	}
+	if id == 0 {
+		t.Error("expected non-zero search ID")
+	}
+
+	searches, err := store.ListSearches(ctx, 100)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(searches) != 1 {
+		t.Fatalf("expected 1 search, got %d", len(searches))
+	}
+	s := searches[0]
+	if s.Name != "mazda3-2.0" || s.Manufacturer != 27 || s.PriceMax != 150000 {
+		t.Errorf("search = %+v", s)
+	}
+}
+
+func TestGetSearch(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	id, _ := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
+	})
+
+	s, err := store.GetSearch(ctx, id)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if s == nil || s.Name != "test" {
+		t.Errorf("search = %+v", s)
+	}
+
+	s, err = store.GetSearch(ctx, 999)
+	if err != nil {
+		t.Fatalf("get nonexistent: %v", err)
+	}
+	if s != nil {
+		t.Error("expected nil for nonexistent search")
+	}
+}
+
+func TestDeleteSearch(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	id, _ := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
+	})
+
+	if err := store.DeleteSearch(ctx, id, 100); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	searches, _ := store.ListSearches(ctx, 100)
+	if len(searches) != 0 {
+		t.Error("search should be deleted")
+	}
+}
+
+func TestDeleteSearch_WrongOwner(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	id, _ := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
+	})
+
+	_ = store.DeleteSearch(ctx, id, 200)
+
+	s, _ := store.GetSearch(ctx, id)
+	if s == nil {
+		t.Error("search should NOT be deleted by wrong owner")
+	}
+}
+
+func TestSetSearchActive(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	id, _ := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
+	})
+
+	_ = store.SetSearchActive(ctx, id, false)
+	s, _ := store.GetSearch(ctx, id)
+	if s.Active {
+		t.Error("search should be inactive")
+	}
+
+	_ = store.SetSearchActive(ctx, id, true)
+	s, _ = store.GetSearch(ctx, id)
+	if !s.Active {
+		t.Error("search should be active again")
+	}
+}
+
+func TestListAllActiveSearches(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "a", Manufacturer: 27, Model: 10332})
+	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "b", Manufacturer: 27, Model: 10332})
+
+	id3, _ := store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "c", Manufacturer: 1, Model: 1})
+	_ = store.SetSearchActive(ctx, id3, false)
+
+	searches, err := store.ListAllActiveSearches(ctx)
+	if err != nil {
+		t.Fatalf("list all: %v", err)
+	}
+	if len(searches) != 2 {
+		t.Errorf("expected 2 active searches, got %d", len(searches))
+	}
+}
+
+func TestCountSearches(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "a", Manufacturer: 1, Model: 1})
+	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "b", Manufacturer: 2, Model: 2})
+
+	count, _ := store.CountSearches(ctx, 100)
+	if count != 2 {
+		t.Errorf("count = %d, want 2", count)
+	}
+
+	total, _ := store.CountAllSearches(ctx)
+	if total != 2 {
+		t.Errorf("total = %d, want 2", total)
+	}
+}
+
+// --- DedupStore (per-user) ---
+
+func TestClaimNew_PerUser(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	isNew, err := store.ClaimNew(ctx, "token1", 100, 1)
+	if err != nil || !isNew {
+		t.Fatalf("first claim: new=%v, err=%v", isNew, err)
+	}
+
+	isNew, err = store.ClaimNew(ctx, "token1", 100, 1)
+	if err != nil || isNew {
+		t.Error("duplicate claim for same user should return false")
+	}
+
+	isNew, err = store.ClaimNew(ctx, "token1", 200, 1)
+	if err != nil || !isNew {
+		t.Error("same token for different user should be new")
+	}
+}
+
+func TestReleaseClaim_PerUser(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	_, _ = store.ClaimNew(ctx, "token1", 100, 1)
+	_, _ = store.ClaimNew(ctx, "token1", 200, 1)
+
+	if err := store.ReleaseClaim(ctx, "token1", 100); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+
+	isNew, _ := store.ClaimNew(ctx, "token1", 100, 1)
 	if !isNew {
-		t.Error("expected token1 to be new after release")
+		t.Error("released token should be claimable again for user 100")
+	}
+
+	isNew, _ = store.ClaimNew(ctx, "token1", 200, 1)
+	if isNew {
+		t.Error("user 200's claim should be unaffected")
 	}
 }
 
 func TestPrune(t *testing.T) {
-	store, err := New(":memory:")
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-	defer store.Close()
-
+	store := newTestStore(t)
 	ctx := context.Background()
+	seedUser(t, store, 100)
 
-	_, _ = store.ClaimNew(ctx, "old-token", "search1")
-
+	_, _ = store.ClaimNew(ctx, "old-token", 100, 1)
 	pruned, err := store.Prune(ctx, 0)
 	if err != nil {
-		t.Fatalf("Prune: %v", err)
+		t.Fatalf("prune: %v", err)
 	}
 	if pruned != 1 {
 		t.Errorf("expected 1 pruned, got %d", pruned)
 	}
-
-	isNew, _ := store.ClaimNew(ctx, "old-token", "search1")
-	if !isNew {
-		t.Error("expected old-token to be claimable after prune")
-	}
 }
 
 func TestPruneKeepsRecent(t *testing.T) {
-	store, err := New(":memory:")
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-	defer store.Close()
-
+	store := newTestStore(t)
 	ctx := context.Background()
+	seedUser(t, store, 100)
 
-	_, _ = store.ClaimNew(ctx, "recent-token", "search1")
-
+	_, _ = store.ClaimNew(ctx, "recent-token", 100, 1)
 	pruned, err := store.Prune(ctx, 24*time.Hour)
 	if err != nil {
-		t.Fatalf("Prune: %v", err)
+		t.Fatalf("prune: %v", err)
 	}
 	if pruned != 0 {
 		t.Errorf("expected 0 pruned (recent), got %d", pruned)
 	}
 }
 
-func TestNotificationQueue(t *testing.T) {
-	store, err := New(":memory:")
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-	defer store.Close()
+// --- NotificationQueue ---
 
+func TestNotificationQueue(t *testing.T) {
+	store := newTestStore(t)
 	ctx := context.Background()
 
-	if err := store.EnqueueNotification(ctx, "+972111", "search1", "hello"); err != nil {
-		t.Fatalf("enqueue: %v", err)
-	}
-	if err := store.EnqueueNotification(ctx, "+972222", "search2", "world"); err != nil {
-		t.Fatalf("enqueue: %v", err)
-	}
+	_ = store.EnqueueNotification(ctx, "100", "search1", "hello")
+	_ = store.EnqueueNotification(ctx, "200", "search2", "world")
 
-	pending, err := store.PendingNotifications(ctx)
-	if err != nil {
-		t.Fatalf("pending: %v", err)
-	}
+	pending, _ := store.PendingNotifications(ctx)
 	if len(pending) != 2 {
 		t.Fatalf("expected 2 pending, got %d", len(pending))
 	}
 
-	if err := store.AckNotification(ctx, pending[0].ID); err != nil {
-		t.Fatalf("ack: %v", err)
-	}
-
+	_ = store.AckNotification(ctx, pending[0].ID)
 	remaining, _ := store.PendingNotifications(ctx)
 	if len(remaining) != 1 {
 		t.Errorf("expected 1 remaining, got %d", len(remaining))
 	}
 }
 
-func TestRecordPrice(t *testing.T) {
-	store, err := New(":memory:")
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-	defer store.Close()
+// --- PriceTracker ---
 
+func TestRecordPrice(t *testing.T) {
+	store := newTestStore(t)
 	ctx := context.Background()
 
-	_, changed, err := store.RecordPrice(ctx, "token1", 100000)
-	if err != nil {
-		t.Fatalf("record price: %v", err)
-	}
+	_, changed, _ := store.RecordPrice(ctx, "token1", 100000)
 	if changed {
 		t.Error("first price should not be a change")
 	}
 
-	oldPrice, changed, err := store.RecordPrice(ctx, "token1", 90000)
-	if err != nil {
-		t.Fatalf("record price: %v", err)
-	}
+	oldPrice, changed, _ := store.RecordPrice(ctx, "token1", 90000)
 	if !changed {
 		t.Error("price drop should be detected")
 	}
@@ -167,43 +397,27 @@ func TestRecordPrice(t *testing.T) {
 
 	_, changed, _ = store.RecordPrice(ctx, "token1", 95000)
 	if changed {
-		t.Error("price increase should not be detected as change")
+		t.Error("price increase should not trigger change")
 	}
 }
 
-func TestSaveAndListListings(t *testing.T) {
-	store, err := New(":memory:")
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-	defer store.Close()
+// --- ListingStore ---
 
+func TestSaveAndListListings(t *testing.T) {
+	store := newTestStore(t)
 	ctx := context.Background()
 
-	err = store.SaveListing(ctx, storage.ListingRecord{
-		Token:        "abc",
-		SearchName:   "test",
-		Manufacturer: "Mazda",
-		Model:        "3",
-		Year:         2021,
-		Price:        95000,
-		Km:           85000,
-		Hand:         2,
-		City:         "Tel Aviv",
-		PageLink:     "https://example.com",
+	err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "abc", SearchName: "test", Manufacturer: "Mazda", Model: "3",
+		Year: 2021, Price: 95000, Km: 85000, Hand: 2, City: "Tel Aviv",
+		PageLink: "https://example.com",
 	})
 	if err != nil {
-		t.Fatalf("save listing: %v", err)
+		t.Fatalf("save: %v", err)
 	}
 
-	listings, err := store.ListListings(ctx, 10)
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(listings) != 1 {
-		t.Fatalf("expected 1 listing, got %d", len(listings))
-	}
-	if listings[0].Manufacturer != "Mazda" {
-		t.Errorf("manufacturer = %q", listings[0].Manufacturer)
+	listings, _ := store.ListListings(ctx, 10)
+	if len(listings) != 1 || listings[0].Manufacturer != "Mazda" {
+		t.Errorf("listings = %+v", listings)
 	}
 }

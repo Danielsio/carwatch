@@ -11,14 +11,15 @@ import (
 	"syscall"
 	"time"
 
+	tgbot "github.com/go-telegram/bot"
+
+	cwbot "github.com/dsionov/carwatch/internal/bot"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/dashboard"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
-	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/notifier/telegram"
-	"github.com/dsionov/carwatch/internal/notifier/whatsapp"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
@@ -39,27 +40,33 @@ func main() {
 		return
 	}
 
-	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
 
-	if err := run(*configPath, bootstrapLogger); err != nil {
-		bootstrapLogger.Error("fatal", "error", err)
+	if err := run(*configPath, logger); err != nil {
+		logger.Error("fatal", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(configPath string, bootstrapLogger *slog.Logger) error {
+func run(configPath string, logger *slog.Logger) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
 
 	logLevel, _ := config.ParseLogLevel(cfg.LogLevel)
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: logLevel,
 	}))
-	logger.Info("config loaded", "searches", len(cfg.Searches), "log_level", cfg.LogLevel)
+	logger.Info("config loaded", "log_level", cfg.LogLevel, "version", version)
+
+	store, err := sqlite.New(cfg.Storage.DBPath)
+	if err != nil {
+		return fmt.Errorf("create store: %w", err)
+	}
+	defer store.Close()
 
 	var yad2Fetcher *yad2.Yad2Fetcher
 	if len(cfg.HTTP.Proxies) > 0 {
@@ -73,31 +80,30 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	}
 
 	cachingFetcher := fetcher.NewCachingFetcher(yad2Fetcher, 5*time.Minute)
-
 	fetcherFactory := fetcher.NewFactory()
 	fetcherFactory.Register("yad2", cachingFetcher)
 
-	store, err := sqlite.New(cfg.Storage.DBPath)
-	if err != nil {
-		return fmt.Errorf("create store: %w", err)
-	}
-	defer store.Close()
+	botHandler := cwbot.New(nil, store, store, cwbot.Config{
+		AdminChatID: cfg.Telegram.AdminChatID,
+		MaxSearches: cfg.Telegram.MaxSearches,
+	}, logger)
 
-	var notif notifier.Notifier
-	switch cfg.Notifier {
-	case "telegram":
-		notif = telegram.New(cfg.Telegram.Token, logger)
-	default:
-		notif = whatsapp.New(cfg.WhatsApp.DBPath, logger)
+	tgNotif, err := telegram.New(cfg.Telegram.Token, logger,
+		tgbot.WithDefaultHandler(botHandler.DefaultHandler()),
+	)
+	if err != nil {
+		return fmt.Errorf("create telegram bot: %w", err)
 	}
+
+	botHandler.SetBot(tgNotif.Bot())
+	botHandler.RegisterHandlers()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	if err := notif.Connect(ctx); err != nil {
-		return fmt.Errorf("connect notifier: %w", err)
+	if err := tgNotif.Connect(ctx); err != nil {
+		return fmt.Errorf("connect telegram: %w", err)
 	}
-	defer func() { _ = notif.Disconnect() }()
 
 	h := health.New()
 	dash := dashboard.NewHandler(store)
@@ -112,18 +118,24 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	}()
 	defer srv.Close()
 
-	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, notif, logger, scheduler.Options{
+	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, tgNotif, logger, scheduler.Options{
 		Health:         h,
 		Queue:          store,
 		Prices:         store,
 		ConfigPath:     configPath,
 		FetcherFactory: fetcherFactory,
 		ListingStore:   store,
+		SearchStore:    store,
 	})
 	if err != nil {
 		return fmt.Errorf("create scheduler: %w", err)
 	}
 
-	logger.Info("bot starting", "health_endpoint", ":8080/healthz")
+	go tgNotif.Bot().Start(ctx)
+	logger.Info("bot started",
+		"health", ":8080/healthz",
+		"dashboard", ":8080/dashboard",
+	)
+
 	return sched.Run(ctx)
 }

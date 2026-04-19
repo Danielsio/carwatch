@@ -64,7 +64,9 @@ type WhatsAppConfig struct {
 }
 
 type TelegramConfig struct {
-	Token string `yaml:"token"`
+	Token       string `yaml:"token"`
+	AdminChatID int64  `yaml:"admin_chat_id"`
+	MaxSearches int    `yaml:"max_searches"`
 }
 
 type StorageConfig struct {

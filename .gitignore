@@ -2,3 +2,5 @@ data/
 config.yaml
 *.db
 /bot
+.idea/
+.coverage/
