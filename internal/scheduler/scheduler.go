@@ -45,6 +45,7 @@ type Scheduler struct {
 	prices            storage.PriceTracker
 	fetcherFactory    *fetcher.Factory
 	listingStore      storage.ListingStore
+	searchStore       storage.SearchStore
 }
 
 type Options struct {
@@ -54,6 +55,7 @@ type Options struct {
 	ConfigPath     string
 	FetcherFactory *fetcher.Factory
 	ListingStore   storage.ListingStore
+	SearchStore    storage.SearchStore
 }
 
 func New(
@@ -93,6 +95,7 @@ func NewWithOptions(
 		prices:            opts.Prices,
 		fetcherFactory:    opts.FetcherFactory,
 		listingStore:      opts.ListingStore,
+		searchStore:       opts.SearchStore,
 	}, nil
 }
 
@@ -109,8 +112,13 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	signal.Notify(sighup, syscall.SIGHUP)
 	defer signal.Stop(sighup)
 
+	cycle := s.runCycle
+	if s.searchStore != nil {
+		cycle = s.runMultiTenantCycle
+	}
+
 	if s.isActiveHours() {
-		if err := s.runCycle(ctx); err != nil {
+		if err := cycle(ctx); err != nil {
 			if errors.Is(err, context.Canceled) {
 				return err
 			}
@@ -146,7 +154,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			continue
 		}
 
-		if err := s.runCycle(ctx); err != nil {
+		if err := cycle(ctx); err != nil {
 			if errors.Is(err, context.Canceled) {
 				return err
 			}
@@ -499,6 +507,165 @@ func (s *Scheduler) ackDelivered(ctx context.Context, searchName string) {
 			_ = s.queue.AckNotification(ctx, p.ID)
 		}
 	}
+}
+
+func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
+	if s.searchStore == nil {
+		return s.runCycle(ctx)
+	}
+
+	s.logger.Info("starting multi-tenant poll cycle")
+
+	searches, err := s.searchStore.ListAllActiveSearches(ctx)
+	if err != nil {
+		return fmt.Errorf("load searches: %w", err)
+	}
+
+	if len(searches) == 0 {
+		s.logger.Info("no active searches")
+		return nil
+	}
+
+	groups := GroupSearches(searches)
+	s.logger.Info("grouped searches", "groups", len(groups), "total_searches", len(searches))
+
+	allFailed := true
+	for _, group := range groups {
+		if err := s.processGroup(ctx, group); err != nil {
+			s.logger.Error("group failed",
+				"manufacturer", group.Manufacturer,
+				"model", group.Model,
+				"error", err,
+			)
+			if errors.Is(err, fetcher.ErrChallenge) {
+				s.backoffMultiplier = min(s.backoffMultiplier*2, maxBackoff)
+			}
+			continue
+		}
+		allFailed = false
+		s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
+	}
+
+	if time.Since(s.lastPruneTime) > pruneInterval {
+		if s.cfg.Storage.PruneAfter > 0 {
+			pruned, err := s.dedup.Prune(ctx, s.cfg.Storage.PruneAfter)
+			if err != nil {
+				s.logger.Error("prune failed", "error", err)
+			} else if pruned > 0 {
+				s.logger.Info("pruned old listings", "count", pruned)
+			}
+		}
+		s.lastPruneTime = time.Now()
+	}
+
+	if allFailed && len(groups) > 0 {
+		if s.health != nil {
+			s.health.RecordError()
+		}
+		return fmt.Errorf("all %d groups failed", len(groups))
+	}
+
+	if s.health != nil {
+		s.health.RecordSuccess()
+	}
+	return nil
+}
+
+func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) error {
+	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
+
+	activeFetcher := s.fetcherForSource("yad2")
+	raw, err := s.fetchWithRetryUsing(fetchCtx, activeFetcher, group.Params)
+	if err != nil {
+		return err
+	}
+
+	s.logger.Info("fetched for group",
+		"manufacturer", group.Manufacturer,
+		"model", group.Model,
+		"raw_count", len(raw),
+		"user_searches", len(group.Searches),
+	)
+
+	for _, search := range group.Searches {
+		criteria := config.FilterCriteria{
+			EngineMinCC: float64(search.EngineMinCC),
+			MaxKm:       search.MaxKm,
+			MaxHand:     search.MaxHand,
+		}
+
+		filtered := filter.Apply(criteria, raw)
+
+		var newListings []model.Listing
+		for _, l := range filtered {
+			if l.Price > search.PriceMax && search.PriceMax > 0 {
+				continue
+			}
+			if l.Year < search.YearMin || (l.Year > search.YearMax && search.YearMax > 0) {
+				continue
+			}
+
+			if s.prices != nil && l.Price > 0 {
+				oldPrice, changed, err := s.prices.RecordPrice(ctx, l.Token, l.Price)
+				if err != nil {
+					s.logger.Error("record price failed", "token", l.Token, "error", err)
+				} else if changed {
+					s.logger.Info("price drop detected",
+						"token", l.Token,
+						"old_price", oldPrice,
+						"new_price", l.Price,
+					)
+					newListings = append(newListings, model.Listing{RawListing: l, SearchName: search.Name})
+					continue
+				}
+			}
+
+			isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.ChatID, search.ID)
+			if err != nil {
+				s.logger.Error("claim failed", "token", l.Token, "error", err)
+				continue
+			}
+			if !isNew {
+				continue
+			}
+
+			listing := model.Listing{RawListing: l, SearchName: search.Name}
+			newListings = append(newListings, listing)
+
+			if s.listingStore != nil {
+				_ = s.listingStore.SaveListing(ctx, storage.ListingRecord{
+					Token: l.Token, SearchName: search.Name,
+					Manufacturer: l.Manufacturer, Model: l.Model,
+					Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
+					City: l.City, PageLink: l.PageLink, FirstSeenAt: time.Now(),
+				})
+			}
+		}
+
+		if len(newListings) == 0 {
+			continue
+		}
+
+		s.logger.Info("new listings for user",
+			"chat_id", search.ChatID,
+			"search", search.Name,
+			"count", len(newListings),
+		)
+
+		chatIDStr := fmt.Sprintf("%d", search.ChatID)
+		if err := s.notifier.Notify(ctx, chatIDStr, newListings); err != nil {
+			s.logger.Error("notification failed",
+				"chat_id", search.ChatID,
+				"error", err,
+			)
+			for _, l := range newListings {
+				_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
+			}
+		}
+	}
+
+	return nil
 }
 
 func maskPhone(phone string) string {
