@@ -280,7 +280,7 @@ func TestRunCycle_ChallengeIncreasesBackoff(t *testing.T) {
 	ctx := context.Background()
 
 	initialBackoff := s.backoffMultiplier
-	s.runCycle(ctx)
+	_ = s.runCycle(ctx)
 
 	if s.backoffMultiplier <= initialBackoff {
 		t.Errorf("backoff should increase on challenge: was %f, now %f", initialBackoff, s.backoffMultiplier)
@@ -297,7 +297,7 @@ func TestRunCycle_SuccessDecreasesBackoff(t *testing.T) {
 	s.backoffMultiplier = 4.0
 	ctx := context.Background()
 
-	s.runCycle(ctx)
+	_ = s.runCycle(ctx)
 
 	if s.backoffMultiplier >= 4.0 {
 		t.Errorf("backoff should decrease on success: %f", s.backoffMultiplier)

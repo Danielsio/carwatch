@@ -61,7 +61,7 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	if err := notif.Connect(ctx); err != nil {
 		return fmt.Errorf("connect notifier: %w", err)
 	}
-	defer notif.Disconnect()
+	defer func() { _ = notif.Disconnect() }()
 
 	sched, err := scheduler.New(cfg, fetcher, store, notif, logger)
 	if err != nil {
