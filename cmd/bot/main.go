@@ -13,6 +13,8 @@ import (
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
+	"github.com/dsionov/carwatch/internal/notifier"
+	"github.com/dsionov/carwatch/internal/notifier/telegram"
 	"github.com/dsionov/carwatch/internal/notifier/whatsapp"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
@@ -67,7 +69,13 @@ func run(configPath string, bootstrapLogger *slog.Logger) error {
 	}
 	defer store.Close()
 
-	notif := whatsapp.New(cfg.WhatsApp.DBPath, logger)
+	var notif notifier.Notifier
+	switch cfg.Notifier {
+	case "telegram":
+		notif = telegram.New(cfg.Telegram.Token, logger)
+	default:
+		notif = whatsapp.New(cfg.WhatsApp.DBPath, logger)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

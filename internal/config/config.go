@@ -13,9 +13,11 @@ type Config struct {
 	Polling  PollingConfig  `yaml:"polling"`
 	Searches []SearchConfig `yaml:"searches"`
 	WhatsApp WhatsAppConfig `yaml:"whatsapp"`
+	Telegram TelegramConfig `yaml:"telegram"`
 	Storage  StorageConfig  `yaml:"storage"`
 	HTTP     HTTPConfig     `yaml:"http"`
 	LogLevel string         `yaml:"log_level"`
+	Notifier string         `yaml:"notifier"`
 }
 
 type PollingConfig struct {
@@ -58,6 +60,10 @@ type FilterCriteria struct {
 
 type WhatsAppConfig struct {
 	DBPath string `yaml:"db_path"`
+}
+
+type TelegramConfig struct {
+	Token string `yaml:"token"`
 }
 
 type StorageConfig struct {
@@ -117,6 +123,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
 	}
+	if cfg.Notifier == "" {
+		cfg.Notifier = "whatsapp"
+	}
 }
 
 func validate(cfg *Config) error {
@@ -150,6 +159,14 @@ func validate(cfg *Config) error {
 	}
 	if _, err := ParseLogLevel(cfg.LogLevel); err != nil {
 		return fmt.Errorf("log_level %q: must be debug, info, warn, or error", cfg.LogLevel)
+	}
+	switch cfg.Notifier {
+	case "whatsapp", "telegram":
+	default:
+		return fmt.Errorf("notifier %q: must be whatsapp or telegram", cfg.Notifier)
+	}
+	if cfg.Notifier == "telegram" && cfg.Telegram.Token == "" {
+		return fmt.Errorf("telegram.token is required when notifier is telegram")
 	}
 	return nil
 }
