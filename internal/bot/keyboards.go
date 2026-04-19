@@ -19,6 +19,8 @@ const (
 	cbCancel          = "confirm:cancel"
 	cbDeleteSearch    = "del:"
 	cbPrefixShareCopy = "share_copy:"
+	cbDigestOn        = "digest:on"
+	cbDigestOff       = "digest:off"
 )
 
 func sourceKeyboard() *tgmodels.InlineKeyboardMarkup {

@@ -403,6 +403,188 @@ func TestRecordPrice(t *testing.T) {
 
 // --- ListingStore ---
 
+// --- DigestStore ---
+
+func TestSetAndGetDigestMode(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	// Default should be instant.
+	mode, interval, err := store.GetDigestMode(ctx, 100)
+	if err != nil {
+		t.Fatalf("get digest mode: %v", err)
+	}
+	if mode != "instant" || interval != "6h" {
+		t.Errorf("default mode=%q interval=%q, want instant/6h", mode, interval)
+	}
+
+	// Switch to digest mode.
+	if err := store.SetDigestMode(ctx, 100, "digest", "12h"); err != nil {
+		t.Fatalf("set digest mode: %v", err)
+	}
+
+	mode, interval, err = store.GetDigestMode(ctx, 100)
+	if err != nil {
+		t.Fatalf("get digest mode: %v", err)
+	}
+	if mode != "digest" || interval != "12h" {
+		t.Errorf("mode=%q interval=%q, want digest/12h", mode, interval)
+	}
+
+	// Switch back to instant.
+	if err := store.SetDigestMode(ctx, 100, "instant", "6h"); err != nil {
+		t.Fatalf("set instant: %v", err)
+	}
+	mode, _, _ = store.GetDigestMode(ctx, 100)
+	if mode != "instant" {
+		t.Errorf("mode=%q, want instant", mode)
+	}
+}
+
+func TestGetDigestMode_NonexistentUser(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	mode, interval, err := store.GetDigestMode(ctx, 999)
+	if err != nil {
+		t.Fatalf("get digest mode: %v", err)
+	}
+	if mode != "instant" || interval != "6h" {
+		t.Errorf("nonexistent user: mode=%q interval=%q, want instant/6h", mode, interval)
+	}
+}
+
+func TestAddAndFlushDigest(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	// Add items.
+	if err := store.AddDigestItem(ctx, 100, "listing 1"); err != nil {
+		t.Fatalf("add item: %v", err)
+	}
+	if err := store.AddDigestItem(ctx, 100, "listing 2"); err != nil {
+		t.Fatalf("add item: %v", err)
+	}
+
+	// Flush.
+	payloads, err := store.FlushDigest(ctx, 100)
+	if err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	if len(payloads) != 2 {
+		t.Fatalf("expected 2 payloads, got %d", len(payloads))
+	}
+	if payloads[0] != "listing 1" || payloads[1] != "listing 2" {
+		t.Errorf("payloads = %v", payloads)
+	}
+
+	// Flush again should return empty.
+	payloads, err = store.FlushDigest(ctx, 100)
+	if err != nil {
+		t.Fatalf("second flush: %v", err)
+	}
+	if len(payloads) != 0 {
+		t.Errorf("expected 0 payloads after flush, got %d", len(payloads))
+	}
+}
+
+func TestFlushDigest_Empty(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	payloads, err := store.FlushDigest(ctx, 100)
+	if err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	if len(payloads) != 0 {
+		t.Errorf("expected 0 payloads, got %d", len(payloads))
+	}
+}
+
+func TestPendingDigestUsers(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	// No pending items.
+	users, err := store.PendingDigestUsers(ctx)
+	if err != nil {
+		t.Fatalf("pending users: %v", err)
+	}
+	if len(users) != 0 {
+		t.Errorf("expected 0 users, got %d", len(users))
+	}
+
+	// Add items for two users.
+	_ = store.AddDigestItem(ctx, 100, "item1")
+	_ = store.AddDigestItem(ctx, 100, "item2")
+	_ = store.AddDigestItem(ctx, 200, "item3")
+
+	users, err = store.PendingDigestUsers(ctx)
+	if err != nil {
+		t.Fatalf("pending users: %v", err)
+	}
+	if len(users) != 2 {
+		t.Errorf("expected 2 users, got %d", len(users))
+	}
+}
+
+func TestDigestLastFlushed(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	// Initial value should be epoch.
+	ts, err := store.DigestLastFlushed(ctx, 100)
+	if err != nil {
+		t.Fatalf("last flushed: %v", err)
+	}
+	if ts.Year() != 1970 {
+		t.Errorf("expected epoch, got %v", ts)
+	}
+
+	// Add and flush to update timestamp.
+	_ = store.AddDigestItem(ctx, 100, "item")
+	_, _ = store.FlushDigest(ctx, 100)
+
+	ts, err = store.DigestLastFlushed(ctx, 100)
+	if err != nil {
+		t.Fatalf("last flushed after flush: %v", err)
+	}
+
+	if time.Since(ts) > 10*time.Second {
+		t.Errorf("last flushed should be recent, got %v", ts)
+	}
+}
+
+func TestDigestIsolation_BetweenUsers(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	_ = store.AddDigestItem(ctx, 100, "user100-item")
+	_ = store.AddDigestItem(ctx, 200, "user200-item")
+
+	// Flush user 100 only.
+	payloads, _ := store.FlushDigest(ctx, 100)
+	if len(payloads) != 1 || payloads[0] != "user100-item" {
+		t.Errorf("user 100 payloads = %v", payloads)
+	}
+
+	// User 200 should still have their item.
+	payloads, _ = store.FlushDigest(ctx, 200)
+	if len(payloads) != 1 || payloads[0] != "user200-item" {
+		t.Errorf("user 200 payloads = %v", payloads)
+	}
+}
+
+// --- ListingStore ---
+
 func TestSaveAndListListings(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

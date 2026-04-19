@@ -101,7 +101,44 @@ func migrate(db *sql.DB) error {
 			page_link TEXT,
 			first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
+
+		CREATE TABLE IF NOT EXISTS pending_digest (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			chat_id INTEGER NOT NULL,
+			listing_payload TEXT NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
 	`)
+	if err != nil {
+		return err
+	}
+
+	// Add digest columns to users table if they don't exist yet.
+	// ALTER TABLE ADD COLUMN is idempotent-safe with the "IF NOT EXISTS" check below.
+	for _, col := range []struct {
+		name string
+		def  string
+	}{
+		{"digest_mode", "TEXT NOT NULL DEFAULT 'instant'"},
+		{"digest_interval", "TEXT NOT NULL DEFAULT '6h'"},
+		{"digest_last_flushed", "TIMESTAMP NOT NULL DEFAULT '1970-01-01 00:00:00'"},
+	} {
+		// SQLite doesn't support IF NOT EXISTS on ALTER TABLE ADD COLUMN,
+		// so we check table_info first.
+		var count int
+		err := db.QueryRow(
+			"SELECT COUNT(*) FROM pragma_table_info('users') WHERE name = ?", col.name,
+		).Scan(&count)
+		if err != nil {
+			return fmt.Errorf("check column %s: %w", col.name, err)
+		}
+		if count == 0 {
+			_, err = db.Exec(fmt.Sprintf("ALTER TABLE users ADD COLUMN %s %s", col.name, col.def))
+			if err != nil {
+				return fmt.Errorf("add column %s: %w", col.name, err)
+			}
+		}
+	}
 	return err
 }
 
@@ -397,6 +434,104 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 		listings = append(listings, l)
 	}
 	return listings, rows.Err()
+}
+
+// --- DigestStore ---
+
+func (s *Store) SetDigestMode(ctx context.Context, chatID int64, mode string, interval string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE users SET digest_mode = ?, digest_interval = ? WHERE chat_id = ?",
+		mode, interval, chatID)
+	return err
+}
+
+func (s *Store) GetDigestMode(ctx context.Context, chatID int64) (string, string, error) {
+	var mode, interval string
+	err := s.db.QueryRowContext(ctx,
+		"SELECT digest_mode, digest_interval FROM users WHERE chat_id = ?",
+		chatID).Scan(&mode, &interval)
+	if err == sql.ErrNoRows {
+		return "instant", "6h", nil
+	}
+	return mode, interval, err
+}
+
+func (s *Store) AddDigestItem(ctx context.Context, chatID int64, payload string) error {
+	_, err := s.db.ExecContext(ctx,
+		"INSERT INTO pending_digest (chat_id, listing_payload) VALUES (?, ?)",
+		chatID, payload)
+	return err
+}
+
+func (s *Store) FlushDigest(ctx context.Context, chatID int64) ([]string, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	rows, err := tx.QueryContext(ctx,
+		"SELECT listing_payload FROM pending_digest WHERE chat_id = ? ORDER BY created_at", chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var payloads []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		payloads = append(payloads, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(payloads) > 0 {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM pending_digest WHERE chat_id = ?", chatID); err != nil {
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx,
+			"UPDATE users SET digest_last_flushed = CURRENT_TIMESTAMP WHERE chat_id = ?", chatID); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return payloads, nil
+}
+
+func (s *Store) PendingDigestUsers(ctx context.Context) ([]int64, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT DISTINCT chat_id FROM pending_digest")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var chatIDs []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		chatIDs = append(chatIDs, id)
+	}
+	return chatIDs, rows.Err()
+}
+
+func (s *Store) DigestLastFlushed(ctx context.Context, chatID int64) (time.Time, error) {
+	var t time.Time
+	err := s.db.QueryRowContext(ctx,
+		"SELECT digest_last_flushed FROM users WHERE chat_id = ?", chatID).Scan(&t)
+	if err == sql.ErrNoRows {
+		return time.Time{}, nil
+	}
+	return t, err
 }
 
 // --- Close ---

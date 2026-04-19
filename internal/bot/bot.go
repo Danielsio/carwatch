@@ -20,6 +20,7 @@ type Bot struct {
 	bot         *tgbot.Bot
 	users       storage.UserStore
 	searches    storage.SearchStore
+	digests     storage.DigestStore
 	adminChatID int64
 	maxSearches int
 	botUsername  string
@@ -32,6 +33,7 @@ type Config struct {
 	MaxSearches int
 	BotUsername  string
 	Health      *health.Status
+	Digests     storage.DigestStore
 }
 
 func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cfg Config, logger *slog.Logger) *Bot {
@@ -42,6 +44,7 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		bot:         b,
 		users:       users,
 		searches:    searches,
+		digests:     cfg.Digests,
 		adminChatID: cfg.AdminChatID,
 		maxSearches: cfg.MaxSearches,
 		botUsername:  cfg.BotUsername,
@@ -68,6 +71,7 @@ func (b *Bot) RegisterHandlers() {
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/share", tgbot.MatchTypePrefix, b.handleShare)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/cancel", tgbot.MatchTypeExact, b.handleCancel)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/help", tgbot.MatchTypeExact, b.handleHelp)
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/digest", tgbot.MatchTypeExact, b.handleDigest)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/settings", tgbot.MatchTypeExact, b.handleSettings)
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/stats", tgbot.MatchTypeExact, b.handleStats)
 	b.bot.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "", tgbot.MatchTypePrefix, b.handleCallback)
@@ -365,6 +369,7 @@ func (b *Bot) handleHelp(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 			"/resume <id> — Resume a paused search\n"+
 			"/stop <id> — Delete a search\n"+
 			"/share <id> — Share a search via link\n"+
+			"/digest — Toggle notification mode (instant/digest)\n"+
 			"/settings — View your current limits\n"+
 			"/cancel — Cancel current wizard\n"+
 			"/help — Show this message")
@@ -404,6 +409,45 @@ func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	b.send(ctx, chatID, sb.String())
 }
 
+func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	chatID := update.Message.Chat.ID
+	b.ensureUser(ctx, chatID, update.Message.From.Username)
+
+	if b.digests == nil {
+		b.send(ctx, chatID, "Digest mode is not available.")
+		return
+	}
+
+	mode, interval, err := b.digests.GetDigestMode(ctx, chatID)
+	if err != nil {
+		b.send(ctx, chatID, "Failed to load digest settings.")
+		return
+	}
+
+	var kb *tgmodels.InlineKeyboardMarkup
+	if mode == "digest" {
+		kb = &tgmodels.InlineKeyboardMarkup{
+			InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+				{
+					{Text: "Switch to instant", CallbackData: cbDigestOff},
+				},
+			},
+		}
+		b.sendWithKeyboard(ctx, chatID,
+			fmt.Sprintf("*Notification mode:* digest (every %s)\n\nNew listings are batched and sent periodically.", interval), kb)
+	} else {
+		kb = &tgmodels.InlineKeyboardMarkup{
+			InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+				{
+					{Text: "Switch to digest (every 6h)", CallbackData: cbDigestOn},
+				},
+			},
+		}
+		b.sendWithKeyboard(ctx, chatID,
+			"*Notification mode:* instant\n\nNew listings are sent immediately as they are found.", kb)
+	}
+}
+
 // --- Callback Handler ---
 
 func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
@@ -437,6 +481,10 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 		b.onDeleteSearch(ctx, chatID, data)
 	case strings.HasPrefix(data, cbPrefixShareCopy):
 		b.onShareCopy(ctx, chatID, data)
+	case data == cbDigestOn:
+		b.onDigestOn(ctx, chatID)
+	case data == cbDigestOff:
+		b.onDigestOff(ctx, chatID)
 	}
 }
 
@@ -597,6 +645,28 @@ func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 	b.send(ctx, chatID, fmt.Sprintf(
 		"Search #%d saved! I'll check Yad2 every 15 minutes and send you new listings.\n\nUse /list to see your searches.",
 		newID))
+}
+
+func (b *Bot) onDigestOn(ctx context.Context, chatID int64) {
+	if b.digests == nil {
+		return
+	}
+	if err := b.digests.SetDigestMode(ctx, chatID, "digest", "6h"); err != nil {
+		b.send(ctx, chatID, "Failed to update digest mode.")
+		return
+	}
+	b.send(ctx, chatID, "Switched to *digest* mode. Listings will be batched and sent every 6 hours.")
+}
+
+func (b *Bot) onDigestOff(ctx context.Context, chatID int64) {
+	if b.digests == nil {
+		return
+	}
+	if err := b.digests.SetDigestMode(ctx, chatID, "instant", "6h"); err != nil {
+		b.send(ctx, chatID, "Failed to update digest mode.")
+		return
+	}
+	b.send(ctx, chatID, "Switched to *instant* mode. Listings will be sent immediately.")
 }
 
 // --- Default Handler (free text during wizard) ---
