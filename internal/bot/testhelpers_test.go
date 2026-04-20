@@ -1,0 +1,154 @@
+package bot
+
+import (
+	"context"
+	"log/slog"
+	"strings"
+	"sync"
+	"testing"
+
+	tgbot "github.com/go-telegram/bot"
+	tgmodels "github.com/go-telegram/bot/models"
+
+	"github.com/dsionov/carwatch/internal/storage/sqlite"
+)
+
+type sentMessage struct {
+	ChatID    int64
+	Text      string
+	ParseMode string
+	HasKB     bool
+	Buttons   int
+}
+
+type mockMessenger struct {
+	mu       sync.Mutex
+	messages []sentMessage
+}
+
+func (m *mockMessenger) SendMessage(_ context.Context, chatID int64, text string, parseMode string, kb *tgmodels.InlineKeyboardMarkup) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	msg := sentMessage{ChatID: chatID, Text: text, ParseMode: parseMode, HasKB: kb != nil}
+	if kb != nil {
+		for _, row := range kb.InlineKeyboard {
+			msg.Buttons += len(row)
+		}
+	}
+	m.messages = append(m.messages, msg)
+	return nil
+}
+
+func (m *mockMessenger) AnswerCallback(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockMessenger) last() sentMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.messages) == 0 {
+		return sentMessage{}
+	}
+	return m.messages[len(m.messages)-1]
+}
+
+func (m *mockMessenger) reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.messages = nil
+}
+
+type testBot struct {
+	bot   *Bot
+	msg   *mockMessenger
+	store *sqlite.Store
+}
+
+func newTestBot(t *testing.T) *testBot {
+	t.Helper()
+	store, err := sqlite.New(":memory:")
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	mm := &mockMessenger{}
+	logger := slog.New(slog.NewTextHandler(&discardWriter{}, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	b := &Bot{
+		msg:         mm,
+		users:       store,
+		searches:    store,
+		adminChatID: 999,
+		maxSearches: 3,
+		botUsername:  "test_bot",
+		logger:      logger,
+	}
+
+	return &testBot{bot: b, msg: mm, store: store}
+}
+
+type discardWriter struct{}
+
+func (d *discardWriter) Write(p []byte) (int, error) { return len(p), nil }
+
+func fakeMessage(chatID int64, text string) *tgmodels.Update {
+	return &tgmodels.Update{
+		Message: &tgmodels.Message{
+			Chat: tgmodels.Chat{ID: chatID},
+			From: &tgmodels.User{Username: "testuser"},
+			Text: text,
+		},
+	}
+}
+
+func fakeCallback(chatID int64, data string) *tgmodels.Update {
+	return &tgmodels.Update{
+		CallbackQuery: &tgmodels.CallbackQuery{
+			ID:   "cb-1",
+			Data: data,
+			From: tgmodels.User{Username: "testuser"},
+			Message: tgmodels.MaybeInaccessibleMessage{
+				Message: &tgmodels.Message{
+					Chat: tgmodels.Chat{ID: chatID},
+				},
+			},
+		},
+	}
+}
+
+func (tb *testBot) simulateCommand(ctx context.Context, chatID int64, text string) {
+	update := fakeMessage(chatID, text)
+	var nilBot *tgbot.Bot
+
+	switch {
+	case text == "/watch":
+		tb.bot.handleWatch(ctx, nilBot, update)
+	case text == "/list":
+		tb.bot.handleList(ctx, nilBot, update)
+	case text == "/cancel":
+		tb.bot.handleCancel(ctx, nilBot, update)
+	case text == "/help":
+		tb.bot.handleHelp(ctx, nilBot, update)
+	case text == "/settings":
+		tb.bot.handleSettings(ctx, nilBot, update)
+	case strings.HasPrefix(text, "/start"):
+		tb.bot.handleStart(ctx, nilBot, update)
+	case strings.HasPrefix(text, "/stop"):
+		tb.bot.handleStop(ctx, nilBot, update)
+	default:
+		tb.bot.handleDefault(ctx, nilBot, update)
+	}
+}
+
+func (tb *testBot) simulateCallback(ctx context.Context, chatID int64, data string) {
+	update := fakeCallback(chatID, data)
+	var nilBot *tgbot.Bot
+	tb.bot.handleCallback(ctx, nilBot, update)
+}
+
+func (tb *testBot) simulateText(ctx context.Context, chatID int64, text string) {
+	update := fakeMessage(chatID, text)
+	var nilBot *tgbot.Bot
+	tb.bot.handleDefault(ctx, nilBot, update)
+}

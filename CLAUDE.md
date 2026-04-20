@@ -30,3 +30,11 @@ This is not a fork. Create branches from `main`:
 ```bash
 git checkout -b my-branch-name main
 ```
+
+## Pre-Push Checks
+
+Always run the linter before pushing:
+```bash
+golangci-lint run ./...
+```
+Fix any issues before pushing. CI runs golangci-lint and will fail on lint errors.

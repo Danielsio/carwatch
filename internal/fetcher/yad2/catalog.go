@@ -8,26 +8,18 @@ type CatalogEntry struct {
 var manufacturers = []CatalogEntry{
 	{ID: 19, Name: "Hyundai"},
 	{ID: 20, Name: "Honda"},
-	{ID: 21, Name: "Chevrolet"},
 	{ID: 27, Name: "Mazda"},
 	{ID: 28, Name: "Mercedes"},
-	{ID: 29, Name: "Mitsubishi"},
 	{ID: 31, Name: "Nissan"},
-	{ID: 33, Name: "Subaru"},
-	{ID: 34, Name: "Suzuki"},
 	{ID: 35, Name: "Toyota"},
 	{ID: 36, Name: "Volkswagen"},
 	{ID: 39, Name: "BMW"},
 	{ID: 40, Name: "Audi"},
 	{ID: 43, Name: "Kia"},
 	{ID: 44, Name: "Volvo"},
-	{ID: 45, Name: "Peugeot"},
 	{ID: 47, Name: "Skoda"},
-	{ID: 48, Name: "Seat"},
 	{ID: 50, Name: "Renault"},
-	{ID: 76, Name: "Cupra"},
 	{ID: 80, Name: "Tesla"},
-	{ID: 83, Name: "MG"},
 }
 
 var modelsByManufacturer = map[int][]CatalogEntry{

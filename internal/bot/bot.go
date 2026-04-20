@@ -18,6 +18,7 @@ import (
 
 type Bot struct {
 	bot         *tgbot.Bot
+	msg         messenger
 	users       storage.UserStore
 	searches    storage.SearchStore
 	digests     storage.DigestStore
@@ -40,8 +41,13 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 	if cfg.MaxSearches == 0 {
 		cfg.MaxSearches = 3
 	}
+	var msg messenger
+	if b != nil {
+		msg = &telegramMessenger{bot: b}
+	}
 	return &Bot{
 		bot:         b,
+		msg:         msg,
 		users:       users,
 		searches:    searches,
 		digests:     cfg.Digests,
@@ -78,24 +84,34 @@ func (b *Bot) RegisterHandlers() {
 }
 
 func (b *Bot) ensureUser(ctx context.Context, chatID int64, username string) {
-	_ = b.users.UpsertUser(ctx, chatID, username)
+	if err := b.users.UpsertUser(ctx, chatID, username); err != nil {
+		b.logger.Error("upsert user failed", "chat_id", chatID, "username", username, "error", err)
+	}
 }
 
 func (b *Bot) send(ctx context.Context, chatID int64, text string) {
-	_, _ = b.bot.SendMessage(ctx, &tgbot.SendMessageParams{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: tgmodels.ParseModeMarkdown,
-	})
+	b.logger.Debug("sending message", "chat_id", chatID, "text_len", len(text))
+	if err := b.msg.SendMessage(ctx, chatID, text, "", nil); err != nil {
+		b.logger.Error("send message failed", "chat_id", chatID, "error", err)
+	}
+}
+
+func (b *Bot) sendMarkdown(ctx context.Context, chatID int64, text string) {
+	b.logger.Debug("sending markdown message", "chat_id", chatID, "text_len", len(text))
+	if err := b.msg.SendMessage(ctx, chatID, text, "Markdown", nil); err != nil {
+		b.logger.Error("send markdown message failed", "chat_id", chatID, "error", err)
+	}
 }
 
 func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string, kb *tgmodels.InlineKeyboardMarkup) {
-	_, _ = b.bot.SendMessage(ctx, &tgbot.SendMessageParams{
-		ChatID:      chatID,
-		Text:        text,
-		ParseMode:   tgmodels.ParseModeMarkdown,
-		ReplyMarkup: kb,
-	})
+	buttonCount := 0
+	for _, row := range kb.InlineKeyboard {
+		buttonCount += len(row)
+	}
+	b.logger.Debug("sending message with keyboard", "chat_id", chatID, "text_len", len(text), "buttons", buttonCount)
+	if err := b.msg.SendMessage(ctx, chatID, text, "Markdown", kb); err != nil {
+		b.logger.Error("send message with keyboard failed", "chat_id", chatID, "buttons", buttonCount, "error", err)
+	}
 }
 
 // --- Command Handlers ---
@@ -112,7 +128,7 @@ func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 		return
 	}
 
-	b.send(ctx, chatID,
+	b.sendMarkdown(ctx, chatID,
 		"Welcome to *CarWatch*! I monitor car listings on Yad2 and WinWin and send you alerts when new matches appear.\n\n"+
 			"Use /watch to set up a new car search.\n"+
 			"Use /list to see your active searches.\n"+
@@ -130,7 +146,7 @@ func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) < 2 {
-		b.send(ctx, chatID, "Usage: /share <search\\_id>\nUse /list to see your search IDs.")
+		b.send(ctx, chatID, "Usage: /share <search_id>\nUse /list to see your search IDs.")
 		return
 	}
 
@@ -150,7 +166,7 @@ func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	mfr := yad2.ManufacturerName(search.Manufacturer)
 	mdl := yad2.ModelName(search.Manufacturer, search.Model)
 
-	b.send(ctx, chatID, fmt.Sprintf(
+	b.sendMarkdown(ctx, chatID, fmt.Sprintf(
 		"Share this link for *%s %s* search:\n\n%s",
 		mfr, mdl, link))
 }
@@ -203,6 +219,7 @@ func (b *Bot) handleShareStart(ctx context.Context, chatID int64, param string) 
 
 func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
+	b.logger.Debug("/watch command", "chat_id", chatID, "username", update.Message.From.Username)
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 
 	count, _ := b.searches.CountSearches(ctx, chatID)
@@ -361,7 +378,7 @@ func (b *Bot) handleCancel(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 }
 
 func (b *Bot) handleHelp(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
-	b.send(ctx, update.Message.Chat.ID,
+	b.sendMarkdown(ctx, update.Message.Chat.ID,
 		"*CarWatch Commands:*\n\n"+
 			"/watch — Set up a new car search\n"+
 			"/list — Show your active searches\n"+
@@ -380,7 +397,7 @@ func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 
 	count, _ := b.searches.CountSearches(ctx, chatID)
-	b.send(ctx, chatID, fmt.Sprintf(
+	b.sendMarkdown(ctx, chatID, fmt.Sprintf(
 		"*Your settings:*\nActive searches: %d/%d", count, b.maxSearches))
 }
 
@@ -406,7 +423,7 @@ func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 			snap["listings_found"], snap["notifications_sent"]))
 	}
 
-	b.send(ctx, chatID, sb.String())
+	b.sendMarkdown(ctx, chatID, sb.String())
 }
 
 func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
@@ -452,15 +469,17 @@ func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 
 func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	if update.CallbackQuery == nil {
+		b.logger.Debug("handleCallback: nil callback query")
 		return
 	}
 
 	chatID := update.CallbackQuery.Message.Message.Chat.ID
 	data := update.CallbackQuery.Data
+	b.logger.Debug("callback received", "chat_id", chatID, "data", data)
 
-	_, _ = b.bot.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
-		CallbackQueryID: update.CallbackQuery.ID,
-	})
+	if err := b.msg.AnswerCallback(ctx, update.CallbackQuery.ID); err != nil {
+		b.logger.Error("answer callback query failed", "chat_id", chatID, "error", err)
+	}
 
 	switch {
 	case strings.HasPrefix(data, cbPrefixSource):
@@ -490,6 +509,7 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 
 func (b *Bot) onSourceSelected(ctx context.Context, chatID int64, data string) {
 	source := strings.TrimPrefix(data, cbPrefixSource)
+	b.logger.Debug("source selected", "chat_id", chatID, "source", source)
 	wd := WizardData{Source: source}
 	b.saveWizardState(ctx, chatID, StateAskManufacturer, wd)
 
@@ -500,14 +520,21 @@ func (b *Bot) onSourceSelected(ctx context.Context, chatID int64, data string) {
 
 func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data string) {
 	idStr := strings.TrimPrefix(data, cbPrefixMfr)
-	id, _ := strconv.Atoi(idStr)
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		b.logger.Error("invalid manufacturer ID in callback", "chat_id", chatID, "raw", idStr, "error", err)
+		b.send(ctx, chatID, "Something went wrong. Use /cancel and try again.")
+		return
+	}
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Manufacturer = id
 	wd.ManufacturerName = yad2.ManufacturerName(id)
+	b.logger.Debug("manufacturer selected", "chat_id", chatID, "id", id, "name", wd.ManufacturerName)
 	b.saveWizardState(ctx, chatID, StateAskModel, wd)
 
 	models := yad2.Models(id)
+	b.logger.Debug("models for manufacturer", "chat_id", chatID, "manufacturer_id", id, "model_count", len(models))
 	if len(models) == 0 {
 		b.send(ctx, chatID, "No models found for this manufacturer. Use /cancel to start over.")
 		return
@@ -520,11 +547,17 @@ func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data str
 
 func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
 	idStr := strings.TrimPrefix(data, cbPrefixModel)
-	modelID, _ := strconv.Atoi(idStr)
+	modelID, err := strconv.Atoi(idStr)
+	if err != nil {
+		b.logger.Error("invalid model ID in callback", "chat_id", chatID, "raw", idStr, "error", err)
+		b.send(ctx, chatID, "Something went wrong. Use /cancel and try again.")
+		return
+	}
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Model = modelID
 	wd.ModelName = yad2.ModelName(wd.Manufacturer, modelID)
+	b.logger.Debug("model selected", "chat_id", chatID, "manufacturer", wd.ManufacturerName, "model_id", modelID, "model_name", wd.ModelName)
 	b.saveWizardState(ctx, chatID, StateAskYearMin, wd)
 
 	b.send(ctx, chatID, "From which year? (e.g. 2018)")
@@ -532,10 +565,16 @@ func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
 
 func (b *Bot) onEngineSelected(ctx context.Context, chatID int64, data string) {
 	ccStr := strings.TrimPrefix(data, cbPrefixEngine)
-	cc, _ := strconv.Atoi(ccStr)
+	cc, err := strconv.Atoi(ccStr)
+	if err != nil {
+		b.logger.Error("invalid engine CC in callback", "chat_id", chatID, "raw", ccStr, "error", err)
+		b.send(ctx, chatID, "Something went wrong. Use /cancel and try again.")
+		return
+	}
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.EngineMinCC = cc
+	b.logger.Debug("engine selected", "chat_id", chatID, "engine_min_cc", cc)
 	b.saveWizardState(ctx, chatID, StateConfirm, wd)
 
 	kb, summary := confirmKeyboard(wd)
@@ -544,6 +583,7 @@ func (b *Bot) onEngineSelected(ctx context.Context, chatID int64, data string) {
 
 func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 	wd := b.loadWizardData(ctx, chatID)
+	b.logger.Debug("confirm clicked", "chat_id", chatID, "wizard_data", wd)
 
 	source := wd.Source
 	if source == "" {
@@ -551,6 +591,7 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 	}
 
 	name := fmt.Sprintf("%s-%s", strings.ToLower(wd.ManufacturerName), strings.ToLower(wd.ModelName))
+	b.logger.Debug("creating search", "chat_id", chatID, "name", name, "source", source)
 	id, err := b.searches.CreateSearch(ctx, storage.Search{
 		ChatID:       chatID,
 		Name:         name,
@@ -655,7 +696,7 @@ func (b *Bot) onDigestOn(ctx context.Context, chatID int64) {
 		b.send(ctx, chatID, "Failed to update digest mode.")
 		return
 	}
-	b.send(ctx, chatID, "Switched to *digest* mode. Listings will be batched and sent every 6 hours.")
+	b.sendMarkdown(ctx, chatID, "Switched to *digest* mode. Listings will be batched and sent every 6 hours.")
 }
 
 func (b *Bot) onDigestOff(ctx context.Context, chatID int64) {
@@ -666,7 +707,7 @@ func (b *Bot) onDigestOff(ctx context.Context, chatID int64) {
 		b.send(ctx, chatID, "Failed to update digest mode.")
 		return
 	}
-	b.send(ctx, chatID, "Switched to *instant* mode. Listings will be sent immediately.")
+	b.sendMarkdown(ctx, chatID, "Switched to *instant* mode. Listings will be sent immediately.")
 }
 
 // --- Default Handler (free text during wizard) ---
@@ -680,11 +721,17 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 
 	user, err := b.users.GetUser(ctx, chatID)
-	if err != nil || user == nil {
+	if err != nil {
+		b.logger.Error("get user failed in default handler", "chat_id", chatID, "error", err)
+		return
+	}
+	if user == nil {
+		b.logger.Debug("no user found in default handler", "chat_id", chatID)
 		return
 	}
 
 	text := strings.TrimSpace(update.Message.Text)
+	b.logger.Debug("default handler", "chat_id", chatID, "state", user.State, "text", text)
 
 	switch user.State {
 	case StateAskYearMin:
@@ -701,21 +748,26 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 }
 
 func (b *Bot) handleYearMin(ctx context.Context, chatID int64, text string) {
+	b.logger.Debug("handleYearMin", "chat_id", chatID, "input", text)
 	year, err := strconv.Atoi(text)
 	if err != nil || year < 1990 || year > 2030 {
+		b.logger.Debug("invalid year min", "chat_id", chatID, "input", text, "error", err)
 		b.send(ctx, chatID, "Please enter a valid year (1990–2030).")
 		return
 	}
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.YearMin = year
+	b.logger.Debug("year min set", "chat_id", chatID, "year_min", year)
 	b.saveWizardState(ctx, chatID, StateAskYearMax, wd)
 	b.send(ctx, chatID, "Until which year? (e.g. 2024)")
 }
 
 func (b *Bot) handleYearMax(ctx context.Context, chatID int64, text string) {
+	b.logger.Debug("handleYearMax", "chat_id", chatID, "input", text)
 	year, err := strconv.Atoi(text)
 	if err != nil || year < 1990 || year > 2030 {
+		b.logger.Debug("invalid year max", "chat_id", chatID, "input", text, "error", err)
 		b.send(ctx, chatID, "Please enter a valid year (1990–2030).")
 		return
 	}
@@ -726,20 +778,24 @@ func (b *Bot) handleYearMax(ctx context.Context, chatID int64, text string) {
 		return
 	}
 	wd.YearMax = year
+	b.logger.Debug("year max set", "chat_id", chatID, "year_max", year)
 	b.saveWizardState(ctx, chatID, StateAskPriceMax, wd)
 	b.send(ctx, chatID, "Max price in NIS? (e.g. 150000)")
 }
 
 func (b *Bot) handlePriceMax(ctx context.Context, chatID int64, text string) {
+	b.logger.Debug("handlePriceMax", "chat_id", chatID, "input", text)
 	text = strings.ReplaceAll(text, ",", "")
 	price, err := strconv.Atoi(text)
 	if err != nil || price < 1000 || price > 10000000 {
+		b.logger.Debug("invalid price", "chat_id", chatID, "input", text, "error", err)
 		b.send(ctx, chatID, "Please enter a valid price (1,000–10,000,000).")
 		return
 	}
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.PriceMax = price
+	b.logger.Debug("price max set", "chat_id", chatID, "price_max", price)
 	b.saveWizardState(ctx, chatID, StateAskEngine, wd)
 	b.sendWithKeyboard(ctx, chatID, "Minimum engine size?", engineKeyboard())
 }
@@ -748,16 +804,32 @@ func (b *Bot) handlePriceMax(ctx context.Context, chatID int64, text string) {
 
 func (b *Bot) loadWizardData(ctx context.Context, chatID int64) WizardData {
 	user, err := b.users.GetUser(ctx, chatID)
-	if err != nil || user == nil {
+	if err != nil {
+		b.logger.Error("load wizard data: get user failed", "chat_id", chatID, "error", err)
+		return WizardData{}
+	}
+	if user == nil {
+		b.logger.Warn("load wizard data: user not found", "chat_id", chatID)
 		return WizardData{}
 	}
 
 	var wd WizardData
-	_ = json.Unmarshal([]byte(user.StateData), &wd)
+	if err := json.Unmarshal([]byte(user.StateData), &wd); err != nil {
+		b.logger.Error("load wizard data: unmarshal failed", "chat_id", chatID, "state_data", user.StateData, "error", err)
+		return WizardData{}
+	}
+	b.logger.Debug("loaded wizard data", "chat_id", chatID, "state", user.State, "data", wd)
 	return wd
 }
 
 func (b *Bot) saveWizardState(ctx context.Context, chatID int64, state string, wd WizardData) {
-	data, _ := json.Marshal(wd)
-	_ = b.users.UpdateUserState(ctx, chatID, state, string(data))
+	data, err := json.Marshal(wd)
+	if err != nil {
+		b.logger.Error("save wizard state: marshal failed", "chat_id", chatID, "error", err)
+		return
+	}
+	b.logger.Debug("saving wizard state", "chat_id", chatID, "state", state, "data", string(data))
+	if err := b.users.UpdateUserState(ctx, chatID, state, string(data)); err != nil {
+		b.logger.Error("save wizard state: update failed", "chat_id", chatID, "state", state, "error", err)
+	}
 }

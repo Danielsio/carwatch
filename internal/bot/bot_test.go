@@ -73,8 +73,8 @@ func TestKeyboards_ManufacturerKeyboard(t *testing.T) {
 			}
 		}
 	}
-	if total < 15 {
-		t.Errorf("expected at least 15 manufacturer buttons, got %d", total)
+	if total < 10 {
+		t.Errorf("expected at least 10 manufacturer buttons, got %d", total)
 	}
 }
 
