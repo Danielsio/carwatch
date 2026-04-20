@@ -52,14 +52,6 @@ func (m *mockMessenger) last() sentMessage {
 	return m.messages[len(m.messages)-1]
 }
 
-func (m *mockMessenger) all() []sentMessage {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	cp := make([]sentMessage, len(m.messages))
-	copy(cp, m.messages)
-	return cp
-}
-
 func (m *mockMessenger) reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
