@@ -86,12 +86,23 @@ func (b *Bot) ensureUser(ctx context.Context, chatID int64, username string) {
 func (b *Bot) send(ctx context.Context, chatID int64, text string) {
 	b.logger.Debug("sending message", "chat_id", chatID, "text_len", len(text))
 	_, err := b.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+		ChatID: chatID,
+		Text:   text,
+	})
+	if err != nil {
+		b.logger.Error("send message failed", "chat_id", chatID, "error", err)
+	}
+}
+
+func (b *Bot) sendMarkdown(ctx context.Context, chatID int64, text string) {
+	b.logger.Debug("sending markdown message", "chat_id", chatID, "text_len", len(text))
+	_, err := b.bot.SendMessage(ctx, &tgbot.SendMessageParams{
 		ChatID:    chatID,
 		Text:      text,
 		ParseMode: tgmodels.ParseModeMarkdown,
 	})
 	if err != nil {
-		b.logger.Error("send message failed", "chat_id", chatID, "error", err)
+		b.logger.Error("send markdown message failed", "chat_id", chatID, "error", err)
 	}
 }
 
@@ -126,7 +137,7 @@ func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 		return
 	}
 
-	b.send(ctx, chatID,
+	b.sendMarkdown(ctx, chatID,
 		"Welcome to *CarWatch*! I monitor car listings on Yad2 and WinWin and send you alerts when new matches appear.\n\n"+
 			"Use /watch to set up a new car search.\n"+
 			"Use /list to see your active searches.\n"+
@@ -144,7 +155,7 @@ func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) < 2 {
-		b.send(ctx, chatID, "Usage: /share <search\\_id>\nUse /list to see your search IDs.")
+		b.send(ctx, chatID, "Usage: /share <search_id>\nUse /list to see your search IDs.")
 		return
 	}
 
@@ -164,7 +175,7 @@ func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	mfr := yad2.ManufacturerName(search.Manufacturer)
 	mdl := yad2.ModelName(search.Manufacturer, search.Model)
 
-	b.send(ctx, chatID, fmt.Sprintf(
+	b.sendMarkdown(ctx, chatID, fmt.Sprintf(
 		"Share this link for *%s %s* search:\n\n%s",
 		mfr, mdl, link))
 }
@@ -376,7 +387,7 @@ func (b *Bot) handleCancel(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 }
 
 func (b *Bot) handleHelp(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
-	b.send(ctx, update.Message.Chat.ID,
+	b.sendMarkdown(ctx, update.Message.Chat.ID,
 		"*CarWatch Commands:*\n\n"+
 			"/watch — Set up a new car search\n"+
 			"/list — Show your active searches\n"+
@@ -395,7 +406,7 @@ func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 
 	count, _ := b.searches.CountSearches(ctx, chatID)
-	b.send(ctx, chatID, fmt.Sprintf(
+	b.sendMarkdown(ctx, chatID, fmt.Sprintf(
 		"*Your settings:*\nActive searches: %d/%d", count, b.maxSearches))
 }
 
@@ -421,7 +432,7 @@ func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 			snap["listings_found"], snap["notifications_sent"]))
 	}
 
-	b.send(ctx, chatID, sb.String())
+	b.sendMarkdown(ctx, chatID, sb.String())
 }
 
 func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
@@ -697,7 +708,7 @@ func (b *Bot) onDigestOn(ctx context.Context, chatID int64) {
 		b.send(ctx, chatID, "Failed to update digest mode.")
 		return
 	}
-	b.send(ctx, chatID, "Switched to *digest* mode. Listings will be batched and sent every 6 hours.")
+	b.sendMarkdown(ctx, chatID, "Switched to *digest* mode. Listings will be batched and sent every 6 hours.")
 }
 
 func (b *Bot) onDigestOff(ctx context.Context, chatID int64) {
@@ -708,7 +719,7 @@ func (b *Bot) onDigestOff(ctx context.Context, chatID int64) {
 		b.send(ctx, chatID, "Failed to update digest mode.")
 		return
 	}
-	b.send(ctx, chatID, "Switched to *instant* mode. Listings will be sent immediately.")
+	b.sendMarkdown(ctx, chatID, "Switched to *instant* mode. Listings will be sent immediately.")
 }
 
 // --- Default Handler (free text during wizard) ---
