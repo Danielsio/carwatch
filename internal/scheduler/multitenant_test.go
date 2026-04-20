@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/storage"
 )
@@ -470,26 +469,3 @@ func TestProcessDigests_FlushesImmediatelyWhenSwitchedToInstant(t *testing.T) {
 	}
 }
 
-func TestRunMultiTenantCycle_FallbackToLegacy(t *testing.T) {
-	f := &mockFetcher{listings: []model.RawListing{}}
-	d := newMockDedup()
-	n := &mockNotifier{}
-	cfg := &config.Config{
-		Polling: config.PollingConfig{
-			Interval: 1,
-			Timezone: "UTC",
-		},
-		Searches: []config.SearchConfig{
-			{Name: "test", Source: "yad2", Recipients: []string{"100"}},
-		},
-		Storage: config.StorageConfig{PruneAfter: 1},
-	}
-
-	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{})
-	ctx := context.Background()
-
-	err := s.runMultiTenantCycle(ctx)
-	if err != nil {
-		t.Fatalf("fallback cycle: %v", err)
-	}
-}

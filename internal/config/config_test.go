@@ -9,36 +9,20 @@ import (
 
 func TestLoad_ValidConfig(t *testing.T) {
 	yaml := `
-searches:
-  - name: "test"
-    source: yad2
-    params:
-      manufacturer: 27
-    filters:
-      engine_min_cc: 1800
-    recipients:
-      - "+972123456789"
+telegram:
+  token: "test-token"
 `
 	cfg := loadFromString(t, yaml)
 
-	if len(cfg.Searches) != 1 {
-		t.Fatalf("expected 1 search, got %d", len(cfg.Searches))
-	}
-	if cfg.Searches[0].Name != "test" {
-		t.Errorf("name = %q", cfg.Searches[0].Name)
-	}
-	if cfg.Searches[0].Filters.EngineMinCC != 1800 {
-		t.Errorf("engine_min_cc = %f", cfg.Searches[0].Filters.EngineMinCC)
+	if cfg.Telegram.Token != "test-token" {
+		t.Errorf("token = %q", cfg.Telegram.Token)
 	}
 }
 
 func TestLoad_Defaults(t *testing.T) {
 	yaml := `
-searches:
-  - name: "test"
-    source: yad2
-    recipients:
-      - "+972123456789"
+telegram:
+  token: "test-token"
 `
 	cfg := loadFromString(t, yaml)
 
@@ -68,12 +52,8 @@ searches:
 func TestLoad_MaxSearchesExplicit(t *testing.T) {
 	yaml := `
 telegram:
+  token: "test-token"
   max_searches: 5
-searches:
-  - name: "test"
-    source: yad2
-    recipients:
-      - "+972123456789"
 `
 	cfg := loadFromString(t, yaml)
 
@@ -82,94 +62,43 @@ searches:
 	}
 }
 
-func TestLoad_NoSearches(t *testing.T) {
+func TestLoad_MissingToken(t *testing.T) {
 	yaml := `
 polling:
   interval: 10m
 `
-	expectLoadError(t, yaml, "at least one search")
-}
-
-func TestLoad_MissingName(t *testing.T) {
-	yaml := `
-searches:
-  - source: yad2
-    recipients:
-      - "+972123456789"
-`
-	expectLoadError(t, yaml, "name is required")
-}
-
-func TestLoad_MissingSource(t *testing.T) {
-	yaml := `
-searches:
-  - name: "test"
-    recipients:
-      - "+972123456789"
-`
-	expectLoadError(t, yaml, "source is required")
-}
-
-func TestLoad_MissingRecipients(t *testing.T) {
-	yaml := `
-searches:
-  - name: "test"
-    source: yad2
-`
-	expectLoadError(t, yaml, "at least one recipient")
+	expectLoadError(t, yaml, "telegram.token is required")
 }
 
 func TestLoad_InvalidActiveHours(t *testing.T) {
 	yaml := `
+telegram:
+  token: "test-token"
 polling:
   active_hours:
     start: "8am"
     end: "22:00"
-searches:
-  - name: "test"
-    source: yad2
-    recipients:
-      - "+972123456789"
 `
 	expectLoadError(t, yaml, "HH:MM")
 }
 
 func TestLoad_InvalidLogLevel(t *testing.T) {
 	yaml := `
+telegram:
+  token: "test-token"
 log_level: verbose
-searches:
-  - name: "test"
-    source: yad2
-    recipients:
-      - "+972123456789"
 `
 	expectLoadError(t, yaml, "log_level")
-}
-
-func TestLoad_EngineLitersWarning(t *testing.T) {
-	yaml := `
-searches:
-  - name: "test"
-    source: yad2
-    filters:
-      engine_min_cc: 1.8
-    recipients:
-      - "+972123456789"
-`
-	expectLoadError(t, yaml, "looks like liters")
 }
 
 func TestLoad_EnvVarInterpolation(t *testing.T) {
 	t.Setenv("TEST_PROXY_URL", "socks5://proxy:1080")
 
 	yaml := `
+telegram:
+  token: "test-token"
 http:
   proxy: "${TEST_PROXY_URL}"
-searches:
-  - name: "test"
-    source: yad2
-    recipients:
-      - "+972123456789"
 `
 	cfg := loadFromString(t, yaml)
 

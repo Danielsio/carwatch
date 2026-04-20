@@ -28,7 +28,6 @@ const (
 	pruneInterval    = 24 * time.Hour
 	maxRetries       = 3
 	retryBaseDelay   = 2 * time.Second
-	maxPages         = 3
 )
 
 type Scheduler struct {
@@ -107,7 +106,6 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	s.logger.Info("scheduler started",
 		"interval", s.cfg.Polling.Interval,
 		"jitter", s.cfg.Polling.Jitter,
-		"searches", len(s.cfg.Searches),
 	)
 
 	s.retryPending(ctx)
@@ -116,10 +114,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	signal.Notify(sighup, syscall.SIGHUP)
 	defer signal.Stop(sighup)
 
-	cycle := s.runCycle
-	if s.searchStore != nil {
-		cycle = s.runMultiTenantCycle
-	}
+	cycle := s.runMultiTenantCycle
 
 	if s.isActiveHours() {
 		if err := cycle(ctx); err != nil {
@@ -167,51 +162,6 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Scheduler) runCycle(ctx context.Context) error {
-	s.logger.Info("starting poll cycle")
-
-	allFailed := true
-	for _, search := range s.cfg.Searches {
-		if err := s.processSearch(ctx, search); err != nil {
-			s.logger.Error("search failed",
-				"search", search.Name,
-				"error", err,
-			)
-			if errors.Is(err, fetcher.ErrChallenge) {
-				s.backoffMultiplier = min(s.backoffMultiplier*2, maxBackoff)
-				s.logger.Warn("increased backoff", "multiplier", s.backoffMultiplier)
-			}
-			continue
-		}
-		allFailed = false
-		s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
-	}
-
-	if time.Since(s.lastPruneTime) > pruneInterval {
-		if s.cfg.Storage.PruneAfter > 0 {
-			pruned, err := s.dedup.Prune(ctx, s.cfg.Storage.PruneAfter)
-			if err != nil {
-				s.logger.Error("prune failed", "error", err)
-			} else if pruned > 0 {
-				s.logger.Info("pruned old listings", "count", pruned)
-			}
-		}
-		s.lastPruneTime = time.Now()
-	}
-
-	if allFailed && len(s.cfg.Searches) > 0 {
-		if s.health != nil {
-			s.health.RecordError()
-		}
-		return fmt.Errorf("all %d searches failed", len(s.cfg.Searches))
-	}
-
-	if s.health != nil {
-		s.health.RecordSuccess()
-	}
-	return nil
-}
-
 func (s *Scheduler) fetcherForSource(source string) fetcher.Fetcher {
 	if s.fetcherFactory != nil {
 		if f, ok := s.fetcherFactory.Get(source); ok {
@@ -219,171 +169,6 @@ func (s *Scheduler) fetcherForSource(source string) fetcher.Fetcher {
 		}
 	}
 	return s.fetcher
-}
-
-func (s *Scheduler) processSearch(ctx context.Context, search config.SearchConfig) error {
-	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
-	defer cancel()
-
-	activeFetcher := s.fetcherForSource(search.Source)
-
-	var allRaw []model.RawListing
-	for page := range maxPages {
-		params := search.Params
-		params.Page = page
-		raw, err := s.fetchWithRetryUsing(fetchCtx, activeFetcher, params)
-		if err != nil {
-			if page == 0 {
-				return err
-			}
-			break
-		}
-		if len(raw) == 0 {
-			break
-		}
-		allRaw = append(allRaw, raw...)
-
-		allNew := true
-		for _, l := range raw {
-			isNew, _ := s.dedup.ClaimNew(ctx, l.Token, 0, 0)
-			if !isNew {
-				allNew = false
-			}
-			if isNew {
-				_ = s.dedup.ReleaseClaim(ctx, l.Token, 0)
-			}
-		}
-		if !allNew {
-			break
-		}
-		s.logger.Info("all listings new on page, fetching next", "page", page, "search", search.Name)
-	}
-
-	filtered := filter.Apply(search.Filters, allRaw)
-	s.logger.Info("filtered listings",
-		"search", search.Name,
-		"total", len(allRaw),
-		"after_filter", len(filtered),
-	)
-
-	var newListings []model.Listing
-	var priceDropMessages []string
-	for _, l := range filtered {
-		if s.prices != nil && l.Price > 0 {
-			oldPrice, changed, err := s.prices.RecordPrice(ctx, l.Token, l.Price)
-			if err != nil {
-				s.logger.Error("record price failed", "token", l.Token, "error", err)
-			} else if changed {
-				s.logger.Info("price drop detected",
-					"token", l.Token,
-					"old_price", oldPrice,
-					"new_price", l.Price,
-					"search", search.Name,
-				)
-				listing := model.Listing{RawListing: l, SearchName: search.Name}
-				priceDropMessages = append(priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice))
-				continue
-			}
-		}
-
-		isNew, err := s.dedup.ClaimNew(ctx, l.Token, 0, 0)
-		if err != nil {
-			return err
-		}
-		if !isNew {
-			continue
-		}
-		listing := model.Listing{
-			RawListing: l,
-			SearchName: search.Name,
-		}
-		newListings = append(newListings, listing)
-
-		if s.listingStore != nil {
-			_ = s.listingStore.SaveListing(ctx, storage.ListingRecord{
-				Token:        l.Token,
-				SearchName:   search.Name,
-				Manufacturer: l.Manufacturer,
-				Model:        l.Model,
-				Year:         l.Year,
-				Price:        l.Price,
-				Km:           l.Km,
-				Hand:         l.Hand,
-				City:         l.City,
-				PageLink:     l.PageLink,
-				FirstSeenAt:  time.Now(),
-			})
-		}
-	}
-
-	for _, msg := range priceDropMessages {
-		for _, recipient := range search.Recipients {
-			if err := s.notifier.NotifyRaw(ctx, recipient, msg); err != nil {
-				s.logger.Error("price drop notification failed",
-					"recipient", maskPhone(recipient),
-					"error", err,
-				)
-			}
-		}
-	}
-
-	s.logger.Info("new listings found",
-		"search", search.Name,
-		"count", len(newListings),
-	)
-
-	if len(newListings) == 0 {
-		return nil
-	}
-
-	if s.health != nil {
-		s.health.RecordListingsFound(len(newListings))
-	}
-
-	msg := notifier.FormatBatch(newListings)
-
-	anyDelivered := false
-	for _, recipient := range search.Recipients {
-		if s.queue != nil {
-			if err := s.queue.EnqueueNotification(ctx, recipient, search.Name, msg); err != nil {
-				s.logger.Error("enqueue notification failed", "error", err)
-			}
-		}
-
-		if err := s.notifier.Notify(ctx, recipient, newListings); err != nil {
-			s.logger.Error("notification failed",
-				"recipient", maskPhone(recipient),
-				"error", err,
-			)
-			continue
-		}
-		anyDelivered = true
-		if s.health != nil {
-			s.health.RecordNotificationSent()
-		}
-	}
-
-	if s.queue != nil {
-		s.ackDelivered(ctx, search.Name)
-	}
-
-	if !anyDelivered {
-		s.logger.Warn("all recipients failed, releasing claims for retry",
-			"search", search.Name,
-			"count", len(newListings),
-		)
-		for _, l := range newListings {
-			if err := s.dedup.ReleaseClaim(ctx, l.Token, 0); err != nil {
-				s.logger.Error("release claim failed", "token", l.Token, "error", err)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (s *Scheduler) fetchWithRetry(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
-	return s.fetchWithRetryUsing(ctx, s.fetcher, params)
 }
 
 func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, params config.SourceParams) ([]model.RawListing, error) {
@@ -488,7 +273,7 @@ func (s *Scheduler) reloadConfig() {
 	if loc, err := time.LoadLocation(newCfg.Polling.Timezone); err == nil {
 		s.loc = loc
 	}
-	s.logger.Info("config reloaded", "searches", len(newCfg.Searches))
+	s.logger.Info("config reloaded")
 }
 
 func (s *Scheduler) retryPending(ctx context.Context) {
@@ -518,24 +303,8 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 	}
 }
 
-func (s *Scheduler) ackDelivered(ctx context.Context, searchName string) {
-	pending, err := s.queue.PendingNotifications(ctx)
-	if err != nil {
-		return
-	}
-	for _, p := range pending {
-		if p.SearchName == searchName {
-			_ = s.queue.AckNotification(ctx, p.ID)
-		}
-	}
-}
-
 func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
-	if s.searchStore == nil {
-		return s.runCycle(ctx)
-	}
-
-	s.logger.Info("starting multi-tenant poll cycle")
+	s.logger.Info("starting poll cycle")
 
 	searches, err := s.searchStore.ListAllActiveSearches(ctx)
 	if err != nil {

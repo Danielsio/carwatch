@@ -11,13 +11,10 @@ import (
 
 type Config struct {
 	Polling  PollingConfig  `yaml:"polling"`
-	Searches []SearchConfig `yaml:"searches"`
-	WhatsApp WhatsAppConfig `yaml:"whatsapp"`
 	Telegram TelegramConfig `yaml:"telegram"`
 	Storage  StorageConfig  `yaml:"storage"`
 	HTTP     HTTPConfig     `yaml:"http"`
 	LogLevel string         `yaml:"log_level"`
-	Notifier string         `yaml:"notifier"`
 }
 
 type PollingConfig struct {
@@ -30,14 +27,6 @@ type PollingConfig struct {
 type ActiveHours struct {
 	Start string `yaml:"start"`
 	End   string `yaml:"end"`
-}
-
-type SearchConfig struct {
-	Name       string         `yaml:"name"`
-	Source     string         `yaml:"source"`
-	Params     SourceParams   `yaml:"params"`
-	Filters    FilterCriteria `yaml:"filters"`
-	Recipients []string       `yaml:"recipients"`
 }
 
 type SourceParams struct {
@@ -57,10 +46,6 @@ type FilterCriteria struct {
 	MaxHand     int      `yaml:"max_hand"`
 	Keywords    []string `yaml:"keywords"`
 	ExcludeKeys []string `yaml:"exclude_keys"`
-}
-
-type WhatsAppConfig struct {
-	DBPath string `yaml:"db_path"`
 }
 
 type TelegramConfig struct {
@@ -113,9 +98,6 @@ func applyDefaults(cfg *Config) {
 	if cfg.Polling.Timezone == "" {
 		cfg.Polling.Timezone = "Asia/Jerusalem"
 	}
-	if cfg.WhatsApp.DBPath == "" {
-		cfg.WhatsApp.DBPath = "./data/whatsapp.db"
-	}
 	if cfg.Storage.DBPath == "" {
 		cfg.Storage.DBPath = "./data/dedup.db"
 	}
@@ -131,32 +113,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
 	}
-	if cfg.Notifier == "" {
-		cfg.Notifier = "whatsapp"
-	}
 }
 
 func validate(cfg *Config) error {
-	if len(cfg.Searches) == 0 {
-		return fmt.Errorf("at least one search must be configured")
-	}
-	for i, s := range cfg.Searches {
-		if s.Name == "" {
-			return fmt.Errorf("search[%d]: name is required", i)
-		}
-		if s.Source == "" {
-			return fmt.Errorf("search[%d] %q: source is required", i, s.Name)
-		}
-		if len(s.Recipients) == 0 {
-			return fmt.Errorf("search[%d] %q: at least one recipient is required", i, s.Name)
-		}
-		if s.Filters.EngineMinCC > 0 && s.Filters.EngineMinCC < 100 {
-			return fmt.Errorf("search[%d] %q: engine_min_cc=%.0f looks like liters, expected cc (e.g. 1800)", i, s.Name, s.Filters.EngineMinCC)
-		}
-		if s.Filters.EngineMaxCC > 0 && s.Filters.EngineMaxCC < 100 {
-			return fmt.Errorf("search[%d] %q: engine_max_cc=%.0f looks like liters, expected cc (e.g. 2100)", i, s.Name, s.Filters.EngineMaxCC)
-		}
-	}
 	if ah := cfg.Polling.ActiveHours; ah != nil {
 		if _, err := parseTimeOfDay(ah.Start); err != nil {
 			return fmt.Errorf("active_hours.start %q: must be HH:MM format", ah.Start)
@@ -168,13 +127,8 @@ func validate(cfg *Config) error {
 	if _, err := ParseLogLevel(cfg.LogLevel); err != nil {
 		return fmt.Errorf("log_level %q: must be debug, info, warn, or error", cfg.LogLevel)
 	}
-	switch cfg.Notifier {
-	case "whatsapp", "telegram":
-	default:
-		return fmt.Errorf("notifier %q: must be whatsapp or telegram", cfg.Notifier)
-	}
-	if cfg.Notifier == "telegram" && cfg.Telegram.Token == "" {
-		return fmt.Errorf("telegram.token is required when notifier is telegram")
+	if cfg.Telegram.Token == "" {
+		return fmt.Errorf("telegram.token is required")
 	}
 	return nil
 }

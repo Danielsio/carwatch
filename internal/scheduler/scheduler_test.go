@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -132,12 +131,8 @@ func testConfig() *config.Config {
 			Jitter:   0,
 			Timezone: "UTC",
 		},
-		Searches: []config.SearchConfig{
-			{
-				Name:       "test-search",
-				Source:     "yad2",
-				Recipients: []string{"+972123456789"},
-			},
+		Telegram: config.TelegramConfig{
+			Token: "test-token",
 		},
 		Storage: config.StorageConfig{
 			PruneAfter: 24 * time.Hour,
@@ -153,220 +148,28 @@ type discardWriter struct{}
 
 func (d *discardWriter) Write(p []byte) (int, error) { return len(p), nil }
 
-func TestProcessSearch_NewListings(t *testing.T) {
-	f := &mockFetcher{
-		listings: []model.RawListing{
-			{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 90000},
-			{Token: "b", Manufacturer: "Mazda", Model: "3", Price: 85000},
-		},
-	}
-	d := newMockDedup()
-	n := &mockNotifier{}
-	cfg := testConfig()
-
-	s, _ := New(cfg, f, d, n, testLogger(), nil)
-	ctx := context.Background()
-
-	if err := s.processSearch(ctx, cfg.Searches[0]); err != nil {
-		t.Fatalf("processSearch: %v", err)
-	}
-
-	if len(n.messages) != 1 {
-		t.Fatalf("expected 1 notify call, got %d", len(n.messages))
-	}
-	if n.messages[0].count != 2 {
-		t.Errorf("expected 2 listings, got %d", n.messages[0].count)
-	}
-	if !d.seen[dedupKey{"a", 0}] || !d.seen[dedupKey{"b", 0}] {
-		t.Error("tokens should be marked as seen")
-	}
-}
-
-func TestProcessSearch_AllSeen(t *testing.T) {
-	f := &mockFetcher{
-		listings: []model.RawListing{
-			{Token: "a"},
-		},
-	}
-	d := newMockDedup()
-	d.seen[dedupKey{"a", 0}] = true
-	n := &mockNotifier{}
-	cfg := testConfig()
-
-	s, _ := New(cfg, f, d, n, testLogger(), nil)
-	ctx := context.Background()
-
-	if err := s.processSearch(ctx, cfg.Searches[0]); err != nil {
-		t.Fatalf("processSearch: %v", err)
-	}
-
-	if len(n.messages) != 0 {
-		t.Error("no notifications expected for seen listings")
-	}
-}
-
-func TestProcessSearch_NotifyFailure_ReleasesClaims(t *testing.T) {
-	f := &mockFetcher{
-		listings: []model.RawListing{
-			{Token: "a"},
-			{Token: "b"},
-		},
-	}
-	d := newMockDedup()
-	n := &mockNotifier{err: errors.New("whatsapp down")}
-	cfg := testConfig()
-
-	s, _ := New(cfg, f, d, n, testLogger(), nil)
-	ctx := context.Background()
-
-	if err := s.processSearch(ctx, cfg.Searches[0]); err != nil {
-		t.Fatalf("processSearch: %v", err)
-	}
-
-	if d.seen[dedupKey{"a", 0}] || d.seen[dedupKey{"b", 0}] {
-		t.Error("claims should be released after notify failure")
-	}
-}
-
-func TestProcessSearch_PartialNotifySuccess(t *testing.T) {
-	f := &mockFetcher{
-		listings: []model.RawListing{{Token: "a"}},
-	}
-	d := newMockDedup()
-	cfg := testConfig()
-	cfg.Searches[0].Recipients = []string{"+972111", "+972222"}
-
-	customN := &conditionalNotifier{
-		failOn: "+972111",
-	}
-
-	s, _ := New(cfg, f, d, customN, testLogger(), nil)
-	ctx := context.Background()
-
-	if err := s.processSearch(ctx, cfg.Searches[0]); err != nil {
-		t.Fatalf("processSearch: %v", err)
-	}
-
-	if !d.seen[dedupKey{"a", 0}] {
-		t.Error("claim should be kept when at least one recipient succeeds")
-	}
-}
-
-type conditionalNotifier struct {
-	failOn string
-}
-
-func (c *conditionalNotifier) Connect(_ context.Context) error                       { return nil }
-func (c *conditionalNotifier) Disconnect() error                                     { return nil }
-func (c *conditionalNotifier) NotifyRaw(_ context.Context, _ string, _ string) error { return nil }
-func (c *conditionalNotifier) Notify(_ context.Context, recipient string, _ []model.Listing) error {
-	if recipient == c.failOn {
-		return fmt.Errorf("failed for %s", recipient)
-	}
-	return nil
-}
-
-func TestProcessSearch_FetchError(t *testing.T) {
-	f := &mockFetcher{err: errors.New("network error")}
-	d := newMockDedup()
-	n := &mockNotifier{}
-	cfg := testConfig()
-
-	s, _ := New(cfg, f, d, n, testLogger(), nil)
-	ctx := context.Background()
-
-	err := s.processSearch(ctx, cfg.Searches[0])
-	if err == nil {
-		t.Fatal("expected error on fetch failure")
-	}
-}
-
-func TestProcessSearch_ChallengeError(t *testing.T) {
-	f := &mockFetcher{err: fmt.Errorf("yad2: %w", fetcher.ErrChallenge)}
-	d := newMockDedup()
-	n := &mockNotifier{}
-	cfg := testConfig()
-
-	s, _ := New(cfg, f, d, n, testLogger(), nil)
-	ctx := context.Background()
-
-	err := s.processSearch(ctx, cfg.Searches[0])
-	if !errors.Is(err, fetcher.ErrChallenge) {
-		t.Errorf("expected ErrChallenge, got: %v", err)
-	}
-}
-
-func TestRunCycle_AllSearchesFail(t *testing.T) {
-	f := &mockFetcher{err: errors.New("down")}
-	d := newMockDedup()
-	n := &mockNotifier{}
-	cfg := testConfig()
-
-	s, _ := New(cfg, f, d, n, testLogger(), nil)
-	ctx := context.Background()
-
-	err := s.runCycle(ctx)
-	if err == nil {
-		t.Fatal("expected error when all searches fail")
-	}
-}
-
-func TestRunCycle_ChallengeIncreasesBackoff(t *testing.T) {
-	f := &mockFetcher{err: fmt.Errorf("yad2: %w", fetcher.ErrChallenge)}
-	d := newMockDedup()
-	n := &mockNotifier{}
-	cfg := testConfig()
-
-	s, _ := New(cfg, f, d, n, testLogger(), nil)
-	ctx := context.Background()
-
-	initialBackoff := s.backoffMultiplier
-	_ = s.runCycle(ctx)
-
-	if s.backoffMultiplier <= initialBackoff {
-		t.Errorf("backoff should increase on challenge: was %f, now %f", initialBackoff, s.backoffMultiplier)
-	}
-}
-
-func TestRunCycle_SuccessDecreasesBackoff(t *testing.T) {
-	f := &mockFetcher{listings: []model.RawListing{}}
-	d := newMockDedup()
-	n := &mockNotifier{}
-	cfg := testConfig()
-
-	s, _ := New(cfg, f, d, n, testLogger(), nil)
-	s.backoffMultiplier = 4.0
-	ctx := context.Background()
-
-	_ = s.runCycle(ctx)
-
-	if s.backoffMultiplier >= 4.0 {
-		t.Errorf("backoff should decrease on success: %f", s.backoffMultiplier)
-	}
-}
-
-func TestFetchWithRetry_Success(t *testing.T) {
+func TestFetchWithRetryUsing_Success(t *testing.T) {
 	f := &mockFetcher{listings: []model.RawListing{{Token: "a"}}}
 	cfg := testConfig()
 	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), nil)
 
 	ctx := context.Background()
-	listings, err := s.fetchWithRetry(ctx, config.SourceParams{})
+	listings, err := s.fetchWithRetryUsing(ctx, f, config.SourceParams{})
 	if err != nil {
-		t.Fatalf("fetchWithRetry: %v", err)
+		t.Fatalf("fetchWithRetryUsing: %v", err)
 	}
 	if len(listings) != 1 {
 		t.Errorf("expected 1 listing, got %d", len(listings))
 	}
 }
 
-func TestFetchWithRetry_ChallengeNoRetry(t *testing.T) {
+func TestFetchWithRetryUsing_ChallengeNoRetry(t *testing.T) {
 	f := &mockFetcher{err: fmt.Errorf("yad2: %w", fetcher.ErrChallenge)}
 	cfg := testConfig()
 	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), nil)
 
 	ctx := context.Background()
-	_, err := s.fetchWithRetry(ctx, config.SourceParams{})
+	_, err := s.fetchWithRetryUsing(ctx, f, config.SourceParams{})
 	if !errors.Is(err, fetcher.ErrChallenge) {
 		t.Errorf("expected ErrChallenge, got: %v", err)
 	}
@@ -375,13 +178,13 @@ func TestFetchWithRetry_ChallengeNoRetry(t *testing.T) {
 	}
 }
 
-func TestFetchWithRetry_RetriesOnError(t *testing.T) {
+func TestFetchWithRetryUsing_RetriesOnError(t *testing.T) {
 	f := &mockFetcher{err: errors.New("timeout")}
 	cfg := testConfig()
 	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), nil)
 
 	ctx := context.Background()
-	_, err := s.fetchWithRetry(ctx, config.SourceParams{})
+	_, err := s.fetchWithRetryUsing(ctx, f, config.SourceParams{})
 	if err == nil {
 		t.Fatal("expected error after all retries")
 	}
@@ -433,52 +236,6 @@ func TestMaskPhone(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("maskPhone(%q) = %q, want %q", tt.input, got, tt.want)
 		}
-	}
-}
-
-func TestProcessSearch_PriceDropNotification(t *testing.T) {
-	f := &mockFetcher{
-		listings: []model.RawListing{
-			{Token: "a", Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 89000, Km: 85000},
-		},
-	}
-	d := newMockDedup()
-	// Pre-mark token as seen so the pagination pre-scan stops after page 0,
-	// avoiding duplicate copies of the same listing in allRaw.
-	d.seen[dedupKey{"a", 0}] = true
-	n := &mockNotifier{}
-	cfg := testConfig()
-
-	pt := newMockPriceTracker()
-	pt.prices["a"] = 95000
-
-	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{Prices: pt})
-	ctx := context.Background()
-
-	if err := s.processSearch(ctx, cfg.Searches[0]); err != nil {
-		t.Fatalf("processSearch: %v", err)
-	}
-
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
-	if len(n.messages) != 0 {
-		t.Errorf("expected 0 Notify calls for price drop (should use NotifyRaw), got %d", len(n.messages))
-	}
-
-	if len(n.rawMessages) != 1 {
-		t.Fatalf("expected 1 NotifyRaw call for price drop, got %d", len(n.rawMessages))
-	}
-
-	msg := n.rawMessages[0].message
-	if !strings.Contains(msg, "Price Drop!") {
-		t.Errorf("price drop message should contain 'Price Drop!', got:\n%s", msg)
-	}
-	if !strings.Contains(msg, "₪95,000") || !strings.Contains(msg, "₪89,000") {
-		t.Errorf("price drop message should contain old and new price, got:\n%s", msg)
-	}
-	if !strings.Contains(msg, "-₪6,000") {
-		t.Errorf("price drop message should contain drop amount, got:\n%s", msg)
 	}
 }
 
