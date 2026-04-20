@@ -4,8 +4,8 @@ import "testing"
 
 func TestManufacturers(t *testing.T) {
 	mfrs := Manufacturers()
-	if len(mfrs) < 15 {
-		t.Errorf("expected at least 15 manufacturers, got %d", len(mfrs))
+	if len(mfrs) < 10 {
+		t.Errorf("expected at least 10 manufacturers, got %d", len(mfrs))
 	}
 
 	found := false

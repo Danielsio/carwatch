@@ -18,6 +18,7 @@ import (
 
 type Bot struct {
 	bot         *tgbot.Bot
+	msg         messenger
 	users       storage.UserStore
 	searches    storage.SearchStore
 	digests     storage.DigestStore
@@ -40,8 +41,13 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 	if cfg.MaxSearches == 0 {
 		cfg.MaxSearches = 3
 	}
+	var msg messenger
+	if b != nil {
+		msg = &telegramMessenger{bot: b}
+	}
 	return &Bot{
 		bot:         b,
+		msg:         msg,
 		users:       users,
 		searches:    searches,
 		digests:     cfg.Digests,
@@ -85,23 +91,14 @@ func (b *Bot) ensureUser(ctx context.Context, chatID int64, username string) {
 
 func (b *Bot) send(ctx context.Context, chatID int64, text string) {
 	b.logger.Debug("sending message", "chat_id", chatID, "text_len", len(text))
-	_, err := b.bot.SendMessage(ctx, &tgbot.SendMessageParams{
-		ChatID: chatID,
-		Text:   text,
-	})
-	if err != nil {
+	if err := b.msg.SendMessage(ctx, chatID, text, "", nil); err != nil {
 		b.logger.Error("send message failed", "chat_id", chatID, "error", err)
 	}
 }
 
 func (b *Bot) sendMarkdown(ctx context.Context, chatID int64, text string) {
 	b.logger.Debug("sending markdown message", "chat_id", chatID, "text_len", len(text))
-	_, err := b.bot.SendMessage(ctx, &tgbot.SendMessageParams{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: tgmodels.ParseModeMarkdown,
-	})
-	if err != nil {
+	if err := b.msg.SendMessage(ctx, chatID, text, "Markdown", nil); err != nil {
 		b.logger.Error("send markdown message failed", "chat_id", chatID, "error", err)
 	}
 }
@@ -112,13 +109,7 @@ func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string, k
 		buttonCount += len(row)
 	}
 	b.logger.Debug("sending message with keyboard", "chat_id", chatID, "text_len", len(text), "buttons", buttonCount)
-	_, err := b.bot.SendMessage(ctx, &tgbot.SendMessageParams{
-		ChatID:      chatID,
-		Text:        text,
-		ParseMode:   tgmodels.ParseModeMarkdown,
-		ReplyMarkup: kb,
-	})
-	if err != nil {
+	if err := b.msg.SendMessage(ctx, chatID, text, "Markdown", kb); err != nil {
 		b.logger.Error("send message with keyboard failed", "chat_id", chatID, "buttons", buttonCount, "error", err)
 	}
 }
@@ -486,10 +477,7 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	data := update.CallbackQuery.Data
 	b.logger.Debug("callback received", "chat_id", chatID, "data", data)
 
-	_, err := b.bot.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
-		CallbackQueryID: update.CallbackQuery.ID,
-	})
-	if err != nil {
+	if err := b.msg.AnswerCallback(ctx, update.CallbackQuery.ID); err != nil {
 		b.logger.Error("answer callback query failed", "chat_id", chatID, "error", err)
 	}
 
