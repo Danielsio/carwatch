@@ -8,7 +8,7 @@ import (
 
 	tgbot "github.com/go-telegram/bot"
 
-	"github.com/dsionov/carwatch/internal/fetcher/yad2"
+	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -556,8 +556,9 @@ func TestDeleteSearch_ViaCallback(t *testing.T) {
 // --- Catalog Integrity Tests ---
 
 func TestCatalog_AllManufacturersHaveModels(t *testing.T) {
-	for _, m := range yad2.Manufacturers() {
-		models := yad2.Models(m.ID)
+	cat := catalog.NewStatic()
+	for _, m := range cat.Manufacturers() {
+		models := cat.Models(m.ID)
 		if len(models) == 0 {
 			t.Errorf("manufacturer %q (ID=%d) has no models — users selecting it will be stuck", m.Name, m.ID)
 		}
@@ -565,11 +566,12 @@ func TestCatalog_AllManufacturersHaveModels(t *testing.T) {
 }
 
 func TestCatalog_NoEmptyNames(t *testing.T) {
-	for _, m := range yad2.Manufacturers() {
+	cat := catalog.NewStatic()
+	for _, m := range cat.Manufacturers() {
 		if m.Name == "" {
 			t.Errorf("manufacturer ID=%d has empty name", m.ID)
 		}
-		for _, mdl := range yad2.Models(m.ID) {
+		for _, mdl := range cat.Models(m.ID) {
 			if mdl.Name == "" {
 				t.Errorf("model ID=%d under manufacturer %q has empty name", mdl.ID, m.Name)
 			}
@@ -578,17 +580,18 @@ func TestCatalog_NoEmptyNames(t *testing.T) {
 }
 
 func TestCatalog_NoDuplicateIDs(t *testing.T) {
+	cat := catalog.NewStatic()
 	seen := make(map[int]string)
-	for _, m := range yad2.Manufacturers() {
+	for _, m := range cat.Manufacturers() {
 		if prev, ok := seen[m.ID]; ok {
 			t.Errorf("duplicate manufacturer ID=%d: %q and %q", m.ID, prev, m.Name)
 		}
 		seen[m.ID] = m.Name
 	}
 
-	for _, m := range yad2.Manufacturers() {
+	for _, m := range cat.Manufacturers() {
 		modelSeen := make(map[int]string)
-		for _, mdl := range yad2.Models(m.ID) {
+		for _, mdl := range cat.Models(m.ID) {
 			if prev, ok := modelSeen[mdl.ID]; ok {
 				t.Errorf("duplicate model ID=%d under %q: %q and %q", mdl.ID, m.Name, prev, mdl.Name)
 			}
@@ -598,27 +601,29 @@ func TestCatalog_NoDuplicateIDs(t *testing.T) {
 }
 
 func TestCatalog_ManufacturerNameLookup(t *testing.T) {
-	for _, m := range yad2.Manufacturers() {
-		name := yad2.ManufacturerName(m.ID)
+	cat := catalog.NewStatic()
+	for _, m := range cat.Manufacturers() {
+		name := cat.ManufacturerName(m.ID)
 		if name != m.Name {
 			t.Errorf("ManufacturerName(%d) = %q, want %q", m.ID, name, m.Name)
 		}
 	}
-	if name := yad2.ManufacturerName(99999); name != "Unknown" {
+	if name := cat.ManufacturerName(99999); name != "Unknown" {
 		t.Errorf("ManufacturerName(99999) = %q, want 'Unknown'", name)
 	}
 }
 
 func TestCatalog_ModelNameLookup(t *testing.T) {
-	for _, m := range yad2.Manufacturers() {
-		for _, mdl := range yad2.Models(m.ID) {
-			name := yad2.ModelName(m.ID, mdl.ID)
+	cat := catalog.NewStatic()
+	for _, m := range cat.Manufacturers() {
+		for _, mdl := range cat.Models(m.ID) {
+			name := cat.ModelName(m.ID, mdl.ID)
 			if name != mdl.Name {
 				t.Errorf("ModelName(%d, %d) = %q, want %q", m.ID, mdl.ID, name, mdl.Name)
 			}
 		}
 	}
-	if name := yad2.ModelName(27, 99999); name != "Unknown" {
+	if name := cat.ModelName(27, 99999); name != "Unknown" {
 		t.Errorf("ModelName(27, 99999) = %q, want 'Unknown'", name)
 	}
 }

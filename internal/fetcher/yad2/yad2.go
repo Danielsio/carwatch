@@ -55,6 +55,10 @@ func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logge
 	}, nil
 }
 
+func (f *Yad2Fetcher) HTTPClient() *Client {
+	return f.client
+}
+
 func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
 	if f.proxyPool != nil {
 		proxy := f.proxyPool.Next()

@@ -108,6 +108,15 @@ func migrate(db *sql.DB) error {
 			listing_payload TEXT NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
+
+		CREATE TABLE IF NOT EXISTS catalog_cache (
+			manufacturer_id   INTEGER NOT NULL,
+			manufacturer_name TEXT NOT NULL,
+			model_id          INTEGER NOT NULL,
+			model_name        TEXT NOT NULL,
+			updated_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (manufacturer_id, model_id)
+		);
 	`)
 	if err != nil {
 		return err
@@ -532,6 +541,65 @@ func (s *Store) DigestLastFlushed(ctx context.Context, chatID int64) (time.Time,
 		return time.Time{}, nil
 	}
 	return t, err
+}
+
+// --- CatalogStore ---
+
+func (s *Store) SaveCatalogEntries(ctx context.Context, entries []storage.CatalogEntry) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM catalog_cache"); err != nil {
+		return err
+	}
+
+	stmt, err := tx.PrepareContext(ctx,
+		"INSERT INTO catalog_cache (manufacturer_id, manufacturer_name, model_id, model_name) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, e := range entries {
+		if _, err := stmt.ExecContext(ctx, e.ManufacturerID, e.ManufacturerName, e.ModelID, e.ModelName); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *Store) LoadCatalogEntries(ctx context.Context) ([]storage.CatalogEntry, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT manufacturer_id, manufacturer_name, model_id, model_name FROM catalog_cache ORDER BY manufacturer_name, model_name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []storage.CatalogEntry
+	for rows.Next() {
+		var e storage.CatalogEntry
+		if err := rows.Scan(&e.ManufacturerID, &e.ManufacturerName, &e.ModelID, &e.ModelName); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
+func (s *Store) CatalogAge(ctx context.Context) (time.Duration, error) {
+	var updatedAt time.Time
+	err := s.db.QueryRowContext(ctx, "SELECT MIN(updated_at) FROM catalog_cache").Scan(&updatedAt)
+	if err != nil {
+		return 0, err
+	}
+	if updatedAt.IsZero() {
+		return time.Duration(1<<63 - 1), nil
+	}
+	return time.Since(updatedAt), nil
 }
 
 // --- Close ---

@@ -10,6 +10,7 @@ import (
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
 
+	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
 
@@ -79,6 +80,7 @@ func newTestBot(t *testing.T) *testBot {
 		msg:         mm,
 		users:       store,
 		searches:    store,
+		catalog:     catalog.NewStatic(),
 		adminChatID: 999,
 		maxSearches: 3,
 		botUsername:  "test_bot",
@@ -133,6 +135,7 @@ func newTestBotWithDigests(t *testing.T) *testBot {
 		users:       store,
 		searches:    store,
 		digests:     store,
+		catalog:     catalog.NewStatic(),
 		adminChatID: 999,
 		maxSearches: 3,
 		botUsername:  "test_bot",
