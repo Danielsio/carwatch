@@ -1,0 +1,29 @@
+services:
+  bot:
+    image: ghcr.io/danielsio/carwatch:latest
+    container_name: carwatch
+    volumes:
+      - carwatch-data:/data
+      - ./config.yaml:/config.yaml:ro
+    environment:
+      - TZ=Asia/Jerusalem
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /root/.docker/config.json:/config.json:ro
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=300
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_NOTIFICATIONS=shoutrrr
+      - WATCHTOWER_NOTIFICATION_URL=generic+https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${ADMIN_CHAT_ID}&text={{.}}
+    restart: unless-stopped
+
+volumes:
+  carwatch-data:
