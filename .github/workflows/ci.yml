@@ -9,7 +9,8 @@ on:
       - 'go.sum'
       - 'Makefile'
       - 'Dockerfile'
-      - '.github/workflows/ci.yml'
+      - '.github/workflows/**'
+      - 'docker-compose*.yaml'
   push:
     branches: [main]
     paths:

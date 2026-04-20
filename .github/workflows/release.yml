@@ -20,13 +20,25 @@ jobs:
 
       - name: Determine version bump from merge commit
         id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MERGE_MSG=$(git log -1 --pretty=%s)
-          echo "Merge message: $MERGE_MSG"
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          COMMIT_BODY=$(git log -1 --pretty=%b)
+          echo "Commit message: $COMMIT_MSG"
 
-          if echo "$MERGE_MSG" | grep -qiE '(BREAKING CHANGE|^[a-z]+(\(.+\))?!:)'; then
+          # For "Merge pull request #N" commits, extract the PR title
+          if echo "$COMMIT_MSG" | grep -qE '^Merge pull request #'; then
+            PR_NUM=$(echo "$COMMIT_MSG" | grep -oE '#[0-9]+' | head -1 | tr -d '#')
+            MSG=$(gh pr view "$PR_NUM" --json title -q .title 2>/dev/null || echo "$COMMIT_MSG")
+          else
+            MSG="$COMMIT_MSG"
+          fi
+          echo "Parsed message: $MSG"
+
+          if echo "$MSG" | grep -qiE '(^[a-z]+(\(.+\))?!:)' || echo "$COMMIT_BODY" | grep -qiE 'BREAKING CHANGE'; then
             BUMP=major
-          elif echo "$MERGE_MSG" | grep -qiE '^feat(\(.+\))?:'; then
+          elif echo "$MSG" | grep -qiE '^feat(\(.+\))?:'; then
             BUMP=minor
           else
             BUMP=patch
