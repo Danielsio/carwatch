@@ -5,7 +5,6 @@
 log_level: info  # debug | info | warn | error
 
 # Telegram bot settings
-notifier: telegram
 telegram:
   token: "${TELEGRAM_BOT_TOKEN}"    # @BotFather token
   admin_chat_id: 0                   # your Telegram user ID (for /stats)
@@ -25,7 +24,7 @@ storage:
   db_path: "./data/carwatch.db"
   prune_after: 720h  # 30 days
 
-# HTTP client settings for Yad2 scraping
+# HTTP client settings for scraping
 http:
   user_agents:
     - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
@@ -34,13 +33,3 @@ http:
   # proxies:
   #   - "socks5://user:pass@host1:port"
   #   - "socks5://user:pass@host2:port"
-
-# Legacy: searches can still be defined here for backward compatibility
-# searches:
-#   - name: "mazda3-2.0"
-#     source: yad2
-#     params:
-#       manufacturer: 27
-#       model: 10332
-#     recipients:
-#       - "+972XXXXXXXXX"
