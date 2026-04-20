@@ -334,8 +334,8 @@ func TestManufacturerWithNoModels(t *testing.T) {
 	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
 	tb.msg.reset()
 
-	// Select a manufacturer with no models (e.g. Chevrolet=21)
-	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"21")
+	// Select a manufacturer ID that has no models in the catalog
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"999")
 
 	msg := tb.msg.last()
 	if msg.Text == "" {

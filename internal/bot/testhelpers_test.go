@@ -117,6 +117,31 @@ func fakeCallback(chatID int64, data string) *tgmodels.Update {
 	}
 }
 
+func newTestBotWithDigests(t *testing.T) *testBot {
+	t.Helper()
+	store, err := sqlite.New(":memory:")
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	mm := &mockMessenger{}
+	logger := slog.New(slog.NewTextHandler(&discardWriter{}, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	b := &Bot{
+		msg:         mm,
+		users:       store,
+		searches:    store,
+		digests:     store,
+		adminChatID: 999,
+		maxSearches: 3,
+		botUsername:  "test_bot",
+		logger:      logger,
+	}
+
+	return &testBot{bot: b, msg: mm, store: store}
+}
+
 func (tb *testBot) simulateCommand(ctx context.Context, chatID int64, text string) {
 	update := fakeMessage(chatID, text)
 	var nilBot *tgbot.Bot
@@ -132,10 +157,18 @@ func (tb *testBot) simulateCommand(ctx context.Context, chatID int64, text strin
 		tb.bot.handleHelp(ctx, nilBot, update)
 	case text == "/settings":
 		tb.bot.handleSettings(ctx, nilBot, update)
+	case text == "/digest":
+		tb.bot.handleDigest(ctx, nilBot, update)
 	case strings.HasPrefix(text, "/start"):
 		tb.bot.handleStart(ctx, nilBot, update)
 	case strings.HasPrefix(text, "/stop"):
 		tb.bot.handleStop(ctx, nilBot, update)
+	case strings.HasPrefix(text, "/pause"):
+		tb.bot.handlePause(ctx, nilBot, update)
+	case strings.HasPrefix(text, "/resume"):
+		tb.bot.handleResume(ctx, nilBot, update)
+	case strings.HasPrefix(text, "/share"):
+		tb.bot.handleShare(ctx, nilBot, update)
 	default:
 		tb.bot.handleDefault(ctx, nilBot, update)
 	}
