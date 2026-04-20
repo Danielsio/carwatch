@@ -13,10 +13,18 @@ Before running any `gh` commands, ensure the active account is `Danielsio`:
 gh auth switch --user Danielsio
 ```
 
-## Commit Format
+## Commit Format (Conventional Commits)
+
+PR titles and commit messages MUST use conventional commit prefixes.
+CI uses these to auto-bump the version on merge to main:
+
+- `fix:` → patch bump (1.0.X)
+- `feat:` → minor bump (1.X.0)
+- `feat!:` or body contains `BREAKING CHANGE` → major bump (X.0.0)
+- `chore:`, `docs:`, `test:`, `refactor:`, `ci:` → patch bump
 
 ```
-commit title here
+feat: add WhatsApp notification channel
 
 Optional body here.
 
