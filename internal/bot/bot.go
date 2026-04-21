@@ -11,7 +11,7 @@ import (
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
 
-	"github.com/dsionov/carwatch/internal/fetcher/yad2"
+	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/storage"
 )
@@ -22,6 +22,7 @@ type Bot struct {
 	users       storage.UserStore
 	searches    storage.SearchStore
 	digests     storage.DigestStore
+	catalog     catalog.Catalog
 	adminChatID int64
 	maxSearches int
 	botUsername  string
@@ -35,11 +36,16 @@ type Config struct {
 	BotUsername  string
 	Health      *health.Status
 	Digests     storage.DigestStore
+	Catalog     catalog.Catalog
 }
 
 func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cfg Config, logger *slog.Logger) *Bot {
 	if cfg.MaxSearches == 0 {
 		cfg.MaxSearches = 3
+	}
+	cat := cfg.Catalog
+	if cat == nil {
+		cat = catalog.NewStatic()
 	}
 	var msg messenger
 	if b != nil {
@@ -51,6 +57,7 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		users:       users,
 		searches:    searches,
 		digests:     cfg.Digests,
+		catalog:     cat,
 		adminChatID: cfg.AdminChatID,
 		maxSearches: cfg.MaxSearches,
 		botUsername:  cfg.BotUsername,
@@ -163,8 +170,8 @@ func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	}
 
 	link := ShareLink(b.botUsername, search.ID)
-	mfr := yad2.ManufacturerName(search.Manufacturer)
-	mdl := yad2.ModelName(search.Manufacturer, search.Model)
+	mfr := b.catalog.ManufacturerName(search.Manufacturer)
+	mdl := b.catalog.ModelName(search.Manufacturer, search.Model)
 
 	b.sendMarkdown(ctx, chatID, fmt.Sprintf(
 		"Share this link for *%s %s* search:\n\n%s",
@@ -190,8 +197,8 @@ func (b *Bot) handleShareStart(ctx context.Context, chatID int64, param string) 
 		return
 	}
 
-	mfr := yad2.ManufacturerName(search.Manufacturer)
-	mdl := yad2.ModelName(search.Manufacturer, search.Model)
+	mfr := b.catalog.ManufacturerName(search.Manufacturer)
+	mdl := b.catalog.ModelName(search.Manufacturer, search.Model)
 
 	engineStr := "Any"
 	if search.EngineMinCC > 0 {
@@ -260,8 +267,8 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 		if !s.Active {
 			prefix = "\u23f8 "
 		}
-		mfr := yad2.ManufacturerName(s.Manufacturer)
-		mdl := yad2.ModelName(s.Manufacturer, s.Model)
+		mfr := b.catalog.ManufacturerName(s.Manufacturer)
+		mdl := b.catalog.ModelName(s.Manufacturer, s.Model)
 
 		status := "active"
 		if !s.Active {
@@ -515,7 +522,7 @@ func (b *Bot) onSourceSelected(ctx context.Context, chatID int64, data string) {
 
 	b.sendWithKeyboard(ctx, chatID,
 		"What manufacturer are you looking for?",
-		manufacturerKeyboard())
+		b.manufacturerKeyboard())
 }
 
 func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data string) {
@@ -529,11 +536,11 @@ func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data str
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Manufacturer = id
-	wd.ManufacturerName = yad2.ManufacturerName(id)
+	wd.ManufacturerName = b.catalog.ManufacturerName(id)
 	b.logger.Debug("manufacturer selected", "chat_id", chatID, "id", id, "name", wd.ManufacturerName)
 	b.saveWizardState(ctx, chatID, StateAskModel, wd)
 
-	models := yad2.Models(id)
+	models := b.catalog.Models(id)
 	b.logger.Debug("models for manufacturer", "chat_id", chatID, "manufacturer_id", id, "model_count", len(models))
 	if len(models) == 0 {
 		b.send(ctx, chatID, "No models found for this manufacturer. Use /cancel to start over.")
@@ -542,7 +549,7 @@ func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data str
 
 	b.sendWithKeyboard(ctx, chatID,
 		fmt.Sprintf("Which %s model?", wd.ManufacturerName),
-		modelKeyboard(id))
+		b.modelKeyboard(id))
 }
 
 func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
@@ -556,7 +563,7 @@ func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Model = modelID
-	wd.ModelName = yad2.ModelName(wd.Manufacturer, modelID)
+	wd.ModelName = b.catalog.ModelName(wd.Manufacturer, modelID)
 	b.logger.Debug("model selected", "chat_id", chatID, "manufacturer", wd.ManufacturerName, "model_id", modelID, "model_name", wd.ModelName)
 	b.saveWizardState(ctx, chatID, StateAskYearMin, wd)
 
@@ -661,8 +668,8 @@ func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 		return
 	}
 
-	mfr := yad2.ManufacturerName(src.Manufacturer)
-	mdl := yad2.ModelName(src.Manufacturer, src.Model)
+	mfr := b.catalog.ManufacturerName(src.Manufacturer)
+	mdl := b.catalog.ModelName(src.Manufacturer, src.Model)
 	name := fmt.Sprintf("%s-%s", strings.ToLower(mfr), strings.ToLower(mdl))
 
 	newID, err := b.searches.CreateSearch(ctx, storage.Search{

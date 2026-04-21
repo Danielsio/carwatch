@@ -101,3 +101,16 @@ type ListingRecord struct {
 type ListingStore interface {
 	SaveListing(ctx context.Context, r ListingRecord) error
 }
+
+type CatalogEntry struct {
+	ManufacturerID   int
+	ManufacturerName string
+	ModelID          int
+	ModelName        string
+}
+
+type CatalogStore interface {
+	SaveCatalogEntries(ctx context.Context, entries []CatalogEntry) error
+	LoadCatalogEntries(ctx context.Context) ([]CatalogEntry, error)
+	CatalogAge(ctx context.Context) (time.Duration, error)
+}

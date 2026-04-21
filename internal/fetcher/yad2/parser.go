@@ -139,6 +139,58 @@ func itemToListing(raw json.RawMessage) (model.RawListing, error) {
 	return listing, nil
 }
 
+type CatalogItem struct {
+	ManufacturerID   int
+	ManufacturerName string
+	ModelID          int
+	ModelName        string
+}
+
+func ParseCatalogFromPage(body io.Reader) ([]CatalogItem, error) {
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		return nil, fmt.Errorf("read response body: %w", err)
+	}
+	html := string(raw)
+
+	if strings.Contains(html, challengeMarker) {
+		return nil, fmt.Errorf("yad2: %w", fetcher.ErrChallenge)
+	}
+
+	matches := nextDataRe.FindStringSubmatch(html)
+	if len(matches) < 2 || matches[1] == "" {
+		return nil, fmt.Errorf("__NEXT_DATA__ script tag not found")
+	}
+
+	var nextData nextDataEnvelope
+	if err := json.Unmarshal([]byte(matches[1]), &nextData); err != nil {
+		return nil, fmt.Errorf("unmarshal __NEXT_DATA__: %w", err)
+	}
+
+	items, err := extractItems(nextData)
+	if err != nil {
+		return nil, err
+	}
+
+	var catalog []CatalogItem
+	for _, raw := range items {
+		var item feedItem
+		if err := json.Unmarshal(raw, &item); err != nil {
+			continue
+		}
+		if item.Manufacturer.ID == 0 {
+			continue
+		}
+		catalog = append(catalog, CatalogItem{
+			ManufacturerID:   item.Manufacturer.ID,
+			ManufacturerName: textFromField(item.Manufacturer),
+			ModelID:          item.Model.ID,
+			ModelName:        textFromField(item.Model),
+		})
+	}
+	return catalog, nil
+}
+
 func textFromField(f field) string {
 	if f.EnglishText != "" {
 		return f.EnglishText

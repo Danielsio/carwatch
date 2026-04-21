@@ -5,8 +5,6 @@ import (
 	"strconv"
 
 	tgmodels "github.com/go-telegram/bot/models"
-
-	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 )
 
 const (
@@ -34,8 +32,8 @@ func sourceKeyboard() *tgmodels.InlineKeyboardMarkup {
 	}
 }
 
-func manufacturerKeyboard() *tgmodels.InlineKeyboardMarkup {
-	mfrs := yad2.Manufacturers()
+func (b *Bot) manufacturerKeyboard() *tgmodels.InlineKeyboardMarkup {
+	mfrs := b.catalog.Manufacturers()
 	var rows [][]tgmodels.InlineKeyboardButton
 	var row []tgmodels.InlineKeyboardButton
 
@@ -53,8 +51,8 @@ func manufacturerKeyboard() *tgmodels.InlineKeyboardMarkup {
 	return &tgmodels.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-func modelKeyboard(manufacturerID int) *tgmodels.InlineKeyboardMarkup {
-	models := yad2.Models(manufacturerID)
+func (b *Bot) modelKeyboard(manufacturerID int) *tgmodels.InlineKeyboardMarkup {
+	models := b.catalog.Models(manufacturerID)
 	var rows [][]tgmodels.InlineKeyboardButton
 	var row []tgmodels.InlineKeyboardButton
 

@@ -14,6 +14,7 @@ import (
 	tgbot "github.com/go-telegram/bot"
 
 	cwbot "github.com/dsionov/carwatch/internal/bot"
+	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/dashboard"
 	"github.com/dsionov/carwatch/internal/fetcher"
@@ -82,6 +83,9 @@ func run(configPath string, logger *slog.Logger) error {
 
 	cachingFetcher := fetcher.NewCachingFetcher(yad2Fetcher, 5*time.Minute)
 
+	dynCatalog := catalog.NewDynamic(store, yad2Fetcher.HTTPClient(), logger)
+	dynCatalog.Load(context.Background())
+
 	var winwinFetcher *winwin.WinWinFetcher
 	if len(cfg.HTTP.Proxies) > 0 {
 		pool := fetcher.NewProxyPool(cfg.HTTP.Proxies)
@@ -107,6 +111,7 @@ func run(configPath string, logger *slog.Logger) error {
 		MaxSearches: cfg.Telegram.MaxSearches,
 		BotUsername:  cfg.Telegram.BotUsername,
 		Health:      h,
+		Catalog:     dynCatalog,
 	}, logger)
 
 	tgNotif, err := telegram.New(cfg.Telegram.Token, logger,
@@ -121,6 +126,8 @@ func run(configPath string, logger *slog.Logger) error {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+
+	dynCatalog.StartRefreshLoop(ctx)
 
 	if err := tgNotif.Connect(ctx); err != nil {
 		return fmt.Errorf("connect telegram: %w", err)

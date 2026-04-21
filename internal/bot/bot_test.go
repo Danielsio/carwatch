@@ -59,7 +59,8 @@ func TestFormatNumber(t *testing.T) {
 }
 
 func TestKeyboards_ManufacturerKeyboard(t *testing.T) {
-	kb := manufacturerKeyboard()
+	tb := newTestBot(t)
+	kb := tb.bot.manufacturerKeyboard()
 	if len(kb.InlineKeyboard) == 0 {
 		t.Fatal("keyboard should have rows")
 	}
@@ -79,7 +80,8 @@ func TestKeyboards_ManufacturerKeyboard(t *testing.T) {
 }
 
 func TestKeyboards_ModelKeyboard(t *testing.T) {
-	kb := modelKeyboard(27) // Mazda
+	tb := newTestBot(t)
+	kb := tb.bot.modelKeyboard(27) // Mazda
 	if len(kb.InlineKeyboard) == 0 {
 		t.Fatal("Mazda model keyboard should have rows")
 	}
