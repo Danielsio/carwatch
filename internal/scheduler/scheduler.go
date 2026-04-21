@@ -349,7 +349,14 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.logger.Info("grouped searches", "groups", len(groups), "total_searches", len(searches))
 
 	allFailed := true
-	for _, group := range groups {
+	for i, group := range groups {
+		if i > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(2*time.Second + time.Duration(rand.Int64N(int64(3*time.Second)))):
+			}
+		}
 		if err := s.processGroup(ctx, group); err != nil {
 			s.logger.Error("group failed",
 				"manufacturer", group.Manufacturer,
@@ -543,6 +550,12 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 					"chat_id", search.ChatID,
 					"error", err,
 				)
+				if s.queue != nil {
+					msg := notifier.FormatBatch(newListings)
+					if qErr := s.queue.EnqueueNotification(ctx, chatIDStr, search.Name, msg); qErr != nil {
+						s.logger.Error("enqueue notification failed", "error", qErr)
+					}
+				}
 				for _, l := range newListings {
 					_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
 				}
