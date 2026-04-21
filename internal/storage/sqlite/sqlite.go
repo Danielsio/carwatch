@@ -269,9 +269,19 @@ func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error
 }
 
 func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error {
-	_, err := s.db.ExecContext(ctx,
+	result, err := s.db.ExecContext(ctx,
 		"DELETE FROM searches WHERE id = ? AND chat_id = ?", id, chatID)
-	return err
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return storage.ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) SetSearchActive(ctx context.Context, id int64, active bool) error {

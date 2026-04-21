@@ -2,6 +2,7 @@ package fetcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -43,6 +44,9 @@ func (c *CachingFetcher) Fetch(ctx context.Context, params config.SourceParams) 
 
 	listings, err := c.inner.Fetch(ctx, params)
 	if err != nil {
+		if errors.Is(err, ErrChallenge) || errors.Is(err, ErrRateLimited) {
+			return nil, err
+		}
 		if ok {
 			return entry.listings, nil
 		}

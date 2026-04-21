@@ -644,10 +644,15 @@ func (b *Bot) onCancelCallback(ctx context.Context, chatID int64) {
 
 func (b *Bot) onDeleteSearch(ctx context.Context, chatID int64, data string) {
 	idStr := strings.TrimPrefix(data, cbDeleteSearch)
-	id, _ := strconv.ParseInt(idStr, 10, 64)
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		b.logger.Error("invalid search ID in delete callback", "raw", idStr, "error", err)
+		b.send(ctx, chatID, "Invalid search ID.")
+		return
+	}
 
 	if err := b.searches.DeleteSearch(ctx, id, chatID); err != nil {
-		b.send(ctx, chatID, "Failed to delete search.")
+		b.send(ctx, chatID, "Search not found.")
 		return
 	}
 	b.send(ctx, chatID, fmt.Sprintf("Search #%d deleted.", id))
