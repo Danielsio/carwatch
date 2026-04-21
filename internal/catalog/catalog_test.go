@@ -1,6 +1,8 @@
 package catalog
 
 import (
+	"context"
+	"log/slog"
 	"testing"
 )
 
@@ -54,14 +56,9 @@ func TestStaticCatalog_NameLookups(t *testing.T) {
 	}
 }
 
-func TestDynamicCatalog_FallsBackToStatic(t *testing.T) {
-	cat := NewDynamic(nil, nil, nil)
-	cat.mu.Lock()
-	cat.mfrs = NewStatic().Manufacturers()
-	for _, m := range cat.mfrs {
-		cat.models[m.ID] = NewStatic().Models(m.ID)
-	}
-	cat.mu.Unlock()
+func TestDynamicCatalog_LoadsFallback(t *testing.T) {
+	cat := NewDynamic(nil, slog.Default())
+	cat.Load(context.Background())
 
 	mfrs := cat.Manufacturers()
 	if len(mfrs) < 10 {
@@ -70,5 +67,35 @@ func TestDynamicCatalog_FallsBackToStatic(t *testing.T) {
 
 	if name := cat.ManufacturerName(27); name != "Mazda" {
 		t.Errorf("ManufacturerName(27) = %q, want Mazda", name)
+	}
+}
+
+func TestDynamicCatalog_Ingest(t *testing.T) {
+	cat := NewDynamic(nil, slog.Default())
+	cat.Load(context.Background())
+
+	before := len(cat.Manufacturers())
+	ctx := context.Background()
+
+	cat.Ingest(ctx, 999, "NewBrand", 88888, "NewModel")
+
+	after := len(cat.Manufacturers())
+	if after != before+1 {
+		t.Errorf("expected %d manufacturers after ingest, got %d", before+1, after)
+	}
+
+	if name := cat.ManufacturerName(999); name != "NewBrand" {
+		t.Errorf("ManufacturerName(999) = %q, want NewBrand", name)
+	}
+
+	models := cat.Models(999)
+	if len(models) != 1 || models[0].Name != "NewModel" {
+		t.Errorf("expected 1 model NewModel, got %v", models)
+	}
+
+	// Ingesting same entry again should not duplicate
+	cat.Ingest(ctx, 999, "NewBrand", 88888, "NewModel")
+	if len(cat.Models(999)) != 1 {
+		t.Error("duplicate ingest should not add new entry")
 	}
 }

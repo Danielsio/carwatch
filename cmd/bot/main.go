@@ -83,7 +83,7 @@ func run(configPath string, logger *slog.Logger) error {
 
 	cachingFetcher := fetcher.NewCachingFetcher(yad2Fetcher, 5*time.Minute)
 
-	dynCatalog := catalog.NewDynamic(store, yad2Fetcher.HTTPClient(), logger)
+	dynCatalog := catalog.NewDynamic(store, logger)
 	dynCatalog.Load(context.Background())
 
 	var winwinFetcher *winwin.WinWinFetcher
@@ -127,8 +127,6 @@ func run(configPath string, logger *slog.Logger) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	dynCatalog.StartRefreshLoop(ctx)
-
 	if err := tgNotif.Connect(ctx); err != nil {
 		return fmt.Errorf("connect telegram: %w", err)
 	}
@@ -146,13 +144,14 @@ func run(configPath string, logger *slog.Logger) error {
 	defer srv.Close()
 
 	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, tgNotif, logger, scheduler.Options{
-		Health:         h,
-		Queue:          store,
-		Prices:         store,
-		ConfigPath:     configPath,
-		FetcherFactory: fetcherFactory,
-		ListingStore:   store,
-		SearchStore:    store,
+		Health:          h,
+		Queue:           store,
+		Prices:          store,
+		ConfigPath:      configPath,
+		FetcherFactory:  fetcherFactory,
+		ListingStore:    store,
+		SearchStore:     store,
+		CatalogIngester: dynCatalog,
 	})
 	if err != nil {
 		return fmt.Errorf("create scheduler: %w", err)

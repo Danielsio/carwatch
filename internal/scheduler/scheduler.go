@@ -30,6 +30,11 @@ const (
 	retryBaseDelay   = 2 * time.Second
 )
 
+type CatalogIngester interface {
+	Ingest(ctx context.Context, manufacturerID int, manufacturerName string, modelID int, modelName string)
+	Flush(ctx context.Context)
+}
+
 type Scheduler struct {
 	cfg               *config.Config
 	configPath        string
@@ -47,17 +52,19 @@ type Scheduler struct {
 	listingStore      storage.ListingStore
 	searchStore       storage.SearchStore
 	digestStore       storage.DigestStore
+	catalogIngester   CatalogIngester
 }
 
 type Options struct {
-	Health         *health.Status
-	Queue          storage.NotificationQueue
-	Prices         storage.PriceTracker
-	ConfigPath     string
-	FetcherFactory *fetcher.Factory
-	ListingStore   storage.ListingStore
-	SearchStore    storage.SearchStore
-	DigestStore    storage.DigestStore
+	Health          *health.Status
+	Queue           storage.NotificationQueue
+	Prices          storage.PriceTracker
+	ConfigPath      string
+	FetcherFactory  *fetcher.Factory
+	ListingStore    storage.ListingStore
+	SearchStore     storage.SearchStore
+	DigestStore     storage.DigestStore
+	CatalogIngester CatalogIngester
 }
 
 func New(
@@ -99,6 +106,7 @@ func NewWithOptions(
 		listingStore:      opts.ListingStore,
 		searchStore:       opts.SearchStore,
 		digestStore:       opts.DigestStore,
+		catalogIngester:   opts.CatalogIngester,
 	}, nil
 }
 
@@ -348,6 +356,10 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		s.lastPruneTime = time.Now()
 	}
 
+	if s.catalogIngester != nil {
+		s.catalogIngester.Flush(ctx)
+	}
+
 	s.processDigests(ctx)
 
 	if allFailed && len(groups) > 0 {
@@ -375,6 +387,12 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 	raw, err := s.fetchWithRetryUsing(fetchCtx, activeFetcher, group.Params)
 	if err != nil {
 		return err
+	}
+
+	if s.catalogIngester != nil {
+		for _, l := range raw {
+			s.catalogIngester.Ingest(ctx, l.ManufacturerID, l.Manufacturer, l.ModelID, l.Model)
+		}
 	}
 
 	s.logger.Info("fetched for group",
