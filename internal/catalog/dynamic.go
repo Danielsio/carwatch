@@ -128,7 +128,15 @@ func (d *DynamicCatalog) rebuildSlices() {
 func (d *DynamicCatalog) saveToStore(ctx context.Context) {
 	var entries []storage.CatalogEntry
 	for mfrID, mfrName := range d.mfrMap {
-		for mdlID, mdlName := range d.modelMap[mfrID] {
+		mdls := d.modelMap[mfrID]
+		if len(mdls) == 0 {
+			entries = append(entries, storage.CatalogEntry{
+				ManufacturerID:   mfrID,
+				ManufacturerName: mfrName,
+			})
+			continue
+		}
+		for mdlID, mdlName := range mdls {
 			entries = append(entries, storage.CatalogEntry{
 				ManufacturerID:   mfrID,
 				ManufacturerName: mfrName,
@@ -160,7 +168,9 @@ func (d *DynamicCatalog) loadFromStore(ctx context.Context) bool {
 		if d.modelMap[e.ManufacturerID] == nil {
 			d.modelMap[e.ManufacturerID] = make(map[int]string)
 		}
-		d.modelMap[e.ManufacturerID][e.ModelID] = e.ModelName
+		if e.ModelID != 0 {
+			d.modelMap[e.ManufacturerID][e.ModelID] = e.ModelName
+		}
 	}
 
 	// Merge static fallback entries that might be missing from cache
@@ -197,10 +207,8 @@ func (d *DynamicCatalog) Models(manufacturerID int) []Entry {
 func (d *DynamicCatalog) ManufacturerName(id int) string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	for _, m := range d.mfrs {
-		if m.ID == id {
-			return m.Name
-		}
+	if name, ok := d.mfrMap[id]; ok {
+		return name
 	}
 	return "Unknown"
 }
@@ -208,9 +216,9 @@ func (d *DynamicCatalog) ManufacturerName(id int) string {
 func (d *DynamicCatalog) ModelName(manufacturerID, modelID int) string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	for _, m := range d.models[manufacturerID] {
-		if m.ID == modelID {
-			return m.Name
+	if mdls, ok := d.modelMap[manufacturerID]; ok {
+		if name, ok := mdls[modelID]; ok {
+			return name
 		}
 	}
 	return "Unknown"

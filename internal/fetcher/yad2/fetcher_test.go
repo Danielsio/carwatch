@@ -64,13 +64,6 @@ func TestNewFetcherWithProxyPool(t *testing.T) {
 	}
 }
 
-func TestYad2Fetcher_HTTPClient(t *testing.T) {
-	f, _ := NewFetcher([]string{"TestAgent/1.0"}, "", discardLogger)
-	if f.HTTPClient() == nil {
-		t.Error("HTTPClient should not be nil")
-	}
-}
-
 func TestYad2Fetcher_Fetch(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
@@ -176,51 +169,20 @@ func TestYad2Fetcher_Fetch_Challenge(t *testing.T) {
 	}
 }
 
-func TestParseCatalogFromPage(t *testing.T) {
+func TestParseListingsPage_InlineHTML(t *testing.T) {
 	html := validPageHTML()
-	items, err := ParseCatalogFromPage(strings.NewReader(html))
+	listings, err := ParseListingsPage(strings.NewReader(html))
 	if err != nil {
-		t.Fatalf("ParseCatalogFromPage: %v", err)
+		t.Fatalf("ParseListingsPage: %v", err)
 	}
-	if len(items) != 1 {
-		t.Fatalf("expected 1 item, got %d", len(items))
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
 	}
-	if items[0].ManufacturerID != 27 || items[0].ManufacturerName != "Mazda" {
-		t.Errorf("item = %+v", items[0])
+	if listings[0].ManufacturerID != 27 || listings[0].Manufacturer != "Mazda" {
+		t.Errorf("listing = %+v", listings[0])
 	}
-	if items[0].ModelID != 10332 || items[0].ModelName != "3" {
-		t.Errorf("model = %+v", items[0])
-	}
-}
-
-func TestParseCatalogFromPage_Challenge(t *testing.T) {
-	_, err := ParseCatalogFromPage(strings.NewReader(`<html>Are you for real?</html>`))
-	if err == nil {
-		t.Error("expected error for challenge page")
-	}
-}
-
-func TestParseCatalogFromPage_NoNextData(t *testing.T) {
-	_, err := ParseCatalogFromPage(strings.NewReader(`<html><body>no data</body></html>`))
-	if err == nil {
-		t.Error("expected error for missing __NEXT_DATA__")
-	}
-}
-
-func TestParseCatalogFromPage_SkipsZeroID(t *testing.T) {
-	html := `<!DOCTYPE html><html><body>
-<script id="__NEXT_DATA__" type="application/json">
-{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{"data":{"feed":{"feed_items":[
-{"token":"tok-1","manufacturer":{"text":"","english_text":"","id":0},"model":{"text":"","id":0},"year_of_production":2021,"price":95000}
-]}}}}}]}}}}
-</script></body></html>`
-
-	items, err := ParseCatalogFromPage(strings.NewReader(html))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(items) != 0 {
-		t.Errorf("expected 0 items (ID=0 should be skipped), got %d", len(items))
+	if listings[0].ModelID != 10332 || listings[0].Model != "3" {
+		t.Errorf("model = %+v", listings[0])
 	}
 }
 

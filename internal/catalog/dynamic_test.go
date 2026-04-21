@@ -3,15 +3,11 @@ package catalog
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -21,8 +17,6 @@ var testLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 type mockCatalogStore struct {
 	entries      []storage.CatalogEntry
-	age          time.Duration
-	ageErr       error
 	loadErr      error
 	saveErr      error
 	saveCalled   bool
@@ -40,59 +34,14 @@ func (m *mockCatalogStore) LoadCatalogEntries(_ context.Context) ([]storage.Cata
 }
 
 func (m *mockCatalogStore) CatalogAge(_ context.Context) (time.Duration, error) {
-	return m.age, m.ageErr
-}
-
-type mockHTTPClient struct {
-	responses []*http.Response
-	err       error
-	callCount int
-}
-
-func (m *mockHTTPClient) Do(_ *http.Request) (*http.Response, error) {
-	m.callCount++
-	if m.err != nil {
-		return nil, m.err
-	}
-	if len(m.responses) > 0 {
-		idx := m.callCount - 1
-		if idx >= len(m.responses) {
-			idx = len(m.responses) - 1
-		}
-		return m.responses[idx], nil
-	}
-	return nil, errors.New("no response configured")
-}
-
-func makeYad2PageHTML(items string) string {
-	return fmt.Sprintf(`<!DOCTYPE html><html><body>
-<script id="__NEXT_DATA__" type="application/json">
-{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{"data":{"feed":{"feed_items":[%s]}}}}}]}}}}
-</script></body></html>`, items)
-}
-
-func makeFeedItem(mfrID int, mfrName string, modelID int, modelName string) string {
-	return fmt.Sprintf(`{
-		"token":"tok-%d-%d",
-		"manufacturer":{"text":"%s","english_text":"%s","id":%d},
-		"model":{"text":"%s","english_text":"%s","id":%d},
-		"year_of_production":2023,
-		"price":100000
-	}`, mfrID, modelID, mfrName, mfrName, mfrID, modelName, modelName, modelID)
-}
-
-func makeHTTPResponse(body string) *http.Response {
-	return &http.Response{
-		StatusCode: 200,
-		Body:       io.NopCloser(strings.NewReader(body)),
-	}
+	return 0, nil
 }
 
 // --- tests ---
 
 func TestNewDynamic(t *testing.T) {
 	store := &mockCatalogStore{}
-	d := NewDynamic(store, nil, testLogger)
+	d := NewDynamic(store, testLogger)
 
 	if d.store != store {
 		t.Error("store not set")
@@ -105,58 +54,34 @@ func TestNewDynamic(t *testing.T) {
 	}
 }
 
-func TestDynamicCatalog_Load_FromFreshCache(t *testing.T) {
+func TestDynamicCatalog_Load_FromCache(t *testing.T) {
 	store := &mockCatalogStore{
-		age: 1 * time.Hour,
 		entries: []storage.CatalogEntry{
-			{ManufacturerID: 1, ManufacturerName: "Audi", ModelID: 100, ModelName: "A3"},
-			{ManufacturerID: 1, ManufacturerName: "Audi", ModelID: 101, ModelName: "A4"},
-			{ManufacturerID: 2, ManufacturerName: "BMW", ModelID: 200, ModelName: "3 Series"},
+			{ManufacturerID: 9000, ManufacturerName: "AlphaCar", ModelID: 100, ModelName: "Alpha1"},
+			{ManufacturerID: 9000, ManufacturerName: "AlphaCar", ModelID: 101, ModelName: "Alpha2"},
+			{ManufacturerID: 9001, ManufacturerName: "BetaCar", ModelID: 200, ModelName: "Beta1"},
 		},
 	}
 
-	d := NewDynamic(store, nil, testLogger)
+	d := NewDynamic(store, testLogger)
 	d.Load(context.Background())
 
-	mfrs := d.Manufacturers()
-	if len(mfrs) != 2 {
-		t.Fatalf("expected 2 manufacturers, got %d", len(mfrs))
-	}
-	if mfrs[0].Name != "Audi" {
-		t.Errorf("first manufacturer = %q, want Audi (sorted)", mfrs[0].Name)
+	if name := d.ManufacturerName(9000); name != "AlphaCar" {
+		t.Errorf("ManufacturerName(9000) = %q, want AlphaCar", name)
 	}
 
-	models := d.Models(1)
+	models := d.Models(9000)
 	if len(models) != 2 {
-		t.Fatalf("expected 2 Audi models, got %d", len(models))
+		t.Fatalf("expected 2 AlphaCar models, got %d", len(models))
 	}
 }
 
-func TestDynamicCatalog_Load_StaleCache_RefreshFails_UsesStaleCache(t *testing.T) {
+func TestDynamicCatalog_Load_NoCache_UsesFallback(t *testing.T) {
 	store := &mockCatalogStore{
-		age: 48 * time.Hour,
-		entries: []storage.CatalogEntry{
-			{ManufacturerID: 1, ManufacturerName: "Audi", ModelID: 100, ModelName: "A3"},
-		},
+		loadErr: errors.New("no cache"),
 	}
-	client := &mockHTTPClient{err: errors.New("network error")}
 
-	d := NewDynamic(store, client, testLogger)
-	d.Load(context.Background())
-
-	mfrs := d.Manufacturers()
-	if len(mfrs) != 1 || mfrs[0].Name != "Audi" {
-		t.Errorf("expected stale cache with Audi, got %v", mfrs)
-	}
-}
-
-func TestDynamicCatalog_Load_NoCache_RefreshFails_UsesFallback(t *testing.T) {
-	store := &mockCatalogStore{
-		ageErr: errors.New("no cache"),
-	}
-	client := &mockHTTPClient{err: errors.New("network error")}
-
-	d := NewDynamic(store, client, testLogger)
+	d := NewDynamic(store, testLogger)
 	d.Load(context.Background())
 
 	mfrs := d.Manufacturers()
@@ -165,165 +90,175 @@ func TestDynamicCatalog_Load_NoCache_RefreshFails_UsesFallback(t *testing.T) {
 	}
 }
 
-func TestDynamicCatalog_Load_RefreshSuccess(t *testing.T) {
-	store := &mockCatalogStore{
-		ageErr: errors.New("no cache"),
-	}
-	items := makeFeedItem(99, "TestMfr", 999, "TestModel")
-	html := makeYad2PageHTML(items)
-	responses := make([]*http.Response, fetchPages)
-	for i := range responses {
-		responses[i] = makeHTTPResponse(html)
-	}
-	client := &mockHTTPClient{responses: responses}
-
-	d := NewDynamic(store, client, testLogger)
-	d.Load(context.Background())
-
-	if !store.saveCalled {
-		t.Error("expected store.SaveCatalogEntries to be called")
-	}
-
-	if name := d.ManufacturerName(99); name == "Unknown" {
-		t.Error("TestMfr should be found after refresh")
-	}
-}
-
-func TestDynamicCatalog_Refresh_SaveError(t *testing.T) {
-	store := &mockCatalogStore{
-		ageErr:  errors.New("no cache"),
-		saveErr: errors.New("db write failed"),
-	}
-	items := makeFeedItem(99, "TestMfr", 999, "TestModel")
-	html := makeYad2PageHTML(items)
-	responses := make([]*http.Response, fetchPages)
-	for i := range responses {
-		responses[i] = makeHTTPResponse(html)
-	}
-	client := &mockHTTPClient{responses: responses}
-
-	d := NewDynamic(store, client, testLogger)
-	d.Load(context.Background())
-
-	if name := d.ManufacturerName(99); name == "Unknown" {
-		t.Error("in-memory catalog should be updated even on save error")
-	}
-}
-
-func TestDynamicCatalog_Refresh_EmptyResults(t *testing.T) {
-	store := &mockCatalogStore{
-		ageErr: errors.New("no cache"),
-	}
-	html := makeYad2PageHTML("")
-	responses := make([]*http.Response, fetchPages)
-	for i := range responses {
-		responses[i] = makeHTTPResponse(html)
-	}
-	client := &mockHTTPClient{responses: responses}
-
-	d := NewDynamic(store, client, testLogger)
+func TestDynamicCatalog_Load_NilStore_UsesFallback(t *testing.T) {
+	d := NewDynamic(nil, testLogger)
 	d.Load(context.Background())
 
 	mfrs := d.Manufacturers()
 	if len(mfrs) < 10 {
-		t.Errorf("empty refresh should fall back to static, got %d manufacturers", len(mfrs))
+		t.Errorf("expected static fallback manufacturers (>10), got %d", len(mfrs))
 	}
 }
 
-func TestDynamicCatalog_BuildCatalog_MergesWithStatic(t *testing.T) {
-	d := NewDynamic(nil, nil, testLogger)
+func TestDynamicCatalog_Ingest_NewManufacturerAndModel(t *testing.T) {
+	d := NewDynamic(nil, testLogger)
+	d.Load(context.Background())
 
-	items := []yad2.CatalogItem{
-		{ManufacturerID: 99, ManufacturerName: "NewBrand", ModelID: 999, ModelName: "NewModel"},
-	}
-	mfrs, models := d.buildCatalog(items)
+	before := len(d.Manufacturers())
+	ctx := context.Background()
 
-	foundStatic := false
-	foundNew := false
-	for _, m := range mfrs {
-		if m.Name == "Toyota" {
-			foundStatic = true
-		}
-		if m.Name == "NewBrand" {
-			foundNew = true
-		}
+	d.Ingest(ctx, 999, "NewBrand", 88888, "NewModel")
+
+	after := len(d.Manufacturers())
+	if after != before+1 {
+		t.Errorf("expected %d manufacturers after ingest, got %d", before+1, after)
 	}
-	if !foundStatic {
-		t.Error("static manufacturer Toyota not found after merge")
+
+	if name := d.ManufacturerName(999); name != "NewBrand" {
+		t.Errorf("ManufacturerName(999) = %q, want NewBrand", name)
 	}
-	if !foundNew {
-		t.Error("new manufacturer NewBrand not found after merge")
-	}
-	if len(models[99]) != 1 || models[99][0].Name != "NewModel" {
-		t.Error("NewModel should be present for manufacturer 99")
+
+	models := d.Models(999)
+	if len(models) != 1 || models[0].Name != "NewModel" {
+		t.Errorf("expected 1 model NewModel, got %v", models)
 	}
 }
 
-func TestDynamicCatalog_BuildCatalog_SkipsInvalidItems(t *testing.T) {
-	d := NewDynamic(nil, nil, testLogger)
+func TestDynamicCatalog_Ingest_DuplicateIgnored(t *testing.T) {
+	d := NewDynamic(nil, testLogger)
+	d.Load(context.Background())
+	ctx := context.Background()
 
-	items := []yad2.CatalogItem{
-		{ManufacturerID: 0, ManufacturerName: "", ModelID: 1, ModelName: "X"},
-		{ManufacturerID: 5, ManufacturerName: "Valid", ModelID: 0, ModelName: ""},
-	}
-	mfrs, models := d.buildCatalog(items)
+	d.Ingest(ctx, 999, "NewBrand", 88888, "NewModel")
+	d.Ingest(ctx, 999, "NewBrand", 88888, "NewModel")
 
-	for _, m := range mfrs {
-		if m.ID == 0 {
-			t.Error("manufacturer with ID 0 should be skipped")
-		}
-	}
-	for _, m := range models[5] {
-		if m.ID == 0 {
-			t.Error("model with ID 0 should be skipped")
-		}
+	if len(d.Models(999)) != 1 {
+		t.Error("duplicate ingest should not add new entry")
 	}
 }
 
-func TestDynamicCatalog_BuildCatalog_PreservesStaticNames(t *testing.T) {
-	d := NewDynamic(nil, nil, testLogger)
+func TestDynamicCatalog_Ingest_SkipsInvalid(t *testing.T) {
+	d := NewDynamic(nil, testLogger)
+	d.Load(context.Background())
+	ctx := context.Background()
+	before := len(d.Manufacturers())
 
-	items := []yad2.CatalogItem{
-		{ManufacturerID: 19, ManufacturerName: "טויוטה", ModelID: 10226, ModelName: "קורולה"},
+	d.Ingest(ctx, 0, "", 1, "X")
+	d.Ingest(ctx, 0, "Empty", 1, "X")
+	d.Ingest(ctx, 5, "", 1, "X")
+
+	after := len(d.Manufacturers())
+	if after != before {
+		t.Errorf("invalid ingests should not change manufacturer count, was %d now %d", before, after)
 	}
-	mfrs, _ := d.buildCatalog(items)
+}
 
-	for _, m := range mfrs {
-		if m.ID == 19 {
-			if m.Name != "Toyota" {
-				t.Errorf("static name should be preserved, got %q", m.Name)
-			}
-			return
+func TestDynamicCatalog_Ingest_ManufacturerWithoutModel(t *testing.T) {
+	d := NewDynamic(nil, testLogger)
+	d.Load(context.Background())
+	ctx := context.Background()
+	before := len(d.Manufacturers())
+
+	d.Ingest(ctx, 999, "NoModelBrand", 0, "")
+
+	after := len(d.Manufacturers())
+	if after != before+1 {
+		t.Errorf("manufacturer-only ingest should add manufacturer, was %d now %d", before, after)
+	}
+	if name := d.ManufacturerName(999); name != "NoModelBrand" {
+		t.Errorf("ManufacturerName(999) = %q, want NoModelBrand", name)
+	}
+	if len(d.Models(999)) != 0 {
+		t.Error("manufacturer-only ingest should not add models")
+	}
+}
+
+func TestDynamicCatalog_Ingest_PreservesExistingName(t *testing.T) {
+	d := NewDynamic(nil, testLogger)
+	d.Load(context.Background())
+	ctx := context.Background()
+
+	d.Ingest(ctx, 19, "טויוטה", 10226, "קורולה")
+
+	if name := d.ManufacturerName(19); name != "Toyota" {
+		t.Errorf("static name should be preserved, got %q", name)
+	}
+}
+
+func TestDynamicCatalog_Flush_SavesWhenDirty(t *testing.T) {
+	store := &mockCatalogStore{}
+	d := NewDynamic(store, testLogger)
+	d.Load(context.Background())
+
+	d.Ingest(context.Background(), 999, "NewBrand", 88888, "NewModel")
+	d.Flush(context.Background())
+
+	if !store.saveCalled {
+		t.Error("Flush should save when dirty")
+	}
+}
+
+func TestDynamicCatalog_Flush_SaveError(t *testing.T) {
+	store := &mockCatalogStore{saveErr: errors.New("db write failed")}
+	d := NewDynamic(store, testLogger)
+	d.Load(context.Background())
+
+	d.Ingest(context.Background(), 999, "NewBrand", 88888, "NewModel")
+	d.Flush(context.Background())
+
+	if name := d.ManufacturerName(999); name != "NewBrand" {
+		t.Error("in-memory catalog should be intact even on save error")
+	}
+}
+
+func TestDynamicCatalog_Flush_PersistsManufacturersWithoutModels(t *testing.T) {
+	store := &mockCatalogStore{}
+	d := NewDynamic(store, testLogger)
+	d.Load(context.Background())
+
+	d.Ingest(context.Background(), 999, "NoModelBrand", 0, "")
+	d.Flush(context.Background())
+
+	if !store.saveCalled {
+		t.Fatal("Flush should save")
+	}
+
+	found := false
+	for _, e := range store.savedEntries {
+		if e.ManufacturerID == 999 && e.ManufacturerName == "NoModelBrand" {
+			found = true
 		}
 	}
-	t.Error("manufacturer 19 not found")
+	if !found {
+		t.Error("manufacturers without models should be persisted")
+	}
 }
 
 func TestDynamicCatalog_LoadFromStore(t *testing.T) {
 	store := &mockCatalogStore{
 		entries: []storage.CatalogEntry{
-			{ManufacturerID: 1, ManufacturerName: "Audi", ModelID: 100, ModelName: "A3"},
-			{ManufacturerID: 1, ManufacturerName: "Audi", ModelID: 101, ModelName: "A4"},
+			{ManufacturerID: 9000, ManufacturerName: "AlphaCar", ModelID: 100, ModelName: "Alpha1"},
+			{ManufacturerID: 9000, ManufacturerName: "AlphaCar", ModelID: 101, ModelName: "Alpha2"},
 		},
 	}
 
-	d := NewDynamic(store, nil, testLogger)
+	d := NewDynamic(store, testLogger)
 	ok := d.loadFromStore(context.Background())
 
 	if !ok {
 		t.Fatal("loadFromStore should return true")
 	}
-	if len(d.Manufacturers()) != 1 || d.Manufacturers()[0].Name != "Audi" {
-		t.Error("manufacturers not loaded correctly")
+	if name := d.ManufacturerName(9000); name != "AlphaCar" {
+		t.Errorf("ManufacturerName(9000) = %q, want AlphaCar", name)
 	}
-	if len(d.Models(1)) != 2 {
+	if len(d.Models(9000)) != 2 {
 		t.Error("models not loaded correctly")
 	}
 }
 
 func TestDynamicCatalog_LoadFromStore_Error(t *testing.T) {
 	store := &mockCatalogStore{loadErr: errors.New("db error")}
-	d := NewDynamic(store, nil, testLogger)
+	d := NewDynamic(store, testLogger)
 	if d.loadFromStore(context.Background()) {
 		t.Error("loadFromStore should return false on error")
 	}
@@ -331,14 +266,14 @@ func TestDynamicCatalog_LoadFromStore_Error(t *testing.T) {
 
 func TestDynamicCatalog_LoadFromStore_Empty(t *testing.T) {
 	store := &mockCatalogStore{entries: nil}
-	d := NewDynamic(store, nil, testLogger)
+	d := NewDynamic(store, testLogger)
 	if d.loadFromStore(context.Background()) {
 		t.Error("loadFromStore should return false when empty")
 	}
 }
 
 func TestDynamicCatalog_Models_UnknownManufacturer(t *testing.T) {
-	d := NewDynamic(nil, nil, testLogger)
+	d := NewDynamic(nil, testLogger)
 	models := d.Models(99999)
 	if models != nil {
 		t.Errorf("expected nil for unknown manufacturer, got %v", models)
@@ -351,7 +286,7 @@ func TestDynamicCatalog_ModelName(t *testing.T) {
 			{ManufacturerID: 1, ManufacturerName: "Audi", ModelID: 100, ModelName: "A3"},
 		},
 	}
-	d := NewDynamic(store, nil, testLogger)
+	d := NewDynamic(store, testLogger)
 	d.loadFromStore(context.Background())
 
 	if name := d.ModelName(1, 100); name != "A3" {
@@ -362,44 +297,5 @@ func TestDynamicCatalog_ModelName(t *testing.T) {
 	}
 	if name := d.ModelName(999, 1); name != "Unknown" {
 		t.Errorf("ModelName(999,1) = %q, want Unknown", name)
-	}
-}
-
-func TestDynamicCatalog_StartRefreshLoop_ContextCancel(t *testing.T) {
-	store := &mockCatalogStore{ageErr: errors.New("no cache")}
-	d := NewDynamic(store, nil, testLogger)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	d.StartRefreshLoop(ctx)
-	cancel()
-}
-
-func TestDynamicCatalog_FetchCatalog_HTTPError(t *testing.T) {
-	client := &mockHTTPClient{err: errors.New("connection refused")}
-	d := NewDynamic(nil, client, testLogger)
-
-	items, err := d.fetchCatalog(context.Background())
-	if err != nil {
-		t.Fatalf("fetchCatalog should not return error on individual page failures, got: %v", err)
-	}
-	if len(items) != 0 {
-		t.Errorf("expected 0 items on all page failures, got %d", len(items))
-	}
-}
-
-func TestDynamicCatalog_FetchCatalog_ParseError(t *testing.T) {
-	responses := make([]*http.Response, fetchPages)
-	for i := range responses {
-		responses[i] = makeHTTPResponse("<html>no next data here</html>")
-	}
-	client := &mockHTTPClient{responses: responses}
-	d := NewDynamic(nil, client, testLogger)
-
-	items, err := d.fetchCatalog(context.Background())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(items) != 0 {
-		t.Errorf("expected 0 items on parse failure, got %d", len(items))
 	}
 }
