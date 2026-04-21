@@ -70,10 +70,14 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer store.Close()
 
-	var yad2Fetcher *yad2.Yad2Fetcher
+	var proxyPool *fetcher.ProxyPool
 	if len(cfg.HTTP.Proxies) > 0 {
-		pool := fetcher.NewProxyPool(cfg.HTTP.Proxies)
-		yad2Fetcher, err = yad2.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, pool, logger)
+		proxyPool = fetcher.NewProxyPool(cfg.HTTP.Proxies)
+	}
+
+	var yad2Fetcher *yad2.Yad2Fetcher
+	if proxyPool != nil {
+		yad2Fetcher, err = yad2.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, logger)
 	} else {
 		yad2Fetcher, err = yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, logger)
 	}
@@ -87,9 +91,8 @@ func run(configPath string, logger *slog.Logger) error {
 	dynCatalog.Load(context.Background())
 
 	var winwinFetcher *winwin.WinWinFetcher
-	if len(cfg.HTTP.Proxies) > 0 {
-		pool := fetcher.NewProxyPool(cfg.HTTP.Proxies)
-		winwinFetcher, err = winwin.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, pool, logger)
+	if proxyPool != nil {
+		winwinFetcher, err = winwin.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, logger)
 	} else {
 		winwinFetcher, err = winwin.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, logger)
 	}

@@ -20,15 +20,14 @@ type SearchCounter interface {
 }
 
 type Status struct {
-	mu              sync.RWMutex
-	lastSuccessTime time.Time
-	cycleCount      int64
-	errorCount      int64
-	startTime       time.Time
+	startTime         time.Time
+	cycleCount        atomic.Int64
+	errorCount        atomic.Int64
+	lastSuccessUnixNs atomic.Int64
+	listingsFound     atomic.Int64
+	notificationsSent atomic.Int64
 
-	listingsFound     int64 // accessed via atomic
-	notificationsSent int64 // accessed via atomic
-
+	mu       sync.RWMutex
 	users    UserCounter
 	searches SearchCounter
 }
@@ -37,14 +36,12 @@ func New() *Status {
 	return &Status{startTime: time.Now()}
 }
 
-// SetUserCounter attaches an optional UserCounter for active_users reporting.
 func (s *Status) SetUserCounter(u UserCounter) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.users = u
 }
 
-// SetSearchCounter attaches an optional SearchCounter for active_searches reporting.
 func (s *Status) SetSearchCounter(sc SearchCounter) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -52,60 +49,60 @@ func (s *Status) SetSearchCounter(sc SearchCounter) {
 }
 
 func (s *Status) RecordSuccess() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.lastSuccessTime = time.Now()
-	s.cycleCount++
+	s.lastSuccessUnixNs.Store(time.Now().UnixNano())
+	s.cycleCount.Add(1)
 }
 
 func (s *Status) RecordError() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.errorCount++
-	s.cycleCount++
+	s.errorCount.Add(1)
+	s.cycleCount.Add(1)
 }
 
-// RecordListingsFound adds n to the total new listings discovered.
 func (s *Status) RecordListingsFound(n int) {
-	atomic.AddInt64(&s.listingsFound, int64(n))
+	s.listingsFound.Add(int64(n))
 }
 
-// RecordNotificationSent increments the total notifications delivered.
 func (s *Status) RecordNotificationSent() {
-	atomic.AddInt64(&s.notificationsSent, 1)
+	s.notificationsSent.Add(1)
 }
 
-// Snapshot returns the current health metrics as a map, suitable for JSON
-// serialisation or embedding in other responses (e.g. /stats).
 func (s *Status) Snapshot() map[string]any {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	cycles := s.cycleCount.Load()
+	lastSuccessNs := s.lastSuccessUnixNs.Load()
+	lastSuccess := time.Time{}
+	if lastSuccessNs > 0 {
+		lastSuccess = time.Unix(0, lastSuccessNs)
+	}
 
 	status := "ok"
-	if s.cycleCount > 0 && time.Since(s.lastSuccessTime) > 30*time.Minute {
+	if cycles > 0 && (lastSuccessNs == 0 || time.Since(lastSuccess) > 30*time.Minute) {
 		status = "degraded"
 	}
 
 	resp := map[string]any{
 		"status":             status,
 		"uptime":             time.Since(s.startTime).String(),
-		"cycles":             s.cycleCount,
-		"errors":             s.errorCount,
-		"last_success":       s.lastSuccessTime,
-		"listings_found":     atomic.LoadInt64(&s.listingsFound),
-		"notifications_sent": atomic.LoadInt64(&s.notificationsSent),
+		"cycles":             cycles,
+		"errors":             s.errorCount.Load(),
+		"last_success":       lastSuccess,
+		"listings_found":     s.listingsFound.Load(),
+		"notifications_sent": s.notificationsSent.Load(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	if s.users != nil {
-		if n, err := s.users.CountUsers(ctx); err == nil {
+	s.mu.RLock()
+	users, searches := s.users, s.searches
+	s.mu.RUnlock()
+
+	if users != nil {
+		if n, err := users.CountUsers(ctx); err == nil {
 			resp["active_users"] = n
 		}
 	}
-	if s.searches != nil {
-		if n, err := s.searches.CountAllSearches(ctx); err == nil {
+	if searches != nil {
+		if n, err := searches.CountAllSearches(ctx); err == nil {
 			resp["active_searches"] = n
 		}
 	}
