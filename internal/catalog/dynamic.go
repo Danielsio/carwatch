@@ -252,3 +252,15 @@ func (d *DynamicCatalog) ModelName(manufacturerID, modelID int) string {
 	}
 	return "Unknown"
 }
+
+func (d *DynamicCatalog) SearchManufacturers(query string) []Entry {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return searchEntries(d.mfrs, query)
+}
+
+func (d *DynamicCatalog) SearchModels(manufacturerID int, query string) []Entry {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return searchEntries(d.models[manufacturerID], query)
+}

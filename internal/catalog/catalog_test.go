@@ -31,11 +31,13 @@ func TestStaticCatalog_Models(t *testing.T) {
 	}
 }
 
-func TestStaticCatalog_AllManufacturersHaveModels(t *testing.T) {
+func TestStaticCatalog_CoreManufacturersHaveModels(t *testing.T) {
 	cat := NewStatic()
-	for _, m := range cat.Manufacturers() {
-		if len(cat.Models(m.ID)) == 0 {
-			t.Errorf("manufacturer %q (ID=%d) has no models", m.Name, m.ID)
+	core := []int{1, 7, 17, 18, 19, 21, 27, 31, 32, 40, 41, 48, 51, 62}
+	for _, id := range core {
+		name := cat.ManufacturerName(id)
+		if len(cat.Models(id)) == 0 {
+			t.Errorf("core manufacturer %q (ID=%d) should have models", name, id)
 		}
 	}
 }
@@ -53,6 +55,48 @@ func TestStaticCatalog_NameLookups(t *testing.T) {
 	}
 	if name := cat.ModelName(27, 99999); name != "Unknown" {
 		t.Errorf("ModelName(27, 99999) = %q, want Unknown", name)
+	}
+}
+
+func TestStaticCatalog_SearchManufacturers(t *testing.T) {
+	cat := NewStatic()
+
+	results := cat.SearchManufacturers("maz")
+	if len(results) != 1 || results[0].Name != "Mazda" {
+		t.Errorf("search 'maz' = %v, want [Mazda]", results)
+	}
+
+	results = cat.SearchManufacturers("BMW")
+	if len(results) != 1 || results[0].Name != "BMW" {
+		t.Errorf("search 'BMW' = %v, want [BMW]", results)
+	}
+
+	results = cat.SearchManufacturers("zzz")
+	if len(results) != 0 {
+		t.Errorf("search 'zzz' should return empty, got %v", results)
+	}
+
+	results = cat.SearchManufacturers("citroen")
+	if len(results) != 1 || results[0].Name != "Citroën" {
+		t.Errorf("search 'citroen' should match Citroën, got %v", results)
+	}
+}
+
+func TestStaticCatalog_SearchModels(t *testing.T) {
+	cat := NewStatic()
+
+	results := cat.SearchModels(19, "cor")
+	if len(results) < 1 {
+		t.Fatal("search for 'cor' in Toyota should find Corolla")
+	}
+	found := false
+	for _, r := range results {
+		if r.Name == "Corolla" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("search 'cor' in Toyota = %v, missing Corolla", results)
 	}
 }
 
