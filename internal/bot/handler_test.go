@@ -134,8 +134,9 @@ func TestWizardFlow_EndToEnd(t *testing.T) {
 		t.Fatalf("step 1: state=%q, want %q", user.State, StateAskSource)
 	}
 
-	// Step 2: select source → manufacturer keyboard
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	// Step 2: toggle source and confirm → manufacturer keyboard
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	msg = tb.msg.last()
 	if !msg.HasKB || msg.Buttons < 10 {
 		t.Fatalf("step 2: expected manufacturer keyboard with many buttons, got %d", msg.Buttons)

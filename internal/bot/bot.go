@@ -249,8 +249,8 @@ func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 
 	_ = b.users.UpdateUserState(ctx, chatID, StateAskSource, "{}")
 	b.sendWithKeyboard(ctx, chatID,
-		"Which marketplace do you want to search?",
-		sourceKeyboard())
+		"Which marketplaces do you want to search? (select one or both)",
+		sourceKeyboard(""))
 }
 
 func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
@@ -600,8 +600,10 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	}
 
 	switch {
-	case strings.HasPrefix(data, cbPrefixSource):
-		b.onSourceSelected(ctx, chatID, data)
+	case strings.HasPrefix(data, cbSourceToggle):
+		b.onSourceToggle(ctx, chatID, data)
+	case data == cbSourceDone:
+		b.onSourceDone(ctx, chatID)
 	case strings.HasPrefix(data, cbMfrPage):
 		b.onMfrPage(ctx, chatID, data)
 	case data == cbMfrSearch:
@@ -637,15 +639,54 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	}
 }
 
-func (b *Bot) onSourceSelected(ctx context.Context, chatID int64, data string) {
-	source := strings.TrimPrefix(data, cbPrefixSource)
-	b.logger.Debug("source selected", "chat_id", chatID, "source", source)
-	wd := WizardData{Source: source}
+func (b *Bot) onSourceToggle(ctx context.Context, chatID int64, data string) {
+	source := strings.TrimPrefix(data, cbSourceToggle)
+	wd := b.loadWizardData(ctx, chatID)
+
+	selected := toggleSource(wd.Source, source)
+	wd.Source = selected
+	b.saveWizardState(ctx, chatID, StateAskSource, wd)
+
+	b.sendWithKeyboard(ctx, chatID,
+		"Which marketplaces do you want to search? (select one or both)",
+		sourceKeyboard(selected))
+}
+
+func (b *Bot) onSourceDone(ctx context.Context, chatID int64) {
+	wd := b.loadWizardData(ctx, chatID)
+	if wd.Source == "" {
+		b.sendWithKeyboard(ctx, chatID,
+			"Please select at least one marketplace.",
+			sourceKeyboard(""))
+		return
+	}
+	b.logger.Debug("sources selected", "chat_id", chatID, "source", wd.Source)
 	b.saveWizardState(ctx, chatID, StateAskManufacturer, wd)
 
 	b.sendWithKeyboard(ctx, chatID,
 		"What manufacturer are you looking for?",
 		b.manufacturerKeyboard(ctx, chatID, 0))
+}
+
+func toggleSource(current, toggle string) string {
+	sources := make(map[string]bool)
+	if current != "" {
+		for _, s := range strings.Split(current, ",") {
+			sources[s] = true
+		}
+	}
+	if sources[toggle] {
+		delete(sources, toggle)
+	} else {
+		sources[toggle] = true
+	}
+	var result []string
+	for _, s := range []string{"yad2", "winwin"} {
+		if sources[s] {
+			result = append(result, s)
+		}
+	}
+	return strings.Join(result, ",")
 }
 
 func (b *Bot) onMfrPage(ctx context.Context, chatID int64, data string) {
@@ -749,7 +790,7 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 
 	source := wd.Source
 	if source == "" {
-		source = "yad2"
+		source = "yad2,winwin"
 	}
 
 	name := fmt.Sprintf("%s-%s", strings.ToLower(wd.ManufacturerName), strings.ToLower(wd.ModelName))
@@ -780,8 +821,8 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 func (b *Bot) onEdit(ctx context.Context, chatID int64) {
 	_ = b.users.UpdateUserState(ctx, chatID, StateAskSource, "{}")
 	b.sendWithKeyboard(ctx, chatID,
-		"Let's start over. Which marketplace?",
-		sourceKeyboard())
+		"Let's start over. Which marketplaces?",
+		sourceKeyboard(""))
 }
 
 func (b *Bot) onCancelCallback(ctx context.Context, chatID int64) {

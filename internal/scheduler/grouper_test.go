@@ -98,6 +98,34 @@ func TestGroupSearches_GroupBySource(t *testing.T) {
 	}
 }
 
+func TestGroupSearches_MultiSource(t *testing.T) {
+	searches := []storage.Search{
+		{ID: 1, ChatID: 100, Source: "yad2,winwin", Manufacturer: 27, Model: 10332, YearMin: 2018, YearMax: 2024, PriceMax: 150000},
+	}
+
+	groups := GroupSearches(searches)
+	if len(groups) != 2 {
+		t.Fatalf("expected 2 groups (one per source), got %d", len(groups))
+	}
+
+	var yad2, winwin *CanonicalGroup
+	for i := range groups {
+		switch groups[i].Source {
+		case "yad2":
+			yad2 = &groups[i]
+		case "winwin":
+			winwin = &groups[i]
+		}
+	}
+
+	if yad2 == nil || winwin == nil {
+		t.Fatal("expected one yad2 and one winwin group")
+	}
+	if len(yad2.Searches) != 1 || len(winwin.Searches) != 1 {
+		t.Error("each group should have 1 search")
+	}
+}
+
 func TestGroupSearches_EmptySourceDefaultsToYad2(t *testing.T) {
 	searches := []storage.Search{
 		{ID: 1, ChatID: 100, Source: "", Manufacturer: 27, Model: 10332},

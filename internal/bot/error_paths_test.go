@@ -735,7 +735,8 @@ func TestOnSourceSelected_WinWin(t *testing.T) {
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.msg.reset()
 
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"winwin")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"winwin")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 
 	user, _ := tb.store.GetUser(ctx, chatID)
 	if user.State != StateAskManufacturer {
@@ -757,7 +758,8 @@ func TestWizardFlow_WinWin(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"winwin")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"winwin")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
 	tb.simulateText(ctx, chatID, "2018")
@@ -803,8 +805,8 @@ func TestOnConfirm_EmptySourceDefaultsToYad2(t *testing.T) {
 	if len(searches) != 1 {
 		t.Fatalf("expected 1 search, got %d", len(searches))
 	}
-	if searches[0].Source != "yad2" {
-		t.Errorf("empty source should default to yad2, got %q", searches[0].Source)
+	if searches[0].Source != "yad2,winwin" {
+		t.Errorf("empty source should default to yad2,winwin, got %q", searches[0].Source)
 	}
 }
 
