@@ -45,13 +45,13 @@ func GroupSearches(searches []storage.Search) []CanonicalGroup {
 			grouped[key] = g
 		}
 
-		if s.YearMin < g.Params.YearMin {
+		if g.Params.YearMin == 0 || (s.YearMin > 0 && s.YearMin < g.Params.YearMin) {
 			g.Params.YearMin = s.YearMin
 		}
-		if s.YearMax > g.Params.YearMax {
+		if g.Params.YearMax == 0 || s.YearMax > g.Params.YearMax {
 			g.Params.YearMax = s.YearMax
 		}
-		if s.PriceMax > g.Params.PriceMax {
+		if g.Params.PriceMax == 0 || s.PriceMax == 0 || s.PriceMax > g.Params.PriceMax {
 			g.Params.PriceMax = s.PriceMax
 		}
 

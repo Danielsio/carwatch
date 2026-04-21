@@ -421,6 +421,12 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 				continue
 			}
 
+			isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.ChatID, search.ID)
+			if err != nil {
+				s.logger.Error("claim failed", "token", l.Token, "error", err)
+				continue
+			}
+
 			if s.prices != nil && l.Price > 0 {
 				oldPrice, changed, err := s.prices.RecordPrice(ctx, l.Token, l.Price)
 				if err != nil {
@@ -437,11 +443,6 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 				}
 			}
 
-			isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.ChatID, search.ID)
-			if err != nil {
-				s.logger.Error("claim failed", "token", l.Token, "error", err)
-				continue
-			}
 			if !isNew {
 				continue
 			}
