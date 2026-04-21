@@ -1,20 +1,26 @@
 package dashboard
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
 
 	"github.com/dsionov/carwatch/internal/format"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
-type Handler struct {
-	store *sqlite.Store
+type ListingLister interface {
+	ListListings(ctx context.Context, limit int) ([]storage.ListingRecord, error)
 }
 
-func NewHandler(store *sqlite.Store) *Handler {
+type Handler struct {
+	store ListingLister
+}
+
+func NewHandler(store ListingLister) *Handler {
 	return &Handler{store: store}
 }
 
@@ -32,10 +38,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.Execute(w, listings); err != nil {
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, listings); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	buf.WriteTo(w)
 }
 
 var tmpl = template.Must(template.New("dashboard").Funcs(template.FuncMap{
