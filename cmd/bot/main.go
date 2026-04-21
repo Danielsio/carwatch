@@ -135,13 +135,26 @@ func run(configPath string, logger *slog.Logger) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.Handler())
 	mux.Handle("/dashboard", dash)
-	srv := &http.Server{Addr: ":8080", Handler: mux}
+	srv := &http.Server{
+		Addr:              ":8080",
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("health server failed", "error", err)
 		}
 	}()
-	defer srv.Close()
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			logger.Error("http server shutdown failed", "error", err)
+		}
+	}()
 
 	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, tgNotif, logger, scheduler.Options{
 		Health:          h,

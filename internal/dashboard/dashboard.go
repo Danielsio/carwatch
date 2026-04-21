@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"context"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -27,7 +26,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	listings, err := h.store.ListListings(context.Background(), limit)
+	listings, err := h.store.ListListings(r.Context(), limit)
 	if err != nil {
 		http.Error(w, "failed to load listings", http.StatusInternalServerError)
 		return
