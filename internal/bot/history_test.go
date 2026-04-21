@@ -1,0 +1,163 @@
+package bot
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/dsionov/carwatch/internal/storage"
+)
+
+func TestHistory_Empty(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 700
+
+	tb.simulateCommand(ctx, chatID, "/history")
+
+	msg := tb.msg.last()
+	if !strings.Contains(msg.Text, "No matched listings") {
+		t.Errorf("expected empty history message, got: %s", msg.Text)
+	}
+}
+
+func TestHistory_ShowsListings(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 701
+
+	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	searchID, _ := tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "mazda-3", Manufacturer: 27, Model: 1,
+	})
+
+	// Claim listings so they appear in seen_listings for this user.
+	_, _ = tb.store.ClaimNew(ctx, "token-1", chatID, searchID)
+	_, _ = tb.store.ClaimNew(ctx, "token-2", chatID, searchID)
+
+	// Save listing details to listing_history.
+	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
+		Token: "token-1", SearchName: "mazda-3",
+		Manufacturer: "Mazda", Model: "3", Year: 2020,
+		Price: 120000, Km: 50000, Hand: 2,
+		City: "Tel Aviv", PageLink: "https://example.com/1",
+		FirstSeenAt: time.Now(),
+	})
+	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
+		Token: "token-2", SearchName: "mazda-3",
+		Manufacturer: "Mazda", Model: "3", Year: 2021,
+		Price: 140000, Km: 30000, Hand: 1,
+		City: "Haifa", PageLink: "https://example.com/2",
+		FirstSeenAt: time.Now(),
+	})
+
+	tb.simulateCommand(ctx, chatID, "/history")
+
+	msg := tb.msg.last()
+	if !strings.Contains(msg.Text, "Match history (2 total)") {
+		t.Errorf("expected history header with count 2, got: %s", msg.Text)
+	}
+	if !strings.Contains(msg.Text, "Mazda 3") {
+		t.Errorf("expected car name in history, got: %s", msg.Text)
+	}
+	if !strings.Contains(msg.Text, "120,000") {
+		t.Errorf("expected formatted price in history, got: %s", msg.Text)
+	}
+}
+
+func TestHistory_Pagination(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 702
+
+	_ = tb.store.UpsertUser(ctx, chatID, "bob")
+	searchID, _ := tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "test", Manufacturer: 27, Model: 1,
+	})
+
+	// Create more listings than one page (historyPageSize = 5).
+	for i := range 7 {
+		token := "tok-" + string(rune('a'+i))
+		_, _ = tb.store.ClaimNew(ctx, token, chatID, searchID)
+		_ = tb.store.SaveListing(ctx, storage.ListingRecord{
+			Token: token, SearchName: "test",
+			Manufacturer: "Mazda", Model: "3", Year: 2020 + i,
+			Price: 100000 + i*10000, FirstSeenAt: time.Now(),
+		})
+	}
+
+	tb.simulateCommand(ctx, chatID, "/history")
+
+	msg := tb.msg.last()
+	if !msg.HasKB {
+		t.Fatal("expected keyboard with pagination buttons")
+	}
+	if !strings.Contains(msg.Text, "7 total") {
+		t.Errorf("expected 7 total, got: %s", msg.Text)
+	}
+	if msg.Buttons < 2 {
+		t.Errorf("expected at least 2 pagination buttons (page indicator + next), got %d", msg.Buttons)
+	}
+
+	// Navigate to page 2 via callback.
+	tb.msg.reset()
+	tb.simulateCallback(ctx, chatID, cbHistoryPage+"1")
+
+	msg = tb.msg.last()
+	if !strings.Contains(msg.Text, "Match history") {
+		t.Errorf("page 2 should still show history header, got: %s", msg.Text)
+	}
+}
+
+func TestHistory_IsolatedPerUser(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const alice int64 = 710
+	const bob int64 = 711
+
+	_ = tb.store.UpsertUser(ctx, alice, "alice")
+	_ = tb.store.UpsertUser(ctx, bob, "bob")
+
+	searchA, _ := tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: alice, Name: "a-search", Manufacturer: 27, Model: 1,
+	})
+	searchB, _ := tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: bob, Name: "b-search", Manufacturer: 19, Model: 1,
+	})
+
+	_, _ = tb.store.ClaimNew(ctx, "alice-tok", alice, searchA)
+	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
+		Token: "alice-tok", SearchName: "a-search",
+		Manufacturer: "Mazda", Model: "3", Year: 2020,
+		Price: 100000, FirstSeenAt: time.Now(),
+	})
+
+	_, _ = tb.store.ClaimNew(ctx, "bob-tok", bob, searchB)
+	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
+		Token: "bob-tok", SearchName: "b-search",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2019,
+		Price: 90000, FirstSeenAt: time.Now(),
+	})
+
+	// Alice should see only her listing.
+	tb.simulateCommand(ctx, alice, "/history")
+	msg := tb.msg.last()
+	if !strings.Contains(msg.Text, "Mazda") {
+		t.Errorf("alice should see Mazda, got: %s", msg.Text)
+	}
+	if strings.Contains(msg.Text, "Toyota") {
+		t.Errorf("alice should not see bob's Toyota listing")
+	}
+
+	// Bob should see only his listing.
+	tb.msg.reset()
+	tb.simulateCommand(ctx, bob, "/history")
+	msg = tb.msg.last()
+	if !strings.Contains(msg.Text, "Toyota") {
+		t.Errorf("bob should see Toyota, got: %s", msg.Text)
+	}
+	if strings.Contains(msg.Text, "Mazda") {
+		t.Errorf("bob should not see alice's Mazda listing")
+	}
+}

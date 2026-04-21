@@ -80,6 +80,7 @@ func newTestBot(t *testing.T) *testBot {
 		msg:         mm,
 		users:       store,
 		searches:    store,
+		listings:    store,
 		catalog:     catalog.NewStatic(),
 		adminChatID: 999,
 		maxSearches: 3,
@@ -134,6 +135,7 @@ func newTestBotWithDigests(t *testing.T) *testBot {
 		msg:         mm,
 		users:       store,
 		searches:    store,
+		listings:    store,
 		digests:     store,
 		catalog:     catalog.NewStatic(),
 		adminChatID: 999,
@@ -160,6 +162,8 @@ func (tb *testBot) simulateCommand(ctx context.Context, chatID int64, text strin
 		tb.bot.handleHelp(ctx, nilBot, update)
 	case text == "/settings":
 		tb.bot.handleSettings(ctx, nilBot, update)
+	case text == "/history":
+		tb.bot.handleHistory(ctx, nilBot, update)
 	case text == "/digest":
 		tb.bot.handleDigest(ctx, nilBot, update)
 	case strings.HasPrefix(text, "/start"):

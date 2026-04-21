@@ -117,6 +117,7 @@ func run(configPath string, logger *slog.Logger) error {
 		MaxSearches: cfg.Telegram.MaxSearches,
 		BotUsername:  cfg.Telegram.BotUsername,
 		Health:      h,
+		Listings:    store,
 		Catalog:     dynCatalog,
 	}, logger)
 
