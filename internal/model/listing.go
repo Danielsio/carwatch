@@ -3,9 +3,11 @@ package model
 import "time"
 
 type RawListing struct {
-	Token        string
-	Manufacturer string
-	Model        string
+	Token            string
+	Manufacturer     string
+	ManufacturerID   int
+	Model            string
+	ModelID          int
 	SubModel     string
 	Year         int
 	Month        int
