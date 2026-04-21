@@ -483,6 +483,11 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 		return
 	}
 
+	if update.CallbackQuery.Message.Message == nil {
+		b.logger.Warn("handleCallback: unsupported message type in callback")
+		return
+	}
+
 	chatID := update.CallbackQuery.Message.Message.Chat.ID
 	data := update.CallbackQuery.Data
 	b.logger.Debug("callback received", "chat_id", chatID, "data", data)
@@ -678,6 +683,7 @@ func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 	newID, err := b.searches.CreateSearch(ctx, storage.Search{
 		ChatID:       chatID,
 		Name:         name,
+		Source:       src.Source,
 		Manufacturer: src.Manufacturer,
 		Model:        src.Model,
 		YearMin:      src.YearMin,
@@ -693,9 +699,10 @@ func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 		return
 	}
 
+	srcDisplay := sourceDisplayName(src.Source)
 	b.send(ctx, chatID, fmt.Sprintf(
-		"Search #%d saved! I'll check Yad2 every 15 minutes and send you new listings.\n\nUse /list to see your searches.",
-		newID))
+		"Search #%d saved! I'll check %s every 15 minutes and send you new listings.\n\nUse /list to see your searches.",
+		newID, srcDisplay))
 }
 
 func (b *Bot) onDigestOn(ctx context.Context, chatID int64) {
