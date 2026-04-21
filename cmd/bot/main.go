@@ -86,6 +86,7 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 
 	cachingFetcher := fetcher.NewCachingFetcher(yad2Fetcher, 5*time.Minute)
+	yad2CB := fetcher.NewCircuitBreaker(cachingFetcher, 5, 30*time.Minute)
 
 	dynCatalog := catalog.NewDynamic(store, logger)
 	dynCatalog.Load(context.Background())
@@ -100,10 +101,11 @@ func run(configPath string, logger *slog.Logger) error {
 		return fmt.Errorf("create winwin fetcher: %w", err)
 	}
 	cachingWinwin := fetcher.NewCachingFetcher(winwinFetcher, 5*time.Minute)
+	winwinCB := fetcher.NewCircuitBreaker(cachingWinwin, 5, 30*time.Minute)
 
 	fetcherFactory := fetcher.NewFactory()
-	fetcherFactory.Register("yad2", cachingFetcher)
-	fetcherFactory.Register("winwin", cachingWinwin)
+	fetcherFactory.Register("yad2", yad2CB)
+	fetcherFactory.Register("winwin", winwinCB)
 
 	h := health.New()
 	h.SetUserCounter(store)
