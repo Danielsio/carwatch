@@ -44,7 +44,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	buf.WriteTo(w)
+	_, _ = buf.WriteTo(w)
 }
 
 var tmpl = template.Must(template.New("dashboard").Funcs(template.FuncMap{
