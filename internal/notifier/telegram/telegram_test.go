@@ -41,7 +41,7 @@ var sendMessageOK = tgResponse(map[string]any{
 func routingHandler(sendMessageHandler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "getMe") {
-			w.Write(getMeResponse)
+			_, _ = w.Write(getMeResponse)
 			return
 		}
 		sendMessageHandler(w, r)
@@ -180,7 +180,7 @@ func TestLastRuneNewlineBefore_Empty(t *testing.T) {
 
 func TestSendMessage_InvalidChatID(t *testing.T) {
 	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(sendMessageOK)
+		_, _ = w.Write(sendMessageOK)
 	}))
 
 	err := n.NotifyRaw(context.Background(), "not-a-number", "hello")
@@ -196,7 +196,7 @@ func TestSendMessage_Success(t *testing.T) {
 	var sendCalls atomic.Int32
 	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
 		sendCalls.Add(1)
-		w.Write(sendMessageOK)
+		_, _ = w.Write(sendMessageOK)
 	}))
 
 	err := n.NotifyRaw(context.Background(), "123", "hello world")
@@ -215,7 +215,7 @@ func TestSendMessage_APIError(t *testing.T) {
 			"ok":          false,
 			"description": "Forbidden: bot was blocked by the user",
 		})
-		w.Write(resp)
+		_, _ = w.Write(resp)
 	}))
 
 	err := n.NotifyRaw(context.Background(), "123", "hello")
@@ -231,7 +231,7 @@ func TestSendMessage_LargeMessage_MultipleChunks(t *testing.T) {
 	var sendCalls atomic.Int32
 	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
 		sendCalls.Add(1)
-		w.Write(sendMessageOK)
+		_, _ = w.Write(sendMessageOK)
 	}))
 
 	text := strings.Repeat("a\n", maxMessageLen)
@@ -254,10 +254,10 @@ func TestSendMessage_PartialFailure(t *testing.T) {
 				"ok":          false,
 				"description": "Too Many Requests",
 			})
-			w.Write(resp)
+			_, _ = w.Write(resp)
 			return
 		}
-		w.Write(sendMessageOK)
+		_, _ = w.Write(sendMessageOK)
 	}))
 
 	text := strings.Repeat("x", maxMessageLen+100)
@@ -278,7 +278,7 @@ func TestNotify_FormatsAndSends(t *testing.T) {
 		mu.Lock()
 		bodies = append(bodies, string(body))
 		mu.Unlock()
-		w.Write(sendMessageOK)
+		_, _ = w.Write(sendMessageOK)
 	}))
 
 	listings := []model.Listing{
@@ -311,7 +311,7 @@ func TestNotify_FormatsAndSends(t *testing.T) {
 
 func TestConnect_Success(t *testing.T) {
 	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(sendMessageOK)
+		_, _ = w.Write(sendMessageOK)
 	}))
 
 	err := n.Connect(context.Background())
@@ -326,7 +326,7 @@ func TestConnect_Failure(t *testing.T) {
 		if strings.Contains(r.URL.Path, "getMe") {
 			c := getMeCalls.Add(1)
 			if c == 1 {
-				w.Write(getMeResponse)
+				_, _ = w.Write(getMeResponse)
 				return
 			}
 			w.WriteHeader(http.StatusUnauthorized)
@@ -334,10 +334,10 @@ func TestConnect_Failure(t *testing.T) {
 				"ok":          false,
 				"description": "Unauthorized",
 			})
-			w.Write(resp)
+			_, _ = w.Write(resp)
 			return
 		}
-		w.Write(sendMessageOK)
+		_, _ = w.Write(sendMessageOK)
 	}))
 	t.Cleanup(srv.Close)
 
@@ -359,7 +359,7 @@ func TestConnect_Failure(t *testing.T) {
 
 func TestDisconnect_ReturnsNil(t *testing.T) {
 	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(sendMessageOK)
+		_, _ = w.Write(sendMessageOK)
 	}))
 
 	if err := n.Disconnect(); err != nil {
@@ -371,7 +371,7 @@ func TestDisconnect_ReturnsNil(t *testing.T) {
 
 func TestBot_ReturnsInstance(t *testing.T) {
 	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(sendMessageOK)
+		_, _ = w.Write(sendMessageOK)
 	}))
 
 	if n.Bot() == nil {

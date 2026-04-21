@@ -81,7 +81,6 @@ type errDigestStore struct {
 	flushErr        error
 	pendingErr      error
 	lastFlushedErr  error
-	parseDurErr     bool // set to true to use unparseable interval
 }
 
 func newErrDigestStore() *errDigestStore {
@@ -157,7 +156,6 @@ type errNotificationQueue struct {
 	pendingErr  error
 	enqueueErr  error
 	ackErr      error
-	notifyErr   error
 }
 
 func (m *errNotificationQueue) PendingNotifications(_ context.Context) ([]storage.PendingNotification, error) {
