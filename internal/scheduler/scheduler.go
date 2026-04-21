@@ -194,7 +194,7 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 		}
 		lastErr = err
 
-		if errors.Is(err, fetcher.ErrChallenge) || errors.Is(err, context.Canceled) {
+		if errors.Is(err, fetcher.ErrChallenge) || errors.Is(err, fetcher.ErrCircuitOpen) || errors.Is(err, context.Canceled) {
 			return nil, err
 		}
 
