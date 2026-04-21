@@ -591,13 +591,17 @@ func (s *Store) LoadCatalogEntries(ctx context.Context) ([]storage.CatalogEntry,
 }
 
 func (s *Store) CatalogAge(ctx context.Context) (time.Duration, error) {
-	var updatedAt time.Time
-	err := s.db.QueryRowContext(ctx, "SELECT MIN(updated_at) FROM catalog_cache").Scan(&updatedAt)
+	var raw sql.NullString
+	err := s.db.QueryRowContext(ctx, "SELECT MIN(updated_at) FROM catalog_cache").Scan(&raw)
 	if err != nil {
 		return 0, err
 	}
-	if updatedAt.IsZero() {
+	if !raw.Valid || raw.String == "" {
 		return time.Duration(1<<63 - 1), nil
+	}
+	updatedAt, err := time.Parse("2006-01-02 15:04:05", raw.String)
+	if err != nil {
+		return 0, fmt.Errorf("parse updated_at: %w", err)
 	}
 	return time.Since(updatedAt), nil
 }
