@@ -29,6 +29,9 @@ func New(dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
+	db.SetMaxOpenConns(2)
+	db.SetMaxIdleConns(2)
+
 	if err := migrate(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -117,6 +120,9 @@ func migrate(db *sql.DB) error {
 			updated_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (manufacturer_id, model_id)
 		);
+
+		CREATE INDEX IF NOT EXISTS idx_seen_listings_first_seen_at
+			ON seen_listings(first_seen_at);
 	`)
 	if err != nil {
 		return err

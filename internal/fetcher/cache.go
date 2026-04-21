@@ -55,9 +55,22 @@ func (c *CachingFetcher) Fetch(ctx context.Context, params config.SourceParams) 
 
 	c.mu.Lock()
 	c.cache[key] = cacheEntry{listings: listings, fetchedAt: time.Now()}
+	if len(c.cache) > maxCacheEntries {
+		c.evictExpired()
+	}
 	c.mu.Unlock()
 
 	return listings, nil
+}
+
+const maxCacheEntries = 100
+
+func (c *CachingFetcher) evictExpired() {
+	for key, entry := range c.cache {
+		if time.Since(entry.fetchedAt) > 2*c.ttl {
+			delete(c.cache, key)
+		}
+	}
 }
 
 func cacheKey(p config.SourceParams) string {

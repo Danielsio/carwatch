@@ -92,9 +92,17 @@ func (d *DynamicCatalog) Ingest(ctx context.Context, manufacturerID int, manufac
 	d.rebuildSlices()
 	d.dirty = true
 
-	if d.store != nil && time.Since(d.lastSave) > saveCooldown {
-		d.saveToStore(ctx)
+	shouldSave := d.store != nil && time.Since(d.lastSave) > saveCooldown
+	var entries []storage.CatalogEntry
+	if shouldSave {
+		entries = d.buildEntries()
 	}
+	d.mu.Unlock()
+
+	if shouldSave {
+		d.persistEntries(ctx, entries)
+	}
+	d.mu.Lock()
 }
 
 func (d *DynamicCatalog) Flush(ctx context.Context) {
@@ -125,7 +133,7 @@ func (d *DynamicCatalog) rebuildSlices() {
 	d.models = models
 }
 
-func (d *DynamicCatalog) saveToStore(ctx context.Context) {
+func (d *DynamicCatalog) buildEntries() []storage.CatalogEntry {
 	var entries []storage.CatalogEntry
 	for mfrID, mfrName := range d.mfrMap {
 		mdls := d.modelMap[mfrID]
@@ -145,13 +153,24 @@ func (d *DynamicCatalog) saveToStore(ctx context.Context) {
 			})
 		}
 	}
+	return entries
+}
+
+func (d *DynamicCatalog) persistEntries(ctx context.Context, entries []storage.CatalogEntry) {
 	if err := d.store.SaveCatalogEntries(ctx, entries); err != nil {
 		d.logger.Error("catalog save failed", "error", err)
 		return
 	}
+	d.mu.Lock()
 	d.dirty = false
 	d.lastSave = time.Now()
-	d.logger.Info("catalog saved", "manufacturers", len(d.mfrMap), "models", len(entries))
+	d.mu.Unlock()
+	d.logger.Info("catalog saved", "entries", len(entries))
+}
+
+func (d *DynamicCatalog) saveToStore(ctx context.Context) {
+	entries := d.buildEntries()
+	d.persistEntries(ctx, entries)
 }
 
 func (d *DynamicCatalog) loadFromStore(ctx context.Context) bool {
