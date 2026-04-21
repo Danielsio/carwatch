@@ -108,8 +108,8 @@ func TestPaginatingFetcher_DeduplicatesAcrossPages(t *testing.T) {
 	inner := &pageMockFetcher{
 		pages: map[int][]model.RawListing{
 			1: {{Token: "a"}, {Token: "b"}},
-			2: {{Token: "b"}, {Token: "c"}}, // "b" duplicated
-			3: {{Token: "c"}, {Token: "d"}}, // "c" duplicated
+			2: {{Token: "b"}, {Token: "c"}},
+			3: {{Token: "c"}, {Token: "d"}},
 		},
 	}
 	pf := NewPaginatingFetcher(inner, 5)
@@ -127,7 +127,7 @@ func TestPaginatingFetcher_StopsWhenAllDuplicates(t *testing.T) {
 	inner := &pageMockFetcher{
 		pages: map[int][]model.RawListing{
 			1: {{Token: "a"}, {Token: "b"}},
-			2: {{Token: "a"}, {Token: "b"}}, // all duplicates
+			2: {{Token: "a"}, {Token: "b"}},
 		},
 	}
 	pf := NewPaginatingFetcher(inner, 5)
@@ -152,45 +152,44 @@ func TestPaginatingFetcher_FirstPageError_Propagates(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for first page failure")
 	}
-}
-
-func TestPaginatingFetcher_LaterPageError_ReturnsPartial(t *testing.T) {
-	callCount := 0
-	inner := &pageMockFetcher{
-		pages: map[int][]model.RawListing{
-			1: {{Token: "a"}},
-		},
+	if errors.Is(err, ErrPartialResults) {
+		t.Error("first page error should not be ErrPartialResults")
 	}
-	origFetch := inner.Fetch
-	_ = origFetch
-
-	pf := NewPaginatingFetcher(&laterErrorFetcher{
-		pages: map[int][]model.RawListing{
-			1: {{Token: "a"}},
-		},
-		errPage: 2,
-	}, 5)
-
-	listings, err := pf.Fetch(context.Background(), config.SourceParams{})
-	if err != nil {
-		t.Fatalf("later page errors should not propagate: %v", err)
-	}
-	if len(listings) != 1 {
-		t.Errorf("expected 1 listing from page 1, got %d", len(listings))
-	}
-	_ = callCount
 }
 
 type laterErrorFetcher struct {
 	pages   map[int][]model.RawListing
 	errPage int
+	calls   []int
 }
 
 func (m *laterErrorFetcher) Fetch(_ context.Context, params config.SourceParams) ([]model.RawListing, error) {
+	m.calls = append(m.calls, params.Page)
 	if params.Page == m.errPage {
 		return nil, errors.New("page error")
 	}
 	return m.pages[params.Page], nil
+}
+
+func TestPaginatingFetcher_LaterPageError_ReturnsPartialWithError(t *testing.T) {
+	inner := &laterErrorFetcher{
+		pages: map[int][]model.RawListing{
+			1: {{Token: "a"}},
+		},
+		errPage: 2,
+	}
+	pf := NewPaginatingFetcher(inner, 5)
+
+	listings, err := pf.Fetch(context.Background(), config.SourceParams{})
+	if !errors.Is(err, ErrPartialResults) {
+		t.Fatalf("expected ErrPartialResults, got: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Errorf("expected 1 listing from page 1, got %d", len(listings))
+	}
+	if len(inner.calls) < 2 || inner.calls[1] != 2 {
+		t.Fatalf("expected fetch to reach page 2, calls=%v", inner.calls)
+	}
 }
 
 func TestPaginatingFetcher_PassesParams(t *testing.T) {

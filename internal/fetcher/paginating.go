@@ -2,12 +2,15 @@ package fetcher
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
 const DefaultMaxPages = 5
+
+var ErrPartialResults = fmt.Errorf("partial paginated results")
 
 type PaginatingFetcher struct {
 	inner    Fetcher
@@ -34,7 +37,7 @@ func (f *PaginatingFetcher) Fetch(ctx context.Context, params config.SourceParam
 			if page == 1 {
 				return nil, err
 			}
-			break
+			return all, fmt.Errorf("%w: page %d: %v", ErrPartialResults, page, err)
 		}
 
 		if len(listings) == 0 {

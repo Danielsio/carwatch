@@ -47,6 +47,9 @@ func (c *CachingFetcher) Fetch(ctx context.Context, params config.SourceParams) 
 		if errors.Is(err, ErrChallenge) || errors.Is(err, ErrRateLimited) {
 			return nil, err
 		}
+		if errors.Is(err, ErrPartialResults) {
+			return listings, err
+		}
 		if ok {
 			return entry.listings, nil
 		}
