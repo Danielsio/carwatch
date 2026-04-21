@@ -39,30 +39,52 @@ func TestWizardData_JSON(t *testing.T) {
 }
 
 
-func TestKeyboards_ManufacturerKeyboard(t *testing.T) {
+func TestKeyboards_ManufacturerKeyboard_Page0(t *testing.T) {
 	tb := newTestBot(t)
-	kb := tb.bot.manufacturerKeyboard()
+	kb := tb.bot.manufacturerKeyboard(0)
 	if len(kb.InlineKeyboard) == 0 {
 		t.Fatal("keyboard should have rows")
 	}
 
-	total := 0
-	for _, row := range kb.InlineKeyboard {
-		total += len(row)
-		for _, btn := range row {
-			if btn.CallbackData == "" {
-				t.Errorf("button %q has empty callback data", btn.Text)
-			}
+	// First row should be the search button.
+	if kb.InlineKeyboard[0][0].CallbackData != cbMfrSearch {
+		t.Errorf("first row should be search button, got %q", kb.InlineKeyboard[0][0].CallbackData)
+	}
+
+	// Should have nav row at the bottom since there are many manufacturers.
+	lastRow := kb.InlineKeyboard[len(kb.InlineKeyboard)-1]
+	hasNav := false
+	for _, btn := range lastRow {
+		if btn.Text == "Next" {
+			hasNav = true
 		}
 	}
-	if total < 10 {
-		t.Errorf("expected at least 10 manufacturer buttons, got %d", total)
+	if !hasNav {
+		t.Error("should have Next button for paginated manufacturers")
+	}
+}
+
+func TestKeyboards_ManufacturerKeyboard_Pagination(t *testing.T) {
+	tb := newTestBot(t)
+	kb0 := tb.bot.manufacturerKeyboard(0)
+	kb1 := tb.bot.manufacturerKeyboard(1)
+
+	// Different pages should show different content.
+	if len(kb0.InlineKeyboard) == 0 || len(kb1.InlineKeyboard) == 0 {
+		t.Fatal("both pages should have rows")
+	}
+
+	// Page 0 entries should differ from page 1 entries.
+	first0 := kb0.InlineKeyboard[1][0].Text // skip search row
+	first1 := kb1.InlineKeyboard[1][0].Text // skip search row
+	if first0 == first1 {
+		t.Error("pages should show different manufacturers")
 	}
 }
 
 func TestKeyboards_ModelKeyboard(t *testing.T) {
 	tb := newTestBot(t)
-	kb := tb.bot.modelKeyboard(27) // Mazda
+	kb := tb.bot.modelKeyboard(27, 0) // Mazda
 	if len(kb.InlineKeyboard) == 0 {
 		t.Fatal("Mazda model keyboard should have rows")
 	}
@@ -77,6 +99,57 @@ func TestKeyboards_ModelKeyboard(t *testing.T) {
 	}
 	if !found {
 		t.Error("Mazda 3 button not found in model keyboard")
+	}
+}
+
+func TestKeyboards_ModelKeyboard_AnyModel(t *testing.T) {
+	tb := newTestBot(t)
+	kb := tb.bot.modelKeyboard(27, 0) // Mazda
+
+	hasAny := false
+	for _, row := range kb.InlineKeyboard {
+		for _, btn := range row {
+			if btn.Text == "Any model" && btn.CallbackData == cbAnyModel {
+				hasAny = true
+			}
+		}
+	}
+	if !hasAny {
+		t.Error("model keyboard should have 'Any model' button")
+	}
+}
+
+func TestKeyboards_ManufacturerSearch(t *testing.T) {
+	tb := newTestBot(t)
+	kb := tb.bot.manufacturerSearchResults("maz")
+
+	found := false
+	for _, row := range kb.InlineKeyboard {
+		for _, btn := range row {
+			if btn.Text == "Mazda" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("search for 'maz' should find Mazda")
+	}
+}
+
+func TestKeyboards_ManufacturerSearch_NoResults(t *testing.T) {
+	tb := newTestBot(t)
+	kb := tb.bot.manufacturerSearchResults("zzzzz")
+
+	hasNoResults := false
+	for _, row := range kb.InlineKeyboard {
+		for _, btn := range row {
+			if btn.Text == "No results found" {
+				hasNoResults = true
+			}
+		}
+	}
+	if !hasNoResults {
+		t.Error("search with no matches should show 'No results found'")
 	}
 }
 

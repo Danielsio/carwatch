@@ -334,15 +334,16 @@ func TestManufacturerWithNoModels(t *testing.T) {
 	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
 	tb.msg.reset()
 
-	// Select a manufacturer ID that has no models in the catalog
+	// Select a manufacturer ID that has no models in the catalog.
+	// Should show model keyboard with "Any model" button instead of an error.
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"999")
 
 	msg := tb.msg.last()
 	if msg.Text == "" {
-		t.Fatal("expected message for manufacturer with no models")
+		t.Fatal("expected model selection message")
 	}
-	if !strings.Contains(msg.Text, "No models") {
-		t.Errorf("expected 'No models' message, got %q", msg.Text)
+	if !msg.HasKB {
+		t.Error("expected keyboard with 'Any model' button")
 	}
 }
 
@@ -555,13 +556,27 @@ func TestDeleteSearch_ViaCallback(t *testing.T) {
 
 // --- Catalog Integrity Tests ---
 
-func TestCatalog_AllManufacturersHaveModels(t *testing.T) {
-	cat := catalog.NewStatic()
-	for _, m := range cat.Manufacturers() {
-		models := cat.Models(m.ID)
-		if len(models) == 0 {
-			t.Errorf("manufacturer %q (ID=%d) has no models — users selecting it will be stuck", m.Name, m.ID)
-		}
+func TestCatalog_ManufacturersWithoutModels_HaveAnyModelFallback(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 100
+
+	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.simulateCommand(ctx, chatID, "/watch")
+	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+
+	// Pick a manufacturer that has no models in the static catalog (e.g., Subaru=35).
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"35")
+	msg := tb.msg.last()
+	if !msg.HasKB {
+		t.Fatal("should show keyboard even for manufacturer with no models")
+	}
+
+	// Selecting "Any model" should advance the wizard.
+	tb.simulateCallback(ctx, chatID, cbAnyModel)
+	user, _ := tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskYearMin {
+		t.Errorf("after selecting Any model, state should be %q, got %q", StateAskYearMin, user.State)
 	}
 }
 

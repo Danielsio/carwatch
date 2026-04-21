@@ -502,8 +502,16 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	switch {
 	case strings.HasPrefix(data, cbPrefixSource):
 		b.onSourceSelected(ctx, chatID, data)
+	case strings.HasPrefix(data, cbMfrPage):
+		b.onMfrPage(ctx, chatID, data)
+	case data == cbMfrSearch:
+		b.onMfrSearch(ctx, chatID)
 	case strings.HasPrefix(data, cbPrefixMfr):
 		b.onManufacturerSelected(ctx, chatID, data)
+	case strings.HasPrefix(data, cbMdlPage):
+		b.onMdlPage(ctx, chatID, data)
+	case data == cbMdlSearch:
+		b.onMdlSearch(ctx, chatID)
 	case strings.HasPrefix(data, cbPrefixModel):
 		b.onModelSelected(ctx, chatID, data)
 	case strings.HasPrefix(data, cbPrefixEngine):
@@ -522,6 +530,8 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 		b.onDigestOn(ctx, chatID)
 	case data == cbDigestOff:
 		b.onDigestOff(ctx, chatID)
+	case data == "noop":
+		// page indicator button, do nothing
 	}
 }
 
@@ -533,7 +543,36 @@ func (b *Bot) onSourceSelected(ctx context.Context, chatID int64, data string) {
 
 	b.sendWithKeyboard(ctx, chatID,
 		"What manufacturer are you looking for?",
-		b.manufacturerKeyboard())
+		b.manufacturerKeyboard(0))
+}
+
+func (b *Bot) onMfrPage(ctx context.Context, chatID int64, data string) {
+	pageStr := strings.TrimPrefix(data, cbMfrPage)
+	page, _ := strconv.Atoi(pageStr)
+	b.sendWithKeyboard(ctx, chatID,
+		"What manufacturer are you looking for?",
+		b.manufacturerKeyboard(page))
+}
+
+func (b *Bot) onMfrSearch(ctx context.Context, chatID int64) {
+	wd := b.loadWizardData(ctx, chatID)
+	b.saveWizardState(ctx, chatID, StateSearchManufacturer, wd)
+	b.send(ctx, chatID, "Type the manufacturer name:")
+}
+
+func (b *Bot) onMdlPage(ctx context.Context, chatID int64, data string) {
+	pageStr := strings.TrimPrefix(data, cbMdlPage)
+	page, _ := strconv.Atoi(pageStr)
+	wd := b.loadWizardData(ctx, chatID)
+	b.sendWithKeyboard(ctx, chatID,
+		fmt.Sprintf("Which %s model?", wd.ManufacturerName),
+		b.modelKeyboard(wd.Manufacturer, page))
+}
+
+func (b *Bot) onMdlSearch(ctx context.Context, chatID int64) {
+	wd := b.loadWizardData(ctx, chatID)
+	b.saveWizardState(ctx, chatID, StateSearchModel, wd)
+	b.send(ctx, chatID, fmt.Sprintf("Type the %s model name:", wd.ManufacturerName))
 }
 
 func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data string) {
@@ -551,16 +590,9 @@ func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data str
 	b.logger.Debug("manufacturer selected", "chat_id", chatID, "id", id, "name", wd.ManufacturerName)
 	b.saveWizardState(ctx, chatID, StateAskModel, wd)
 
-	models := b.catalog.Models(id)
-	b.logger.Debug("models for manufacturer", "chat_id", chatID, "manufacturer_id", id, "model_count", len(models))
-	if len(models) == 0 {
-		b.send(ctx, chatID, "No models found for this manufacturer. Use /cancel to start over.")
-		return
-	}
-
 	b.sendWithKeyboard(ctx, chatID,
 		fmt.Sprintf("Which %s model?", wd.ManufacturerName),
-		b.modelKeyboard(id))
+		b.modelKeyboard(id, 0))
 }
 
 func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
@@ -574,7 +606,11 @@ func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Model = modelID
-	wd.ModelName = b.catalog.ModelName(wd.Manufacturer, modelID)
+	if modelID == 0 {
+		wd.ModelName = "Any model"
+	} else {
+		wd.ModelName = b.catalog.ModelName(wd.Manufacturer, modelID)
+	}
 	b.logger.Debug("model selected", "chat_id", chatID, "manufacturer", wd.ManufacturerName, "model_id", modelID, "model_name", wd.ModelName)
 	b.saveWizardState(ctx, chatID, StateAskYearMin, wd)
 
@@ -764,6 +800,10 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	b.logger.Debug("default handler", "chat_id", chatID, "state", user.State, "text", text)
 
 	switch user.State {
+	case StateSearchManufacturer:
+		b.handleManufacturerSearch(ctx, chatID, text)
+	case StateSearchModel:
+		b.handleModelSearch(ctx, chatID, text)
 	case StateAskYearMin:
 		b.handleYearMin(ctx, chatID, text)
 	case StateAskYearMax:
@@ -830,6 +870,22 @@ func (b *Bot) handlePriceMax(ctx context.Context, chatID int64, text string) {
 	b.logger.Debug("price max set", "chat_id", chatID, "price_max", price)
 	b.saveWizardState(ctx, chatID, StateAskEngine, wd)
 	b.sendWithKeyboard(ctx, chatID, "Minimum engine size?", engineKeyboard())
+}
+
+func (b *Bot) handleManufacturerSearch(ctx context.Context, chatID int64, query string) {
+	wd := b.loadWizardData(ctx, chatID)
+	b.saveWizardState(ctx, chatID, StateAskManufacturer, wd)
+	b.sendWithKeyboard(ctx, chatID,
+		fmt.Sprintf("Results for \"%s\":", query),
+		b.manufacturerSearchResults(query))
+}
+
+func (b *Bot) handleModelSearch(ctx context.Context, chatID int64, query string) {
+	wd := b.loadWizardData(ctx, chatID)
+	b.saveWizardState(ctx, chatID, StateAskModel, wd)
+	b.sendWithKeyboard(ctx, chatID,
+		fmt.Sprintf("Results for \"%s\":", query),
+		b.modelSearchResults(wd.Manufacturer, query))
 }
 
 // --- Wizard State Helpers ---
