@@ -74,7 +74,7 @@ func TestYad2Fetcher_HTTPClient(t *testing.T) {
 func TestYad2Fetcher_Fetch(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(validPageHTML()))
+		_, _ = w.Write([]byte(validPageHTML()))
 	}))
 	defer server.Close()
 
@@ -98,7 +98,7 @@ func TestYad2Fetcher_Fetch_GzipResponse(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html")
 		w.Header().Set("Content-Encoding", "gzip")
 		gz := gzip.NewWriter(w)
-		gz.Write([]byte(validPageHTML()))
+		_, _ = gz.Write([]byte(validPageHTML()))
 		gz.Close()
 	}))
 	defer server.Close()
@@ -145,7 +145,7 @@ func TestYad2Fetcher_Fetch_ServerDown(t *testing.T) {
 
 func TestYad2Fetcher_Fetch_ContextCanceled(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(validPageHTML()))
+		_, _ = w.Write([]byte(validPageHTML()))
 	}))
 	defer server.Close()
 
@@ -163,7 +163,7 @@ func TestYad2Fetcher_Fetch_ContextCanceled(t *testing.T) {
 
 func TestYad2Fetcher_Fetch_Challenge(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`<html><body>Are you for real?</body></html>`))
+		_, _ = w.Write([]byte(`<html><body>Are you for real?</body></html>`))
 	}))
 	defer server.Close()
 
