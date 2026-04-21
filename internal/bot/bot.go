@@ -68,6 +68,9 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 
 func (b *Bot) SetBot(tg *tgbot.Bot) {
 	b.bot = tg
+	if tg != nil {
+		b.msg = &telegramMessenger{bot: tg}
+	}
 }
 
 func (b *Bot) DefaultHandler() tgbot.HandlerFunc {
