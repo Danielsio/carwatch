@@ -7,11 +7,13 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
 
 	"github.com/dsionov/carwatch/internal/catalog"
+	"github.com/dsionov/carwatch/internal/format"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/storage"
 )
@@ -216,7 +218,7 @@ func (b *Bot) handleShareStart(ctx context.Context, chatID int64, param string) 
 			"Engine: %s\n\n"+
 			"Copy this search to start receiving alerts?",
 		mfr, mdl, search.YearMin, search.YearMax,
-		formatNumber(search.PriceMax), engineStr)
+		format.Number(search.PriceMax), engineStr)
 
 	kb := &tgmodels.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{{
@@ -281,7 +283,7 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 		src := sourceDisplayName(s.Source)
 		sb.WriteString(fmt.Sprintf(
 			"%s#%d [%s] %s %s (%d\u2013%d, max %s NIS) [%s]\n",
-			prefix, s.ID, src, mfr, mdl, s.YearMin, s.YearMax, formatNumber(s.PriceMax), status))
+			prefix, s.ID, src, mfr, mdl, s.YearMin, s.YearMax, format.Number(s.PriceMax), status))
 
 		buttons = append(buttons, []tgmodels.InlineKeyboardButton{{
 			Text:         fmt.Sprintf("Delete #%d", s.ID),
@@ -771,10 +773,11 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 
 func (b *Bot) handleYearMin(ctx context.Context, chatID int64, text string) {
 	b.logger.Debug("handleYearMin", "chat_id", chatID, "input", text)
+	maxYear := time.Now().Year() + 2
 	year, err := strconv.Atoi(text)
-	if err != nil || year < 1990 || year > 2030 {
+	if err != nil || year < 1990 || year > maxYear {
 		b.logger.Debug("invalid year min", "chat_id", chatID, "input", text, "error", err)
-		b.send(ctx, chatID, "Please enter a valid year (1990–2030).")
+		b.send(ctx, chatID, fmt.Sprintf("Please enter a valid year (1990–%d).", maxYear))
 		return
 	}
 
@@ -787,10 +790,11 @@ func (b *Bot) handleYearMin(ctx context.Context, chatID int64, text string) {
 
 func (b *Bot) handleYearMax(ctx context.Context, chatID int64, text string) {
 	b.logger.Debug("handleYearMax", "chat_id", chatID, "input", text)
+	maxYear := time.Now().Year() + 2
 	year, err := strconv.Atoi(text)
-	if err != nil || year < 1990 || year > 2030 {
+	if err != nil || year < 1990 || year > maxYear {
 		b.logger.Debug("invalid year max", "chat_id", chatID, "input", text, "error", err)
-		b.send(ctx, chatID, "Please enter a valid year (1990–2030).")
+		b.send(ctx, chatID, fmt.Sprintf("Please enter a valid year (1990–%d).", maxYear))
 		return
 	}
 

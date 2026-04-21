@@ -103,25 +103,6 @@ func TestFormatPriceDrop_MinimalFields(t *testing.T) {
 	}
 }
 
-func TestFormatNumber(t *testing.T) {
-	tests := []struct {
-		input int
-		want  string
-	}{
-		{0, "0"},
-		{100, "100"},
-		{1000, "1,000"},
-		{85000, "85,000"},
-		{1234567, "1,234,567"},
-	}
-
-	for _, tt := range tests {
-		got := formatNumber(tt.input)
-		if got != tt.want {
-			t.Errorf("formatNumber(%d) = %q, want %q", tt.input, got, tt.want)
-		}
-	}
-}
 
 func TestFormatBatch_SingleListing(t *testing.T) {
 	listings := []model.Listing{{

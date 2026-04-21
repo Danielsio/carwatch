@@ -5,8 +5,8 @@ import (
 	"html/template"
 	"net/http"
 	"strconv"
-	"strings"
 
+	"github.com/dsionov/carwatch/internal/format"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
 
@@ -38,21 +38,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func formatPrice(n int) string {
-	s := strconv.Itoa(n)
-	var result strings.Builder
-	for i, c := range s {
-		if i > 0 && (len(s)-i)%3 == 0 {
-			result.WriteByte(',')
-		}
-		result.WriteRune(c)
-	}
-	return result.String()
-}
-
 var tmpl = template.Must(template.New("dashboard").Funcs(template.FuncMap{
-	"fmtPrice": formatPrice,
-	"fmtKm":    formatPrice,
+	"fmtPrice": format.Number,
+	"fmtKm":    format.Number,
 	"yad2Link": func(token string) string {
 		return fmt.Sprintf("https://www.yad2.co.il/item/%s", token)
 	},

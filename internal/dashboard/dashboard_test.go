@@ -83,21 +83,3 @@ func TestDashboard_LimitParam(t *testing.T) {
 	}
 }
 
-func TestFormatPrice(t *testing.T) {
-	tests := []struct {
-		input int
-		want  string
-	}{
-		{0, "0"},
-		{999, "999"},
-		{1000, "1,000"},
-		{95000, "95,000"},
-		{1500000, "1,500,000"},
-	}
-	for _, tt := range tests {
-		got := formatPrice(tt.input)
-		if got != tt.want {
-			t.Errorf("formatPrice(%d) = %q, want %q", tt.input, got, tt.want)
-		}
-	}
-}
