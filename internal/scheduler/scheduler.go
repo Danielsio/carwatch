@@ -176,6 +176,20 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
+func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64) DeliveryStrategy {
+	if s.digestStore != nil {
+		mode, _, err := s.digestStore.GetDigestMode(ctx, chatID)
+		if err != nil {
+			if !errors.Is(err, storage.ErrNotFound) {
+				s.logger.Error("get digest mode failed", "chat_id", chatID, "error", err)
+			}
+		} else if mode == "digest" {
+			return NewDigestDelivery(s.digestStore)
+		}
+	}
+	return NewInstantDelivery(s.notifier, s.queue)
+}
+
 func (s *Scheduler) fetcherForSource(source string) fetcher.Fetcher {
 	if s.fetcherFactory != nil {
 		if f, ok := s.fetcherFactory.Get(source); ok {
@@ -496,31 +510,14 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			}
 		}
 
-		chatIDStr := fmt.Sprintf("%d", search.ChatID)
-
-		// Check if user is in digest mode.
-		digestMode := false
-		if s.digestStore != nil {
-			mode, _, err := s.digestStore.GetDigestMode(ctx, search.ChatID)
-			if err != nil {
-				s.logger.Error("get digest mode failed", "chat_id", search.ChatID, "error", err)
-			} else if mode == "digest" {
-				digestMode = true
-			}
-		}
+		delivery := s.deliveryFor(ctx, search.ChatID)
 
 		for _, msg := range priceDropMessages {
-			if digestMode {
-				if err := s.digestStore.AddDigestItem(ctx, search.ChatID, msg); err != nil {
-					s.logger.Error("add digest item failed", "chat_id", search.ChatID, "error", err)
-				}
-			} else {
-				if err := s.notifier.NotifyRaw(ctx, chatIDStr, msg); err != nil {
-					s.logger.Error("price drop notification failed",
-						"chat_id", search.ChatID,
-						"error", err,
-					)
-				}
+			if err := delivery.DeliverRaw(ctx, search.ChatID, msg); err != nil {
+				s.logger.Error("price drop delivery failed",
+					"chat_id", search.ChatID,
+					"error", err,
+				)
 			}
 		}
 
@@ -538,40 +535,16 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			"count", len(newListings),
 		)
 
-		if digestMode {
-			msg := notifier.FormatBatch(newListings)
-			if err := s.digestStore.AddDigestItem(ctx, search.ChatID, msg); err != nil {
-				s.logger.Error("add digest item failed",
-					"chat_id", search.ChatID,
-					"error", err,
-				)
-				for _, l := range newListings {
-					_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
-				}
+		if err := delivery.DeliverBatch(ctx, search.ChatID, newListings); err != nil {
+			s.logger.Error("delivery failed",
+				"chat_id", search.ChatID,
+				"error", err,
+			)
+			for _, l := range newListings {
+				_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
 			}
-		} else {
-			if err := s.notifier.Notify(ctx, chatIDStr, newListings); err != nil {
-				s.logger.Error("notification failed",
-					"chat_id", search.ChatID,
-					"error", err,
-				)
-				enqueued := false
-				if s.queue != nil {
-					msg := notifier.FormatBatch(newListings)
-					if qErr := s.queue.EnqueueNotification(ctx, chatIDStr, search.Name, msg); qErr != nil {
-						s.logger.Error("enqueue notification failed", "error", qErr)
-					} else {
-						enqueued = true
-					}
-				}
-				if !enqueued {
-					for _, l := range newListings {
-						_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
-					}
-				}
-			} else if s.health != nil {
-				s.health.RecordNotificationSent()
-			}
+		} else if s.health != nil {
+			s.health.RecordNotificationSent()
 		}
 	}
 
