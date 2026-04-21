@@ -89,15 +89,21 @@ func TestKeyboards_ManufacturerKeyboard_RecentSection(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 500
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	if err := tb.store.UpsertUser(ctx, chatID, "alice"); err != nil {
+		t.Fatalf("upsert user: %v", err)
+	}
 
 	// Create searches for Mazda (27) and Toyota (19).
-	_, _ = tb.store.CreateSearch(ctx, storage.Search{
+	if _, err := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: chatID, Name: "s1", Manufacturer: 19, Model: 1,
-	})
-	_, _ = tb.store.CreateSearch(ctx, storage.Search{
+	}); err != nil {
+		t.Fatalf("create search s1: %v", err)
+	}
+	if _, err := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: chatID, Name: "s2", Manufacturer: 27, Model: 1,
-	})
+	}); err != nil {
+		t.Fatalf("create search s2: %v", err)
+	}
 
 	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
 
@@ -138,7 +144,9 @@ func TestKeyboards_ManufacturerKeyboard_NoRecentForNewUser(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 501
 
-	_ = tb.store.UpsertUser(ctx, chatID, "bob")
+	if err := tb.store.UpsertUser(ctx, chatID, "bob"); err != nil {
+		t.Fatalf("upsert user: %v", err)
+	}
 
 	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
 
@@ -157,10 +165,14 @@ func TestKeyboards_ManufacturerKeyboard_RecentNotOnPage2(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 502
 
-	_ = tb.store.UpsertUser(ctx, chatID, "carol")
-	_, _ = tb.store.CreateSearch(ctx, storage.Search{
+	if err := tb.store.UpsertUser(ctx, chatID, "carol"); err != nil {
+		t.Fatalf("upsert user: %v", err)
+	}
+	if _, err := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: chatID, Name: "s1", Manufacturer: 27, Model: 1,
-	})
+	}); err != nil {
+		t.Fatalf("create search: %v", err)
+	}
 
 	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 1)
 
@@ -179,14 +191,18 @@ func TestKeyboards_ManufacturerKeyboard_RecentCappedAt4(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 503
 
-	_ = tb.store.UpsertUser(ctx, chatID, "dave")
+	if err := tb.store.UpsertUser(ctx, chatID, "dave"); err != nil {
+		t.Fatalf("upsert user: %v", err)
+	}
 
 	// Create 6 searches with different manufacturers.
 	mfrIDs := []int{19, 27, 5, 21, 12, 40}
 	for i, id := range mfrIDs {
-		_, _ = tb.store.CreateSearch(ctx, storage.Search{
+		if _, err := tb.store.CreateSearch(ctx, storage.Search{
 			ChatID: chatID, Name: fmt.Sprintf("s%d", i), Manufacturer: id, Model: 1,
-		})
+		}); err != nil {
+			t.Fatalf("create search %d: %v", i, err)
+		}
 	}
 
 	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
@@ -209,13 +225,17 @@ func TestKeyboards_ManufacturerKeyboard_RecentDeduplicates(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 504
 
-	_ = tb.store.UpsertUser(ctx, chatID, "eve")
+	if err := tb.store.UpsertUser(ctx, chatID, "eve"); err != nil {
+		t.Fatalf("upsert user: %v", err)
+	}
 
 	// Create 3 searches for the same manufacturer.
 	for i := range 3 {
-		_, _ = tb.store.CreateSearch(ctx, storage.Search{
+		if _, err := tb.store.CreateSearch(ctx, storage.Search{
 			ChatID: chatID, Name: fmt.Sprintf("s%d", i), Manufacturer: 27, Model: i + 1,
-		})
+		}); err != nil {
+			t.Fatalf("create search %d: %v", i, err)
+		}
 	}
 
 	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
