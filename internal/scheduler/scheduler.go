@@ -180,7 +180,9 @@ func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64) DeliveryStrat
 	if s.digestStore != nil {
 		mode, _, err := s.digestStore.GetDigestMode(ctx, chatID)
 		if err != nil {
-			s.logger.Error("get digest mode failed", "chat_id", chatID, "error", err)
+			if !errors.Is(err, storage.ErrNotFound) {
+				s.logger.Error("get digest mode failed", "chat_id", chatID, "error", err)
+			}
 		} else if mode == "digest" {
 			return NewDigestDelivery(s.digestStore)
 		}

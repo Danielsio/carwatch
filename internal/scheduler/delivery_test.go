@@ -121,6 +121,43 @@ func TestInstantDelivery_DeliverRaw_Success(t *testing.T) {
 	}
 }
 
+type errRawNotifier struct {
+	mockNotifier
+	rawErr error
+}
+
+func (m *errRawNotifier) NotifyRaw(_ context.Context, recipient string, message string) error {
+	if m.rawErr != nil {
+		return m.rawErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rawMessages = append(m.rawMessages, rawNotifyCall{recipient: recipient, message: message})
+	return nil
+}
+
+func TestInstantDelivery_DeliverRaw_FallsBackToQueue(t *testing.T) {
+	n := &errRawNotifier{rawErr: errors.New("telegram down")}
+	q := &mockNotificationQueue{}
+	d := NewInstantDelivery(n, q)
+
+	err := d.DeliverRaw(context.Background(), 100, "price drop!")
+	if err != nil {
+		t.Errorf("should succeed with queue fallback, got: %v", err)
+	}
+}
+
+func TestInstantDelivery_DeliverRaw_BothFail(t *testing.T) {
+	n := &errRawNotifier{rawErr: errors.New("telegram down")}
+	q := &failQueue{enqueueErr: errors.New("queue full")}
+	d := NewInstantDelivery(n, q)
+
+	err := d.DeliverRaw(context.Background(), 100, "price drop!")
+	if err == nil {
+		t.Fatal("expected error when both notifier and queue fail")
+	}
+}
+
 func TestDigestDelivery_DeliverBatch(t *testing.T) {
 	ds := newMockDigestStore()
 	d := NewDigestDelivery(ds)

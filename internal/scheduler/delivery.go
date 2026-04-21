@@ -41,7 +41,15 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 }
 
 func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message string) error {
-	return d.notifier.NotifyRaw(ctx, fmt.Sprintf("%d", chatID), message)
+	chatIDStr := fmt.Sprintf("%d", chatID)
+	err := d.notifier.NotifyRaw(ctx, chatIDStr, message)
+	if err == nil || d.queue == nil {
+		return err
+	}
+	if qErr := d.queue.EnqueueNotification(ctx, chatIDStr, "", message); qErr == nil {
+		return nil
+	}
+	return err
 }
 
 type DigestDelivery struct {
