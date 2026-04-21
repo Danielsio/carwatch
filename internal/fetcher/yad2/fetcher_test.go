@@ -130,10 +130,13 @@ func TestYad2Fetcher_Fetch_Non200(t *testing.T) {
 }
 
 func TestYad2Fetcher_Fetch_ServerDown(t *testing.T) {
-	client, _ := NewPlainClient([]string{"TestAgent/1.0"}, "")
+	client, err := NewPlainClient([]string{"TestAgent/1.0"}, "")
+	if err != nil {
+		t.Fatalf("NewPlainClient: %v", err)
+	}
 	f := &Yad2Fetcher{client: client, baseURL: "http://127.0.0.1:1", logger: discardLogger, userAgents: []string{"TestAgent/1.0"}}
 
-	_, err := f.Fetch(context.Background(), defaultParams())
+	_, err = f.Fetch(context.Background(), defaultParams())
 	if err == nil {
 		t.Error("expected error for unreachable server")
 	}
@@ -230,8 +233,11 @@ func TestPlainClient_Get_SetsHeaders(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c, _ := NewPlainClient([]string{"TestAgent/1.0"}, "")
-	result, err := c.Get(server.URL)
+	c, cErr := NewPlainClient([]string{"TestAgent/1.0"}, "")
+	if cErr != nil {
+		t.Fatalf("NewPlainClient: %v", cErr)
+	}
+	result, err := c.Get(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}

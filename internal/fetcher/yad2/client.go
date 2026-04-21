@@ -1,6 +1,7 @@
 package yad2
 
 import (
+	"context"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
@@ -20,7 +21,7 @@ type HTTPResult struct {
 // HTTPDoer abstracts HTTP GET requests so the production azuretls client
 // can be swapped for a plain net/http client in tests.
 type HTTPDoer interface {
-	Get(url string) (*HTTPResult, error)
+	Get(ctx context.Context, url string) (*HTTPResult, error)
 	Close()
 }
 
@@ -45,7 +46,11 @@ func newStealthClient(userAgents []string, proxy string) (*stealthClient, error)
 	return &stealthClient{session: session, userAgents: userAgents}, nil
 }
 
-func (c *stealthClient) Get(reqURL string) (*HTTPResult, error) {
+func (c *stealthClient) Get(ctx context.Context, reqURL string) (*HTTPResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	ua := c.userAgents[rand.IntN(len(c.userAgents))]
 
 	resp, err := c.session.Get(reqURL, azuretls.OrderedHeaders{
@@ -111,8 +116,8 @@ func newPlainClient(userAgents []string, proxy string) (*plainClient, error) {
 	}, nil
 }
 
-func (c *plainClient) Get(reqURL string) (*HTTPResult, error) {
-	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+func (c *plainClient) Get(ctx context.Context, reqURL string) (*HTTPResult, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -158,4 +163,13 @@ func NewPlainClient(userAgents []string, proxy string) (HTTPDoer, error) {
 		return nil, fmt.Errorf("at least one user agent is required")
 	}
 	return newPlainClient(userAgents, proxy)
+}
+
+func redactProxy(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "<invalid>"
+	}
+	u.User = nil
+	return u.String()
 }

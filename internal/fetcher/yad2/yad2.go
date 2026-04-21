@@ -62,21 +62,17 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]
 		proxy := f.proxyPool.Next()
 		c, err := NewClient(f.userAgents, proxy)
 		if err != nil {
-			f.logger.Warn("failed to create client with proxy, using fallback", "proxy", proxy, "error", err)
+			f.logger.Warn("failed to create client with proxy, using fallback", "proxy", redactProxy(proxy), "error", err)
 		} else {
 			client = c
 			defer c.Close()
 		}
 	}
 
-	if ctx.Err() != nil {
-		return nil, fmt.Errorf("execute request: %w", ctx.Err())
-	}
-
 	reqURL := buildURL(f.baseURL, params)
 	f.logger.Info("fetching listings", "url", reqURL)
 
-	result, err := client.Get(reqURL)
+	result, err := client.Get(ctx, reqURL)
 	if err != nil {
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
