@@ -14,6 +14,9 @@ type Client struct {
 }
 
 func NewClient(userAgents []string, proxy string) (*Client, error) {
+	if len(userAgents) == 0 {
+		return nil, fmt.Errorf("at least one user agent is required")
+	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConns = 10
 	transport.MaxIdleConnsPerHost = 5
