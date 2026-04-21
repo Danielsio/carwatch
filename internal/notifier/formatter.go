@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dsionov/carwatch/internal/format"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -39,7 +40,7 @@ func FormatListing(l model.Listing) string {
 	}
 
 	if l.Km > 0 {
-		b.WriteString(fmt.Sprintf("🛣️ Mileage: %s km\n", formatNumber(l.Km)))
+		b.WriteString(fmt.Sprintf("🛣️ Mileage: %s km\n", format.Number(l.Km)))
 	}
 
 	if l.Hand > 0 {
@@ -55,7 +56,7 @@ func FormatListing(l model.Listing) string {
 	}
 
 	if l.Price > 0 {
-		b.WriteString(fmt.Sprintf("💰 Price: ₪%s\n", formatNumber(l.Price)))
+		b.WriteString(fmt.Sprintf("💰 Price: ₪%s\n", format.Number(l.Price)))
 	}
 
 	if l.PageLink != "" {
@@ -79,13 +80,13 @@ func FormatPriceDrop(l model.Listing, oldPrice int) string {
 	drop := oldPrice - l.Price
 	b.WriteString(fmt.Sprintf("💰 *Price Drop!* %s: ₪%s → ₪%s (-₪%s)\n",
 		title,
-		formatNumber(oldPrice),
-		formatNumber(l.Price),
-		formatNumber(drop),
+		format.Number(oldPrice),
+		format.Number(l.Price),
+		format.Number(drop),
 	))
 
 	if l.Km > 0 {
-		b.WriteString(fmt.Sprintf("🛣️ %s km", formatNumber(l.Km)))
+		b.WriteString(fmt.Sprintf("🛣️ %s km", format.Number(l.Km)))
 		if l.Hand > 0 {
 			b.WriteString(fmt.Sprintf(" · ✋ Hand %d", l.Hand))
 		}
@@ -114,20 +115,4 @@ func FormatBatch(listings []model.Listing) string {
 	}
 
 	return b.String()
-}
-
-func formatNumber(n int) string {
-	s := fmt.Sprintf("%d", n)
-	if len(s) <= 3 {
-		return s
-	}
-
-	var result strings.Builder
-	for i, c := range s {
-		if i > 0 && (len(s)-i)%3 == 0 {
-			result.WriteRune(',')
-		}
-		result.WriteRune(c)
-	}
-	return result.String()
 }

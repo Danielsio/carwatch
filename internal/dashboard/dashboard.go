@@ -1,21 +1,26 @@
 package dashboard
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
-	"strings"
 
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/format"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
-type Handler struct {
-	store *sqlite.Store
+type ListingLister interface {
+	ListListings(ctx context.Context, limit int) ([]storage.ListingRecord, error)
 }
 
-func NewHandler(store *sqlite.Store) *Handler {
+type Handler struct {
+	store ListingLister
+}
+
+func NewHandler(store ListingLister) *Handler {
 	return &Handler{store: store}
 }
 
@@ -27,33 +32,24 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	listings, err := h.store.ListListings(context.Background(), limit)
+	listings, err := h.store.ListListings(r.Context(), limit)
 	if err != nil {
 		http.Error(w, "failed to load listings", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.Execute(w, listings); err != nil {
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, listings); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
+		return
 	}
-}
-
-func formatPrice(n int) string {
-	s := strconv.Itoa(n)
-	var result strings.Builder
-	for i, c := range s {
-		if i > 0 && (len(s)-i)%3 == 0 {
-			result.WriteByte(',')
-		}
-		result.WriteRune(c)
-	}
-	return result.String()
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = buf.WriteTo(w)
 }
 
 var tmpl = template.Must(template.New("dashboard").Funcs(template.FuncMap{
-	"fmtPrice": formatPrice,
-	"fmtKm":    formatPrice,
+	"fmtPrice": format.Number,
+	"fmtKm":    format.Number,
 	"yad2Link": func(token string) string {
 		return fmt.Sprintf("https://www.yad2.co.il/item/%s", token)
 	},

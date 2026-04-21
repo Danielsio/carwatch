@@ -395,9 +395,12 @@ func TestRecordPrice(t *testing.T) {
 		t.Errorf("old price = %d, want 100000", oldPrice)
 	}
 
-	_, changed, _ = store.RecordPrice(ctx, "token1", 95000)
-	if changed {
-		t.Error("price increase should not trigger change")
+	oldPrice, changed, _ = store.RecordPrice(ctx, "token1", 95000)
+	if !changed {
+		t.Error("price increase should be detected as change")
+	}
+	if oldPrice != 90000 {
+		t.Errorf("old price = %d, want 90000", oldPrice)
 	}
 }
 

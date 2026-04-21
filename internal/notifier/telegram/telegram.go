@@ -56,21 +56,60 @@ func (n *Notifier) Disconnect() error {
 	return nil
 }
 
+const maxMessageLen = 4096
+
 func (n *Notifier) sendMessage(ctx context.Context, chatID string, text string) error {
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid chat ID %q: %w", chatID, err)
 	}
 
-	_, err = n.bot.SendMessage(ctx, &tgbot.SendMessageParams{
-		ChatID:    id,
-		Text:      text,
-		ParseMode: tgmodels.ParseModeMarkdown,
-	})
-	if err != nil {
-		return fmt.Errorf("telegram sendMessage: %w", err)
+	chunks := splitMessage(text, maxMessageLen)
+	for _, chunk := range chunks {
+		_, err = n.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+			ChatID:    id,
+			Text:      chunk,
+			ParseMode: tgmodels.ParseModeMarkdown,
+		})
+		if err != nil {
+			return fmt.Errorf("telegram sendMessage: %w", err)
+		}
 	}
 
-	n.logger.Info("sent telegram message", "chat_id", chatID)
+	n.logger.Info("sent telegram message", "chat_id", chatID, "chunks", len(chunks))
 	return nil
+}
+
+func splitMessage(text string, limit int) []string {
+	r := []rune(text)
+	if len(r) <= limit {
+		return []string{text}
+	}
+
+	var chunks []string
+	for len(r) > 0 {
+		if len(r) <= limit {
+			chunks = append(chunks, string(r))
+			break
+		}
+		cut := limit
+		if idx := lastRuneNewlineBefore(r, limit); idx > 0 {
+			cut = idx + 1
+		}
+		chunks = append(chunks, string(r[:cut]))
+		r = r[cut:]
+	}
+	return chunks
+}
+
+func lastRuneNewlineBefore(s []rune, pos int) int {
+	if pos > len(s) {
+		pos = len(s)
+	}
+	for i := pos - 1; i >= 0; i-- {
+		if s[i] == '\n' {
+			return i
+		}
+	}
+	return -1
 }

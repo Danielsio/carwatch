@@ -5,6 +5,8 @@ import (
 	"strconv"
 
 	tgmodels "github.com/go-telegram/bot/models"
+
+	"github.com/dsionov/carwatch/internal/format"
 )
 
 const (
@@ -116,7 +118,7 @@ func confirmKeyboard(data WizardData) (*tgmodels.InlineKeyboardMarkup, string) {
 		sourceDisplayName(source),
 		data.ManufacturerName, data.ModelName,
 		data.YearMin, data.YearMax,
-		formatNumber(data.PriceMax),
+		format.Number(data.PriceMax),
 		engineStr,
 	)
 
@@ -133,17 +135,3 @@ func confirmKeyboard(data WizardData) (*tgmodels.InlineKeyboardMarkup, string) {
 	return kb, summary
 }
 
-func formatNumber(n int) string {
-	s := strconv.Itoa(n)
-	if len(s) <= 3 {
-		return s
-	}
-	var result []byte
-	for i, c := range s {
-		if i > 0 && (len(s)-i)%3 == 0 {
-			result = append(result, ',')
-		}
-		result = append(result, byte(c))
-	}
-	return string(result)
-}

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -36,6 +37,7 @@ type CatalogIngester interface {
 }
 
 type Scheduler struct {
+	cfgMu             sync.RWMutex
 	cfg               *config.Config
 	configPath        string
 	fetcher           fetcher.Fetcher
@@ -111,9 +113,13 @@ func NewWithOptions(
 }
 
 func (s *Scheduler) Run(ctx context.Context) error {
+	s.cfgMu.RLock()
+	logInterval := s.cfg.Polling.Interval
+	logJitter := s.cfg.Polling.Jitter
+	s.cfgMu.RUnlock()
 	s.logger.Info("scheduler started",
-		"interval", s.cfg.Polling.Interval,
-		"jitter", s.cfg.Polling.Jitter,
+		"interval", logInterval,
+		"jitter", logJitter,
 	)
 
 	s.retryPending(ctx)
@@ -210,8 +216,12 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 }
 
 func (s *Scheduler) nextDelay() time.Duration {
-	base := time.Duration(float64(s.cfg.Polling.Interval) * s.backoffMultiplier)
-	jitter := s.cfg.Polling.Jitter
+	s.cfgMu.RLock()
+	interval := s.cfg.Polling.Interval
+	jitterCfg := s.cfg.Polling.Jitter
+	s.cfgMu.RUnlock()
+	base := time.Duration(float64(interval) * s.backoffMultiplier)
+	jitter := jitterCfg
 	if jitter > 0 {
 		offset := time.Duration(rand.Int64N(int64(2*jitter))) - jitter
 		base += offset
@@ -223,12 +233,15 @@ func (s *Scheduler) nextDelay() time.Duration {
 }
 
 func (s *Scheduler) isActiveHours() bool {
+	s.cfgMu.RLock()
 	ah := s.cfg.Polling.ActiveHours
+	loc := s.loc
+	s.cfgMu.RUnlock()
 	if ah == nil {
 		return true
 	}
 
-	now := time.Now().In(s.loc)
+	now := time.Now().In(loc)
 	currentMinutes := now.Hour()*60 + now.Minute()
 
 	start := parseTimeOfDayOrZero(ah.Start)
@@ -242,13 +255,16 @@ func (s *Scheduler) isActiveHours() bool {
 }
 
 func (s *Scheduler) durationUntilActiveStart() time.Duration {
+	s.cfgMu.RLock()
 	ah := s.cfg.Polling.ActiveHours
+	loc := s.loc
+	s.cfgMu.RUnlock()
 	if ah == nil {
 		return 0
 	}
 
 	startMinutes := parseTimeOfDayOrZero(ah.Start)
-	now := time.Now().In(s.loc)
+	now := time.Now().In(loc)
 	currentMinutes := now.Hour()*60 + now.Minute()
 
 	diffMinutes := startMinutes - currentMinutes
@@ -277,10 +293,15 @@ func (s *Scheduler) reloadConfig() {
 		s.logger.Error("config reload failed, keeping current config", "error", err)
 		return
 	}
-	s.cfg = newCfg
-	if loc, err := time.LoadLocation(newCfg.Polling.Timezone); err == nil {
-		s.loc = loc
+	loc, err := time.LoadLocation(newCfg.Polling.Timezone)
+	if err != nil {
+		s.logger.Error("config reload: invalid timezone, keeping current", "timezone", newCfg.Polling.Timezone, "error", err)
+		return
 	}
+	s.cfgMu.Lock()
+	s.cfg = newCfg
+	s.loc = loc
+	s.cfgMu.Unlock()
 	s.logger.Info("config reloaded")
 }
 
@@ -328,7 +349,14 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.logger.Info("grouped searches", "groups", len(groups), "total_searches", len(searches))
 
 	allFailed := true
-	for _, group := range groups {
+	for i, group := range groups {
+		if i > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(2*time.Second + time.Duration(rand.Int64N(int64(3*time.Second)))):
+			}
+		}
 		if err := s.processGroup(ctx, group); err != nil {
 			s.logger.Error("group failed",
 				"manufacturer", group.Manufacturer,
@@ -345,8 +373,11 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	}
 
 	if time.Since(s.lastPruneTime) > pruneInterval {
-		if s.cfg.Storage.PruneAfter > 0 {
-			pruned, err := s.dedup.Prune(ctx, s.cfg.Storage.PruneAfter)
+		s.cfgMu.RLock()
+		pruneAfter := s.cfg.Storage.PruneAfter
+		s.cfgMu.RUnlock()
+		if pruneAfter > 0 {
+			pruned, err := s.dedup.Prune(ctx, pruneAfter)
 			if err != nil {
 				s.logger.Error("prune failed", "error", err)
 			} else if pruned > 0 {
@@ -421,11 +452,17 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 				continue
 			}
 
+			isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.ChatID, search.ID)
+			if err != nil {
+				s.logger.Error("claim failed", "token", l.Token, "error", err)
+				continue
+			}
+
 			if s.prices != nil && l.Price > 0 {
 				oldPrice, changed, err := s.prices.RecordPrice(ctx, l.Token, l.Price)
 				if err != nil {
 					s.logger.Error("record price failed", "token", l.Token, "error", err)
-				} else if changed {
+				} else if changed && l.Price < oldPrice {
 					s.logger.Info("price drop detected",
 						"token", l.Token,
 						"old_price", oldPrice,
@@ -437,11 +474,6 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 				}
 			}
 
-			isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.ChatID, search.ID)
-			if err != nil {
-				s.logger.Error("claim failed", "token", l.Token, "error", err)
-				continue
-			}
 			if !isNew {
 				continue
 			}
@@ -518,8 +550,19 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 					"chat_id", search.ChatID,
 					"error", err,
 				)
-				for _, l := range newListings {
-					_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
+				enqueued := false
+				if s.queue != nil {
+					msg := notifier.FormatBatch(newListings)
+					if qErr := s.queue.EnqueueNotification(ctx, chatIDStr, search.Name, msg); qErr != nil {
+						s.logger.Error("enqueue notification failed", "error", qErr)
+					} else {
+						enqueued = true
+					}
+				}
+				if !enqueued {
+					for _, l := range newListings {
+						_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
+					}
 				}
 			} else if s.health != nil {
 				s.health.RecordNotificationSent()

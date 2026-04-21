@@ -20,6 +20,8 @@ type DynamicCatalog struct {
 	modelMap  map[int]map[int]string
 	dirty     bool
 	lastSave  time.Time
+	saveGen   int64
+	saveMu    sync.Mutex
 	store     storage.CatalogStore
 	fallback  Catalog
 	logger    *slog.Logger
@@ -91,18 +93,34 @@ func (d *DynamicCatalog) Ingest(ctx context.Context, manufacturerID int, manufac
 
 	d.rebuildSlices()
 	d.dirty = true
+	d.saveGen++
+	gen := d.saveGen
 
-	if d.store != nil && time.Since(d.lastSave) > saveCooldown {
-		d.saveToStore(ctx)
+	shouldSave := d.store != nil && time.Since(d.lastSave) > saveCooldown
+	var entries []storage.CatalogEntry
+	if shouldSave {
+		entries = d.buildEntries()
 	}
+	d.mu.Unlock()
+
+	if shouldSave {
+		d.persistEntries(ctx, entries, gen)
+	}
+	d.mu.Lock()
 }
 
 func (d *DynamicCatalog) Flush(ctx context.Context) {
 	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.dirty && d.store != nil {
-		d.saveToStore(ctx)
+	if !d.dirty || d.store == nil {
+		d.mu.Unlock()
+		return
 	}
+	entries := d.buildEntries()
+	d.saveGen++
+	gen := d.saveGen
+	d.mu.Unlock()
+
+	d.persistEntries(ctx, entries, gen)
 }
 
 func (d *DynamicCatalog) rebuildSlices() {
@@ -125,7 +143,7 @@ func (d *DynamicCatalog) rebuildSlices() {
 	d.models = models
 }
 
-func (d *DynamicCatalog) saveToStore(ctx context.Context) {
+func (d *DynamicCatalog) buildEntries() []storage.CatalogEntry {
 	var entries []storage.CatalogEntry
 	for mfrID, mfrName := range d.mfrMap {
 		mdls := d.modelMap[mfrID]
@@ -145,13 +163,24 @@ func (d *DynamicCatalog) saveToStore(ctx context.Context) {
 			})
 		}
 	}
+	return entries
+}
+
+func (d *DynamicCatalog) persistEntries(ctx context.Context, entries []storage.CatalogEntry, gen int64) {
+	d.saveMu.Lock()
+	defer d.saveMu.Unlock()
+
 	if err := d.store.SaveCatalogEntries(ctx, entries); err != nil {
 		d.logger.Error("catalog save failed", "error", err)
 		return
 	}
-	d.dirty = false
+	d.mu.Lock()
+	if d.saveGen == gen {
+		d.dirty = false
+	}
 	d.lastSave = time.Now()
-	d.logger.Info("catalog saved", "manufacturers", len(d.mfrMap), "models", len(entries))
+	d.mu.Unlock()
+	d.logger.Info("catalog saved", "entries", len(entries))
 }
 
 func (d *DynamicCatalog) loadFromStore(ctx context.Context) bool {

@@ -70,10 +70,14 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer store.Close()
 
-	var yad2Fetcher *yad2.Yad2Fetcher
+	var proxyPool *fetcher.ProxyPool
 	if len(cfg.HTTP.Proxies) > 0 {
-		pool := fetcher.NewProxyPool(cfg.HTTP.Proxies)
-		yad2Fetcher, err = yad2.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, pool, logger)
+		proxyPool = fetcher.NewProxyPool(cfg.HTTP.Proxies)
+	}
+
+	var yad2Fetcher *yad2.Yad2Fetcher
+	if proxyPool != nil {
+		yad2Fetcher, err = yad2.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, logger)
 	} else {
 		yad2Fetcher, err = yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, logger)
 	}
@@ -87,9 +91,8 @@ func run(configPath string, logger *slog.Logger) error {
 	dynCatalog.Load(context.Background())
 
 	var winwinFetcher *winwin.WinWinFetcher
-	if len(cfg.HTTP.Proxies) > 0 {
-		pool := fetcher.NewProxyPool(cfg.HTTP.Proxies)
-		winwinFetcher, err = winwin.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, pool, logger)
+	if proxyPool != nil {
+		winwinFetcher, err = winwin.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, logger)
 	} else {
 		winwinFetcher, err = winwin.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, logger)
 	}
@@ -135,13 +138,26 @@ func run(configPath string, logger *slog.Logger) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.Handler())
 	mux.Handle("/dashboard", dash)
-	srv := &http.Server{Addr: ":8080", Handler: mux}
+	srv := &http.Server{
+		Addr:              ":8080",
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("health server failed", "error", err)
 		}
 	}()
-	defer srv.Close()
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			logger.Error("http server shutdown failed", "error", err)
+		}
+	}()
 
 	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, tgNotif, logger, scheduler.Options{
 		Health:          h,

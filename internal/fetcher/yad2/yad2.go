@@ -56,10 +56,14 @@ func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logge
 }
 
 func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
+	client := f.client
 	if f.proxyPool != nil {
 		proxy := f.proxyPool.Next()
-		if client, err := NewClient(f.userAgents, proxy); err == nil {
-			f.client = client
+		c, err := NewClient(f.userAgents, proxy)
+		if err != nil {
+			f.logger.Warn("failed to create client with proxy, using fallback", "proxy", proxy, "error", err)
+		} else {
+			client = c
 		}
 	}
 
@@ -71,7 +75,7 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
-	resp, err := f.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("execute request: %w", err)
 	}

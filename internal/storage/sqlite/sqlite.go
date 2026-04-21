@@ -29,6 +29,9 @@ func New(dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
+	db.SetMaxOpenConns(2)
+	db.SetMaxIdleConns(2)
+
 	if err := migrate(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -117,6 +120,9 @@ func migrate(db *sql.DB) error {
 			updated_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (manufacturer_id, model_id)
 		);
+
+		CREATE INDEX IF NOT EXISTS idx_seen_listings_first_seen_at
+			ON seen_listings(first_seen_at);
 	`)
 	if err != nil {
 		return err
@@ -148,7 +154,7 @@ func migrate(db *sql.DB) error {
 			}
 		}
 	}
-	return err
+	return nil
 }
 
 // --- UserStore ---
@@ -269,9 +275,19 @@ func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error
 }
 
 func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error {
-	_, err := s.db.ExecContext(ctx,
+	result, err := s.db.ExecContext(ctx,
 		"DELETE FROM searches WHERE id = ? AND chat_id = ?", id, chatID)
-	return err
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return storage.ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) SetSearchActive(ctx context.Context, id int64, active bool) error {
@@ -406,7 +422,7 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 		return 0, false, scanErr
 	}
 
-	if price < prev {
+	if price != prev {
 		return prev, true, nil
 	}
 	return prev, false, nil
@@ -416,9 +432,12 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 
 func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT OR REPLACE INTO listing_history
+		INSERT INTO listing_history
 		(token, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(token) DO UPDATE SET
+			price = excluded.price,
+			km = excluded.km`,
 		r.Token, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
 		r.Km, r.Hand, r.City, r.PageLink, r.FirstSeenAt)
 	return err

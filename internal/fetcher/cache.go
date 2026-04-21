@@ -2,6 +2,7 @@ package fetcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -43,6 +44,9 @@ func (c *CachingFetcher) Fetch(ctx context.Context, params config.SourceParams) 
 
 	listings, err := c.inner.Fetch(ctx, params)
 	if err != nil {
+		if errors.Is(err, ErrChallenge) || errors.Is(err, ErrRateLimited) {
+			return nil, err
+		}
 		if ok {
 			return entry.listings, nil
 		}
@@ -51,9 +55,22 @@ func (c *CachingFetcher) Fetch(ctx context.Context, params config.SourceParams) 
 
 	c.mu.Lock()
 	c.cache[key] = cacheEntry{listings: listings, fetchedAt: time.Now()}
+	if len(c.cache) > maxCacheEntries {
+		c.evictExpired()
+	}
 	c.mu.Unlock()
 
 	return listings, nil
+}
+
+const maxCacheEntries = 100
+
+func (c *CachingFetcher) evictExpired() {
+	for key, entry := range c.cache {
+		if time.Since(entry.fetchedAt) > 2*c.ttl {
+			delete(c.cache, key)
+		}
+	}
 }
 
 func cacheKey(p config.SourceParams) string {
