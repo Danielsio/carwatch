@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -654,7 +655,12 @@ func (b *Bot) onDeleteSearch(ctx context.Context, chatID int64, data string) {
 	}
 
 	if err := b.searches.DeleteSearch(ctx, id, chatID); err != nil {
-		b.send(ctx, chatID, "Search not found.")
+		if errors.Is(err, storage.ErrNotFound) {
+			b.send(ctx, chatID, "Search not found.")
+		} else {
+			b.logger.Error("delete search failed", "id", id, "error", err)
+			b.send(ctx, chatID, "Failed to delete search. Please try again.")
+		}
 		return
 	}
 	b.send(ctx, chatID, fmt.Sprintf("Search #%d deleted.", id))

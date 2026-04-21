@@ -81,27 +81,31 @@ func (n *Notifier) sendMessage(ctx context.Context, chatID string, text string) 
 }
 
 func splitMessage(text string, limit int) []string {
-	if len(text) <= limit {
+	r := []rune(text)
+	if len(r) <= limit {
 		return []string{text}
 	}
 
 	var chunks []string
-	for len(text) > 0 {
-		if len(text) <= limit {
-			chunks = append(chunks, text)
+	for len(r) > 0 {
+		if len(r) <= limit {
+			chunks = append(chunks, string(r))
 			break
 		}
 		cut := limit
-		if idx := lastNewlineBefore(text, limit); idx > 0 {
+		if idx := lastRuneNewlineBefore(r, limit); idx > 0 {
 			cut = idx + 1
 		}
-		chunks = append(chunks, text[:cut])
-		text = text[cut:]
+		chunks = append(chunks, string(r[:cut]))
+		r = r[cut:]
 	}
 	return chunks
 }
 
-func lastNewlineBefore(s string, pos int) int {
+func lastRuneNewlineBefore(s []rune, pos int) int {
+	if pos > len(s) {
+		pos = len(s)
+	}
 	for i := pos - 1; i >= 0; i-- {
 		if s[i] == '\n' {
 			return i

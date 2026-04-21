@@ -59,7 +59,10 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]
 	client := f.client
 	if f.proxyPool != nil {
 		proxy := f.proxyPool.Next()
-		if c, err := NewClient(f.userAgents, proxy); err == nil {
+		c, err := NewClient(f.userAgents, proxy)
+		if err != nil {
+			f.logger.Warn("failed to create client with proxy, using fallback", "proxy", proxy, "error", err)
+		} else {
 			client = c
 		}
 	}

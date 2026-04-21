@@ -20,6 +20,8 @@ type DynamicCatalog struct {
 	modelMap  map[int]map[int]string
 	dirty     bool
 	lastSave  time.Time
+	saveGen   int64
+	saveMu    sync.Mutex
 	store     storage.CatalogStore
 	fallback  Catalog
 	logger    *slog.Logger
@@ -91,6 +93,8 @@ func (d *DynamicCatalog) Ingest(ctx context.Context, manufacturerID int, manufac
 
 	d.rebuildSlices()
 	d.dirty = true
+	d.saveGen++
+	gen := d.saveGen
 
 	shouldSave := d.store != nil && time.Since(d.lastSave) > saveCooldown
 	var entries []storage.CatalogEntry
@@ -100,17 +104,23 @@ func (d *DynamicCatalog) Ingest(ctx context.Context, manufacturerID int, manufac
 	d.mu.Unlock()
 
 	if shouldSave {
-		d.persistEntries(ctx, entries)
+		d.persistEntries(ctx, entries, gen)
 	}
 	d.mu.Lock()
 }
 
 func (d *DynamicCatalog) Flush(ctx context.Context) {
 	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.dirty && d.store != nil {
-		d.saveToStore(ctx)
+	if !d.dirty || d.store == nil {
+		d.mu.Unlock()
+		return
 	}
+	entries := d.buildEntries()
+	d.saveGen++
+	gen := d.saveGen
+	d.mu.Unlock()
+
+	d.persistEntries(ctx, entries, gen)
 }
 
 func (d *DynamicCatalog) rebuildSlices() {
@@ -156,21 +166,21 @@ func (d *DynamicCatalog) buildEntries() []storage.CatalogEntry {
 	return entries
 }
 
-func (d *DynamicCatalog) persistEntries(ctx context.Context, entries []storage.CatalogEntry) {
+func (d *DynamicCatalog) persistEntries(ctx context.Context, entries []storage.CatalogEntry, gen int64) {
+	d.saveMu.Lock()
+	defer d.saveMu.Unlock()
+
 	if err := d.store.SaveCatalogEntries(ctx, entries); err != nil {
 		d.logger.Error("catalog save failed", "error", err)
 		return
 	}
 	d.mu.Lock()
-	d.dirty = false
+	if d.saveGen == gen {
+		d.dirty = false
+	}
 	d.lastSave = time.Now()
 	d.mu.Unlock()
 	d.logger.Info("catalog saved", "entries", len(entries))
-}
-
-func (d *DynamicCatalog) saveToStore(ctx context.Context) {
-	entries := d.buildEntries()
-	d.persistEntries(ctx, entries)
 }
 
 func (d *DynamicCatalog) loadFromStore(ctx context.Context) bool {

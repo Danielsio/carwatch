@@ -1,17 +1,23 @@
 package format
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 )
 
 func Number(n int) string {
-	s := fmt.Sprintf("%d", n)
+	s := strconv.Itoa(n)
+	sign := ""
+	if strings.HasPrefix(s, "-") {
+		sign = "-"
+		s = s[1:]
+	}
 	if len(s) <= 3 {
-		return s
+		return sign + s
 	}
 
 	var result strings.Builder
+	result.WriteString(sign)
 	for i, c := range s {
 		if i > 0 && (len(s)-i)%3 == 0 {
 			result.WriteRune(',')

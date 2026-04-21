@@ -550,14 +550,19 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 					"chat_id", search.ChatID,
 					"error", err,
 				)
+				enqueued := false
 				if s.queue != nil {
 					msg := notifier.FormatBatch(newListings)
 					if qErr := s.queue.EnqueueNotification(ctx, chatIDStr, search.Name, msg); qErr != nil {
 						s.logger.Error("enqueue notification failed", "error", qErr)
+					} else {
+						enqueued = true
 					}
 				}
-				for _, l := range newListings {
-					_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
+				if !enqueued {
+					for _, l := range newListings {
+						_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
+					}
 				}
 			} else if s.health != nil {
 				s.health.RecordNotificationSent()
