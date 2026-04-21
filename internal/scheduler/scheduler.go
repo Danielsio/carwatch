@@ -16,7 +16,6 @@ import (
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/filter"
-	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -47,7 +46,7 @@ type Scheduler struct {
 	loc               *time.Location
 	backoffMultiplier float64
 	lastPruneTime     time.Time
-	health            *health.Status
+	observer          CycleObserver
 	queue             storage.NotificationQueue
 	prices            storage.PriceTracker
 	fetcherFactory    *fetcher.Factory
@@ -58,7 +57,7 @@ type Scheduler struct {
 }
 
 type Options struct {
-	Health          *health.Status
+	Observer        CycleObserver
 	Queue           storage.NotificationQueue
 	Prices          storage.PriceTracker
 	ConfigPath      string
@@ -75,9 +74,9 @@ func New(
 	d storage.DedupStore,
 	n notifier.Notifier,
 	logger *slog.Logger,
-	h *health.Status,
+	observer CycleObserver,
 ) (*Scheduler, error) {
-	return NewWithOptions(cfg, f, d, n, logger, Options{Health: h})
+	return NewWithOptions(cfg, f, d, n, logger, Options{Observer: observer})
 }
 
 func NewWithOptions(
@@ -92,6 +91,10 @@ func NewWithOptions(
 	if err != nil {
 		return nil, err
 	}
+	obs := opts.Observer
+	if obs == nil {
+		obs = nopObserver{}
+	}
 	return &Scheduler{
 		cfg:               cfg,
 		configPath:        opts.ConfigPath,
@@ -101,7 +104,7 @@ func NewWithOptions(
 		logger:            logger,
 		loc:               loc,
 		backoffMultiplier: 1.0,
-		health:            opts.Health,
+		observer:          obs,
 		queue:             opts.Queue,
 		prices:            opts.Prices,
 		fetcherFactory:    opts.FetcherFactory,
@@ -413,15 +416,11 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.processDigests(ctx)
 
 	if allFailed && len(groups) > 0 {
-		if s.health != nil {
-			s.health.RecordError()
-		}
+		s.observer.RecordError()
 		return fmt.Errorf("all %d groups failed", len(groups))
 	}
 
-	if s.health != nil {
-		s.health.RecordSuccess()
-	}
+	s.observer.RecordSuccess()
 	return nil
 }
 
@@ -525,9 +524,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			continue
 		}
 
-		if s.health != nil {
-			s.health.RecordListingsFound(len(newListings))
-		}
+		s.observer.RecordListingsFound(len(newListings))
 
 		s.logger.Info("new listings for user",
 			"chat_id", search.ChatID,
@@ -543,8 +540,8 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			for _, l := range newListings {
 				_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
 			}
-		} else if s.health != nil {
-			s.health.RecordNotificationSent()
+		} else {
+			s.observer.RecordNotificationSent()
 		}
 	}
 
@@ -623,9 +620,7 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 		"chat_id", chatID,
 		"items", len(payloads),
 	)
-	if s.health != nil {
-		s.health.RecordNotificationSent()
-	}
+	s.observer.RecordNotificationSent()
 }
 
 func maskPhone(phone string) string {

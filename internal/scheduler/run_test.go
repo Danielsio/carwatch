@@ -82,7 +82,7 @@ func TestRunMultiTenantCycle_AllGroupsFail(t *testing.T) {
 
 	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
 		SearchStore: ss,
-		Health:      h,
+		Observer:    h,
 	})
 
 	err := s.runMultiTenantCycle(context.Background())
@@ -107,7 +107,7 @@ func TestRunMultiTenantCycle_PrunesOldListings(t *testing.T) {
 
 	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
 		SearchStore: ss,
-		Health:      h,
+		Observer:    h,
 	})
 	s.lastPruneTime = time.Time{}
 
@@ -233,7 +233,7 @@ func TestFlushAndSendDigest_WithHealth(t *testing.T) {
 
 	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{
 		DigestStore: ds,
-		Health:      h,
+		Observer:    h,
 	})
 
 	s.flushAndSendDigest(context.Background(), 100)

@@ -163,7 +163,7 @@ func run(configPath string, logger *slog.Logger) error {
 	}()
 
 	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, tgNotif, logger, scheduler.Options{
-		Health:          h,
+		Observer:        h,
 		Queue:           store,
 		Prices:          store,
 		ConfigPath:      configPath,

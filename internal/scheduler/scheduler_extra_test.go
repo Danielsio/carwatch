@@ -153,12 +153,12 @@ func TestRetryPending_WithPending(t *testing.T) {
 func TestNewWithOptions_HealthStatus(t *testing.T) {
 	cfg := testConfig()
 	h := health.New()
-	s, err := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{Health: h})
+	s, err := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{Observer: h})
 	if err != nil {
 		t.Fatalf("create scheduler: %v", err)
 	}
-	if s.health != h {
-		t.Error("health status not set")
+	if s.observer != h {
+		t.Error("observer not set")
 	}
 }
 
