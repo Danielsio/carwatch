@@ -334,9 +334,9 @@ func TestManufacturerWithNoModels(t *testing.T) {
 	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
 	tb.msg.reset()
 
-	// Select a manufacturer ID that has no models in the catalog.
+	// Select a real manufacturer that exists in the catalog but has no predefined models.
 	// Should show model keyboard with "Any model" button instead of an error.
-	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"999")
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"35") // Subaru
 
 	msg := tb.msg.last()
 	if msg.Text == "" {

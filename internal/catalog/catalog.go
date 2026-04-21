@@ -1,6 +1,11 @@
 package catalog
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+
+	"golang.org/x/text/unicode/norm"
+)
 
 type Entry struct {
 	ID   int
@@ -17,7 +22,18 @@ type Catalog interface {
 }
 
 func fuzzyMatch(name, query string) bool {
-	return strings.Contains(strings.ToLower(name), strings.ToLower(query))
+	return strings.Contains(stripDiacritics(strings.ToLower(name)), stripDiacritics(strings.ToLower(query)))
+}
+
+func stripDiacritics(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range norm.NFD.String(s) {
+		if !unicode.Is(unicode.Mn, r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func searchEntries(entries []Entry, query string) []Entry {

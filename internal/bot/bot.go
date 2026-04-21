@@ -177,7 +177,7 @@ func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 
 	link := ShareLink(b.botUsername, search.ID)
 	mfr := b.catalog.ManufacturerName(search.Manufacturer)
-	mdl := b.catalog.ModelName(search.Manufacturer, search.Model)
+	mdl := b.modelDisplayName(search.Manufacturer, search.Model)
 
 	b.sendMarkdown(ctx, chatID, fmt.Sprintf(
 		"Share this link for *%s %s* search:\n\n%s",
@@ -204,7 +204,7 @@ func (b *Bot) handleShareStart(ctx context.Context, chatID int64, param string) 
 	}
 
 	mfr := b.catalog.ManufacturerName(search.Manufacturer)
-	mdl := b.catalog.ModelName(search.Manufacturer, search.Model)
+	mdl := b.modelDisplayName(search.Manufacturer, search.Model)
 
 	engineStr := "Any"
 	if search.EngineMinCC > 0 {
@@ -274,7 +274,7 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 			prefix = "\u23f8 "
 		}
 		mfr := b.catalog.ManufacturerName(s.Manufacturer)
-		mdl := b.catalog.ModelName(s.Manufacturer, s.Model)
+		mdl := b.modelDisplayName(s.Manufacturer, s.Model)
 
 		status := "active"
 		if !s.Active {
@@ -606,11 +606,7 @@ func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Model = modelID
-	if modelID == 0 {
-		wd.ModelName = "Any model"
-	} else {
-		wd.ModelName = b.catalog.ModelName(wd.Manufacturer, modelID)
-	}
+	wd.ModelName = b.modelDisplayName(wd.Manufacturer, modelID)
 	b.logger.Debug("model selected", "chat_id", chatID, "manufacturer", wd.ManufacturerName, "model_id", modelID, "model_name", wd.ModelName)
 	b.saveWizardState(ctx, chatID, StateAskYearMin, wd)
 
@@ -726,7 +722,7 @@ func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 	}
 
 	mfr := b.catalog.ManufacturerName(src.Manufacturer)
-	mdl := b.catalog.ModelName(src.Manufacturer, src.Model)
+	mdl := b.modelDisplayName(src.Manufacturer, src.Model)
 	name := fmt.Sprintf("%s-%s", strings.ToLower(mfr), strings.ToLower(mdl))
 
 	newID, err := b.searches.CreateSearch(ctx, storage.Search{
@@ -876,7 +872,7 @@ func (b *Bot) handleManufacturerSearch(ctx context.Context, chatID int64, query 
 	wd := b.loadWizardData(ctx, chatID)
 	b.saveWizardState(ctx, chatID, StateAskManufacturer, wd)
 	b.sendWithKeyboard(ctx, chatID,
-		fmt.Sprintf("Results for \"%s\":", query),
+		"Search results:",
 		b.manufacturerSearchResults(query))
 }
 
@@ -884,8 +880,15 @@ func (b *Bot) handleModelSearch(ctx context.Context, chatID int64, query string)
 	wd := b.loadWizardData(ctx, chatID)
 	b.saveWizardState(ctx, chatID, StateAskModel, wd)
 	b.sendWithKeyboard(ctx, chatID,
-		fmt.Sprintf("Results for \"%s\":", query),
+		"Search results:",
 		b.modelSearchResults(wd.Manufacturer, query))
+}
+
+func (b *Bot) modelDisplayName(manufacturerID, modelID int) string {
+	if modelID == 0 {
+		return "Any model"
+	}
+	return b.catalog.ModelName(manufacturerID, modelID)
 }
 
 // --- Wizard State Helpers ---

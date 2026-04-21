@@ -75,6 +75,11 @@ func TestStaticCatalog_SearchManufacturers(t *testing.T) {
 	if len(results) != 0 {
 		t.Errorf("search 'zzz' should return empty, got %v", results)
 	}
+
+	results = cat.SearchManufacturers("citroen")
+	if len(results) != 1 || results[0].Name != "Citroën" {
+		t.Errorf("search 'citroen' should match Citroën, got %v", results)
+	}
 }
 
 func TestStaticCatalog_SearchModels(t *testing.T) {
