@@ -194,6 +194,11 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 		}
 		lastErr = err
 
+		if errors.Is(err, fetcher.ErrPartialResults) && len(listings) > 0 {
+			s.logger.Warn("fetch returned partial results", "error", err, "count", len(listings))
+			return listings, nil
+		}
+
 		if errors.Is(err, fetcher.ErrChallenge) || errors.Is(err, fetcher.ErrCircuitOpen) || errors.Is(err, context.Canceled) {
 			return nil, err
 		}
