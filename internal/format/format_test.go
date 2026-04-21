@@ -24,3 +24,22 @@ func TestNumber(t *testing.T) {
 		}
 	}
 }
+
+func TestEscapeMarkdown(t *testing.T) {
+	tests := []struct {
+		input, want string
+	}{
+		{"plain text", "plain text"},
+		{"under_score", "under\\_score"},
+		{"*bold*", "\\*bold\\*"},
+		{"[link](url)", "\\[link\\](url)"},
+		{"`code`", "\\`code\\`"},
+		{"a_b*c[d]e`f", "a\\_b\\*c\\[d\\]e\\`f"},
+	}
+	for _, tt := range tests {
+		got := EscapeMarkdown(tt.input)
+		if got != tt.want {
+			t.Errorf("EscapeMarkdown(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}

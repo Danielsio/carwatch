@@ -123,6 +123,9 @@ func migrate(db *sql.DB) error {
 
 		CREATE INDEX IF NOT EXISTS idx_seen_listings_first_seen_at
 			ON seen_listings(first_seen_at);
+
+		CREATE INDEX IF NOT EXISTS idx_seen_listings_chatid_firstseen
+			ON seen_listings(chat_id, first_seen_at DESC);
 	`)
 	if err != nil {
 		return err
@@ -450,7 +453,7 @@ func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offse
 		FROM listing_history lh
 		JOIN seen_listings sl ON lh.token = sl.token
 		WHERE sl.chat_id = ?
-		ORDER BY sl.first_seen_at DESC
+		ORDER BY sl.first_seen_at DESC, lh.token DESC
 		LIMIT ? OFFSET ?`, chatID, limit, offset)
 	if err != nil {
 		return nil, err

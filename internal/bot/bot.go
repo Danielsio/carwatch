@@ -470,6 +470,12 @@ func (b *Bot) sendHistoryPage(ctx context.Context, chatID int64, page int) {
 		return
 	}
 
+	totalPages := int((total + int64(historyPageSize) - 1) / int64(historyPageSize))
+	if page < 0 || page >= totalPages {
+		b.send(ctx, chatID, "That history page is no longer available. Use /history to start again.")
+		return
+	}
+
 	offset := page * historyPageSize
 	listings, err := b.listings.ListUserListings(ctx, chatID, historyPageSize, offset)
 	if err != nil {
@@ -478,13 +484,11 @@ func (b *Bot) sendHistoryPage(ctx context.Context, chatID int64, page int) {
 		return
 	}
 
-	totalPages := int((total + int64(historyPageSize) - 1) / int64(historyPageSize))
-
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("*Match history (%d total):*\n", total))
 
 	for _, l := range listings {
-		title := strings.TrimSpace(l.Manufacturer + " " + l.Model)
+		title := format.EscapeMarkdown(strings.TrimSpace(l.Manufacturer + " " + l.Model))
 		if l.Year > 0 {
 			title += fmt.Sprintf(" %d", l.Year)
 		}
@@ -501,11 +505,11 @@ func (b *Bot) sendHistoryPage(ctx context.Context, chatID int64, page int) {
 		}
 		sb.WriteString("\n")
 		if l.City != "" {
-			sb.WriteString(fmt.Sprintf("📍 %s\n", l.City))
+			sb.WriteString(fmt.Sprintf("📍 %s\n", format.EscapeMarkdown(l.City)))
 		}
 		sb.WriteString(fmt.Sprintf("📅 Found: %s\n", l.FirstSeenAt.Format("02 Jan 2006 15:04")))
 		if l.PageLink != "" {
-			sb.WriteString(fmt.Sprintf("🔗 %s\n", l.PageLink))
+			sb.WriteString(fmt.Sprintf("🔗 %s\n", format.EscapeMarkdown(l.PageLink)))
 		}
 	}
 

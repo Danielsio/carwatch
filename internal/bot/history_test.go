@@ -161,3 +161,66 @@ func TestHistory_IsolatedPerUser(t *testing.T) {
 		t.Errorf("bob should not see alice's Mazda listing")
 	}
 }
+
+func TestHistory_InvalidPage(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 720
+
+	_ = tb.store.UpsertUser(ctx, chatID, "dave")
+	searchID, _ := tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "test", Manufacturer: 27, Model: 1,
+	})
+	_, _ = tb.store.ClaimNew(ctx, "tok-1", chatID, searchID)
+	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-1", SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2020,
+		Price: 100000, FirstSeenAt: time.Now(),
+	})
+
+	// Out-of-range page should show friendly error.
+	tb.simulateCallback(ctx, chatID, cbHistoryPage+"999")
+	msg := tb.msg.last()
+	if !strings.Contains(msg.Text, "no longer available") {
+		t.Errorf("expected out-of-range message, got: %s", msg.Text)
+	}
+
+	// Negative page should show friendly error.
+	tb.msg.reset()
+	tb.simulateCallback(ctx, chatID, cbHistoryPage+"-1")
+	msg = tb.msg.last()
+	if !strings.Contains(msg.Text, "no longer available") {
+		t.Errorf("expected out-of-range message for negative page, got: %s", msg.Text)
+	}
+}
+
+func TestHistory_MarkdownEscaping(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 730
+
+	_ = tb.store.UpsertUser(ctx, chatID, "eve")
+	searchID, _ := tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "test", Manufacturer: 27, Model: 1,
+	})
+	_, _ = tb.store.ClaimNew(ctx, "tok-md", chatID, searchID)
+	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-md", SearchName: "test",
+		Manufacturer: "Land_Rover", Model: "Range*Rover", Year: 2020,
+		Price: 200000, City: "Tel_Aviv",
+		FirstSeenAt: time.Now(),
+	})
+
+	tb.simulateCommand(ctx, chatID, "/history")
+	msg := tb.msg.last()
+
+	if strings.Contains(msg.Text, "Land_Rover") {
+		t.Error("underscores in manufacturer should be escaped")
+	}
+	if !strings.Contains(msg.Text, "Land\\_Rover") {
+		t.Errorf("expected escaped manufacturer, got: %s", msg.Text)
+	}
+	if !strings.Contains(msg.Text, "Tel\\_Aviv") {
+		t.Errorf("expected escaped city, got: %s", msg.Text)
+	}
+}
