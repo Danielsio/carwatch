@@ -178,6 +178,21 @@ func TestFetchWithRetryUsing_ChallengeNoRetry(t *testing.T) {
 	}
 }
 
+func TestFetchWithRetryUsing_CircuitOpenNoRetry(t *testing.T) {
+	f := &mockFetcher{err: fetcher.ErrCircuitOpen}
+	cfg := testConfig()
+	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), nil)
+
+	ctx := context.Background()
+	_, err := s.fetchWithRetryUsing(ctx, f, config.SourceParams{})
+	if !errors.Is(err, fetcher.ErrCircuitOpen) {
+		t.Errorf("expected ErrCircuitOpen, got: %v", err)
+	}
+	if f.calls != 1 {
+		t.Errorf("circuit open should not retry, got %d calls", f.calls)
+	}
+}
+
 func TestFetchWithRetryUsing_RetriesOnError(t *testing.T) {
 	f := &mockFetcher{err: errors.New("timeout")}
 	cfg := testConfig()
