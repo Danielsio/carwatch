@@ -39,6 +39,13 @@ This is not a fork. Create branches from `main`:
 git checkout -b my-branch-name main
 ```
 
+## Test Coverage
+
+All new code must include tests. PRs must not decrease overall test coverage. Run tests with:
+```bash
+make test
+```
+
 ## Pre-Push Checks
 
 Always run the linter before pushing:
