@@ -123,6 +123,9 @@ func migrate(db *sql.DB) error {
 
 		CREATE INDEX IF NOT EXISTS idx_seen_listings_first_seen_at
 			ON seen_listings(first_seen_at);
+
+		CREATE INDEX IF NOT EXISTS idx_seen_listings_chatid_firstseen
+			ON seen_listings(chat_id, first_seen_at DESC);
 	`)
 	if err != nil {
 		return err
@@ -441,6 +444,41 @@ func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error 
 		r.Token, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
 		r.Km, r.Hand, r.City, r.PageLink, r.FirstSeenAt)
 	return err
+}
+
+func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.year, lh.price,
+			lh.km, lh.hand, lh.city, lh.page_link, sl.first_seen_at
+		FROM listing_history lh
+		JOIN seen_listings sl ON lh.token = sl.token
+		WHERE sl.chat_id = ?
+		ORDER BY sl.first_seen_at DESC, lh.token DESC
+		LIMIT ? OFFSET ?`, chatID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var listings []storage.ListingRecord
+	for rows.Next() {
+		var l storage.ListingRecord
+		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FirstSeenAt); err != nil {
+			return nil, err
+		}
+		listings = append(listings, l)
+	}
+	return listings, rows.Err()
+}
+
+func (s *Store) CountUserListings(ctx context.Context, chatID int64) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM listing_history lh
+		JOIN seen_listings sl ON lh.token = sl.token
+		WHERE sl.chat_id = ?`, chatID).Scan(&count)
+	return count, err
 }
 
 func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingRecord, error) {

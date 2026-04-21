@@ -5,6 +5,18 @@ import (
 	"strings"
 )
 
+var telegramMarkdownEscaper = strings.NewReplacer(
+	"_", "\\_",
+	"*", "\\*",
+	"[", "\\[",
+	"]", "\\]",
+	"`", "\\`",
+)
+
+func EscapeMarkdown(s string) string {
+	return telegramMarkdownEscaper.Replace(s)
+}
+
 func Number(n int) string {
 	s := strconv.Itoa(n)
 	sign := ""

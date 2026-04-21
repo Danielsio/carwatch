@@ -27,6 +27,7 @@ const (
 	cbMdlPage         = "mdl_pg:"
 	cbMdlSearch       = "mdl_search"
 	cbAnyModel        = "mdl:0"
+	cbHistoryPage     = "hist_pg:"
 
 	pageSize = 15
 	colsPerRow = 3

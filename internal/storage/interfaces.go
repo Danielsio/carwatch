@@ -103,6 +103,8 @@ type ListingRecord struct {
 
 type ListingStore interface {
 	SaveListing(ctx context.Context, r ListingRecord) error
+	ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]ListingRecord, error)
+	CountUserListings(ctx context.Context, chatID int64) (int64, error)
 }
 
 type CatalogEntry struct {

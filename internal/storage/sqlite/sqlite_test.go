@@ -606,3 +606,110 @@ func TestSaveAndListListings(t *testing.T) {
 		t.Errorf("listings = %+v", listings)
 	}
 }
+
+func TestListUserListings(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	// Claim tokens for user 100.
+	_, _ = store.ClaimNew(ctx, "tok-a", 100, 1)
+	_, _ = store.ClaimNew(ctx, "tok-b", 100, 1)
+
+	// Claim a different token for user 200.
+	_, _ = store.ClaimNew(ctx, "tok-c", 200, 1)
+
+	// Save listing details.
+	for _, tok := range []string{"tok-a", "tok-b", "tok-c"} {
+		_ = store.SaveListing(ctx, storage.ListingRecord{
+			Token: tok, SearchName: "test",
+			Manufacturer: "Mazda", Model: "3", Year: 2020,
+			Price: 100000,
+		})
+	}
+
+	// User 100 should see 2 listings.
+	listings, err := store.ListUserListings(ctx, 100, 10, 0)
+	if err != nil {
+		t.Fatalf("list user listings: %v", err)
+	}
+	if len(listings) != 2 {
+		t.Errorf("expected 2 listings for user 100, got %d", len(listings))
+	}
+
+	// User 200 should see 1 listing.
+	listings, err = store.ListUserListings(ctx, 200, 10, 0)
+	if err != nil {
+		t.Fatalf("list user listings: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Errorf("expected 1 listing for user 200, got %d", len(listings))
+	}
+}
+
+func TestCountUserListings(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	// No listings yet.
+	count, err := store.CountUserListings(ctx, 100)
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected 0, got %d", count)
+	}
+
+	// Add some.
+	for _, tok := range []string{"t1", "t2", "t3"} {
+		_, _ = store.ClaimNew(ctx, tok, 100, 1)
+		_ = store.SaveListing(ctx, storage.ListingRecord{
+			Token: tok, SearchName: "test",
+			Manufacturer: "Mazda", Model: "3",
+		})
+	}
+
+	count, err = store.CountUserListings(ctx, 100)
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 3 {
+		t.Errorf("expected 3, got %d", count)
+	}
+}
+
+func TestListUserListings_Pagination(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	for i := range 5 {
+		tok := "tok-" + string(rune('a'+i))
+		_, _ = store.ClaimNew(ctx, tok, 100, 1)
+		_ = store.SaveListing(ctx, storage.ListingRecord{
+			Token: tok, SearchName: "test",
+			Manufacturer: "Test", Model: "Car",
+			Price: 100000 + i*1000,
+		})
+	}
+
+	// Page 1: limit 2, offset 0.
+	page1, _ := store.ListUserListings(ctx, 100, 2, 0)
+	if len(page1) != 2 {
+		t.Errorf("page 1: expected 2 items, got %d", len(page1))
+	}
+
+	// Page 2: limit 2, offset 2.
+	page2, _ := store.ListUserListings(ctx, 100, 2, 2)
+	if len(page2) != 2 {
+		t.Errorf("page 2: expected 2 items, got %d", len(page2))
+	}
+
+	// Page 3: limit 2, offset 4.
+	page3, _ := store.ListUserListings(ctx, 100, 2, 4)
+	if len(page3) != 1 {
+		t.Errorf("page 3: expected 1 item, got %d", len(page3))
+	}
+}
