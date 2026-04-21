@@ -29,6 +29,17 @@ func (m *mockFetcher) Fetch(_ context.Context, _ config.SourceParams) ([]model.R
 	return m.listings, m.err
 }
 
+type partialFetcher struct {
+	listings []model.RawListing
+	err      error
+	calls    int
+}
+
+func (m *partialFetcher) Fetch(_ context.Context, _ config.SourceParams) ([]model.RawListing, error) {
+	m.calls++
+	return m.listings, m.err
+}
+
 type dedupKey struct {
 	token  string
 	chatID int64
@@ -175,6 +186,27 @@ func TestFetchWithRetryUsing_ChallengeNoRetry(t *testing.T) {
 	}
 	if f.calls != 1 {
 		t.Errorf("challenge should not retry, got %d calls", f.calls)
+	}
+}
+
+func TestFetchWithRetryUsing_PartialResults_ReturnsListings(t *testing.T) {
+	partial := &partialFetcher{
+		listings: []model.RawListing{{Token: "a"}, {Token: "b"}},
+		err:      fmt.Errorf("%w: page 3: timeout", fetcher.ErrPartialResults),
+	}
+	cfg := testConfig()
+	s, _ := New(cfg, partial, newMockDedup(), &mockNotifier{}, testLogger(), nil)
+
+	ctx := context.Background()
+	listings, err := s.fetchWithRetryUsing(ctx, partial, config.SourceParams{})
+	if err != nil {
+		t.Errorf("partial results should be returned as success, got: %v", err)
+	}
+	if len(listings) != 2 {
+		t.Errorf("expected 2 partial listings, got %d", len(listings))
+	}
+	if partial.calls != 1 {
+		t.Errorf("partial results should not retry, got %d calls", partial.calls)
 	}
 }
 

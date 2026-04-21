@@ -85,7 +85,8 @@ func run(configPath string, logger *slog.Logger) error {
 		return fmt.Errorf("create fetcher: %w", err)
 	}
 
-	cachingFetcher := fetcher.NewCachingFetcher(yad2Fetcher, 5*time.Minute)
+	paginatingFetcher := fetcher.NewPaginatingFetcher(yad2Fetcher, cfg.HTTP.MaxPages)
+	cachingFetcher := fetcher.NewCachingFetcher(paginatingFetcher, 5*time.Minute)
 	yad2CB := fetcher.NewCircuitBreaker(cachingFetcher, 5, 30*time.Minute)
 
 	dynCatalog := catalog.NewDynamic(store, logger)
