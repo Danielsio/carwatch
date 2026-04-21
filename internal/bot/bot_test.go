@@ -41,7 +41,8 @@ func TestWizardData_JSON(t *testing.T) {
 
 func TestKeyboards_ManufacturerKeyboard_Page0(t *testing.T) {
 	tb := newTestBot(t)
-	kb := tb.bot.manufacturerKeyboard(0)
+	ctx := context.Background()
+	kb := tb.bot.manufacturerKeyboard(ctx, 0, 0)
 	if len(kb.InlineKeyboard) == 0 {
 		t.Fatal("keyboard should have rows")
 	}
@@ -66,8 +67,9 @@ func TestKeyboards_ManufacturerKeyboard_Page0(t *testing.T) {
 
 func TestKeyboards_ManufacturerKeyboard_Pagination(t *testing.T) {
 	tb := newTestBot(t)
-	kb0 := tb.bot.manufacturerKeyboard(0)
-	kb1 := tb.bot.manufacturerKeyboard(1)
+	ctx := context.Background()
+	kb0 := tb.bot.manufacturerKeyboard(ctx, 0, 0)
+	kb1 := tb.bot.manufacturerKeyboard(ctx, 0, 1)
 
 	// Different pages should show different content.
 	if len(kb0.InlineKeyboard) == 0 || len(kb1.InlineKeyboard) == 0 {
@@ -79,6 +81,155 @@ func TestKeyboards_ManufacturerKeyboard_Pagination(t *testing.T) {
 	first1 := kb1.InlineKeyboard[1][0].Text // skip search row
 	if first0 == first1 {
 		t.Error("pages should show different manufacturers")
+	}
+}
+
+func TestKeyboards_ManufacturerKeyboard_RecentSection(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 500
+
+	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+
+	// Create searches for Mazda (27) and Toyota (19).
+	_, _ = tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "s1", Manufacturer: 19, Model: 1,
+	})
+	_, _ = tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "s2", Manufacturer: 27, Model: 1,
+	})
+
+	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
+
+	// Row 0: search button.
+	if kb.InlineKeyboard[0][0].CallbackData != cbMfrSearch {
+		t.Errorf("row 0 should be search button, got %q", kb.InlineKeyboard[0][0].CallbackData)
+	}
+
+	// Row 1: recent manufacturers (most recent first — Toyota was created last).
+	recentRow := kb.InlineKeyboard[1]
+	if len(recentRow) != 2 {
+		t.Fatalf("expected 2 recent buttons, got %d", len(recentRow))
+	}
+	names := []string{recentRow[0].Text, recentRow[1].Text}
+	if names[0] == names[1] {
+		t.Errorf("recent manufacturers should be distinct, got %v", names)
+	}
+	hasManufacturer := func(name string) bool {
+		for _, n := range names {
+			if n == name {
+				return true
+			}
+		}
+		return false
+	}
+	if !hasManufacturer("Mazda") || !hasManufacturer("Toyota") {
+		t.Errorf("expected Mazda and Toyota in recent, got %v", names)
+	}
+
+	// Row 2: separator.
+	if kb.InlineKeyboard[2][0].CallbackData != "noop" {
+		t.Error("expected separator row after recent manufacturers")
+	}
+}
+
+func TestKeyboards_ManufacturerKeyboard_NoRecentForNewUser(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 501
+
+	_ = tb.store.UpsertUser(ctx, chatID, "bob")
+
+	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
+
+	// Row 0: search button, row 1: first manufacturer (no recent section).
+	if kb.InlineKeyboard[0][0].CallbackData != cbMfrSearch {
+		t.Errorf("row 0 should be search button, got %q", kb.InlineKeyboard[0][0].CallbackData)
+	}
+	// Second row should be actual manufacturers, not a separator.
+	if kb.InlineKeyboard[1][0].CallbackData == "noop" {
+		t.Error("new user should not have a recent/separator row")
+	}
+}
+
+func TestKeyboards_ManufacturerKeyboard_RecentNotOnPage2(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 502
+
+	_ = tb.store.UpsertUser(ctx, chatID, "carol")
+	_, _ = tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "s1", Manufacturer: 27, Model: 1,
+	})
+
+	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 1)
+
+	// On page 1, no recent section — second row should not be a separator.
+	for _, row := range kb.InlineKeyboard {
+		for _, btn := range row {
+			if btn.Text == "───────────" {
+				t.Error("recent section should not appear on page > 0")
+			}
+		}
+	}
+}
+
+func TestKeyboards_ManufacturerKeyboard_RecentCappedAt4(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 503
+
+	_ = tb.store.UpsertUser(ctx, chatID, "dave")
+
+	// Create 6 searches with different manufacturers.
+	mfrIDs := []int{19, 27, 5, 21, 12, 40}
+	for i, id := range mfrIDs {
+		_, _ = tb.store.CreateSearch(ctx, storage.Search{
+			ChatID: chatID, Name: fmt.Sprintf("s%d", i), Manufacturer: id, Model: 1,
+		})
+	}
+
+	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
+
+	// Count recent manufacturer buttons (between search row and separator).
+	recentCount := 0
+	for i := 1; i < len(kb.InlineKeyboard); i++ {
+		if kb.InlineKeyboard[i][0].CallbackData == "noop" {
+			break
+		}
+		recentCount += len(kb.InlineKeyboard[i])
+	}
+	if recentCount != maxRecentManufacturers {
+		t.Errorf("expected %d recent manufacturers, got %d", maxRecentManufacturers, recentCount)
+	}
+}
+
+func TestKeyboards_ManufacturerKeyboard_RecentDeduplicates(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 504
+
+	_ = tb.store.UpsertUser(ctx, chatID, "eve")
+
+	// Create 3 searches for the same manufacturer.
+	for i := range 3 {
+		_, _ = tb.store.CreateSearch(ctx, storage.Search{
+			ChatID: chatID, Name: fmt.Sprintf("s%d", i), Manufacturer: 27, Model: i + 1,
+		})
+	}
+
+	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
+
+	// Should have exactly 1 recent button (Mazda), not 3.
+	recentCount := 0
+	for i := 1; i < len(kb.InlineKeyboard); i++ {
+		if kb.InlineKeyboard[i][0].CallbackData == "noop" {
+			break
+		}
+		recentCount += len(kb.InlineKeyboard[i])
+	}
+	if recentCount != 1 {
+		t.Errorf("expected 1 unique recent manufacturer, got %d", recentCount)
 	}
 }
 
