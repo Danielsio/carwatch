@@ -481,7 +481,7 @@ func TestRunMultiTenantCycle_PruneError(t *testing.T) {
 
 	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
 		SearchStore: ss,
-		Health:      h,
+		Observer:    h,
 	})
 	s.lastPruneTime = time.Time{} // force prune
 
@@ -666,7 +666,7 @@ func TestRunMultiTenantCycle_HealthRecording(t *testing.T) {
 
 	s, _ := NewWithOptions(testConfig(), f, d, n, testLogger(), Options{
 		SearchStore: ss,
-		Health:      h,
+		Observer:    h,
 	})
 
 	_ = s.runMultiTenantCycle(context.Background())
