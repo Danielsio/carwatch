@@ -11,12 +11,6 @@ on:
       - 'Dockerfile'
       - '.github/workflows/**'
       - 'docker-compose*.yaml'
-  push:
-    branches: [main]
-    paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
 
 permissions:
   contents: read
