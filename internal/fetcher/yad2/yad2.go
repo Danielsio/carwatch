@@ -1,6 +1,7 @@
 package yad2
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"fmt"
@@ -22,7 +23,7 @@ const (
 )
 
 type Yad2Fetcher struct {
-	client     *Client
+	client     HTTPDoer
 	baseURL    string
 	logger     *slog.Logger
 	userAgents []string
@@ -61,30 +62,35 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]
 		proxy := f.proxyPool.Next()
 		c, err := NewClient(f.userAgents, proxy)
 		if err != nil {
-			f.logger.Warn("failed to create client with proxy, using fallback", "proxy", proxy, "error", err)
+			f.logger.Warn("failed to create client with proxy, using fallback", "proxy", redactProxy(proxy), "error", err)
 		} else {
 			client = c
+			defer c.Close()
 		}
 	}
 
 	reqURL := buildURL(f.baseURL, params)
 	f.logger.Info("fetching listings", "url", reqURL)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := client.Do(req)
+	result, err := client.Get(ctx, reqURL)
 	if err != nil {
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+	if result.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status: %d", result.StatusCode)
 	}
 
+	listings, err := ParseListingsPage(bytes.NewReader(result.Body))
+	if err != nil {
+		return nil, fmt.Errorf("parse page: %w", err)
+	}
+
+	f.logger.Info("fetched listings", "count", len(listings))
+	return listings, nil
+}
+
+func readResponseBody(resp *http.Response) ([]byte, error) {
 	var reader io.Reader = io.LimitReader(resp.Body, maxResponseSize)
 	if strings.Contains(resp.Header.Get("Content-Encoding"), "gzip") {
 		gr, err := gzip.NewReader(reader)
@@ -94,14 +100,7 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]
 		defer gr.Close()
 		reader = gr
 	}
-
-	listings, err := ParseListingsPage(reader)
-	if err != nil {
-		return nil, fmt.Errorf("parse page: %w", err)
-	}
-
-	f.logger.Info("fetched listings", "count", len(listings))
-	return listings, nil
+	return io.ReadAll(reader)
 }
 
 func buildURL(base string, params config.SourceParams) string {

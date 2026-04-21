@@ -24,6 +24,15 @@ func validPageHTML() string {
 </script></body></html>`
 }
 
+func newTestFetcher(t *testing.T, serverURL string) *Yad2Fetcher {
+	t.Helper()
+	client, err := NewPlainClient([]string{"TestAgent/1.0"}, "")
+	if err != nil {
+		t.Fatalf("NewPlainClient: %v", err)
+	}
+	return &Yad2Fetcher{client: client, baseURL: serverURL, logger: discardLogger, userAgents: []string{"TestAgent/1.0"}}
+}
+
 func TestNewFetcher(t *testing.T) {
 	f, err := NewFetcher([]string{"TestAgent/1.0"}, "", discardLogger)
 	if err != nil {
@@ -71,10 +80,8 @@ func TestYad2Fetcher_Fetch(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, _ := NewFetcher([]string{"TestAgent/1.0"}, "", discardLogger)
-	f.baseURL = server.URL
-
-	listings, err := f.Fetch(context.Background(), config.SourceParams{Manufacturer: 27, Model: 10332})
+	f := newTestFetcher(t, server.URL)
+	listings, err := f.Fetch(context.Background(), defaultParams())
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
 	}
@@ -96,10 +103,8 @@ func TestYad2Fetcher_Fetch_GzipResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, _ := NewFetcher([]string{"TestAgent/1.0"}, "", discardLogger)
-	f.baseURL = server.URL
-
-	listings, err := f.Fetch(context.Background(), config.SourceParams{Manufacturer: 27, Model: 10332})
+	f := newTestFetcher(t, server.URL)
+	listings, err := f.Fetch(context.Background(), defaultParams())
 	if err != nil {
 		t.Fatalf("Fetch gzip: %v", err)
 	}
@@ -114,10 +119,8 @@ func TestYad2Fetcher_Fetch_Non200(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, _ := NewFetcher([]string{"TestAgent/1.0"}, "", discardLogger)
-	f.baseURL = server.URL
-
-	_, err := f.Fetch(context.Background(), config.SourceParams{})
+	f := newTestFetcher(t, server.URL)
+	_, err := f.Fetch(context.Background(), defaultParams())
 	if err == nil {
 		t.Error("expected error for 403 response")
 	}
@@ -127,10 +130,13 @@ func TestYad2Fetcher_Fetch_Non200(t *testing.T) {
 }
 
 func TestYad2Fetcher_Fetch_ServerDown(t *testing.T) {
-	f, _ := NewFetcher([]string{"TestAgent/1.0"}, "", discardLogger)
-	f.baseURL = "http://127.0.0.1:1"
+	client, err := NewPlainClient([]string{"TestAgent/1.0"}, "")
+	if err != nil {
+		t.Fatalf("NewPlainClient: %v", err)
+	}
+	f := &Yad2Fetcher{client: client, baseURL: "http://127.0.0.1:1", logger: discardLogger, userAgents: []string{"TestAgent/1.0"}}
 
-	_, err := f.Fetch(context.Background(), config.SourceParams{})
+	_, err = f.Fetch(context.Background(), defaultParams())
 	if err == nil {
 		t.Error("expected error for unreachable server")
 	}
@@ -142,13 +148,12 @@ func TestYad2Fetcher_Fetch_ContextCanceled(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, _ := NewFetcher([]string{"TestAgent/1.0"}, "", discardLogger)
-	f.baseURL = server.URL
+	f := newTestFetcher(t, server.URL)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := f.Fetch(ctx, config.SourceParams{})
+	_, err := f.Fetch(ctx, defaultParams())
 	if err == nil {
 		t.Error("expected error for canceled context")
 	}
@@ -160,10 +165,8 @@ func TestYad2Fetcher_Fetch_Challenge(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, _ := NewFetcher([]string{"TestAgent/1.0"}, "", discardLogger)
-	f.baseURL = server.URL
-
-	_, err := f.Fetch(context.Background(), config.SourceParams{})
+	f := newTestFetcher(t, server.URL)
+	_, err := f.Fetch(context.Background(), defaultParams())
 	if err == nil {
 		t.Error("expected error for challenge page")
 	}
@@ -194,6 +197,7 @@ func TestNewClient(t *testing.T) {
 	if c == nil {
 		t.Fatal("expected non-nil client")
 	}
+	c.Close()
 }
 
 func TestNewClient_WithProxy(t *testing.T) {
@@ -204,6 +208,7 @@ func TestNewClient_WithProxy(t *testing.T) {
 	if c == nil {
 		t.Fatal("expected non-nil client")
 	}
+	c.Close()
 }
 
 func TestNewClient_InvalidProxy(t *testing.T) {
@@ -213,7 +218,14 @@ func TestNewClient_InvalidProxy(t *testing.T) {
 	}
 }
 
-func TestClient_Do_SetsHeaders(t *testing.T) {
+func TestNewClient_EmptyUserAgents(t *testing.T) {
+	_, err := NewClient(nil, "")
+	if err == nil {
+		t.Error("expected error for empty user agents")
+	}
+}
+
+func TestPlainClient_Get_SetsHeaders(t *testing.T) {
 	var receivedHeaders http.Header
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedHeaders = r.Header
@@ -221,13 +233,17 @@ func TestClient_Do_SetsHeaders(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c, _ := NewClient([]string{"TestAgent/1.0"}, "")
-	req, _ := http.NewRequest(http.MethodGet, server.URL, nil)
-	resp, err := c.Do(req)
-	if err != nil {
-		t.Fatalf("Do: %v", err)
+	c, cErr := NewPlainClient([]string{"TestAgent/1.0"}, "")
+	if cErr != nil {
+		t.Fatalf("NewPlainClient: %v", cErr)
 	}
-	resp.Body.Close()
+	result, err := c.Get(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if result.StatusCode != 200 {
+		t.Errorf("status = %d, want 200", result.StatusCode)
+	}
 
 	if receivedHeaders.Get("User-Agent") != "TestAgent/1.0" {
 		t.Errorf("User-Agent = %q, want TestAgent/1.0", receivedHeaders.Get("User-Agent"))
@@ -238,4 +254,8 @@ func TestClient_Do_SetsHeaders(t *testing.T) {
 	if receivedHeaders.Get("DNT") != "1" {
 		t.Error("DNT header not set")
 	}
+}
+
+func defaultParams() config.SourceParams {
+	return config.SourceParams{Manufacturer: 27, Model: 10332}
 }
