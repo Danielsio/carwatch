@@ -548,7 +548,12 @@ func (b *Bot) onSourceSelected(ctx context.Context, chatID int64, data string) {
 
 func (b *Bot) onMfrPage(ctx context.Context, chatID int64, data string) {
 	pageStr := strings.TrimPrefix(data, cbMfrPage)
-	page, _ := strconv.Atoi(pageStr)
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		b.logger.Warn("invalid manufacturer page callback", "chat_id", chatID, "raw", pageStr, "error", err)
+		b.send(ctx, chatID, "Something went wrong. Please try again.")
+		return
+	}
 	b.sendWithKeyboard(ctx, chatID,
 		"What manufacturer are you looking for?",
 		b.manufacturerKeyboard(page))
@@ -562,7 +567,12 @@ func (b *Bot) onMfrSearch(ctx context.Context, chatID int64) {
 
 func (b *Bot) onMdlPage(ctx context.Context, chatID int64, data string) {
 	pageStr := strings.TrimPrefix(data, cbMdlPage)
-	page, _ := strconv.Atoi(pageStr)
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		b.logger.Warn("invalid model page callback", "chat_id", chatID, "raw", pageStr, "error", err)
+		b.send(ctx, chatID, "Something went wrong. Please try again.")
+		return
+	}
 	wd := b.loadWizardData(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID,
 		fmt.Sprintf("Which %s model?", wd.ManufacturerName),

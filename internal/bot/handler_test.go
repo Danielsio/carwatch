@@ -572,6 +572,20 @@ func TestCatalog_ManufacturersWithoutModels_HaveAnyModelFallback(t *testing.T) {
 		t.Fatal("should show keyboard even for manufacturer with no models")
 	}
 
+	// Verify the keyboard has an "Any model" button.
+	kb := tb.bot.modelKeyboard(35, 0)
+	hasAnyBtn := false
+	for _, row := range kb.InlineKeyboard {
+		for _, btn := range row {
+			if btn.Text == "Any model" && btn.CallbackData == cbAnyModel {
+				hasAnyBtn = true
+			}
+		}
+	}
+	if !hasAnyBtn {
+		t.Error("model keyboard should contain 'Any model' button")
+	}
+
 	// Selecting "Any model" should advance the wizard.
 	tb.simulateCallback(ctx, chatID, cbAnyModel)
 	user, _ := tb.store.GetUser(ctx, chatID)
