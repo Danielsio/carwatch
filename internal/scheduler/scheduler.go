@@ -431,7 +431,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 				oldPrice, changed, err := s.prices.RecordPrice(ctx, l.Token, l.Price)
 				if err != nil {
 					s.logger.Error("record price failed", "token", l.Token, "error", err)
-				} else if changed {
+				} else if changed && l.Price < oldPrice {
 					s.logger.Info("price drop detected",
 						"token", l.Token,
 						"old_price", oldPrice,

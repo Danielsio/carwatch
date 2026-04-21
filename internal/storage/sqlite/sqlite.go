@@ -148,7 +148,7 @@ func migrate(db *sql.DB) error {
 			}
 		}
 	}
-	return err
+	return nil
 }
 
 // --- UserStore ---
@@ -416,7 +416,7 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 		return 0, false, scanErr
 	}
 
-	if price < prev {
+	if price != prev {
 		return prev, true, nil
 	}
 	return prev, false, nil
@@ -426,9 +426,12 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 
 func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT OR REPLACE INTO listing_history
+		INSERT INTO listing_history
 		(token, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(token) DO UPDATE SET
+			price = excluded.price,
+			km = excluded.km`,
 		r.Token, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
 		r.Km, r.Hand, r.City, r.PageLink, r.FirstSeenAt)
 	return err
