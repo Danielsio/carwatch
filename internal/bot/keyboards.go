@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/format"
 )
+
+const maxRecentManufacturers = 4
 
 const (
 	cbPrefixSource    = "src:"
@@ -44,9 +47,64 @@ func sourceKeyboard() *tgmodels.InlineKeyboardMarkup {
 	}
 }
 
-func (b *Bot) manufacturerKeyboard(page int) *tgmodels.InlineKeyboardMarkup {
+func (b *Bot) manufacturerKeyboard(ctx context.Context, chatID int64, page int) *tgmodels.InlineKeyboardMarkup {
 	mfrs := b.catalog.Manufacturers()
-	return paginatedKeyboard(mfrs, page, cbPrefixMfr, cbMfrPage, cbMfrSearch, "")
+	kb := paginatedKeyboard(mfrs, page, cbPrefixMfr, cbMfrPage, cbMfrSearch, "")
+
+	if page == 0 {
+		recent := b.recentManufacturers(ctx, chatID)
+		if len(recent) > 0 {
+			var recentRows [][]tgmodels.InlineKeyboardButton
+
+			var row []tgmodels.InlineKeyboardButton
+			for i, e := range recent {
+				row = append(row, tgmodels.InlineKeyboardButton{
+					Text:         e.Name,
+					CallbackData: cbPrefixMfr + strconv.Itoa(e.ID),
+				})
+				if len(row) == colsPerRow || i == len(recent)-1 {
+					recentRows = append(recentRows, row)
+					row = nil
+				}
+			}
+			recentRows = append(recentRows, []tgmodels.InlineKeyboardButton{
+				{Text: "───────────", CallbackData: "noop"},
+			})
+
+			newRows := make([][]tgmodels.InlineKeyboardButton, 0, len(kb.InlineKeyboard)+len(recentRows))
+			newRows = append(newRows, kb.InlineKeyboard[0]) // search button
+			newRows = append(newRows, recentRows...)
+			newRows = append(newRows, kb.InlineKeyboard[1:]...)
+			kb.InlineKeyboard = newRows
+		}
+	}
+
+	return kb
+}
+
+func (b *Bot) recentManufacturers(ctx context.Context, chatID int64) []catalog.Entry {
+	searches, err := b.searches.ListSearches(ctx, chatID)
+	if err != nil || len(searches) == 0 {
+		return nil
+	}
+
+	seen := make(map[int]bool)
+	var recent []catalog.Entry
+	for _, s := range searches {
+		if seen[s.Manufacturer] {
+			continue
+		}
+		seen[s.Manufacturer] = true
+		name := b.catalog.ManufacturerName(s.Manufacturer)
+		if name == "" {
+			continue
+		}
+		recent = append(recent, catalog.Entry{ID: s.Manufacturer, Name: name})
+		if len(recent) >= maxRecentManufacturers {
+			break
+		}
+	}
+	return recent
 }
 
 func (b *Bot) manufacturerSearchResults(query string) *tgmodels.InlineKeyboardMarkup {

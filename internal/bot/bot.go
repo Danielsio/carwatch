@@ -645,7 +645,7 @@ func (b *Bot) onSourceSelected(ctx context.Context, chatID int64, data string) {
 
 	b.sendWithKeyboard(ctx, chatID,
 		"What manufacturer are you looking for?",
-		b.manufacturerKeyboard(0))
+		b.manufacturerKeyboard(ctx, chatID, 0))
 }
 
 func (b *Bot) onMfrPage(ctx context.Context, chatID int64, data string) {
@@ -658,7 +658,7 @@ func (b *Bot) onMfrPage(ctx context.Context, chatID int64, data string) {
 	}
 	b.sendWithKeyboard(ctx, chatID,
 		"What manufacturer are you looking for?",
-		b.manufacturerKeyboard(page))
+		b.manufacturerKeyboard(ctx, chatID, page))
 }
 
 func (b *Bot) onMfrSearch(ctx context.Context, chatID int64) {
