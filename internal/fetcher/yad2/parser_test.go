@@ -185,6 +185,20 @@ func TestParseNextData_FeedWithZeroItems(t *testing.T) {
 	}
 }
 
+func TestParseNextData_FeedWithNullItems(t *testing.T) {
+	data := []byte(`{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{"data":{"feed":{"feed_items":null}}}}}]}}}}`)
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("unexpected error for null feed_items: %v", err)
+	}
+	if listings == nil {
+		t.Fatal("expected empty slice, got nil")
+	}
+	if len(listings) != 0 {
+		t.Errorf("expected 0 listings, got %d", len(listings))
+	}
+}
+
 func TestTextFromField_PrefersEnglish(t *testing.T) {
 	tests := []struct {
 		name string

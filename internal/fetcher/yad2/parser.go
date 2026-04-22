@@ -77,15 +77,32 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 }
 
 func extractItems(nd nextDataEnvelope) ([]json.RawMessage, error) {
+	type feedProbe struct {
+		Data struct {
+			Feed struct {
+				FeedItems json.RawMessage `json:"feed_items"`
+			} `json:"feed"`
+		} `json:"data"`
+	}
+
 	queries := nd.Props.PageProps.DehydratedState.Queries
 	for _, q := range queries {
-		var feed feedData
-		if err := json.Unmarshal(q.State.Data, &feed); err != nil {
+		var probe feedProbe
+		if err := json.Unmarshal(q.State.Data, &probe); err != nil {
 			continue
 		}
-		if feed.Data.Feed.FeedItems != nil {
-			return feed.Data.Feed.FeedItems, nil
+		raw := probe.Data.Feed.FeedItems
+		if raw == nil {
+			continue
 		}
+		if string(raw) == "null" {
+			return []json.RawMessage{}, nil
+		}
+		var items []json.RawMessage
+		if err := json.Unmarshal(raw, &items); err != nil {
+			continue
+		}
+		return items, nil
 	}
 	return nil, fmt.Errorf("no feed items found in __NEXT_DATA__")
 }
@@ -162,14 +179,6 @@ type queryEntry struct {
 	State struct {
 		Data json.RawMessage `json:"data"`
 	} `json:"state"`
-}
-
-type feedData struct {
-	Data struct {
-		Feed struct {
-			FeedItems []json.RawMessage `json:"feed_items"`
-		} `json:"feed"`
-	} `json:"data"`
 }
 
 type feedItem struct {
