@@ -8,8 +8,8 @@ import (
 
 func TestGroupSearches_SingleGroup(t *testing.T) {
 	searches := []storage.Search{
-		{ID: 1, ChatID: 100, Manufacturer: 27, Model: 10332, YearMin: 2018, YearMax: 2024, PriceMax: 150000},
-		{ID: 2, ChatID: 200, Manufacturer: 27, Model: 10332, YearMin: 2020, YearMax: 2026, PriceMax: 200000},
+		{ID: 1, ChatID: 100, Source: "yad2", Manufacturer: 27, Model: 10332, YearMin: 2018, YearMax: 2024, PriceMax: 150000},
+		{ID: 2, ChatID: 200, Source: "yad2", Manufacturer: 27, Model: 10332, YearMin: 2020, YearMax: 2026, PriceMax: 200000},
 	}
 
 	groups := GroupSearches(searches)
@@ -34,9 +34,9 @@ func TestGroupSearches_SingleGroup(t *testing.T) {
 
 func TestGroupSearches_MultipleGroups(t *testing.T) {
 	searches := []storage.Search{
-		{ID: 1, ChatID: 100, Manufacturer: 27, Model: 10332},
-		{ID: 2, ChatID: 200, Manufacturer: 35, Model: 10471},
-		{ID: 3, ChatID: 300, Manufacturer: 27, Model: 10332},
+		{ID: 1, ChatID: 100, Source: "yad2", Manufacturer: 27, Model: 10332},
+		{ID: 2, ChatID: 200, Source: "yad2", Manufacturer: 35, Model: 10471},
+		{ID: 3, ChatID: 300, Source: "yad2", Manufacturer: 27, Model: 10332},
 	}
 
 	groups := GroupSearches(searches)
@@ -126,20 +126,38 @@ func TestGroupSearches_MultiSource(t *testing.T) {
 	}
 }
 
-func TestGroupSearches_EmptySourceDefaultsToYad2(t *testing.T) {
+func TestGroupSearches_EmptySourceDefaultsToBoth(t *testing.T) {
+	searches := []storage.Search{
+		{ID: 1, ChatID: 100, Source: "", Manufacturer: 27, Model: 10332},
+	}
+
+	groups := GroupSearches(searches)
+	if len(groups) != 2 {
+		t.Fatalf("expected 2 groups (empty source defaults to both), got %d", len(groups))
+	}
+}
+
+func TestGroupSearches_EmptySourceMergesWithExplicit(t *testing.T) {
 	searches := []storage.Search{
 		{ID: 1, ChatID: 100, Source: "", Manufacturer: 27, Model: 10332},
 		{ID: 2, ChatID: 200, Source: "yad2", Manufacturer: 27, Model: 10332},
 	}
 
 	groups := GroupSearches(searches)
-	if len(groups) != 1 {
-		t.Fatalf("expected 1 group (empty source defaults to yad2), got %d", len(groups))
+	if len(groups) != 2 {
+		t.Fatalf("expected 2 groups, got %d", len(groups))
 	}
-	if groups[0].Source != "yad2" {
-		t.Errorf("Source = %q, want %q", groups[0].Source, "yad2")
+
+	var yad2Group *CanonicalGroup
+	for i := range groups {
+		if groups[i].Source == "yad2" {
+			yad2Group = &groups[i]
+		}
 	}
-	if len(groups[0].Searches) != 2 {
-		t.Errorf("expected 2 searches in group, got %d", len(groups[0].Searches))
+	if yad2Group == nil {
+		t.Fatal("expected yad2 group")
+	}
+	if len(yad2Group.Searches) != 2 {
+		t.Errorf("yad2 group should have 2 searches (empty + explicit), got %d", len(yad2Group.Searches))
 	}
 }

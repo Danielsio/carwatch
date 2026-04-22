@@ -509,7 +509,7 @@ func TestSourceDisplayName_Multi(t *testing.T) {
 		{"yad2", "Yad2"},
 		{"winwin", "WinWin"},
 		{"yad2,winwin", "Yad2, WinWin"},
-		{"", "Yad2"},
+		{"", "Yad2, WinWin"},
 	}
 	for _, tt := range tests {
 		got := sourceDisplayName(tt.source)

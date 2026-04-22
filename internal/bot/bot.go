@@ -600,6 +600,9 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	}
 
 	switch {
+	case strings.HasPrefix(data, cbPrefixSource):
+		b.onSourceToggle(ctx, chatID, cbSourceToggle+strings.TrimPrefix(data, cbPrefixSource))
+		b.onSourceDone(ctx, chatID)
 	case strings.HasPrefix(data, cbSourceToggle):
 		b.onSourceToggle(ctx, chatID, data)
 	case data == cbSourceDone:

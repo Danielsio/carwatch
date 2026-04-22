@@ -244,6 +244,9 @@ func engineKeyboard() *tgmodels.InlineKeyboardMarkup {
 }
 
 func sourceDisplayName(source string) string {
+	if strings.TrimSpace(source) == "" {
+		return "Yad2, WinWin"
+	}
 	parts := strings.Split(source, ",")
 	names := make([]string, 0, len(parts))
 	for _, p := range parts {
@@ -255,7 +258,7 @@ func sourceDisplayName(source string) string {
 		}
 	}
 	if len(names) == 0 {
-		return "Yad2"
+		return "Yad2, WinWin"
 	}
 	return strings.Join(names, ", ")
 }
