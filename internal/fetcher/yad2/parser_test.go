@@ -191,6 +191,9 @@ func TestParseNextData_FeedWithNullItems(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error for null feed_items: %v", err)
 	}
+	if listings == nil {
+		t.Fatal("expected empty slice, got nil")
+	}
 	if len(listings) != 0 {
 		t.Errorf("expected 0 listings, got %d", len(listings))
 	}
