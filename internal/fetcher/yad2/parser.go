@@ -83,7 +83,7 @@ func extractItems(nd nextDataEnvelope) ([]json.RawMessage, error) {
 		if err := json.Unmarshal(q.State.Data, &feed); err != nil {
 			continue
 		}
-		if len(feed.Data.Feed.FeedItems) > 0 {
+		if feed.Data.Feed.FeedItems != nil {
 			return feed.Data.Feed.FeedItems, nil
 		}
 	}
