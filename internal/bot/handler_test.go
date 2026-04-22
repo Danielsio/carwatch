@@ -49,7 +49,8 @@ func TestWizardPrompts_NoMarkdownParseMode(t *testing.T) {
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.msg.reset()
 
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.msg.reset()
 
 	// Select a manufacturer that has models (Mazda, ID 27).
@@ -78,7 +79,8 @@ func TestWizardYearMaxPrompt_NoMarkdownParseMode(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
 	tb.msg.reset()
@@ -99,7 +101,8 @@ func TestWizardPricePrompt_NoMarkdownParseMode(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
 	tb.simulateText(ctx, chatID, "2018")
@@ -269,7 +272,8 @@ func TestCallback_InvalidManufacturerID(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.msg.reset()
 
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"notanumber")
@@ -290,7 +294,8 @@ func TestCallback_InvalidModelID(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 	tb.msg.reset()
 
@@ -309,7 +314,8 @@ func TestCallback_InvalidEngineCC(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
 	tb.simulateText(ctx, chatID, "2018")
@@ -332,7 +338,8 @@ func TestManufacturerWithNoModels(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.msg.reset()
 
 	// Select a real manufacturer that exists in the catalog but has no predefined models.
@@ -355,7 +362,8 @@ func TestYearMin_InvalidInput(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
 	tb.msg.reset()
@@ -381,7 +389,8 @@ func TestYearMax_LessThanMin(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
 	tb.simulateText(ctx, chatID, "2020")
@@ -406,7 +415,8 @@ func TestPrice_OutOfRange(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
 	tb.simulateText(ctx, chatID, "2018")
@@ -452,7 +462,8 @@ func TestCancel_ResetsState(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 
 	// User is mid-wizard at StateAskModel
@@ -475,7 +486,8 @@ func TestCancelCallback_ResetsState(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
 	tb.simulateText(ctx, chatID, "2018")
@@ -504,7 +516,8 @@ func TestEdit_RestartsWizard(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
 	tb.simulateText(ctx, chatID, "2018")
@@ -564,7 +577,8 @@ func TestCatalog_ManufacturersWithoutModels_HaveAnyModelFallback(t *testing.T) {
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbPrefixSource+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
 
 	// Pick a manufacturer that has no models in the static catalog (e.g., Subaru=35).
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"35")

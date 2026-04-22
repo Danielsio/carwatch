@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tgbot "github.com/go-telegram/bot"
@@ -32,6 +33,7 @@ type Bot struct {
 	botUsername  string
 	logger      *slog.Logger
 	health      *health.Status
+	chatMu      sync.Map
 }
 
 type Config struct {
@@ -642,7 +644,17 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	}
 }
 
+func (b *Bot) lockChat(chatID int64) func() {
+	v, _ := b.chatMu.LoadOrStore(chatID, &sync.Mutex{})
+	mu := v.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
 func (b *Bot) onSourceToggle(ctx context.Context, chatID int64, data string) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	source := strings.TrimPrefix(data, cbSourceToggle)
 	wd := b.loadWizardData(ctx, chatID)
 
