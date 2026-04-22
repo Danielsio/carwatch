@@ -603,8 +603,7 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 
 	switch {
 	case strings.HasPrefix(data, cbPrefixSource):
-		b.onSourceToggle(ctx, chatID, cbSourceToggle+strings.TrimPrefix(data, cbPrefixSource))
-		b.onSourceDone(ctx, chatID)
+		b.onLegacySourceSelected(ctx, chatID, strings.TrimPrefix(data, cbPrefixSource))
 	case strings.HasPrefix(data, cbSourceToggle):
 		b.onSourceToggle(ctx, chatID, data)
 	case data == cbSourceDone:
@@ -667,9 +666,21 @@ func (b *Bot) onSourceToggle(ctx context.Context, chatID int64, data string) {
 		sourceKeyboard(selected))
 }
 
+func (b *Bot) onLegacySourceSelected(ctx context.Context, chatID int64, source string) {
+	unlock := b.lockChat(chatID)
+	wd := b.loadWizardData(ctx, chatID)
+	wd.Source = source
+	b.saveWizardState(ctx, chatID, StateAskSource, wd)
+	unlock()
+
+	b.onSourceDone(ctx, chatID)
+}
+
 func (b *Bot) onSourceDone(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
 	wd := b.loadWizardData(ctx, chatID)
 	if wd.Source == "" {
+		unlock()
 		b.sendWithKeyboard(ctx, chatID,
 			"Please select at least one marketplace.",
 			sourceKeyboard(""))
@@ -677,6 +688,7 @@ func (b *Bot) onSourceDone(ctx context.Context, chatID int64) {
 	}
 	b.logger.Debug("sources selected", "chat_id", chatID, "source", wd.Source)
 	b.saveWizardState(ctx, chatID, StateAskManufacturer, wd)
+	unlock()
 
 	b.sendWithKeyboard(ctx, chatID,
 		"What manufacturer are you looking for?",
