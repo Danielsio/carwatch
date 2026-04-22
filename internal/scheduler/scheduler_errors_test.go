@@ -215,7 +215,7 @@ func TestProcessGroup_ClaimNewError(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -247,7 +247,7 @@ func TestProcessGroup_RecordPriceError(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -283,7 +283,7 @@ func TestProcessGroup_DigestModeError(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -321,7 +321,7 @@ func TestProcessGroup_DigestAddItemError_ReleasesClaims(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -359,7 +359,7 @@ func TestProcessGroup_PriceDropInDigestMode(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, Active: true},
 		},
 	}
@@ -399,7 +399,7 @@ func TestProcessGroup_NotifyFails_EnqueuesAndKeepsClaim(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -431,7 +431,7 @@ func TestProcessGroup_NotifyFails_EnqueueFails_ReleasesClaim(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -473,7 +473,7 @@ func TestRunMultiTenantCycle_PruneError(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332, Active: true},
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332, Active: true},
 		},
 	}
 	cfg := testConfig()
@@ -625,7 +625,7 @@ func TestRunMultiTenantCycle_CatalogIngester(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -659,7 +659,7 @@ func TestRunMultiTenantCycle_HealthRecording(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -720,7 +720,7 @@ func TestProcessGroup_FiltersCorrectly(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -749,7 +749,7 @@ func TestProcessGroup_PriceMaxZero_NoFilter(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 0, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -775,7 +775,7 @@ func TestProcessGroup_YearMaxZero_NoUpperBound(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 0, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}

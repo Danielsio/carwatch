@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	tgmodels "github.com/go-telegram/bot/models"
 
@@ -31,20 +32,36 @@ const (
 	cbMdlSearch       = "mdl_search"
 	cbAnyModel        = "mdl:0"
 	cbHistoryPage     = "hist_pg:"
+	cbSourceToggle    = "src_toggle:"
+	cbSourceDone      = "src_done"
 
 	pageSize = 15
 	colsPerRow = 3
 )
 
-func sourceKeyboard() *tgmodels.InlineKeyboardMarkup {
-	return &tgmodels.InlineKeyboardMarkup{
-		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
-			{
-				{Text: "Yad2", CallbackData: cbPrefixSource + "yad2"},
-				{Text: "WinWin", CallbackData: cbPrefixSource + "winwin"},
-			},
+func sourceKeyboard(selected string) *tgmodels.InlineKeyboardMarkup {
+	yad2Label := "Yad2"
+	winwinLabel := "WinWin"
+	if strings.Contains(selected, "yad2") {
+		yad2Label = "✅ Yad2"
+	}
+	if strings.Contains(selected, "winwin") {
+		winwinLabel = "✅ WinWin"
+	}
+
+	rows := [][]tgmodels.InlineKeyboardButton{
+		{
+			{Text: yad2Label, CallbackData: cbSourceToggle + "yad2"},
+			{Text: winwinLabel, CallbackData: cbSourceToggle + "winwin"},
 		},
 	}
+	if selected != "" {
+		rows = append(rows, []tgmodels.InlineKeyboardButton{
+			{Text: "Done ✓", CallbackData: cbSourceDone},
+		})
+	}
+
+	return &tgmodels.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
 func (b *Bot) manufacturerKeyboard(ctx context.Context, chatID int64, page int) *tgmodels.InlineKeyboardMarkup {
@@ -227,12 +244,23 @@ func engineKeyboard() *tgmodels.InlineKeyboardMarkup {
 }
 
 func sourceDisplayName(source string) string {
-	switch source {
-	case "winwin":
-		return "WinWin"
-	default:
-		return "Yad2"
+	if strings.TrimSpace(source) == "" {
+		return "Yad2, WinWin"
 	}
+	parts := strings.Split(source, ",")
+	names := make([]string, 0, len(parts))
+	for _, p := range parts {
+		switch strings.TrimSpace(p) {
+		case "winwin":
+			names = append(names, "WinWin")
+		case "yad2":
+			names = append(names, "Yad2")
+		}
+	}
+	if len(names) == 0 {
+		return "Yad2, WinWin"
+	}
+	return strings.Join(names, ", ")
 }
 
 func confirmKeyboard(data WizardData) (*tgmodels.InlineKeyboardMarkup, string) {
@@ -243,7 +271,7 @@ func confirmKeyboard(data WizardData) (*tgmodels.InlineKeyboardMarkup, string) {
 
 	source := data.Source
 	if source == "" {
-		source = "yad2"
+		source = "yad2,winwin"
 	}
 
 	modelDisplay := data.ModelName

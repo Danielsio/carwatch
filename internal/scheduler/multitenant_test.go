@@ -85,7 +85,7 @@ func TestRunMultiTenantCycle_WithSearches(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "user1-mazda3", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "user1-mazda3", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -120,9 +120,9 @@ func TestRunMultiTenantCycle_SharedScraping(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "user1", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "user1", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 200000, Active: true},
-			{ID: 2, ChatID: 200, Name: "user2", Manufacturer: 27, Model: 10332,
+			{ID: 2, ChatID: 200, Name: "user2", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2020, YearMax: 2026, PriceMax: 150000, Active: true},
 		},
 	}
@@ -165,7 +165,7 @@ func TestProcessGroup_PriceDropNotification(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "user1-mazda3", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "user1-mazda3", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, Active: true},
 		},
 	}
@@ -287,7 +287,7 @@ func TestProcessGroup_DigestMode_StoresInsteadOfSending(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "user1-mazda3", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "user1-mazda3", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -339,7 +339,7 @@ func TestProcessGroup_InstantMode_SendsDirectly(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "user1-mazda3", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "user1-mazda3", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}

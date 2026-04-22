@@ -76,7 +76,7 @@ func TestRunMultiTenantCycle_AllGroupsFail(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332, Active: true},
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332, Active: true},
 		},
 	}
 
@@ -100,7 +100,7 @@ func TestRunMultiTenantCycle_PrunesOldListings(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332, Active: true},
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332, Active: true},
 		},
 	}
 	h := health.New()
@@ -132,7 +132,7 @@ func TestProcessGroup_NotifyFails_ReleaseClaims(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}
@@ -165,7 +165,7 @@ func TestProcessGroup_SavesListings(t *testing.T) {
 	ls := &mockListingStore{}
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Manufacturer: 27, Model: 10332,
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
 		},
 	}

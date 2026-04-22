@@ -239,8 +239,8 @@ func TestSourceDisplayName(t *testing.T) {
 	}{
 		{"yad2", "Yad2"},
 		{"winwin", "WinWin"},
-		{"", "Yad2"},
-		{"unknown", "Yad2"},
+		{"", "Yad2, WinWin"},
+		{"unknown", "Yad2, WinWin"},
 	}
 	for _, tt := range tests {
 		got := sourceDisplayName(tt.source)
