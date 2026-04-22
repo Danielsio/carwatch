@@ -79,13 +79,22 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 func extractItems(nd nextDataEnvelope) ([]json.RawMessage, error) {
 	queries := nd.Props.PageProps.DehydratedState.Queries
 	for _, q := range queries {
+		var probe struct {
+			Data struct {
+				Feed json.RawMessage `json:"feed"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(q.State.Data, &probe); err != nil {
+			continue
+		}
+		if probe.Data.Feed == nil {
+			continue
+		}
 		var feed feedData
 		if err := json.Unmarshal(q.State.Data, &feed); err != nil {
 			continue
 		}
-		if feed.Data.Feed.FeedItems != nil {
-			return feed.Data.Feed.FeedItems, nil
-		}
+		return feed.Data.Feed.FeedItems, nil
 	}
 	return nil, fmt.Errorf("no feed items found in __NEXT_DATA__")
 }
