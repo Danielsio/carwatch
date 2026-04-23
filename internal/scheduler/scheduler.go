@@ -54,6 +54,7 @@ type Scheduler struct {
 	searchStore       storage.SearchStore
 	digestStore       storage.DigestStore
 	catalogIngester   CatalogIngester
+	triggerCh         chan struct{}
 }
 
 type Options struct {
@@ -112,7 +113,15 @@ func NewWithOptions(
 		searchStore:       opts.SearchStore,
 		digestStore:       opts.DigestStore,
 		catalogIngester:   opts.CatalogIngester,
+		triggerCh:         make(chan struct{}, 1),
 	}, nil
+}
+
+func (s *Scheduler) TriggerPoll() {
+	select {
+	case s.triggerCh <- struct{}{}:
+	default:
+	}
 }
 
 func (s *Scheduler) Run(ctx context.Context) error {
@@ -163,6 +172,8 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		case <-sighup:
 			s.reloadConfig()
 			continue
+		case <-s.triggerCh:
+			s.logger.Info("poll triggered")
 		case <-time.After(delay):
 		}
 
