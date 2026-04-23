@@ -39,6 +39,42 @@ type Bot struct {
 	health      *health.Status
 	chatMu      sync.Map
 	pollTrigger PollTrigger
+	rateLimiter sync.Map
+}
+
+type userRateLimit struct {
+	mu       sync.Mutex
+	tokens   int
+	lastTick time.Time
+}
+
+const (
+	rateLimitBurst    = 10
+	rateLimitInterval = time.Second
+)
+
+func (b *Bot) isRateLimited(chatID int64) bool {
+	v, _ := b.rateLimiter.LoadOrStore(chatID, &userRateLimit{
+		tokens:   rateLimitBurst,
+		lastTick: time.Now(),
+	})
+	rl := v.(*userRateLimit)
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(rl.lastTick)
+	refill := int(elapsed / rateLimitInterval)
+	if refill > 0 {
+		rl.tokens = min(rl.tokens+refill, rateLimitBurst)
+		rl.lastTick = now
+	}
+
+	if rl.tokens <= 0 {
+		return true
+	}
+	rl.tokens--
+	return false
 }
 
 type Config struct {
@@ -94,21 +130,37 @@ func (b *Bot) DefaultHandler() tgbot.HandlerFunc {
 	return b.handleDefault
 }
 
+func (b *Bot) rateLimited(next tgbot.HandlerFunc) tgbot.HandlerFunc {
+	return func(ctx context.Context, bot *tgbot.Bot, update *tgmodels.Update) {
+		var chatID int64
+		if update.Message != nil {
+			chatID = update.Message.Chat.ID
+		} else if update.CallbackQuery != nil && update.CallbackQuery.Message.Message != nil {
+			chatID = update.CallbackQuery.Message.Message.Chat.ID
+		}
+		if chatID != 0 && b.isRateLimited(chatID) {
+			b.logger.Warn("rate limited", "chat_id", chatID)
+			return
+		}
+		next(ctx, bot, update)
+	}
+}
+
 func (b *Bot) RegisterHandlers() {
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/start", tgbot.MatchTypePrefix, b.handleStart)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/watch", tgbot.MatchTypeExact, b.handleWatch)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/list", tgbot.MatchTypeExact, b.handleList)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/stop", tgbot.MatchTypePrefix, b.handleStop)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/pause", tgbot.MatchTypePrefix, b.handlePause)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/resume", tgbot.MatchTypePrefix, b.handleResume)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/share", tgbot.MatchTypePrefix, b.handleShare)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/cancel", tgbot.MatchTypeExact, b.handleCancel)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/help", tgbot.MatchTypeExact, b.handleHelp)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/history", tgbot.MatchTypeExact, b.handleHistory)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/digest", tgbot.MatchTypeExact, b.handleDigest)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/settings", tgbot.MatchTypeExact, b.handleSettings)
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/stats", tgbot.MatchTypeExact, b.handleStats)
-	b.bot.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "", tgbot.MatchTypePrefix, b.handleCallback)
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/start", tgbot.MatchTypePrefix, b.rateLimited(b.handleStart))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/watch", tgbot.MatchTypeExact, b.rateLimited(b.handleWatch))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/list", tgbot.MatchTypeExact, b.rateLimited(b.handleList))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/stop", tgbot.MatchTypePrefix, b.rateLimited(b.handleStop))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/pause", tgbot.MatchTypePrefix, b.rateLimited(b.handlePause))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/resume", tgbot.MatchTypePrefix, b.rateLimited(b.handleResume))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/share", tgbot.MatchTypePrefix, b.rateLimited(b.handleShare))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/cancel", tgbot.MatchTypeExact, b.rateLimited(b.handleCancel))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/help", tgbot.MatchTypeExact, b.rateLimited(b.handleHelp))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/history", tgbot.MatchTypeExact, b.rateLimited(b.handleHistory))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/digest", tgbot.MatchTypeExact, b.rateLimited(b.handleDigest))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/settings", tgbot.MatchTypeExact, b.rateLimited(b.handleSettings))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/stats", tgbot.MatchTypeExact, b.rateLimited(b.handleStats))
+	b.bot.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "", tgbot.MatchTypePrefix, b.rateLimited(b.handleCallback))
 }
 
 func (b *Bot) ensureUser(ctx context.Context, chatID int64, username string) {
@@ -984,6 +1036,10 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	}
 
 	chatID := update.Message.Chat.ID
+	if b.isRateLimited(chatID) {
+		b.logger.Warn("rate limited", "chat_id", chatID)
+		return
+	}
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 
 	user, err := b.users.GetUser(ctx, chatID)

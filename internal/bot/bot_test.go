@@ -11,6 +11,28 @@ import (
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
 
+func TestIsRateLimited(t *testing.T) {
+	tb := newTestBot(t)
+	const chatID int64 = 900
+
+	// First rateLimitBurst calls should succeed.
+	for i := range rateLimitBurst {
+		if tb.bot.isRateLimited(chatID) {
+			t.Fatalf("call %d should not be limited", i)
+		}
+	}
+
+	// Next call should be limited.
+	if !tb.bot.isRateLimited(chatID) {
+		t.Error("should be rate limited after burst is exhausted")
+	}
+
+	// Different user should have their own bucket.
+	if tb.bot.isRateLimited(chatID + 1) {
+		t.Error("different user should not be rate limited")
+	}
+}
+
 func TestWizardData_JSON(t *testing.T) {
 	wd := WizardData{
 		Manufacturer:     27,
