@@ -97,7 +97,7 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("create gzip reader: %w", err)
 		}
-		defer gr.Close()
+		defer func() { _ = gr.Close() }()
 		reader = gr
 	}
 	return io.ReadAll(reader)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,11 +21,13 @@ type SearchCounter interface {
 }
 
 type SourceMetrics struct {
-	FetchCount  atomic.Int64
-	SuccessCount atomic.Int64
-	ErrorCount  atomic.Int64
-	TotalMs     atomic.Int64
-	LastSuccess atomic.Int64
+	FetchCount     atomic.Int64
+	SuccessCount   atomic.Int64
+	ErrorCount     atomic.Int64
+	ChallengeCount atomic.Int64
+	TotalMs        atomic.Int64
+	LastSuccess    atomic.Int64
+	LastError      atomic.Int64
 }
 
 type Status struct {
@@ -89,6 +92,10 @@ func (s *Status) RecordFetch(source string, duration time.Duration, err error) {
 		m.LastSuccess.Store(time.Now().UnixNano())
 	} else {
 		m.ErrorCount.Add(1)
+		m.LastError.Store(time.Now().UnixNano())
+		if strings.Contains(err.Error(), "challenge") {
+			m.ChallengeCount.Add(1)
+		}
 	}
 }
 
@@ -169,11 +176,15 @@ func (s *Status) Snapshot() map[string]any {
 				"fetches":        fetches,
 				"successes":      successes,
 				"errors":         m.ErrorCount.Load(),
+				"challenges":     m.ChallengeCount.Load(),
 				"avg_latency_ms": avgMs,
 				"success_rate":   successRate,
 			}
 			if ns := m.LastSuccess.Load(); ns > 0 {
 				entry["last_success"] = time.Unix(0, ns)
+			}
+			if ns := m.LastError.Load(); ns > 0 {
+				entry["last_error"] = time.Unix(0, ns)
 			}
 			srcMap[name] = entry
 		}

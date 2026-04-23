@@ -10,7 +10,7 @@ import (
 
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
-	store, err := New(":memory:")
+	store, err := New("file::memory:?cache=shared")
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}

@@ -176,6 +176,7 @@ func TestStatus_RecordFetch(t *testing.T) {
 	s.RecordFetch("yad2", 100*time.Millisecond, nil)
 	s.RecordFetch("yad2", 200*time.Millisecond, nil)
 	s.RecordFetch("yad2", 300*time.Millisecond, errors.New("timeout"))
+	s.RecordFetch("yad2", 150*time.Millisecond, errors.New("anti-bot challenge detected"))
 	s.RecordFetch("winwin", 50*time.Millisecond, nil)
 
 	snap := s.Snapshot()
@@ -188,17 +189,20 @@ func TestStatus_RecordFetch(t *testing.T) {
 	if !ok {
 		t.Fatal("expected yad2 source metrics")
 	}
-	if yad2["fetches"].(int64) != 3 {
-		t.Errorf("yad2 fetches = %v, want 3", yad2["fetches"])
+	if yad2["fetches"].(int64) != 4 {
+		t.Errorf("yad2 fetches = %v, want 4", yad2["fetches"])
 	}
 	if yad2["successes"].(int64) != 2 {
 		t.Errorf("yad2 successes = %v, want 2", yad2["successes"])
 	}
-	if yad2["errors"].(int64) != 1 {
-		t.Errorf("yad2 errors = %v, want 1", yad2["errors"])
+	if yad2["errors"].(int64) != 2 {
+		t.Errorf("yad2 errors = %v, want 2", yad2["errors"])
 	}
-	if yad2["avg_latency_ms"].(int64) != 200 {
-		t.Errorf("yad2 avg_latency_ms = %v, want 200", yad2["avg_latency_ms"])
+	if yad2["challenges"].(int64) != 1 {
+		t.Errorf("yad2 challenges = %v, want 1", yad2["challenges"])
+	}
+	if _, hasLastErr := yad2["last_error"]; !hasLastErr {
+		t.Error("expected last_error in yad2 metrics")
 	}
 
 	winwin, ok := sources["winwin"].(map[string]any)

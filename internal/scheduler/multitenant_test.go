@@ -32,18 +32,18 @@ func (m *mockSearchStore) ListSearches(_ context.Context, chatID int64) ([]stora
 }
 
 func (m *mockSearchStore) GetSearch(_ context.Context, id int64) (*storage.Search, error) {
-	for _, s := range m.searches {
-		if s.ID == id {
-			return &s, nil
+	for i := range m.searches {
+		if m.searches[i].ID == id {
+			return &m.searches[i], nil
 		}
 	}
 	return nil, nil
 }
 
 func (m *mockSearchStore) GetSearchBySeq(_ context.Context, chatID int64, seq int) (*storage.Search, error) {
-	for _, s := range m.searches {
-		if s.ChatID == chatID && s.UserSeq == seq {
-			return &s, nil
+	for i := range m.searches {
+		if m.searches[i].ChatID == chatID && m.searches[i].UserSeq == seq {
+			return &m.searches[i], nil
 		}
 	}
 	return nil, nil

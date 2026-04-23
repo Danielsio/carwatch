@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -18,13 +19,17 @@ type Store struct {
 }
 
 func New(dbPath string) (*Store, error) {
-	if dbPath != ":memory:" {
+	if dbPath != ":memory:" && !strings.HasPrefix(dbPath, "file::memory:") {
 		if err := os.MkdirAll(filepath.Dir(dbPath), 0750); err != nil {
 			return nil, fmt.Errorf("create data directory: %w", err)
 		}
 	}
 
-	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=ON")
+	sep := "?"
+	if strings.Contains(dbPath, "?") {
+		sep = "&"
+	}
+	db, err := sql.Open("sqlite3", dbPath+sep+"_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=ON")
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
@@ -33,7 +38,7 @@ func New(dbPath string) (*Store, error) {
 	db.SetMaxIdleConns(4)
 
 	if err := migrate(db); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 
@@ -267,7 +272,7 @@ func (s *Store) ListActiveUsers(ctx context.Context) ([]storage.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanUsers(rows)
 }
 
@@ -346,7 +351,7 @@ func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Searc
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanSearches(rows)
 }
 
@@ -420,7 +425,7 @@ func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, er
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanSearches(rows)
 }
 
@@ -497,7 +502,7 @@ func (s *Store) PendingNotifications(ctx context.Context) ([]storage.PendingNoti
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var pending []storage.PendingNotification
 	for rows.Next() {
@@ -586,7 +591,7 @@ func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offse
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var listings []storage.ListingRecord
 	for rows.Next() {
@@ -617,7 +622,7 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var listings []storage.ListingRecord
 	for rows.Next() {
@@ -670,7 +675,7 @@ func (s *Store) FlushDigest(ctx context.Context, chatID int64) ([]string, error)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var payloads []string
 	for rows.Next() {
@@ -706,7 +711,7 @@ func (s *Store) PendingDigestUsers(ctx context.Context) ([]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var chatIDs []int64
 	for rows.Next() {
@@ -758,7 +763,7 @@ func (s *Store) SaveCatalogEntries(ctx context.Context, entries []storage.Catalo
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	for _, e := range entries {
 		if _, err := stmt.ExecContext(ctx, e.ManufacturerID, e.ManufacturerName, e.ModelID, e.ModelName); err != nil {
@@ -781,7 +786,7 @@ func (s *Store) LoadCatalogEntries(ctx context.Context) ([]storage.CatalogEntry,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []storage.CatalogEntry
 	for rows.Next() {
