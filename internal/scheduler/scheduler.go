@@ -483,6 +483,9 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 
 	for _, search := range group.Searches {
 		criteria := config.FilterCriteria{
+			YearMin:     search.YearMin,
+			YearMax:     search.YearMax,
+			PriceMax:    search.PriceMax,
 			EngineMinCC: float64(search.EngineMinCC),
 			MaxKm:       search.MaxKm,
 			MaxHand:     search.MaxHand,
@@ -493,13 +496,6 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 		var newListings []model.Listing
 		var priceDropMessages []string
 		for _, l := range filtered {
-			if l.Price > search.PriceMax && search.PriceMax > 0 {
-				continue
-			}
-			if l.Year < search.YearMin || (l.Year > search.YearMax && search.YearMax > 0) {
-				continue
-			}
-
 			isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.ChatID, search.ID)
 			if err != nil {
 				s.logger.Error("claim failed", "token", l.Token, "error", err)

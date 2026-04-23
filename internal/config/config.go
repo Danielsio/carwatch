@@ -40,6 +40,9 @@ type SourceParams struct {
 }
 
 type FilterCriteria struct {
+	YearMin     int      `yaml:"year_min"`
+	YearMax     int      `yaml:"year_max"`
+	PriceMax    int      `yaml:"price_max"`
 	EngineMinCC float64  `yaml:"engine_min_cc"`
 	EngineMaxCC float64  `yaml:"engine_max_cc"`
 	MaxKm       int      `yaml:"max_km"`
