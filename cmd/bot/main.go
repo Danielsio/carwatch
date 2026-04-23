@@ -177,6 +177,8 @@ func run(configPath string, logger *slog.Logger) error {
 		return fmt.Errorf("create scheduler: %w", err)
 	}
 
+	botHandler.SetPollTrigger(sched)
+
 	go tgNotif.Bot().Start(ctx)
 	logger.Info("bot started",
 		"health", ":8080/healthz",

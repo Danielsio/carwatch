@@ -20,6 +20,10 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
+type PollTrigger interface {
+	TriggerPoll()
+}
+
 type Bot struct {
 	bot         *tgbot.Bot
 	msg         messenger
@@ -34,6 +38,7 @@ type Bot struct {
 	logger      *slog.Logger
 	health      *health.Status
 	chatMu      sync.Map
+	pollTrigger PollTrigger
 }
 
 type Config struct {
@@ -72,6 +77,10 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		logger:      logger,
 		health:      cfg.Health,
 	}
+}
+
+func (b *Bot) SetPollTrigger(pt PollTrigger) {
+	b.pollTrigger = pt
 }
 
 func (b *Bot) SetBot(tg *tgbot.Bot) {
@@ -841,8 +850,12 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 
 	_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
 	b.send(ctx, chatID, fmt.Sprintf(
-		"Search #%d saved! I'll check %s every 15 minutes and send you new listings.\n\nUse /list to see your searches.",
+		"Search #%d saved! Checking %s now...\n\nUse /list to see your searches.",
 		id, sourceDisplayName(source)))
+
+	if b.pollTrigger != nil {
+		b.pollTrigger.TriggerPoll()
+	}
 }
 
 func (b *Bot) onEdit(ctx context.Context, chatID int64) {
