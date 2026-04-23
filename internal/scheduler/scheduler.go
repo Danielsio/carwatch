@@ -376,6 +376,8 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		return fmt.Errorf("load searches: %w", err)
 	}
 
+	s.pruneIfDue(ctx)
+
 	if len(searches) == 0 {
 		s.logger.Info("no active searches")
 		return nil
@@ -408,37 +410,6 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
 	}
 
-	if time.Since(s.lastPruneTime) > pruneInterval {
-		s.cfgMu.RLock()
-		pruneAfter := s.cfg.Storage.PruneAfter
-		s.cfgMu.RUnlock()
-		if pruneAfter > 0 {
-			pruned, err := s.dedup.Prune(ctx, pruneAfter)
-			if err != nil {
-				s.logger.Error("prune failed", "error", err)
-			} else if pruned > 0 {
-				s.logger.Info("pruned old listings", "count", pruned)
-			}
-		}
-		if s.queue != nil {
-			pruned, err := s.queue.PruneNotifications(ctx, 48*time.Hour)
-			if err != nil {
-				s.logger.Error("prune notifications failed", "error", err)
-			} else if pruned > 0 {
-				s.logger.Info("pruned expired notifications", "count", pruned)
-			}
-		}
-		if s.prices != nil {
-			pruned, err := s.prices.PrunePrices(ctx, 90*24*time.Hour)
-			if err != nil {
-				s.logger.Error("prune prices failed", "error", err)
-			} else if pruned > 0 {
-				s.logger.Info("pruned old price history", "count", pruned)
-			}
-		}
-		s.lastPruneTime = time.Now()
-	}
-
 	if s.catalogIngester != nil {
 		s.catalogIngester.Flush(ctx)
 	}
@@ -452,6 +423,40 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 
 	s.observer.RecordSuccess()
 	return nil
+}
+
+func (s *Scheduler) pruneIfDue(ctx context.Context) {
+	if time.Since(s.lastPruneTime) <= pruneInterval {
+		return
+	}
+	s.cfgMu.RLock()
+	pruneAfter := s.cfg.Storage.PruneAfter
+	s.cfgMu.RUnlock()
+	if pruneAfter > 0 {
+		pruned, err := s.dedup.Prune(ctx, pruneAfter)
+		if err != nil {
+			s.logger.Error("prune failed", "error", err)
+		} else if pruned > 0 {
+			s.logger.Info("pruned old listings", "count", pruned)
+		}
+	}
+	if s.queue != nil {
+		pruned, err := s.queue.PruneNotifications(ctx, 48*time.Hour)
+		if err != nil {
+			s.logger.Error("prune notifications failed", "error", err)
+		} else if pruned > 0 {
+			s.logger.Info("pruned expired notifications", "count", pruned)
+		}
+	}
+	if s.prices != nil {
+		pruned, err := s.prices.PrunePrices(ctx, 90*24*time.Hour)
+		if err != nil {
+			s.logger.Error("prune prices failed", "error", err)
+		} else if pruned > 0 {
+			s.logger.Info("pruned old price history", "count", pruned)
+		}
+	}
+	s.lastPruneTime = time.Now()
 }
 
 func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) error {

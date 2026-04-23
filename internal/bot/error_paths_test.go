@@ -116,12 +116,14 @@ func (m *errSearchStore) CountSearches(_ context.Context, _ int64) (int64, error
 
 func (m *errSearchStore) CountAllSearches(_ context.Context) (int64, error) { return 0, nil }
 
-func (m *errSearchStore) GetSearchBySeq(_ context.Context, _ int64, _ int) (*storage.Search, error) {
+func (m *errSearchStore) GetSearchBySeq(_ context.Context, chatID int64, seq int) (*storage.Search, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
-	if len(m.searches) > 0 {
-		return &m.searches[0], nil
+	for i := range m.searches {
+		if m.searches[i].ChatID == chatID && m.searches[i].UserSeq == seq {
+			return &m.searches[i], nil
+		}
 	}
 	return nil, nil
 }

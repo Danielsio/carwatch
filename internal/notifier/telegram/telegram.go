@@ -109,8 +109,9 @@ func (n *Notifier) sendMessage(ctx context.Context, chatID string, text string) 
 	chunks := splitMessage(text, maxMessageLen)
 	for _, chunk := range chunks {
 		_, err = n.bot.SendMessage(ctx, &tgbot.SendMessageParams{
-			ChatID: id,
-			Text:   chunk,
+			ChatID:    id,
+			Text:      chunk,
+			ParseMode: tgmodels.ParseModeMarkdown,
 		})
 		if err != nil {
 			errMsg := strings.ToLower(err.Error())

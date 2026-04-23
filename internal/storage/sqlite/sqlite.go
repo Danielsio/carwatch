@@ -30,7 +30,7 @@ func New(dbPath string) (*Store, error) {
 	}
 
 	db.SetMaxOpenConns(8)
-	db.SetMaxIdleConns(8)
+	db.SetMaxIdleConns(4)
 
 	if err := migrate(db); err != nil {
 		db.Close()
@@ -218,6 +218,11 @@ func migrate(db *sql.DB) error {
 		`); err != nil {
 			return fmt.Errorf("backfill user_seq: %w", err)
 		}
+		if _, err := db.Exec(
+			"CREATE UNIQUE INDEX IF NOT EXISTS idx_searches_chat_user_seq ON searches(chat_id, user_seq)",
+		); err != nil {
+			return fmt.Errorf("create user_seq index: %w", err)
+		}
 	}
 
 	return nil
@@ -299,15 +304,21 @@ func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64,
 		source = "yad2"
 	}
 
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	var nextSeq int
-	err := s.db.QueryRowContext(ctx,
+	err = tx.QueryRowContext(ctx,
 		"SELECT COALESCE(MAX(user_seq), 0) + 1 FROM searches WHERE chat_id = ?",
 		search.ChatID).Scan(&nextSeq)
 	if err != nil {
 		return 0, fmt.Errorf("next user_seq: %w", err)
 	}
 
-	result, err := s.db.ExecContext(ctx, `
+	result, err := tx.ExecContext(ctx, `
 		INSERT INTO searches (chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, user_seq)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		search.ChatID, search.Name, source, search.Manufacturer, search.Model,
@@ -316,7 +327,16 @@ func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64,
 	if err != nil {
 		return 0, err
 	}
-	return result.LastInsertId()
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+	return id, nil
 }
 
 func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Search, error) {
