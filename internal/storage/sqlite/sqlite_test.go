@@ -415,6 +415,37 @@ func TestPruneNotifications_KeepsRecent(t *testing.T) {
 
 // --- PriceTracker ---
 
+func TestPrunePrices(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_, _, _ = store.RecordPrice(ctx, "token1", 100000)
+	_, _, _ = store.RecordPrice(ctx, "token1", 90000)
+
+	pruned, err := store.PrunePrices(ctx, 0)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if pruned != 2 {
+		t.Errorf("expected 2 pruned, got %d", pruned)
+	}
+}
+
+func TestPrunePrices_KeepsRecent(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_, _, _ = store.RecordPrice(ctx, "token1", 100000)
+
+	pruned, err := store.PrunePrices(ctx, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if pruned != 0 {
+		t.Errorf("expected 0 pruned (recent), got %d", pruned)
+	}
+}
+
 func TestRecordPrice(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

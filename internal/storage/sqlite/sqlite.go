@@ -481,6 +481,15 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 	return prev, false, nil
 }
 
+func (s *Store) PrunePrices(ctx context.Context, olderThan time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-olderThan)
+	result, err := s.db.ExecContext(ctx, "DELETE FROM price_history WHERE observed_at < ?", cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 // --- ListingStore ---
 
 func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {

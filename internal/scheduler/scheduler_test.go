@@ -135,6 +135,10 @@ func (m *mockPriceTracker) RecordPrice(_ context.Context, token string, price in
 	return 0, false, nil
 }
 
+func (m *mockPriceTracker) PrunePrices(_ context.Context, _ time.Duration) (int64, error) {
+	return 0, nil
+}
+
 func testConfig() *config.Config {
 	return &config.Config{
 		Polling: config.PollingConfig{

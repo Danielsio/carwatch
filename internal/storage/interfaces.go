@@ -77,6 +77,7 @@ type NotificationQueue interface {
 
 type PriceTracker interface {
 	RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error)
+	PrunePrices(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 
 type DigestStore interface {
