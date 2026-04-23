@@ -662,18 +662,29 @@ func (s *Store) DigestLastFlushed(ctx context.Context, chatID int64) (time.Time,
 // --- CatalogStore ---
 
 func (s *Store) SaveCatalogEntries(ctx context.Context, entries []storage.CatalogEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, "DELETE FROM catalog_cache"); err != nil {
+	// Mark all existing entries as stale.
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE catalog_cache SET updated_at = datetime('now', '-1 year')"); err != nil {
 		return err
 	}
 
-	stmt, err := tx.PrepareContext(ctx,
-		"INSERT INTO catalog_cache (manufacturer_id, manufacturer_name, model_id, model_name) VALUES (?, ?, ?, ?)")
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO catalog_cache (manufacturer_id, manufacturer_name, model_id, model_name, updated_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(manufacturer_id, model_id) DO UPDATE SET
+			manufacturer_name = excluded.manufacturer_name,
+			model_name = excluded.model_name,
+			updated_at = CURRENT_TIMESTAMP`)
 	if err != nil {
 		return err
 	}
@@ -684,6 +695,13 @@ func (s *Store) SaveCatalogEntries(ctx context.Context, entries []storage.Catalo
 			return err
 		}
 	}
+
+	// Remove entries not refreshed in this batch.
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM catalog_cache WHERE updated_at < datetime('now', '-1 hour')"); err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }
 
