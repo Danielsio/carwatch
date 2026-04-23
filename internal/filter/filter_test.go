@@ -87,6 +87,33 @@ func TestApply(t *testing.T) {
 			want: []string{"a"},
 		},
 		{
+			name:     "year min filter",
+			criteria: config.FilterCriteria{YearMin: 2018},
+			listings: []model.RawListing{
+				{Token: "a", Year: 2017},
+				{Token: "b", Year: 2020},
+			},
+			want: []string{"b"},
+		},
+		{
+			name:     "year max filter",
+			criteria: config.FilterCriteria{YearMax: 2022},
+			listings: []model.RawListing{
+				{Token: "a", Year: 2020},
+				{Token: "b", Year: 2025},
+			},
+			want: []string{"a"},
+		},
+		{
+			name:     "price max filter",
+			criteria: config.FilterCriteria{PriceMax: 150000},
+			listings: []model.RawListing{
+				{Token: "a", Price: 120000},
+				{Token: "b", Price: 200000},
+			},
+			want: []string{"a"},
+		},
+		{
 			name:     "zero values disable all filters",
 			criteria: config.FilterCriteria{},
 			listings: []model.RawListing{

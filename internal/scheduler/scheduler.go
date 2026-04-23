@@ -376,6 +376,8 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		return fmt.Errorf("load searches: %w", err)
 	}
 
+	s.pruneIfDue(ctx)
+
 	if len(searches) == 0 {
 		s.logger.Info("no active searches")
 		return nil
@@ -408,29 +410,6 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
 	}
 
-	if time.Since(s.lastPruneTime) > pruneInterval {
-		s.cfgMu.RLock()
-		pruneAfter := s.cfg.Storage.PruneAfter
-		s.cfgMu.RUnlock()
-		if pruneAfter > 0 {
-			pruned, err := s.dedup.Prune(ctx, pruneAfter)
-			if err != nil {
-				s.logger.Error("prune failed", "error", err)
-			} else if pruned > 0 {
-				s.logger.Info("pruned old listings", "count", pruned)
-			}
-		}
-		if s.queue != nil {
-			pruned, err := s.queue.PruneNotifications(ctx, 48*time.Hour)
-			if err != nil {
-				s.logger.Error("prune notifications failed", "error", err)
-			} else if pruned > 0 {
-				s.logger.Info("pruned expired notifications", "count", pruned)
-			}
-		}
-		s.lastPruneTime = time.Now()
-	}
-
 	if s.catalogIngester != nil {
 		s.catalogIngester.Flush(ctx)
 	}
@@ -446,6 +425,40 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	return nil
 }
 
+func (s *Scheduler) pruneIfDue(ctx context.Context) {
+	if time.Since(s.lastPruneTime) <= pruneInterval {
+		return
+	}
+	s.cfgMu.RLock()
+	pruneAfter := s.cfg.Storage.PruneAfter
+	s.cfgMu.RUnlock()
+	if pruneAfter > 0 {
+		pruned, err := s.dedup.Prune(ctx, pruneAfter)
+		if err != nil {
+			s.logger.Error("prune failed", "error", err)
+		} else if pruned > 0 {
+			s.logger.Info("pruned old listings", "count", pruned)
+		}
+	}
+	if s.queue != nil {
+		pruned, err := s.queue.PruneNotifications(ctx, 48*time.Hour)
+		if err != nil {
+			s.logger.Error("prune notifications failed", "error", err)
+		} else if pruned > 0 {
+			s.logger.Info("pruned expired notifications", "count", pruned)
+		}
+	}
+	if s.prices != nil {
+		pruned, err := s.prices.PrunePrices(ctx, 90*24*time.Hour)
+		if err != nil {
+			s.logger.Error("prune prices failed", "error", err)
+		} else if pruned > 0 {
+			s.logger.Info("pruned old price history", "count", pruned)
+		}
+	}
+	s.lastPruneTime = time.Now()
+}
+
 func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) error {
 	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
@@ -455,7 +468,9 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 		source = "yad2"
 	}
 	activeFetcher := s.fetcherForSource(source)
+	fetchStart := time.Now()
 	raw, err := s.fetchWithRetryUsing(fetchCtx, activeFetcher, group.Params)
+	s.observer.RecordFetch(source, time.Since(fetchStart), err)
 	if err != nil {
 		return err
 	}
@@ -475,6 +490,9 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 
 	for _, search := range group.Searches {
 		criteria := config.FilterCriteria{
+			YearMin:     search.YearMin,
+			YearMax:     search.YearMax,
+			PriceMax:    search.PriceMax,
 			EngineMinCC: float64(search.EngineMinCC),
 			MaxKm:       search.MaxKm,
 			MaxHand:     search.MaxHand,
@@ -485,13 +503,6 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 		var newListings []model.Listing
 		var priceDropMessages []string
 		for _, l := range filtered {
-			if l.Price > search.PriceMax && search.PriceMax > 0 {
-				continue
-			}
-			if l.Year < search.YearMin || (l.Year > search.YearMax && search.YearMax > 0) {
-				continue
-			}
-
 			isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.ChatID, search.ID)
 			if err != nil {
 				s.logger.Error("claim failed", "token", l.Token, "error", err)

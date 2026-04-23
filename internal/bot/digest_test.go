@@ -102,6 +102,64 @@ func TestDigestOff_Callback(t *testing.T) {
 	}
 }
 
+func TestDigestInterval_Callback(t *testing.T) {
+	for _, interval := range []string{"2h", "6h", "12h", "24h"} {
+		t.Run(interval, func(t *testing.T) {
+			tb := newTestBotWithDigests(t)
+			ctx := context.Background()
+			const chatID int64 = 100
+
+			_ = tb.store.UpsertUser(ctx, chatID, "alice")
+			tb.simulateCallback(ctx, chatID, cbDigestInterval+interval)
+
+			msg := tb.msg.last()
+			if !strings.Contains(msg.Text, interval) {
+				t.Errorf("expected interval %q in message, got %q", interval, msg.Text)
+			}
+
+			mode, got, err := tb.store.GetDigestMode(ctx, chatID)
+			if err != nil {
+				t.Fatalf("get digest mode: %v", err)
+			}
+			if mode != "digest" {
+				t.Errorf("mode = %q, want 'digest'", mode)
+			}
+			if got != interval {
+				t.Errorf("interval = %q, want %q", got, interval)
+			}
+		})
+	}
+}
+
+func TestDigestInterval_Invalid(t *testing.T) {
+	tb := newTestBotWithDigests(t)
+	ctx := context.Background()
+	const chatID int64 = 100
+
+	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.simulateCallback(ctx, chatID, cbDigestInterval+"99h")
+
+	msg := tb.msg.last()
+	if !strings.Contains(msg.Text, "Invalid") {
+		t.Errorf("expected invalid interval message, got %q", msg.Text)
+	}
+}
+
+func TestDigestInterval_NilStore(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 100
+
+	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.msg.reset()
+
+	tb.simulateCallback(ctx, chatID, cbDigestInterval+"6h")
+
+	if len(tb.msg.messages) != 0 {
+		t.Error("nil digest store should silently ignore digest interval callbacks")
+	}
+}
+
 func TestDigestOn_NilStore(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()

@@ -45,8 +45,11 @@ func (n *Notifier) Connect(ctx context.Context) error {
 }
 
 func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.Listing) error {
+	if len(listings) == 1 && listings[0].ImageURL != "" {
+		return n.sendListingWithPhoto(ctx, chatID, listings[0])
+	}
 	msg := notifier.FormatBatch(listings)
-	return n.sendMessage(ctx, chatID, msg)
+	return n.sendMessageMarkdown(ctx, chatID, msg)
 }
 
 func (n *Notifier) NotifyRaw(ctx context.Context, chatID string, message string) error {
@@ -57,9 +60,55 @@ func (n *Notifier) Disconnect() error {
 	return nil
 }
 
-const maxMessageLen = 4096
+const (
+	maxMessageLen = 4096
+	maxCaptionLen = 1024
+)
+
+func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, listing model.Listing) error {
+	id, err := strconv.ParseInt(chatID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid chat ID %q: %w", chatID, err)
+	}
+
+	caption := notifier.FormatListing(listing)
+
+	if len([]rune(caption)) > maxCaptionLen {
+		_, err = n.bot.SendPhoto(ctx, &tgbot.SendPhotoParams{
+			ChatID: id,
+			Photo:  &tgmodels.InputFileString{Data: listing.ImageURL},
+		})
+		if err != nil {
+			n.logger.Warn("sendPhoto failed, falling back to text", "chat_id", chatID, "error", err)
+			return n.sendMessageMarkdown(ctx, chatID, caption)
+		}
+		return n.sendMessageMarkdown(ctx, chatID, caption)
+	}
+
+	_, err = n.bot.SendPhoto(ctx, &tgbot.SendPhotoParams{
+		ChatID:    id,
+		Photo:     &tgmodels.InputFileString{Data: listing.ImageURL},
+		Caption:   caption,
+		ParseMode: tgmodels.ParseModeMarkdown,
+	})
+	if err != nil {
+		n.logger.Warn("sendPhoto failed, falling back to text", "chat_id", chatID, "error", err)
+		return n.sendMessageMarkdown(ctx, chatID, caption)
+	}
+
+	n.logger.Info("sent telegram photo", "chat_id", chatID)
+	return nil
+}
+
+func (n *Notifier) sendMessageMarkdown(ctx context.Context, chatID string, text string) error {
+	return n.sendMessageWithParseMode(ctx, chatID, text, tgmodels.ParseModeMarkdown)
+}
 
 func (n *Notifier) sendMessage(ctx context.Context, chatID string, text string) error {
+	return n.sendMessageWithParseMode(ctx, chatID, text, "")
+}
+
+func (n *Notifier) sendMessageWithParseMode(ctx context.Context, chatID string, text string, parseMode tgmodels.ParseMode) error {
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid chat ID %q: %w", chatID, err)
@@ -67,10 +116,14 @@ func (n *Notifier) sendMessage(ctx context.Context, chatID string, text string) 
 
 	chunks := splitMessage(text, maxMessageLen)
 	for _, chunk := range chunks {
-		_, err = n.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+		params := &tgbot.SendMessageParams{
 			ChatID: id,
 			Text:   chunk,
-		})
+		}
+		if parseMode != "" {
+			params.ParseMode = parseMode
+		}
+		_, err = n.bot.SendMessage(ctx, params)
 		if err != nil {
 			errMsg := strings.ToLower(err.Error())
 			if strings.Contains(errMsg, "bot was blocked by the user") ||

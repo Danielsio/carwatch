@@ -116,6 +116,18 @@ func (m *errSearchStore) CountSearches(_ context.Context, _ int64) (int64, error
 
 func (m *errSearchStore) CountAllSearches(_ context.Context) (int64, error) { return 0, nil }
 
+func (m *errSearchStore) GetSearchBySeq(_ context.Context, chatID int64, seq int) (*storage.Search, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
+	for i := range m.searches {
+		if m.searches[i].ChatID == chatID && m.searches[i].UserSeq == seq {
+			return &m.searches[i], nil
+		}
+	}
+	return nil, nil
+}
+
 // errDigestStore implements DigestStore and returns errors.
 type errDigestStore struct {
 	getModeErr error
@@ -403,6 +415,22 @@ func TestOnDigestOff_SetModeError(t *testing.T) {
 	b.digests = ds
 
 	b.onDigestOff(context.Background(), 100)
+
+	last := msg.last()
+	if !strings.Contains(last.Text, "Failed to update") {
+		t.Errorf("expected failure message, got %q", last.Text)
+	}
+}
+
+func TestOnDigestInterval_SetModeError(t *testing.T) {
+	msg := &mockMessenger{}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	searches := &errSearchStore{}
+	ds := &errDigestStore{setModeErr: errors.New("db error")}
+	b := newErrBot(t, msg, users, searches)
+	b.digests = ds
+
+	b.onDigestInterval(context.Background(), 100, cbDigestInterval+"6h")
 
 	last := msg.last()
 	if !strings.Contains(last.Text, "Failed to update") {

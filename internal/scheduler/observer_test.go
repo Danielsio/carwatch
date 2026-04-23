@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"testing"
+	"time"
 )
 
 func TestNopObserver_DoesNotPanic(t *testing.T) {
@@ -10,6 +11,7 @@ func TestNopObserver_DoesNotPanic(t *testing.T) {
 	o.RecordError()
 	o.RecordListingsFound(10)
 	o.RecordNotificationSent()
+	o.RecordFetch("yad2", time.Second, nil)
 }
 
 type countingObserver struct {
@@ -17,12 +19,14 @@ type countingObserver struct {
 	errors        int
 	listingsFound int
 	notifications int
+	fetches       int
 }
 
-func (o *countingObserver) RecordSuccess()          { o.successes++ }
-func (o *countingObserver) RecordError()            { o.errors++ }
-func (o *countingObserver) RecordListingsFound(n int) { o.listingsFound += n }
-func (o *countingObserver) RecordNotificationSent() { o.notifications++ }
+func (o *countingObserver) RecordSuccess()                                 { o.successes++ }
+func (o *countingObserver) RecordError()                                   { o.errors++ }
+func (o *countingObserver) RecordListingsFound(n int)                      { o.listingsFound += n }
+func (o *countingObserver) RecordNotificationSent()                        { o.notifications++ }
+func (o *countingObserver) RecordFetch(_ string, _ time.Duration, _ error) { o.fetches++ }
 
 func TestCycleObserver_Interface(t *testing.T) {
 	var obs CycleObserver = &countingObserver{}

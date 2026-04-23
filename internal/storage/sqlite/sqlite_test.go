@@ -10,7 +10,7 @@ import (
 
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
-	store, err := New(":memory:")
+	store, err := New("file::memory:?cache=shared")
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
@@ -277,6 +277,56 @@ func TestCountSearches(t *testing.T) {
 	}
 }
 
+func TestCreateSearch_AssignsUserSeq(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	id1, _ := store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "first", Manufacturer: 1, Model: 1})
+	id2, _ := store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "second", Manufacturer: 2, Model: 2})
+	id3, _ := store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "other-user", Manufacturer: 1, Model: 1})
+
+	s1, _ := store.GetSearch(ctx, id1)
+	s2, _ := store.GetSearch(ctx, id2)
+	s3, _ := store.GetSearch(ctx, id3)
+
+	if s1.UserSeq != 1 {
+		t.Errorf("first search UserSeq = %d, want 1", s1.UserSeq)
+	}
+	if s2.UserSeq != 2 {
+		t.Errorf("second search UserSeq = %d, want 2", s2.UserSeq)
+	}
+	if s3.UserSeq != 1 {
+		t.Errorf("other user's first search UserSeq = %d, want 1", s3.UserSeq)
+	}
+}
+
+func TestGetSearchBySeq(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "first", Manufacturer: 1, Model: 1})
+	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "second", Manufacturer: 2, Model: 2})
+
+	s, err := store.GetSearchBySeq(ctx, 100, 2)
+	if err != nil {
+		t.Fatalf("get by seq: %v", err)
+	}
+	if s == nil || s.Name != "second" {
+		t.Errorf("expected 'second', got %+v", s)
+	}
+
+	s, err = store.GetSearchBySeq(ctx, 100, 99)
+	if err != nil {
+		t.Fatalf("get nonexistent seq: %v", err)
+	}
+	if s != nil {
+		t.Error("expected nil for nonexistent seq")
+	}
+}
+
 // --- DedupStore (per-user) ---
 
 func TestClaimNew_PerUser(t *testing.T) {
@@ -414,6 +464,37 @@ func TestPruneNotifications_KeepsRecent(t *testing.T) {
 }
 
 // --- PriceTracker ---
+
+func TestPrunePrices(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_, _, _ = store.RecordPrice(ctx, "token1", 100000)
+	_, _, _ = store.RecordPrice(ctx, "token1", 90000)
+
+	pruned, err := store.PrunePrices(ctx, 0)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if pruned != 2 {
+		t.Errorf("expected 2 pruned, got %d", pruned)
+	}
+}
+
+func TestPrunePrices_KeepsRecent(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_, _, _ = store.RecordPrice(ctx, "token1", 100000)
+
+	pruned, err := store.PrunePrices(ctx, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if pruned != 0 {
+		t.Errorf("expected 0 pruned (recent), got %d", pruned)
+	}
+}
 
 func TestRecordPrice(t *testing.T) {
 	store := newTestStore(t)

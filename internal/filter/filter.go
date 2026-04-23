@@ -18,6 +18,15 @@ func Apply(criteria config.FilterCriteria, listings []model.RawListing) []model.
 }
 
 func matches(c config.FilterCriteria, l model.RawListing) bool {
+	if c.PriceMax > 0 && l.Price > c.PriceMax {
+		return false
+	}
+	if c.YearMin > 0 && l.Year < c.YearMin {
+		return false
+	}
+	if c.YearMax > 0 && l.Year > c.YearMax {
+		return false
+	}
 	if c.EngineMinCC > 0 && l.EngineVolume < c.EngineMinCC {
 		return false
 	}

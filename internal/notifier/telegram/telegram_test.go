@@ -40,6 +40,10 @@ var sendMessageOK = tgResponse(map[string]any{
 	"message_id": 1, "chat": map[string]any{"id": 123}, "date": 0,
 })
 
+var sendPhotoOK = tgResponse(map[string]any{
+	"message_id": 2, "chat": map[string]any{"id": 123}, "date": 0,
+})
+
 func routingHandler(sendMessageHandler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "getMe") {
@@ -387,5 +391,164 @@ func TestNew_EmptyToken(t *testing.T) {
 	_, err := New("", testLogger())
 	if err == nil {
 		t.Fatal("expected error for empty token")
+	}
+}
+
+// --- SendPhoto tests ---
+
+func TestNotify_SingleListingWithPhoto(t *testing.T) {
+	var mu sync.Mutex
+	var endpoints []string
+
+	n := newTestNotifier(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "getMe") {
+			_, _ = w.Write(getMeResponse)
+			return
+		}
+		mu.Lock()
+		endpoints = append(endpoints, r.URL.Path)
+		mu.Unlock()
+		if strings.Contains(r.URL.Path, "sendPhoto") {
+			_, _ = w.Write(sendPhotoOK)
+		} else {
+			_, _ = w.Write(sendMessageOK)
+		}
+	}))
+
+	listings := []model.Listing{
+		{
+			RawListing: model.RawListing{
+				Token: "abc", Manufacturer: "Toyota", Model: "Corolla",
+				Year: 2021, Price: 120000, ImageURL: "https://example.com/photo.jpg",
+			},
+			SearchName: "test",
+		},
+	}
+
+	err := n.Notify(context.Background(), "123", listings)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	hasPhoto := false
+	for _, ep := range endpoints {
+		if strings.Contains(ep, "sendPhoto") {
+			hasPhoto = true
+		}
+	}
+	if !hasPhoto {
+		t.Error("expected sendPhoto call for listing with image")
+	}
+}
+
+func TestNotify_SingleListingNoPhoto_FallsBackToText(t *testing.T) {
+	var mu sync.Mutex
+	var endpoints []string
+
+	n := newTestNotifier(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "getMe") {
+			_, _ = w.Write(getMeResponse)
+			return
+		}
+		mu.Lock()
+		endpoints = append(endpoints, r.URL.Path)
+		mu.Unlock()
+		_, _ = w.Write(sendMessageOK)
+	}))
+
+	listings := []model.Listing{
+		{
+			RawListing: model.RawListing{
+				Token: "abc", Manufacturer: "Toyota", Model: "Corolla",
+				Year: 2021, Price: 120000,
+			},
+			SearchName: "test",
+		},
+	}
+
+	err := n.Notify(context.Background(), "123", listings)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	for _, ep := range endpoints {
+		if strings.Contains(ep, "sendPhoto") {
+			t.Error("should not call sendPhoto when no image URL")
+		}
+	}
+}
+
+func TestNotify_PhotoFails_FallsBackToText(t *testing.T) {
+	var sendMsgCalls atomic.Int32
+
+	n := newTestNotifier(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "getMe") {
+			_, _ = w.Write(getMeResponse)
+			return
+		}
+		if strings.Contains(r.URL.Path, "sendPhoto") {
+			w.WriteHeader(http.StatusBadRequest)
+			resp, _ := json.Marshal(map[string]any{"ok": false, "description": "Bad Request: wrong photo"})
+			_, _ = w.Write(resp)
+			return
+		}
+		sendMsgCalls.Add(1)
+		_, _ = w.Write(sendMessageOK)
+	}))
+
+	listings := []model.Listing{
+		{
+			RawListing: model.RawListing{
+				Token: "abc", Manufacturer: "Toyota", Model: "Corolla",
+				Year: 2021, Price: 120000, ImageURL: "https://example.com/bad.jpg",
+			},
+			SearchName: "test",
+		},
+	}
+
+	err := n.Notify(context.Background(), "123", listings)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sendMsgCalls.Load() == 0 {
+		t.Error("expected fallback to sendMessage when sendPhoto fails")
+	}
+}
+
+func TestNotify_BatchListings_UsesText(t *testing.T) {
+	var mu sync.Mutex
+	var endpoints []string
+
+	n := newTestNotifier(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "getMe") {
+			_, _ = w.Write(getMeResponse)
+			return
+		}
+		mu.Lock()
+		endpoints = append(endpoints, r.URL.Path)
+		mu.Unlock()
+		_, _ = w.Write(sendMessageOK)
+	}))
+
+	listings := []model.Listing{
+		{RawListing: model.RawListing{Token: "a", Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000, ImageURL: "https://example.com/1.jpg"}, SearchName: "test"},
+		{RawListing: model.RawListing{Token: "b", Manufacturer: "Honda", Model: "Civic", Year: 2022, Price: 110000, ImageURL: "https://example.com/2.jpg"}, SearchName: "test"},
+	}
+
+	err := n.Notify(context.Background(), "123", listings)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	for _, ep := range endpoints {
+		if strings.Contains(ep, "sendPhoto") {
+			t.Error("batch listings should use sendMessage, not sendPhoto")
+		}
 	}
 }

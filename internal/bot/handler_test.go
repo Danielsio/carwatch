@@ -207,25 +207,47 @@ func TestWizardFlow_EndToEnd(t *testing.T) {
 		t.Fatalf("step 7: state=%q, want %q", user.State, StateAskEngine)
 	}
 
-	// Step 8: select engine → confirm
+	// Step 8: select engine → max km keyboard
 	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"2000")
 	msg = tb.msg.last()
+	if !msg.HasKB || !strings.Contains(msg.Text, "kilometers") {
+		t.Fatalf("step 8: expected max km keyboard, got %q", msg.Text)
+	}
+	user, _ = tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskMaxKm {
+		t.Fatalf("step 8: state=%q, want %q", user.State, StateAskMaxKm)
+	}
+
+	// Step 9: select max km → max hand keyboard
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"100000")
+	msg = tb.msg.last()
+	if !msg.HasKB || !strings.Contains(msg.Text, "hand") {
+		t.Fatalf("step 9: expected max hand keyboard, got %q", msg.Text)
+	}
+	user, _ = tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskMaxHand {
+		t.Fatalf("step 9: state=%q, want %q", user.State, StateAskMaxHand)
+	}
+
+	// Step 10: select max hand → confirm
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"3")
+	msg = tb.msg.last()
 	if !msg.HasKB || !strings.Contains(msg.Text, "Mazda") {
-		t.Fatalf("step 8: expected confirm summary with Mazda, got %q", msg.Text)
+		t.Fatalf("step 10: expected confirm summary with Mazda, got %q", msg.Text)
 	}
 	if !strings.Contains(msg.Text, "150,000") {
-		t.Errorf("step 8: confirm should show formatted price 150,000, got %q", msg.Text)
+		t.Errorf("step 10: confirm should show formatted price 150,000, got %q", msg.Text)
 	}
 	user, _ = tb.store.GetUser(ctx, chatID)
 	if user.State != StateConfirm {
-		t.Fatalf("step 8: state=%q, want %q", user.State, StateConfirm)
+		t.Fatalf("step 10: state=%q, want %q", user.State, StateConfirm)
 	}
 
-	// Step 9: confirm → search created, state back to idle
+	// Step 11: confirm → search created, state back to idle
 	tb.simulateCallback(ctx, chatID, cbConfirm)
 	user, _ = tb.store.GetUser(ctx, chatID)
 	if user.State != StateIdle {
-		t.Fatalf("step 9: state=%q, want %q", user.State, StateIdle)
+		t.Fatalf("step 11: state=%q, want %q", user.State, StateIdle)
 	}
 
 	// Verify search was saved
@@ -251,6 +273,12 @@ func TestWizardFlow_EndToEnd(t *testing.T) {
 	}
 	if s.EngineMinCC != 2000 {
 		t.Errorf("engine_min_cc=%d, want 2000", s.EngineMinCC)
+	}
+	if s.MaxKm != 100000 {
+		t.Errorf("max_km=%d, want 100000", s.MaxKm)
+	}
+	if s.MaxHand != 3 {
+		t.Errorf("max_hand=%d, want 3", s.MaxHand)
 	}
 	if s.Source != "yad2" {
 		t.Errorf("source=%q, want yad2", s.Source)

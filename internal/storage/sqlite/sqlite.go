@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -18,22 +19,26 @@ type Store struct {
 }
 
 func New(dbPath string) (*Store, error) {
-	if dbPath != ":memory:" {
+	if dbPath != ":memory:" && !strings.HasPrefix(dbPath, "file::memory:") {
 		if err := os.MkdirAll(filepath.Dir(dbPath), 0750); err != nil {
 			return nil, fmt.Errorf("create data directory: %w", err)
 		}
 	}
 
-	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=ON")
+	sep := "?"
+	if strings.Contains(dbPath, "?") {
+		sep = "&"
+	}
+	db, err := sql.Open("sqlite3", dbPath+sep+"_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=ON")
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	db.SetMaxOpenConns(2)
-	db.SetMaxIdleConns(2)
+	db.SetMaxOpenConns(8)
+	db.SetMaxIdleConns(4)
 
 	if err := migrate(db); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 
@@ -198,6 +203,33 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	// Add user_seq column to searches table if it doesn't exist.
+	var hasUserSeq int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('searches') WHERE name = 'user_seq'",
+	).Scan(&hasUserSeq); err != nil {
+		return fmt.Errorf("check searches user_seq: %w", err)
+	}
+	if hasUserSeq == 0 {
+		if _, err := db.Exec("ALTER TABLE searches ADD COLUMN user_seq INTEGER NOT NULL DEFAULT 0"); err != nil {
+			return fmt.Errorf("add user_seq column: %w", err)
+		}
+		// Backfill: assign sequential numbers per user based on creation order.
+		if _, err := db.Exec(`
+			UPDATE searches SET user_seq = (
+				SELECT COUNT(*) FROM searches s2
+				WHERE s2.chat_id = searches.chat_id AND s2.id <= searches.id
+			)
+		`); err != nil {
+			return fmt.Errorf("backfill user_seq: %w", err)
+		}
+		if _, err := db.Exec(
+			"CREATE UNIQUE INDEX IF NOT EXISTS idx_searches_chat_user_seq ON searches(chat_id, user_seq)",
+		); err != nil {
+			return fmt.Errorf("create user_seq index: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -240,7 +272,7 @@ func (s *Store) ListActiveUsers(ctx context.Context) ([]storage.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanUsers(rows)
 }
 
@@ -276,36 +308,79 @@ func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64,
 	if source == "" {
 		source = "yad2"
 	}
-	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO searches (chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var nextSeq int
+	err = tx.QueryRowContext(ctx,
+		"SELECT COALESCE(MAX(user_seq), 0) + 1 FROM searches WHERE chat_id = ?",
+		search.ChatID).Scan(&nextSeq)
+	if err != nil {
+		return 0, fmt.Errorf("next user_seq: %w", err)
+	}
+
+	result, err := tx.ExecContext(ctx, `
+		INSERT INTO searches (chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, user_seq)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		search.ChatID, search.Name, source, search.Manufacturer, search.Model,
 		search.YearMin, search.YearMax, search.PriceMax,
-		search.EngineMinCC, search.MaxKm, search.MaxHand)
+		search.EngineMinCC, search.MaxKm, search.MaxHand, nextSeq)
 	if err != nil {
 		return 0, err
 	}
-	return result.LastInsertId()
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+	return id, nil
 }
 
 func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Search, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
 		FROM searches WHERE chat_id = ? ORDER BY created_at DESC`, chatID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanSearches(rows)
 }
 
 func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
 		FROM searches WHERE id = ?`, id)
 
 	var search storage.Search
-	err := row.Scan(&search.ID, &search.ChatID, &search.Name, &search.Source, &search.Manufacturer, &search.Model,
+	err := row.Scan(&search.ID, &search.ChatID, &search.UserSeq, &search.Name, &search.Source, &search.Manufacturer, &search.Model,
+		&search.YearMin, &search.YearMax, &search.PriceMax,
+		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
+		&search.Active, &search.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &search, nil
+}
+
+func (s *Store) GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*storage.Search, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
+		FROM searches WHERE chat_id = ? AND user_seq = ?`, chatID, seq)
+
+	var search storage.Search
+	err := row.Scan(&search.ID, &search.ChatID, &search.UserSeq, &search.Name, &search.Source, &search.Manufacturer, &search.Model,
 		&search.YearMin, &search.YearMax, &search.PriceMax,
 		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
 		&search.Active, &search.CreatedAt)
@@ -342,7 +417,7 @@ func (s *Store) SetSearchActive(ctx context.Context, id int64, active bool) erro
 
 func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT s.id, s.chat_id, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max, s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.active, s.created_at
+		SELECT s.id, s.chat_id, s.user_seq, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max, s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.active, s.created_at
 		FROM searches s
 		JOIN users u ON s.chat_id = u.chat_id
 		WHERE s.active = true AND u.active = true
@@ -350,7 +425,7 @@ func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, er
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanSearches(rows)
 }
 
@@ -373,7 +448,7 @@ func scanSearches(rows *sql.Rows) ([]storage.Search, error) {
 	var searches []storage.Search
 	for rows.Next() {
 		var s storage.Search
-		if err := rows.Scan(&s.ID, &s.ChatID, &s.Name, &s.Source, &s.Manufacturer, &s.Model,
+		if err := rows.Scan(&s.ID, &s.ChatID, &s.UserSeq, &s.Name, &s.Source, &s.Manufacturer, &s.Model,
 			&s.YearMin, &s.YearMax, &s.PriceMax,
 			&s.EngineMinCC, &s.MaxKm, &s.MaxHand,
 			&s.Active, &s.CreatedAt); err != nil {
@@ -427,7 +502,7 @@ func (s *Store) PendingNotifications(ctx context.Context) ([]storage.PendingNoti
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var pending []storage.PendingNotification
 	for rows.Next() {
@@ -481,6 +556,15 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 	return prev, false, nil
 }
 
+func (s *Store) PrunePrices(ctx context.Context, olderThan time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-olderThan)
+	result, err := s.db.ExecContext(ctx, "DELETE FROM price_history WHERE observed_at < ?", cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 // --- ListingStore ---
 
 func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
@@ -507,7 +591,7 @@ func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offse
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var listings []storage.ListingRecord
 	for rows.Next() {
@@ -538,7 +622,7 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var listings []storage.ListingRecord
 	for rows.Next() {
@@ -591,7 +675,7 @@ func (s *Store) FlushDigest(ctx context.Context, chatID int64) ([]string, error)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var payloads []string
 	for rows.Next() {
@@ -627,7 +711,7 @@ func (s *Store) PendingDigestUsers(ctx context.Context) ([]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var chatIDs []int64
 	for rows.Next() {
@@ -653,28 +737,46 @@ func (s *Store) DigestLastFlushed(ctx context.Context, chatID int64) (time.Time,
 // --- CatalogStore ---
 
 func (s *Store) SaveCatalogEntries(ctx context.Context, entries []storage.CatalogEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, "DELETE FROM catalog_cache"); err != nil {
+	// Mark all existing entries as stale.
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE catalog_cache SET updated_at = datetime('now', '-1 year')"); err != nil {
 		return err
 	}
 
-	stmt, err := tx.PrepareContext(ctx,
-		"INSERT INTO catalog_cache (manufacturer_id, manufacturer_name, model_id, model_name) VALUES (?, ?, ?, ?)")
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO catalog_cache (manufacturer_id, manufacturer_name, model_id, model_name, updated_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(manufacturer_id, model_id) DO UPDATE SET
+			manufacturer_name = excluded.manufacturer_name,
+			model_name = excluded.model_name,
+			updated_at = CURRENT_TIMESTAMP`)
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	for _, e := range entries {
 		if _, err := stmt.ExecContext(ctx, e.ManufacturerID, e.ManufacturerName, e.ModelID, e.ModelName); err != nil {
 			return err
 		}
 	}
+
+	// Remove entries not refreshed in this batch.
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM catalog_cache WHERE updated_at < datetime('now', '-1 hour')"); err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }
 
@@ -684,7 +786,7 @@ func (s *Store) LoadCatalogEntries(ctx context.Context) ([]storage.CatalogEntry,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []storage.CatalogEntry
 	for rows.Next() {

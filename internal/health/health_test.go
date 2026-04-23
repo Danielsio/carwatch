@@ -3,9 +3,11 @@ package health
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestStatus_OK(t *testing.T) {
@@ -166,5 +168,89 @@ func TestSnapshot_ReturnsSameDataAsHandler(t *testing.T) {
 	}
 	if float64(snap["listings_found"].(int64)) != resp["listings_found"].(float64) {
 		t.Errorf("listings_found mismatch")
+	}
+}
+
+func TestStatus_RecordFetch(t *testing.T) {
+	s := New()
+	s.RecordFetch("yad2", 100*time.Millisecond, nil)
+	s.RecordFetch("yad2", 200*time.Millisecond, nil)
+	s.RecordFetch("yad2", 300*time.Millisecond, errors.New("timeout"))
+	s.RecordFetch("yad2", 150*time.Millisecond, errors.New("anti-bot challenge detected"))
+	s.RecordFetch("winwin", 50*time.Millisecond, nil)
+
+	snap := s.Snapshot()
+	sources, ok := snap["sources"].(map[string]any)
+	if !ok {
+		t.Fatal("expected sources in snapshot")
+	}
+
+	yad2, ok := sources["yad2"].(map[string]any)
+	if !ok {
+		t.Fatal("expected yad2 source metrics")
+	}
+	if yad2["fetches"].(int64) != 4 {
+		t.Errorf("yad2 fetches = %v, want 4", yad2["fetches"])
+	}
+	if yad2["successes"].(int64) != 2 {
+		t.Errorf("yad2 successes = %v, want 2", yad2["successes"])
+	}
+	if yad2["errors"].(int64) != 2 {
+		t.Errorf("yad2 errors = %v, want 2", yad2["errors"])
+	}
+	if yad2["challenges"].(int64) != 1 {
+		t.Errorf("yad2 challenges = %v, want 1", yad2["challenges"])
+	}
+	if _, hasLastErr := yad2["last_error"]; !hasLastErr {
+		t.Error("expected last_error in yad2 metrics")
+	}
+
+	winwin, ok := sources["winwin"].(map[string]any)
+	if !ok {
+		t.Fatal("expected winwin source metrics")
+	}
+	if winwin["fetches"].(int64) != 1 {
+		t.Errorf("winwin fetches = %v, want 1", winwin["fetches"])
+	}
+	if winwin["successes"].(int64) != 1 {
+		t.Errorf("winwin successes = %v, want 1", winwin["successes"])
+	}
+}
+
+func TestStatus_SourceMetricsInHealthzJSON(t *testing.T) {
+	s := New()
+	s.RecordSuccess()
+	s.RecordFetch("yad2", 150*time.Millisecond, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	w := httptest.NewRecorder()
+	s.Handler()(w, req)
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	sources, ok := resp["sources"].(map[string]any)
+	if !ok {
+		t.Fatal("expected sources in JSON response")
+	}
+	yad2, ok := sources["yad2"].(map[string]any)
+	if !ok {
+		t.Fatal("expected yad2 in sources")
+	}
+	if yad2["fetches"].(float64) != 1 {
+		t.Errorf("yad2 fetches = %v, want 1", yad2["fetches"])
+	}
+	if yad2["success_rate"].(float64) != 1.0 {
+		t.Errorf("yad2 success_rate = %v, want 1.0", yad2["success_rate"])
+	}
+}
+
+func TestStatus_NoSourcesBeforeFetch(t *testing.T) {
+	s := New()
+	snap := s.Snapshot()
+	if _, ok := snap["sources"]; ok {
+		t.Error("sources should not be present before any RecordFetch calls")
 	}
 }

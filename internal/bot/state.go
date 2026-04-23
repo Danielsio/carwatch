@@ -11,6 +11,8 @@ const (
 	StateAskYearMax         = "ask_year_max"
 	StateAskPriceMax        = "ask_price_max"
 	StateAskEngine          = "ask_engine"
+	StateAskMaxKm           = "ask_max_km"
+	StateAskMaxHand         = "ask_max_hand"
 	StateConfirm            = "confirm"
 )
 
@@ -24,4 +26,6 @@ type WizardData struct {
 	YearMax          int    `json:"year_max,omitempty"`
 	PriceMax         int    `json:"price_max,omitempty"`
 	EngineMinCC      int    `json:"engine_min_cc,omitempty"`
+	MaxKm            int    `json:"max_km,omitempty"`
+	MaxHand          int    `json:"max_hand,omitempty"`
 }
