@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	tgbot "github.com/go-telegram/bot"
 
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/notifier"
 )
 
 type discardWriter struct{}
@@ -208,7 +210,7 @@ func TestSendMessage_Success(t *testing.T) {
 	}
 }
 
-func TestSendMessage_APIError(t *testing.T) {
+func TestSendMessage_APIError_Blocked(t *testing.T) {
 	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 		resp, _ := json.Marshal(map[string]any{
@@ -222,8 +224,8 @@ func TestSendMessage_APIError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for API failure")
 	}
-	if !strings.Contains(err.Error(), "telegram sendMessage") {
-		t.Errorf("expected 'telegram sendMessage' error, got: %v", err)
+	if !errors.Is(err, notifier.ErrRecipientBlocked) {
+		t.Errorf("expected ErrRecipientBlocked, got: %v", err)
 	}
 }
 

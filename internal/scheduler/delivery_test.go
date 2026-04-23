@@ -197,6 +197,57 @@ func TestDigestDelivery_DeliverRaw(t *testing.T) {
 	}
 }
 
+type ctxSensitiveQueue struct {
+	mockNotificationQueue
+	enqueued int
+}
+
+func (q *ctxSensitiveQueue) EnqueueNotification(ctx context.Context, _, _, _ string) error {
+	q.enqueued++
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return nil
+}
+
+func TestInstantDelivery_DeliverBatch_QueueOnCancelledCtx(t *testing.T) {
+	n := &mockNotifier{err: context.Canceled}
+	q := &ctxSensitiveQueue{}
+	d := NewInstantDelivery(n, q)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	listings := []model.Listing{
+		{RawListing: model.RawListing{Token: "a"}},
+	}
+
+	err := d.DeliverBatch(ctx, 100, listings)
+	if err != nil {
+		t.Errorf("should enqueue even with cancelled ctx, got: %v", err)
+	}
+	if q.enqueued != 1 {
+		t.Fatalf("expected one enqueue attempt, got %d", q.enqueued)
+	}
+}
+
+func TestInstantDelivery_DeliverRaw_QueueOnCancelledCtx(t *testing.T) {
+	n := &errRawNotifier{rawErr: context.Canceled}
+	q := &ctxSensitiveQueue{}
+	d := NewInstantDelivery(n, q)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := d.DeliverRaw(ctx, 100, "price drop!")
+	if err != nil {
+		t.Errorf("should enqueue even with cancelled ctx, got: %v", err)
+	}
+	if q.enqueued != 1 {
+		t.Fatalf("expected one enqueue attempt, got %d", q.enqueued)
+	}
+}
+
 func TestDigestDelivery_DeliverBatch_Error(t *testing.T) {
 	ds := newFailDigestStore(errors.New("write failed"))
 	d := NewDigestDelivery(ds)

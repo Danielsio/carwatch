@@ -52,6 +52,7 @@ type Scheduler struct {
 	fetcherFactory    *fetcher.Factory
 	listingStore      storage.ListingStore
 	searchStore       storage.SearchStore
+	userStore         storage.UserStore
 	digestStore       storage.DigestStore
 	catalogIngester   CatalogIngester
 	triggerCh         chan struct{}
@@ -65,6 +66,7 @@ type Options struct {
 	FetcherFactory  *fetcher.Factory
 	ListingStore    storage.ListingStore
 	SearchStore     storage.SearchStore
+	UserStore       storage.UserStore
 	DigestStore     storage.DigestStore
 	CatalogIngester CatalogIngester
 }
@@ -111,6 +113,7 @@ func NewWithOptions(
 		fetcherFactory:    opts.FetcherFactory,
 		listingStore:      opts.ListingStore,
 		searchStore:       opts.SearchStore,
+		userStore:         opts.UserStore,
 		digestStore:       opts.DigestStore,
 		catalogIngester:   opts.CatalogIngester,
 		triggerCh:         make(chan struct{}, 1),
@@ -417,6 +420,14 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 				s.logger.Info("pruned old listings", "count", pruned)
 			}
 		}
+		if s.queue != nil {
+			pruned, err := s.queue.PruneNotifications(ctx, 48*time.Hour)
+			if err != nil {
+				s.logger.Error("prune notifications failed", "error", err)
+			} else if pruned > 0 {
+				s.logger.Info("pruned expired notifications", "count", pruned)
+			}
+		}
 		s.lastPruneTime = time.Now()
 	}
 
@@ -512,7 +523,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 
 			if s.listingStore != nil {
 				_ = s.listingStore.SaveListing(ctx, storage.ListingRecord{
-					Token: l.Token, SearchName: search.Name,
+					Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
 					Manufacturer: l.Manufacturer, Model: l.Model,
 					Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 					City: l.City, PageLink: l.PageLink, FirstSeenAt: time.Now(),
@@ -524,6 +535,15 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 
 		for _, msg := range priceDropMessages {
 			if err := delivery.DeliverRaw(ctx, search.ChatID, msg); err != nil {
+				if errors.Is(err, notifier.ErrRecipientBlocked) {
+					s.logger.Warn("user blocked bot, deactivating",
+						"chat_id", search.ChatID,
+					)
+					if s.userStore != nil {
+						_ = s.userStore.SetUserActive(context.Background(), search.ChatID, false)
+					}
+					break
+				}
 				s.logger.Error("price drop delivery failed",
 					"chat_id", search.ChatID,
 					"error", err,
@@ -544,12 +564,21 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 		)
 
 		if err := delivery.DeliverBatch(ctx, search.ChatID, newListings); err != nil {
-			s.logger.Error("delivery failed",
-				"chat_id", search.ChatID,
-				"error", err,
-			)
+			if errors.Is(err, notifier.ErrRecipientBlocked) {
+				s.logger.Warn("user blocked bot, deactivating",
+					"chat_id", search.ChatID,
+				)
+				if s.userStore != nil {
+					_ = s.userStore.SetUserActive(context.Background(), search.ChatID, false)
+				}
+			} else {
+				s.logger.Error("delivery failed",
+					"chat_id", search.ChatID,
+					"error", err,
+				)
+			}
 			for _, l := range newListings {
-				_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
+				_ = s.dedup.ReleaseClaim(context.Background(), l.Token, search.ChatID)
 			}
 		} else {
 			s.observer.RecordNotificationSent()

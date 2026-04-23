@@ -92,7 +92,8 @@ func migrate(db *sql.DB) error {
 		);
 
 		CREATE TABLE IF NOT EXISTS listing_history (
-			token TEXT PRIMARY KEY,
+			token TEXT NOT NULL,
+			chat_id INTEGER NOT NULL DEFAULT 0,
 			search_name TEXT NOT NULL,
 			manufacturer TEXT,
 			model TEXT,
@@ -102,7 +103,8 @@ func migrate(db *sql.DB) error {
 			hand INTEGER,
 			city TEXT,
 			page_link TEXT,
-			first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (token, chat_id)
 		);
 
 		CREATE TABLE IF NOT EXISTS pending_digest (
@@ -157,6 +159,45 @@ func migrate(db *sql.DB) error {
 			}
 		}
 	}
+
+	// Migrate listing_history to per-user: add chat_id to PK.
+	var hasChatID int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('listing_history') WHERE name = 'chat_id'",
+	).Scan(&hasChatID); err != nil {
+		return fmt.Errorf("check listing_history chat_id: %w", err)
+	}
+	if hasChatID == 0 {
+		if _, err := db.Exec(`
+			CREATE TABLE listing_history_v2 (
+				token TEXT NOT NULL,
+				chat_id INTEGER NOT NULL DEFAULT 0,
+				search_name TEXT NOT NULL,
+				manufacturer TEXT,
+				model TEXT,
+				year INTEGER,
+				price INTEGER,
+				km INTEGER,
+				hand INTEGER,
+				city TEXT,
+				page_link TEXT,
+				first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (token, chat_id)
+			);
+			INSERT INTO listing_history_v2
+				(token, chat_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
+			SELECT DISTINCT
+				lh.token, COALESCE(sl.chat_id, 0), lh.search_name, lh.manufacturer, lh.model,
+				lh.year, lh.price, lh.km, lh.hand, lh.city, lh.page_link, lh.first_seen_at
+			FROM listing_history lh
+			LEFT JOIN seen_listings sl ON sl.token = lh.token;
+			DROP TABLE listing_history;
+			ALTER TABLE listing_history_v2 RENAME TO listing_history;
+		`); err != nil {
+			return fmt.Errorf("migrate listing_history: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -404,6 +445,15 @@ func (s *Store) AckNotification(ctx context.Context, id int64) error {
 	return err
 }
 
+func (s *Store) PruneNotifications(ctx context.Context, olderThan time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-olderThan)
+	result, err := s.db.ExecContext(ctx, "DELETE FROM pending_notifications WHERE created_at < ?", cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 // --- PriceTracker ---
 
 func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error) {
@@ -436,24 +486,23 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO listing_history
-		(token, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(token) DO UPDATE SET
+		(token, chat_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(token, chat_id) DO UPDATE SET
 			price = excluded.price,
 			km = excluded.km`,
-		r.Token, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
+		r.Token, r.ChatID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
 		r.Km, r.Hand, r.City, r.PageLink, r.FirstSeenAt)
 	return err
 }
 
 func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.year, lh.price,
-			lh.km, lh.hand, lh.city, lh.page_link, sl.first_seen_at
-		FROM listing_history lh
-		JOIN seen_listings sl ON lh.token = sl.token
-		WHERE sl.chat_id = ?
-		ORDER BY sl.first_seen_at DESC, lh.token DESC
+		SELECT token, search_name, manufacturer, model, year, price,
+			km, hand, city, page_link, first_seen_at
+		FROM listing_history
+		WHERE chat_id = ?
+		ORDER BY first_seen_at DESC, token DESC
 		LIMIT ? OFFSET ?`, chatID, limit, offset)
 	if err != nil {
 		return nil, err
@@ -475,16 +524,17 @@ func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offse
 func (s *Store) CountUserListings(ctx context.Context, chatID int64) (int64, error) {
 	var count int64
 	err := s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM listing_history lh
-		JOIN seen_listings sl ON lh.token = sl.token
-		WHERE sl.chat_id = ?`, chatID).Scan(&count)
+		SELECT COUNT(*) FROM listing_history
+		WHERE chat_id = ?`, chatID).Scan(&count)
 	return count, err
 }
 
 func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT token, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at
-		FROM listing_history ORDER BY first_seen_at DESC LIMIT ?`, limit)
+		FROM listing_history
+		GROUP BY token
+		ORDER BY first_seen_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}

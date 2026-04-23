@@ -41,7 +41,7 @@ func TestDashboard_WithListings(t *testing.T) {
 	store := newTestStore(t)
 
 	_ = store.SaveListing(context.Background(), storage.ListingRecord{
-		Token: "abc", SearchName: "test", Manufacturer: "Mazda", Model: "3",
+		Token: "abc", ChatID: 100, SearchName: "test", Manufacturer: "Mazda", Model: "3",
 		Year: 2021, Price: 95000, Km: 85000, Hand: 2, City: "Tel Aviv",
 		PageLink: "https://example.com/abc",
 	})
@@ -68,7 +68,7 @@ func TestDashboard_LimitParam(t *testing.T) {
 
 	for i := range 5 {
 		_ = store.SaveListing(context.Background(), storage.ListingRecord{
-			Token: string(rune('a' + i)), SearchName: "test",
+			Token: string(rune('a' + i)), ChatID: int64(100 + i), SearchName: "test",
 			Manufacturer: "Test", Model: "Car", Year: 2021, Price: 100000,
 		})
 	}

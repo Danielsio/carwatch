@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/dsionov/carwatch/internal/model"
@@ -29,10 +30,14 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 	if err == nil {
 		return nil
 	}
+	if errors.Is(err, notifier.ErrRecipientBlocked) {
+		return err
+	}
 
+	// Use background context so the enqueue succeeds even during shutdown.
 	if d.queue != nil {
 		msg := notifier.FormatBatch(listings)
-		if qErr := d.queue.EnqueueNotification(ctx, chatIDStr, "", msg); qErr == nil {
+		if qErr := d.queue.EnqueueNotification(context.Background(), chatIDStr, "", msg); qErr == nil {
 			return nil
 		}
 	}
@@ -46,7 +51,10 @@ func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message 
 	if err == nil || d.queue == nil {
 		return err
 	}
-	if qErr := d.queue.EnqueueNotification(ctx, chatIDStr, "", message); qErr == nil {
+	if errors.Is(err, notifier.ErrRecipientBlocked) {
+		return err
+	}
+	if qErr := d.queue.EnqueueNotification(context.Background(), chatIDStr, "", message); qErr == nil {
 		return nil
 	}
 	return err

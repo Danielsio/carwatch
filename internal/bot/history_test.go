@@ -28,24 +28,20 @@ func TestHistory_ShowsListings(t *testing.T) {
 	const chatID int64 = 701
 
 	_ = tb.store.UpsertUser(ctx, chatID, "alice")
-	searchID, _ := tb.store.CreateSearch(ctx, storage.Search{
+	_, _ = tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: chatID, Name: "mazda-3", Manufacturer: 27, Model: 1,
 	})
 
-	// Claim listings so they appear in seen_listings for this user.
-	_, _ = tb.store.ClaimNew(ctx, "token-1", chatID, searchID)
-	_, _ = tb.store.ClaimNew(ctx, "token-2", chatID, searchID)
-
-	// Save listing details to listing_history.
+	// Save listing details to listing_history (per-user via chat_id).
 	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
-		Token: "token-1", SearchName: "mazda-3",
+		Token: "token-1", ChatID: chatID, SearchName: "mazda-3",
 		Manufacturer: "Mazda", Model: "3", Year: 2020,
 		Price: 120000, Km: 50000, Hand: 2,
 		City: "Tel Aviv", PageLink: "https://example.com/1",
 		FirstSeenAt: time.Now(),
 	})
 	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
-		Token: "token-2", SearchName: "mazda-3",
+		Token: "token-2", ChatID: chatID, SearchName: "mazda-3",
 		Manufacturer: "Mazda", Model: "3", Year: 2021,
 		Price: 140000, Km: 30000, Hand: 1,
 		City: "Haifa", PageLink: "https://example.com/2",
@@ -72,16 +68,12 @@ func TestHistory_Pagination(t *testing.T) {
 	const chatID int64 = 702
 
 	_ = tb.store.UpsertUser(ctx, chatID, "bob")
-	searchID, _ := tb.store.CreateSearch(ctx, storage.Search{
-		ChatID: chatID, Name: "test", Manufacturer: 27, Model: 1,
-	})
 
 	// Create more listings than one page (historyPageSize = 5).
 	for i := range 7 {
 		token := "tok-" + string(rune('a'+i))
-		_, _ = tb.store.ClaimNew(ctx, token, chatID, searchID)
 		_ = tb.store.SaveListing(ctx, storage.ListingRecord{
-			Token: token, SearchName: "test",
+			Token: token, ChatID: chatID, SearchName: "test",
 			Manufacturer: "Mazda", Model: "3", Year: 2020 + i,
 			Price: 100000 + i*10000, FirstSeenAt: time.Now(),
 		})
@@ -119,23 +111,14 @@ func TestHistory_IsolatedPerUser(t *testing.T) {
 	_ = tb.store.UpsertUser(ctx, alice, "alice")
 	_ = tb.store.UpsertUser(ctx, bob, "bob")
 
-	searchA, _ := tb.store.CreateSearch(ctx, storage.Search{
-		ChatID: alice, Name: "a-search", Manufacturer: 27, Model: 1,
-	})
-	searchB, _ := tb.store.CreateSearch(ctx, storage.Search{
-		ChatID: bob, Name: "b-search", Manufacturer: 19, Model: 1,
-	})
-
-	_, _ = tb.store.ClaimNew(ctx, "alice-tok", alice, searchA)
 	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
-		Token: "alice-tok", SearchName: "a-search",
+		Token: "alice-tok", ChatID: alice, SearchName: "a-search",
 		Manufacturer: "Mazda", Model: "3", Year: 2020,
 		Price: 100000, FirstSeenAt: time.Now(),
 	})
 
-	_, _ = tb.store.ClaimNew(ctx, "bob-tok", bob, searchB)
 	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
-		Token: "bob-tok", SearchName: "b-search",
+		Token: "bob-tok", ChatID: bob, SearchName: "b-search",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2019,
 		Price: 90000, FirstSeenAt: time.Now(),
 	})
@@ -168,12 +151,8 @@ func TestHistory_InvalidPage(t *testing.T) {
 	const chatID int64 = 720
 
 	_ = tb.store.UpsertUser(ctx, chatID, "dave")
-	searchID, _ := tb.store.CreateSearch(ctx, storage.Search{
-		ChatID: chatID, Name: "test", Manufacturer: 27, Model: 1,
-	})
-	_, _ = tb.store.ClaimNew(ctx, "tok-1", chatID, searchID)
 	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
-		Token: "tok-1", SearchName: "test",
+		Token: "tok-1", ChatID: chatID, SearchName: "test",
 		Manufacturer: "Mazda", Model: "3", Year: 2020,
 		Price: 100000, FirstSeenAt: time.Now(),
 	})
@@ -194,18 +173,46 @@ func TestHistory_InvalidPage(t *testing.T) {
 	}
 }
 
+func TestHistory_SurvivesPrune(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 740
+
+	_ = tb.store.UpsertUser(ctx, chatID, "frank")
+	_, _ = tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "test", Manufacturer: 27, Model: 1,
+	})
+
+	// Claim a listing (populates seen_listings) and save history.
+	_, _ = tb.store.ClaimNew(ctx, "tok-prune", chatID, 1)
+	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-prune", ChatID: chatID, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2020,
+		Price: 100000, FirstSeenAt: time.Now(),
+	})
+
+	// Prune all seen_listings (simulates 30-day expiry).
+	_, _ = tb.store.Prune(ctx, 0)
+
+	// History should still work because it no longer depends on seen_listings.
+	tb.simulateCommand(ctx, chatID, "/history")
+	msg := tb.msg.last()
+	if !strings.Contains(msg.Text, "Match history (1 total)") {
+		t.Errorf("history should survive prune, got: %s", msg.Text)
+	}
+	if !strings.Contains(msg.Text, "Mazda 3") {
+		t.Errorf("expected car name after prune, got: %s", msg.Text)
+	}
+}
+
 func TestHistory_MarkdownEscaping(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 	const chatID int64 = 730
 
 	_ = tb.store.UpsertUser(ctx, chatID, "eve")
-	searchID, _ := tb.store.CreateSearch(ctx, storage.Search{
-		ChatID: chatID, Name: "test", Manufacturer: 27, Model: 1,
-	})
-	_, _ = tb.store.ClaimNew(ctx, "tok-md", chatID, searchID)
 	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
-		Token: "tok-md", SearchName: "test",
+		Token: "tok-md", ChatID: chatID, SearchName: "test",
 		Manufacturer: "Land_Rover", Model: "Range*Rover", Year: 2020,
 		Price: 200000, City: "Tel_Aviv",
 		FirstSeenAt: time.Now(),

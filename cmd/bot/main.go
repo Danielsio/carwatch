@@ -113,12 +113,13 @@ func run(configPath string, logger *slog.Logger) error {
 	h.SetSearchCounter(store)
 
 	botHandler := cwbot.New(nil, store, store, cwbot.Config{
-		AdminChatID: cfg.Telegram.AdminChatID,
-		MaxSearches: cfg.Telegram.MaxSearches,
-		BotUsername:  cfg.Telegram.BotUsername,
-		Health:      h,
-		Listings:    store,
-		Catalog:     dynCatalog,
+		AdminChatID:  cfg.Telegram.AdminChatID,
+		MaxSearches:  cfg.Telegram.MaxSearches,
+		BotUsername:   cfg.Telegram.BotUsername,
+		PollInterval: cfg.Polling.Interval,
+		Health:       h,
+		Listings:     store,
+		Catalog:      dynCatalog,
 	}, logger)
 
 	tgNotif, err := telegram.New(cfg.Telegram.Token, logger,
@@ -171,6 +172,7 @@ func run(configPath string, logger *slog.Logger) error {
 		FetcherFactory:  fetcherFactory,
 		ListingStore:    store,
 		SearchStore:     store,
+		UserStore:       store,
 		CatalogIngester: dynCatalog,
 	})
 	if err != nil {

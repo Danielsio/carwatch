@@ -376,6 +376,43 @@ func TestNotificationQueue(t *testing.T) {
 	}
 }
 
+func TestPruneNotifications(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.EnqueueNotification(ctx, "100", "search1", "hello")
+	_ = store.EnqueueNotification(ctx, "200", "search2", "world")
+
+	// Prune with zero duration removes all.
+	pruned, err := store.PruneNotifications(ctx, 0)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if pruned != 2 {
+		t.Errorf("expected 2 pruned, got %d", pruned)
+	}
+
+	remaining, _ := store.PendingNotifications(ctx)
+	if len(remaining) != 0 {
+		t.Errorf("expected 0 remaining, got %d", len(remaining))
+	}
+}
+
+func TestPruneNotifications_KeepsRecent(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.EnqueueNotification(ctx, "100", "search1", "hello")
+
+	pruned, err := store.PruneNotifications(ctx, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if pruned != 0 {
+		t.Errorf("expected 0 pruned (recent), got %d", pruned)
+	}
+}
+
 // --- PriceTracker ---
 
 func TestRecordPrice(t *testing.T) {
@@ -593,7 +630,7 @@ func TestSaveAndListListings(t *testing.T) {
 	ctx := context.Background()
 
 	err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "abc", SearchName: "test", Manufacturer: "Mazda", Model: "3",
+		Token: "abc", ChatID: 100, SearchName: "test", Manufacturer: "Mazda", Model: "3",
 		Year: 2021, Price: 95000, Km: 85000, Hand: 2, City: "Tel Aviv",
 		PageLink: "https://example.com",
 	})
@@ -613,21 +650,19 @@ func TestListUserListings(t *testing.T) {
 	seedUser(t, store, 100)
 	seedUser(t, store, 200)
 
-	// Claim tokens for user 100.
-	_, _ = store.ClaimNew(ctx, "tok-a", 100, 1)
-	_, _ = store.ClaimNew(ctx, "tok-b", 100, 1)
-
-	// Claim a different token for user 200.
-	_, _ = store.ClaimNew(ctx, "tok-c", 200, 1)
-
-	// Save listing details.
-	for _, tok := range []string{"tok-a", "tok-b", "tok-c"} {
-		_ = store.SaveListing(ctx, storage.ListingRecord{
-			Token: tok, SearchName: "test",
-			Manufacturer: "Mazda", Model: "3", Year: 2020,
-			Price: 100000,
-		})
-	}
+	// Save listings per user — listing_history is now per-user via chat_id.
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-a", ChatID: 100, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2020, Price: 100000,
+	})
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-b", ChatID: 100, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2020, Price: 100000,
+	})
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-c", ChatID: 200, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2020, Price: 100000,
+	})
 
 	// User 100 should see 2 listings.
 	listings, err := store.ListUserListings(ctx, 100, 10, 0)
@@ -664,9 +699,8 @@ func TestCountUserListings(t *testing.T) {
 
 	// Add some.
 	for _, tok := range []string{"t1", "t2", "t3"} {
-		_, _ = store.ClaimNew(ctx, tok, 100, 1)
 		_ = store.SaveListing(ctx, storage.ListingRecord{
-			Token: tok, SearchName: "test",
+			Token: tok, ChatID: 100, SearchName: "test",
 			Manufacturer: "Mazda", Model: "3",
 		})
 	}
@@ -687,9 +721,8 @@ func TestListUserListings_Pagination(t *testing.T) {
 
 	for i := range 5 {
 		tok := "tok-" + string(rune('a'+i))
-		_, _ = store.ClaimNew(ctx, tok, 100, 1)
 		_ = store.SaveListing(ctx, storage.ListingRecord{
-			Token: tok, SearchName: "test",
+			Token: tok, ChatID: 100, SearchName: "test",
 			Manufacturer: "Test", Model: "Car",
 			Price: 100000 + i*1000,
 		})

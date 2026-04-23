@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
@@ -71,6 +72,11 @@ func (n *Notifier) sendMessage(ctx context.Context, chatID string, text string) 
 			Text:   chunk,
 		})
 		if err != nil {
+			errMsg := strings.ToLower(err.Error())
+			if strings.Contains(errMsg, "bot was blocked by the user") ||
+				strings.Contains(errMsg, "user is deactivated") {
+				return fmt.Errorf("%w: %v", notifier.ErrRecipientBlocked, err)
+			}
 			return fmt.Errorf("telegram sendMessage: %w", err)
 		}
 	}

@@ -72,6 +72,7 @@ type NotificationQueue interface {
 	EnqueueNotification(ctx context.Context, recipient, searchName, payload string) error
 	PendingNotifications(ctx context.Context) ([]PendingNotification, error)
 	AckNotification(ctx context.Context, id int64) error
+	PruneNotifications(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 
 type PriceTracker interface {
@@ -89,6 +90,7 @@ type DigestStore interface {
 
 type ListingRecord struct {
 	Token        string
+	ChatID       int64
 	SearchName   string
 	Manufacturer string
 	Model        string
