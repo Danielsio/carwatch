@@ -549,7 +549,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 				"error", err,
 			)
 			for _, l := range newListings {
-				_ = s.dedup.ReleaseClaim(ctx, l.Token, search.ChatID)
+				_ = s.dedup.ReleaseClaim(context.Background(), l.Token, search.ChatID)
 			}
 		} else {
 			s.observer.RecordNotificationSent()
