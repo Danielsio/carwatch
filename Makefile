@@ -1,5 +1,7 @@
-.PHONY: build run test test-cover test-e2e lint ci clean docker-build docker-run \
-       vm-ssh vm-logs vm-restart vm-stop vm-start vm-status vm-deploy
+.PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
+       vm-check-env vm-ssh vm-logs vm-restart vm-stop vm-start vm-status vm-deploy
+
+all: build
 
 COVER_DIR := .coverage
 COVER_PROFILE := $(COVER_DIR)/coverage.out
@@ -60,11 +62,12 @@ docker-run:
 VM_IP   := $(CARWATCH_VM_IP)
 VM_KEY  := $(CARWATCH_VM_KEY)
 VM_USER := $(or $(CARWATCH_VM_USER),ubuntu)
-SSH     := ssh -i $(VM_KEY) -o StrictHostKeyChecking=no $(VM_USER)@$(VM_IP)
+SSH     := ssh -i $(VM_KEY) $(VM_USER)@$(VM_IP)
 
 vm-check-env:
 	@test -n "$(VM_IP)"  || (echo "Error: set CARWATCH_VM_IP";  exit 1)
 	@test -n "$(VM_KEY)" || (echo "Error: set CARWATCH_VM_KEY"; exit 1)
+	@test -r "$(VM_KEY)" || (echo "Error: CARWATCH_VM_KEY is not readable: $(VM_KEY)"; exit 1)
 
 vm-ssh: vm-check-env
 	$(SSH)
@@ -85,4 +88,4 @@ vm-restart: vm-check-env
 	$(SSH) "docker restart carwatch"
 
 vm-deploy: vm-check-env
-	$(SSH) "docker pull ghcr.io/danielsio/carwatch:latest && docker restart carwatch && sleep 3 && docker exec carwatch /bot -version"
+	$(SSH) "docker pull ghcr.io/danielsio/carwatch:latest && docker stop carwatch && docker rm carwatch && docker run -d --name carwatch --restart unless-stopped -v carwatch_carwatch-data:/data -v /home/ubuntu/carwatch/config.yaml:/config.yaml:ro -p 8080:8080 ghcr.io/danielsio/carwatch:latest && sleep 3 && docker exec carwatch /bot -version"
