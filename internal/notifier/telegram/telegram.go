@@ -73,7 +73,8 @@ func (n *Notifier) sendMessage(ctx context.Context, chatID string, text string) 
 		})
 		if err != nil {
 			errMsg := strings.ToLower(err.Error())
-			if strings.Contains(errMsg, "forbidden") || strings.Contains(errMsg, "blocked") {
+			if strings.Contains(errMsg, "bot was blocked by the user") ||
+				strings.Contains(errMsg, "user is deactivated") {
 				return fmt.Errorf("%w: %v", notifier.ErrRecipientBlocked, err)
 			}
 			return fmt.Errorf("telegram sendMessage: %w", err)

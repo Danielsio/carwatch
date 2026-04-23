@@ -68,7 +68,7 @@ func (b *Bot) isRateLimited(chatID int64) bool {
 	refill := int(elapsed / rateLimitInterval)
 	if refill > 0 {
 		rl.tokens = min(rl.tokens+refill, rateLimitBurst)
-		rl.lastTick = now
+		rl.lastTick = rl.lastTick.Add(time.Duration(refill) * rateLimitInterval)
 	}
 
 	if rl.tokens <= 0 {
@@ -146,6 +146,11 @@ func (b *Bot) rateLimited(next tgbot.HandlerFunc) tgbot.HandlerFunc {
 		}
 		if chatID != 0 && b.isRateLimited(chatID) {
 			b.logger.Warn("rate limited", "chat_id", chatID)
+			if update.CallbackQuery != nil {
+				if err := b.msg.AnswerCallback(ctx, update.CallbackQuery.ID); err != nil {
+					b.logger.Error("answer callback query failed", "chat_id", chatID, "error", err)
+				}
+			}
 			return
 		}
 		next(ctx, bot, update)
@@ -1151,6 +1156,9 @@ func (b *Bot) handleModelSearch(ctx context.Context, chatID int64, query string)
 }
 
 func (b *Bot) formatInterval() string {
+	if b.pollInterval < time.Minute {
+		return b.pollInterval.Round(time.Second).String()
+	}
 	m := int(b.pollInterval.Minutes())
 	if m < 60 {
 		return fmt.Sprintf("%d minutes", m)

@@ -186,8 +186,11 @@ func migrate(db *sql.DB) error {
 			);
 			INSERT INTO listing_history_v2
 				(token, chat_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
-			SELECT token, 0, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at
-			FROM listing_history;
+			SELECT DISTINCT
+				lh.token, COALESCE(sl.chat_id, 0), lh.search_name, lh.manufacturer, lh.model,
+				lh.year, lh.price, lh.km, lh.hand, lh.city, lh.page_link, lh.first_seen_at
+			FROM listing_history lh
+			LEFT JOIN seen_listings sl ON sl.token = lh.token;
 			DROP TABLE listing_history;
 			ALTER TABLE listing_history_v2 RENAME TO listing_history;
 		`); err != nil {
