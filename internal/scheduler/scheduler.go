@@ -512,7 +512,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 
 			if s.listingStore != nil {
 				_ = s.listingStore.SaveListing(ctx, storage.ListingRecord{
-					Token: l.Token, SearchName: search.Name,
+					Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
 					Manufacturer: l.Manufacturer, Model: l.Model,
 					Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 					City: l.City, PageLink: l.PageLink, FirstSeenAt: time.Now(),

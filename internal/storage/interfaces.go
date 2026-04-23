@@ -89,6 +89,7 @@ type DigestStore interface {
 
 type ListingRecord struct {
 	Token        string
+	ChatID       int64
 	SearchName   string
 	Manufacturer string
 	Model        string
