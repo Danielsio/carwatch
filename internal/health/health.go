@@ -109,6 +109,9 @@ func (s *Status) getSource(source string) *SourceMetrics {
 
 	s.sourceMu.Lock()
 	defer s.sourceMu.Unlock()
+	if s.sources == nil {
+		s.sources = make(map[string]*SourceMetrics)
+	}
 	if m, ok = s.sources[source]; ok {
 		return m
 	}
