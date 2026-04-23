@@ -2,9 +2,12 @@ package notifier
 
 import (
 	"context"
+	"errors"
 
 	"github.com/dsionov/carwatch/internal/model"
 )
+
+var ErrRecipientBlocked = errors.New("recipient blocked the bot")
 
 type Notifier interface {
 	Connect(ctx context.Context) error

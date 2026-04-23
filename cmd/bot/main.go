@@ -171,6 +171,7 @@ func run(configPath string, logger *slog.Logger) error {
 		FetcherFactory:  fetcherFactory,
 		ListingStore:    store,
 		SearchStore:     store,
+		UserStore:       store,
 		CatalogIngester: dynCatalog,
 	})
 	if err != nil {
