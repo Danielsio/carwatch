@@ -206,3 +206,7 @@ func (m *mockNotificationQueue) AckNotification(_ context.Context, id int64) err
 	m.acked[id] = true
 	return nil
 }
+
+func (m *mockNotificationQueue) PruneNotifications(_ context.Context, _ time.Duration) (int64, error) {
+	return 0, nil
+}

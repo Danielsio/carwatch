@@ -442,6 +442,15 @@ func (s *Store) AckNotification(ctx context.Context, id int64) error {
 	return err
 }
 
+func (s *Store) PruneNotifications(ctx context.Context, olderThan time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-olderThan)
+	result, err := s.db.ExecContext(ctx, "DELETE FROM pending_notifications WHERE created_at < ?", cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 // --- PriceTracker ---
 
 func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error) {

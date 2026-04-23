@@ -417,6 +417,14 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 				s.logger.Info("pruned old listings", "count", pruned)
 			}
 		}
+		if s.queue != nil {
+			pruned, err := s.queue.PruneNotifications(ctx, 48*time.Hour)
+			if err != nil {
+				s.logger.Error("prune notifications failed", "error", err)
+			} else if pruned > 0 {
+				s.logger.Info("pruned expired notifications", "count", pruned)
+			}
+		}
 		s.lastPruneTime = time.Now()
 	}
 

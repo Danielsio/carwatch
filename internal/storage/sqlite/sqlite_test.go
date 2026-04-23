@@ -376,6 +376,43 @@ func TestNotificationQueue(t *testing.T) {
 	}
 }
 
+func TestPruneNotifications(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.EnqueueNotification(ctx, "100", "search1", "hello")
+	_ = store.EnqueueNotification(ctx, "200", "search2", "world")
+
+	// Prune with zero duration removes all.
+	pruned, err := store.PruneNotifications(ctx, 0)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if pruned != 2 {
+		t.Errorf("expected 2 pruned, got %d", pruned)
+	}
+
+	remaining, _ := store.PendingNotifications(ctx)
+	if len(remaining) != 0 {
+		t.Errorf("expected 0 remaining, got %d", len(remaining))
+	}
+}
+
+func TestPruneNotifications_KeepsRecent(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.EnqueueNotification(ctx, "100", "search1", "hello")
+
+	pruned, err := store.PruneNotifications(ctx, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if pruned != 0 {
+		t.Errorf("expected 0 pruned (recent), got %d", pruned)
+	}
+}
+
 // --- PriceTracker ---
 
 func TestRecordPrice(t *testing.T) {
