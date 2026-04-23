@@ -20,6 +20,7 @@ type User struct {
 type Search struct {
 	ID           int64
 	ChatID       int64
+	UserSeq      int
 	Name         string
 	Source       string
 	Manufacturer int
@@ -47,6 +48,7 @@ type SearchStore interface {
 	CreateSearch(ctx context.Context, s Search) (int64, error)
 	ListSearches(ctx context.Context, chatID int64) ([]Search, error)
 	GetSearch(ctx context.Context, id int64) (*Search, error)
+	GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*Search, error)
 	DeleteSearch(ctx context.Context, id int64, chatID int64) error
 	SetSearchActive(ctx context.Context, id int64, active bool) error
 	ListAllActiveSearches(ctx context.Context) ([]Search, error)
