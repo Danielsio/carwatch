@@ -25,21 +25,22 @@ type PollTrigger interface {
 }
 
 type Bot struct {
-	bot         *tgbot.Bot
-	msg         messenger
-	users       storage.UserStore
-	searches    storage.SearchStore
-	listings    storage.ListingStore
-	digests     storage.DigestStore
-	catalog     catalog.Catalog
-	adminChatID int64
-	maxSearches int
-	botUsername  string
-	logger      *slog.Logger
-	health      *health.Status
-	chatMu      sync.Map
-	pollTrigger PollTrigger
-	rateLimiter sync.Map
+	bot          *tgbot.Bot
+	msg          messenger
+	users        storage.UserStore
+	searches     storage.SearchStore
+	listings     storage.ListingStore
+	digests      storage.DigestStore
+	catalog      catalog.Catalog
+	adminChatID  int64
+	maxSearches  int
+	botUsername   string
+	pollInterval time.Duration
+	logger       *slog.Logger
+	health       *health.Status
+	chatMu       sync.Map
+	pollTrigger  PollTrigger
+	rateLimiter  sync.Map
 }
 
 type userRateLimit struct {
@@ -78,18 +79,22 @@ func (b *Bot) isRateLimited(chatID int64) bool {
 }
 
 type Config struct {
-	AdminChatID int64
-	MaxSearches int
-	BotUsername  string
-	Health      *health.Status
-	Digests     storage.DigestStore
-	Listings    storage.ListingStore
-	Catalog     catalog.Catalog
+	AdminChatID    int64
+	MaxSearches    int
+	BotUsername     string
+	PollInterval   time.Duration
+	Health         *health.Status
+	Digests        storage.DigestStore
+	Listings       storage.ListingStore
+	Catalog        catalog.Catalog
 }
 
 func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cfg Config, logger *slog.Logger) *Bot {
 	if cfg.MaxSearches == 0 {
 		cfg.MaxSearches = 3
+	}
+	if cfg.PollInterval == 0 {
+		cfg.PollInterval = 15 * time.Minute
 	}
 	cat := cfg.Catalog
 	if cat == nil {
@@ -100,18 +105,19 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		msg = &telegramMessenger{bot: b}
 	}
 	return &Bot{
-		bot:         b,
-		msg:         msg,
-		users:       users,
-		searches:    searches,
-		listings:    cfg.Listings,
-		digests:     cfg.Digests,
-		catalog:     cat,
-		adminChatID: cfg.AdminChatID,
-		maxSearches: cfg.MaxSearches,
-		botUsername:  cfg.BotUsername,
-		logger:      logger,
-		health:      cfg.Health,
+		bot:          b,
+		msg:          msg,
+		users:        users,
+		searches:     searches,
+		listings:     cfg.Listings,
+		digests:      cfg.Digests,
+		catalog:      cat,
+		adminChatID:  cfg.AdminChatID,
+		maxSearches:  cfg.MaxSearches,
+		botUsername:   cfg.BotUsername,
+		pollInterval: cfg.PollInterval,
+		logger:       logger,
+		health:       cfg.Health,
 	}
 }
 
@@ -991,8 +997,8 @@ func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 
 	srcDisplay := sourceDisplayName(src.Source)
 	b.send(ctx, chatID, fmt.Sprintf(
-		"Search #%d saved! I'll check %s every 15 minutes and send you new listings.\n\nUse /list to see your searches.",
-		newID, srcDisplay))
+		"Search #%d saved! I'll check %s every %s and send you new listings.\n\nUse /list to see your searches.",
+		newID, srcDisplay, b.formatInterval()))
 }
 
 func (b *Bot) onDigestOn(ctx context.Context, chatID int64) {
@@ -1142,6 +1148,21 @@ func (b *Bot) handleModelSearch(ctx context.Context, chatID int64, query string)
 	b.sendWithKeyboard(ctx, chatID,
 		"Search results:",
 		b.modelSearchResults(wd.Manufacturer, query))
+}
+
+func (b *Bot) formatInterval() string {
+	m := int(b.pollInterval.Minutes())
+	if m < 60 {
+		return fmt.Sprintf("%d minutes", m)
+	}
+	h := m / 60
+	if m%60 == 0 {
+		if h == 1 {
+			return "1 hour"
+		}
+		return fmt.Sprintf("%d hours", h)
+	}
+	return b.pollInterval.String()
 }
 
 func (b *Bot) modelDisplayName(manufacturerID, modelID int) string {
