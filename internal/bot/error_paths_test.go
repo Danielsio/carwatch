@@ -410,6 +410,22 @@ func TestOnDigestOff_SetModeError(t *testing.T) {
 	}
 }
 
+func TestOnDigestInterval_SetModeError(t *testing.T) {
+	msg := &mockMessenger{}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	searches := &errSearchStore{}
+	ds := &errDigestStore{setModeErr: errors.New("db error")}
+	b := newErrBot(t, msg, users, searches)
+	b.digests = ds
+
+	b.onDigestInterval(context.Background(), 100, cbDigestInterval+"6h")
+
+	last := msg.last()
+	if !strings.Contains(last.Text, "Failed to update") {
+		t.Errorf("expected failure message, got %q", last.Text)
+	}
+}
+
 // --- handleCallback edge cases ---
 
 func TestHandleCallback_InaccessibleMessage(t *testing.T) {

@@ -633,22 +633,33 @@ func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 		kb = &tgmodels.InlineKeyboardMarkup{
 			InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
 				{
+					{Text: "2h", CallbackData: cbDigestInterval + "2h"},
+					{Text: "6h", CallbackData: cbDigestInterval + "6h"},
+					{Text: "12h", CallbackData: cbDigestInterval + "12h"},
+					{Text: "24h", CallbackData: cbDigestInterval + "24h"},
+				},
+				{
 					{Text: "Switch to instant", CallbackData: cbDigestOff},
 				},
 			},
 		}
 		b.sendWithKeyboard(ctx, chatID,
-			fmt.Sprintf("*Notification mode:* digest (every %s)\n\nNew listings are batched and sent periodically.", interval), kb)
+			fmt.Sprintf("*Notification mode:* digest (every %s)\n\nChoose interval or switch to instant:", interval), kb)
 	} else {
 		kb = &tgmodels.InlineKeyboardMarkup{
 			InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
 				{
-					{Text: "Switch to digest (every 6h)", CallbackData: cbDigestOn},
+					{Text: "Every 2h", CallbackData: cbDigestInterval + "2h"},
+					{Text: "Every 6h", CallbackData: cbDigestInterval + "6h"},
+				},
+				{
+					{Text: "Every 12h", CallbackData: cbDigestInterval + "12h"},
+					{Text: "Every 24h", CallbackData: cbDigestInterval + "24h"},
 				},
 			},
 		}
 		b.sendWithKeyboard(ctx, chatID,
-			"*Notification mode:* instant\n\nNew listings are sent immediately as they are found.", kb)
+			"*Notification mode:* instant\n\nSwitch to digest mode — choose how often to receive batched listings:", kb)
 	}
 }
 
@@ -708,6 +719,8 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 		b.onDigestOn(ctx, chatID)
 	case data == cbDigestOff:
 		b.onDigestOff(ctx, chatID)
+	case strings.HasPrefix(data, cbDigestInterval):
+		b.onDigestInterval(ctx, chatID, data)
 	case strings.HasPrefix(data, cbHistoryPage):
 		b.onHistoryPage(ctx, chatID, data)
 	case data == "noop":
@@ -1026,6 +1039,24 @@ func (b *Bot) onDigestOff(ctx context.Context, chatID int64) {
 		return
 	}
 	b.sendMarkdown(ctx, chatID, "Switched to *instant* mode. Listings will be sent immediately.")
+}
+
+func (b *Bot) onDigestInterval(ctx context.Context, chatID int64, data string) {
+	if b.digests == nil {
+		return
+	}
+	interval := strings.TrimPrefix(data, cbDigestInterval)
+	switch interval {
+	case "2h", "6h", "12h", "24h":
+	default:
+		b.send(ctx, chatID, "Invalid interval.")
+		return
+	}
+	if err := b.digests.SetDigestMode(ctx, chatID, "digest", interval); err != nil {
+		b.send(ctx, chatID, "Failed to update digest interval.")
+		return
+	}
+	b.sendMarkdown(ctx, chatID, fmt.Sprintf("Switched to *digest* mode — listings batched every *%s*.", interval))
 }
 
 func (b *Bot) onHistoryPage(ctx context.Context, chatID int64, data string) {

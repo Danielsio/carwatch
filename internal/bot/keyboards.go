@@ -26,6 +26,7 @@ const (
 	cbPrefixShareCopy = "share_copy:"
 	cbDigestOn        = "digest:on"
 	cbDigestOff       = "digest:off"
+	cbDigestInterval  = "digest_int:"
 	cbMfrPage         = "mfr_pg:"
 	cbMfrSearch       = "mfr_search"
 	cbMdlPage         = "mdl_pg:"
