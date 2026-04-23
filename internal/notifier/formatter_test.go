@@ -104,6 +104,76 @@ func TestFormatPriceDrop_MinimalFields(t *testing.T) {
 }
 
 
+func TestFormatListing_EscapesMarkdown(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token:        "md1",
+			Manufacturer: "Land_Rover",
+			Model:        "Range*Rover",
+			SubModel:     "Sport`Ed",
+			Year:         2022,
+			City:         "Tel_Aviv",
+			Area:         "Center[South]",
+			GearBox:      "Auto_matic",
+			EngineVolume: 3000,
+			Price:        300000,
+			PageLink:     "https://example.com/item_123",
+		},
+	}
+
+	msg := FormatListing(l)
+
+	if strings.Contains(msg, "Land_Rover") {
+		t.Error("underscore in manufacturer should be escaped")
+	}
+	if !strings.Contains(msg, "Land\\_Rover") {
+		t.Errorf("expected escaped manufacturer, got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "Range\\*Rover") {
+		t.Errorf("expected escaped model, got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "Sport\\`Ed") {
+		t.Errorf("expected escaped submodel, got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "Tel\\_Aviv") {
+		t.Errorf("expected escaped city, got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "Center\\[South\\]") {
+		t.Errorf("expected escaped area, got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "Auto\\_matic") {
+		t.Errorf("expected escaped gearbox, got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "item\\_123") {
+		t.Errorf("expected escaped page link, got:\n%s", msg)
+	}
+}
+
+func TestFormatPriceDrop_EscapesMarkdown(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token:        "md2",
+			Manufacturer: "Land_Rover",
+			Model:        "Range*Rover",
+			Year:         2022,
+			Price:        280000,
+			PageLink:     "https://example.com/item_456",
+		},
+	}
+
+	msg := FormatPriceDrop(l, 300000)
+
+	if !strings.Contains(msg, "Land\\_Rover") {
+		t.Errorf("expected escaped manufacturer in price drop, got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "Range\\*Rover") {
+		t.Errorf("expected escaped model in price drop, got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "item\\_456") {
+		t.Errorf("expected escaped page link in price drop, got:\n%s", msg)
+	}
+}
+
 func TestFormatBatch_SingleListing(t *testing.T) {
 	listings := []model.Listing{{
 		RawListing: model.RawListing{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 90000},

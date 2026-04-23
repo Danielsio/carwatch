@@ -13,9 +13,9 @@ func FormatListing(l model.Listing) string {
 
 	b.WriteString("🚗 *New Car Listing*\n\n")
 
-	title := strings.TrimSpace(l.Manufacturer + " " + l.Model)
+	title := format.EscapeMarkdown(strings.TrimSpace(l.Manufacturer + " " + l.Model))
 	if l.SubModel != "" {
-		title += " " + l.SubModel
+		title += " " + format.EscapeMarkdown(l.SubModel)
 	}
 	b.WriteString("*" + title + "*\n\n")
 
@@ -30,7 +30,7 @@ func FormatListing(l model.Listing) string {
 	if l.EngineVolume > 0 {
 		b.WriteString(fmt.Sprintf("⚙️ Engine: %.1fL", l.EngineVolume/1000))
 		if l.GearBox != "" {
-			b.WriteString(", " + l.GearBox)
+			b.WriteString(", " + format.EscapeMarkdown(l.GearBox))
 		}
 		b.WriteString("\n")
 	}
@@ -48,9 +48,9 @@ func FormatListing(l model.Listing) string {
 	}
 
 	if l.City != "" {
-		location := l.City
+		location := format.EscapeMarkdown(l.City)
 		if l.Area != "" {
-			location += ", " + l.Area
+			location += ", " + format.EscapeMarkdown(l.Area)
 		}
 		b.WriteString(fmt.Sprintf("📍 Location: %s\n", location))
 	}
@@ -60,7 +60,7 @@ func FormatListing(l model.Listing) string {
 	}
 
 	if l.PageLink != "" {
-		b.WriteString(fmt.Sprintf("\n🔗 %s", l.PageLink))
+		b.WriteString(fmt.Sprintf("\n🔗 %s", format.EscapeMarkdown(l.PageLink)))
 	}
 
 	return b.String()
@@ -69,9 +69,9 @@ func FormatListing(l model.Listing) string {
 func FormatPriceDrop(l model.Listing, oldPrice int) string {
 	var b strings.Builder
 
-	title := strings.TrimSpace(l.Manufacturer + " " + l.Model)
+	title := format.EscapeMarkdown(strings.TrimSpace(l.Manufacturer + " " + l.Model))
 	if l.SubModel != "" {
-		title += " " + l.SubModel
+		title += " " + format.EscapeMarkdown(l.SubModel)
 	}
 	if l.Year > 0 {
 		title += fmt.Sprintf(" %d", l.Year)
@@ -94,7 +94,7 @@ func FormatPriceDrop(l model.Listing, oldPrice int) string {
 	}
 
 	if l.PageLink != "" {
-		b.WriteString(fmt.Sprintf("🔗 %s", l.PageLink))
+		b.WriteString(fmt.Sprintf("🔗 %s", format.EscapeMarkdown(l.PageLink)))
 	}
 
 	return b.String()
