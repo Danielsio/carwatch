@@ -513,6 +513,15 @@ func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 			snap["status"], snap["uptime"], snap["cycles"], snap["errors"]))
 		sb.WriteString(fmt.Sprintf("\nListings found: %v\nNotifications sent: %v",
 			snap["listings_found"], snap["notifications_sent"]))
+
+		if sources, ok := snap["sources"].(map[string]any); ok {
+			for name, data := range sources {
+				if m, ok := data.(map[string]any); ok {
+					sb.WriteString(fmt.Sprintf("\n\n*%s:*\nFetches: %v (success: %v, errors: %v)\nAvg latency: %vms",
+						name, m["fetches"], m["successes"], m["errors"], m["avg_latency_ms"]))
+				}
+			}
+		}
 	}
 
 	b.sendMarkdown(ctx, chatID, sb.String())

@@ -463,7 +463,9 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 		source = "yad2"
 	}
 	activeFetcher := s.fetcherForSource(source)
+	fetchStart := time.Now()
 	raw, err := s.fetchWithRetryUsing(fetchCtx, activeFetcher, group.Params)
+	s.observer.RecordFetch(source, time.Since(fetchStart), err)
 	if err != nil {
 		return err
 	}
