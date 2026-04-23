@@ -29,8 +29,8 @@ func New(dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	db.SetMaxOpenConns(2)
-	db.SetMaxIdleConns(2)
+	db.SetMaxOpenConns(8)
+	db.SetMaxIdleConns(8)
 
 	if err := migrate(db); err != nil {
 		db.Close()
