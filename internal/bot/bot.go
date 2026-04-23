@@ -705,6 +705,10 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 		b.onModelSelected(ctx, chatID, data)
 	case strings.HasPrefix(data, cbPrefixEngine):
 		b.onEngineSelected(ctx, chatID, data)
+	case strings.HasPrefix(data, cbPrefixMaxKm):
+		b.onMaxKmSelected(ctx, chatID, data)
+	case strings.HasPrefix(data, cbPrefixMaxHand):
+		b.onMaxHandSelected(ctx, chatID, data)
 	case data == cbConfirm:
 		b.onConfirm(ctx, chatID)
 	case data == cbEdit:
@@ -890,6 +894,36 @@ func (b *Bot) onEngineSelected(ctx context.Context, chatID int64, data string) {
 	wd := b.loadWizardData(ctx, chatID)
 	wd.EngineMinCC = cc
 	b.logger.Debug("engine selected", "chat_id", chatID, "engine_min_cc", cc)
+	b.saveWizardState(ctx, chatID, StateAskMaxKm, wd)
+
+	b.sendWithKeyboard(ctx, chatID, "Maximum kilometers?", maxKmKeyboard())
+}
+
+func (b *Bot) onMaxKmSelected(ctx context.Context, chatID int64, data string) {
+	kmStr := strings.TrimPrefix(data, cbPrefixMaxKm)
+	km, err := strconv.Atoi(kmStr)
+	if err != nil {
+		b.send(ctx, chatID, "Something went wrong. Use /cancel and try again.")
+		return
+	}
+
+	wd := b.loadWizardData(ctx, chatID)
+	wd.MaxKm = km
+	b.saveWizardState(ctx, chatID, StateAskMaxHand, wd)
+
+	b.sendWithKeyboard(ctx, chatID, "Maximum ownership hand?", maxHandKeyboard())
+}
+
+func (b *Bot) onMaxHandSelected(ctx context.Context, chatID int64, data string) {
+	handStr := strings.TrimPrefix(data, cbPrefixMaxHand)
+	hand, err := strconv.Atoi(handStr)
+	if err != nil {
+		b.send(ctx, chatID, "Something went wrong. Use /cancel and try again.")
+		return
+	}
+
+	wd := b.loadWizardData(ctx, chatID)
+	wd.MaxHand = hand
 	b.saveWizardState(ctx, chatID, StateConfirm, wd)
 
 	kb, summary := confirmKeyboard(wd)
@@ -917,6 +951,8 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 		YearMax:      wd.YearMax,
 		PriceMax:     wd.PriceMax,
 		EngineMinCC:  wd.EngineMinCC,
+		MaxKm:        wd.MaxKm,
+		MaxHand:      wd.MaxHand,
 	})
 	if err != nil {
 		b.logger.Error("create search failed", "error", err)

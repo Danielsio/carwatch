@@ -19,6 +19,8 @@ const (
 	cbPrefixMfr       = "mfr:"
 	cbPrefixModel     = "mdl:"
 	cbPrefixEngine    = "eng:"
+	cbPrefixMaxKm     = "maxkm:"
+	cbPrefixMaxHand   = "maxhand:"
 	cbConfirm         = "confirm:yes"
 	cbEdit            = "confirm:edit"
 	cbCancel          = "confirm:cancel"
@@ -244,6 +246,38 @@ func engineKeyboard() *tgmodels.InlineKeyboardMarkup {
 	}
 }
 
+func maxKmKeyboard() *tgmodels.InlineKeyboardMarkup {
+	return &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+			{
+				{Text: "Any", CallbackData: cbPrefixMaxKm + "0"},
+				{Text: "50,000", CallbackData: cbPrefixMaxKm + "50000"},
+				{Text: "100,000", CallbackData: cbPrefixMaxKm + "100000"},
+			},
+			{
+				{Text: "150,000", CallbackData: cbPrefixMaxKm + "150000"},
+				{Text: "200,000", CallbackData: cbPrefixMaxKm + "200000"},
+			},
+		},
+	}
+}
+
+func maxHandKeyboard() *tgmodels.InlineKeyboardMarkup {
+	return &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+			{
+				{Text: "Any", CallbackData: cbPrefixMaxHand + "0"},
+				{Text: "1st", CallbackData: cbPrefixMaxHand + "1"},
+				{Text: "2nd", CallbackData: cbPrefixMaxHand + "2"},
+			},
+			{
+				{Text: "3rd", CallbackData: cbPrefixMaxHand + "3"},
+				{Text: "4th", CallbackData: cbPrefixMaxHand + "4"},
+			},
+		},
+	}
+}
+
 func sourceDisplayName(source string) string {
 	if strings.TrimSpace(source) == "" {
 		return "Yad2, WinWin"
@@ -270,6 +304,16 @@ func confirmKeyboard(data WizardData) (*tgmodels.InlineKeyboardMarkup, string) {
 		engineStr = fmt.Sprintf("%.1fL+", float64(data.EngineMinCC)/1000)
 	}
 
+	kmStr := "Any"
+	if data.MaxKm > 0 {
+		kmStr = format.Number(data.MaxKm) + " km"
+	}
+
+	handStr := "Any"
+	if data.MaxHand > 0 {
+		handStr = strconv.Itoa(data.MaxHand)
+	}
+
 	source := data.Source
 	if source == "" {
 		source = "yad2,winwin"
@@ -286,12 +330,16 @@ func confirmKeyboard(data WizardData) (*tgmodels.InlineKeyboardMarkup, string) {
 			"Car: %s %s\n"+
 			"Year: %d–%d\n"+
 			"Max price: %s NIS\n"+
-			"Engine: %s",
+			"Engine: %s\n"+
+			"Max km: %s\n"+
+			"Max hand: %s",
 		sourceDisplayName(source),
 		data.ManufacturerName, modelDisplay,
 		data.YearMin, data.YearMax,
 		format.Number(data.PriceMax),
 		engineStr,
+		kmStr,
+		handStr,
 	)
 
 	kb := &tgmodels.InlineKeyboardMarkup{
