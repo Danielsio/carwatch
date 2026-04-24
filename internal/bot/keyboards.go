@@ -375,7 +375,7 @@ func confirmKeyboard(data WizardData, lang locale.Lang) (*tgmodels.InlineKeyboar
 	return kb, summary
 }
 
-func listingActionKeyboard(token string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
+func ListingActionKeyboard(token string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	return &tgmodels.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
 			{

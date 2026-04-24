@@ -126,6 +126,10 @@ func (b *Bot) onHistoryPage(ctx context.Context, chatID int64, data string) {
 func (b *Bot) handleSaved(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	b.sendSavedPage(ctx, chatID, 0)
+}
+
+func (b *Bot) sendSavedPage(ctx context.Context, chatID int64, page int) {
 	lang := b.getUserLang(ctx, chatID)
 
 	if b.saved == nil {
@@ -143,7 +147,13 @@ func (b *Bot) handleSaved(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 		return
 	}
 
-	listings, err := b.saved.ListSaved(ctx, chatID, historyPageSize, 0)
+	totalPages := int((total + int64(historyPageSize) - 1) / int64(historyPageSize))
+	if page < 0 || page >= totalPages {
+		page = 0
+	}
+
+	offset := page * historyPageSize
+	listings, err := b.saved.ListSaved(ctx, chatID, historyPageSize, offset)
 	if err != nil {
 		b.send(ctx, chatID, locale.T(lang, "saved_load_error"))
 		return
@@ -171,7 +181,39 @@ func (b *Bot) handleSaved(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 		}
 	}
 
-	b.sendMarkdown(ctx, chatID, sb.String())
+	if totalPages <= 1 {
+		b.sendMarkdown(ctx, chatID, sb.String())
+		return
+	}
+
+	var navRow []tgmodels.InlineKeyboardButton
+	if page > 0 {
+		navRow = append(navRow, tgmodels.InlineKeyboardButton{
+			Text: locale.T(lang, "history_newer"), CallbackData: cbSavedPage + strconv.Itoa(page-1),
+		})
+	}
+	navRow = append(navRow, tgmodels.InlineKeyboardButton{
+		Text: fmt.Sprintf("%d/%d", page+1, totalPages), CallbackData: "noop",
+	})
+	if page < totalPages-1 {
+		navRow = append(navRow, tgmodels.InlineKeyboardButton{
+			Text: locale.T(lang, "history_older"), CallbackData: cbSavedPage + strconv.Itoa(page+1),
+		})
+	}
+
+	kb := &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{navRow},
+	}
+	b.sendWithKeyboard(ctx, chatID, sb.String(), kb)
+}
+
+func (b *Bot) onSavedPage(ctx context.Context, chatID int64, data string) {
+	pageStr := strings.TrimPrefix(data, cbSavedPage)
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		return
+	}
+	b.sendSavedPage(ctx, chatID, page)
 }
 
 // --- /hidden command ---
@@ -179,6 +221,10 @@ func (b *Bot) handleSaved(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 func (b *Bot) handleHidden(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	b.sendHiddenPage(ctx, chatID, 0)
+}
+
+func (b *Bot) sendHiddenPage(ctx context.Context, chatID int64, page int) {
 	lang := b.getUserLang(ctx, chatID)
 
 	if b.hidden == nil {
@@ -196,13 +242,57 @@ func (b *Bot) handleHidden(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 		return
 	}
 
-	kb := &tgmodels.InlineKeyboardMarkup{
-		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
-			{
-				{Text: locale.T(lang, "hidden_clear_btn"), CallbackData: cbHiddenClear},
-			},
-		},
+	totalPages := int((total + int64(historyPageSize) - 1) / int64(historyPageSize))
+	if page < 0 || page >= totalPages {
+		page = 0
 	}
-	b.sendWithKeyboard(ctx, chatID,
-		locale.Tf(lang, "hidden_header", total), kb)
+
+	offset := page * historyPageSize
+	tokens, err := b.hidden.ListHidden(ctx, chatID, historyPageSize, offset)
+	if err != nil {
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+
+	var sb strings.Builder
+	sb.WriteString(locale.Tf(lang, "hidden_header", total))
+	for _, token := range tokens {
+		sb.WriteString(fmt.Sprintf("\n• %s", token))
+	}
+
+	var rows [][]tgmodels.InlineKeyboardButton
+
+	if totalPages > 1 {
+		var navRow []tgmodels.InlineKeyboardButton
+		if page > 0 {
+			navRow = append(navRow, tgmodels.InlineKeyboardButton{
+				Text: locale.T(lang, "history_newer"), CallbackData: cbHiddenPage + strconv.Itoa(page-1),
+			})
+		}
+		navRow = append(navRow, tgmodels.InlineKeyboardButton{
+			Text: fmt.Sprintf("%d/%d", page+1, totalPages), CallbackData: "noop",
+		})
+		if page < totalPages-1 {
+			navRow = append(navRow, tgmodels.InlineKeyboardButton{
+				Text: locale.T(lang, "history_older"), CallbackData: cbHiddenPage + strconv.Itoa(page+1),
+			})
+		}
+		rows = append(rows, navRow)
+	}
+
+	rows = append(rows, []tgmodels.InlineKeyboardButton{
+		{Text: locale.T(lang, "hidden_clear_btn"), CallbackData: cbHiddenClear},
+	})
+
+	kb := &tgmodels.InlineKeyboardMarkup{InlineKeyboard: rows}
+	b.sendWithKeyboard(ctx, chatID, sb.String(), kb)
+}
+
+func (b *Bot) onHiddenPage(ctx context.Context, chatID int64, data string) {
+	pageStr := strings.TrimPrefix(data, cbHiddenPage)
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		return
+	}
+	b.sendHiddenPage(ctx, chatID, page)
 }

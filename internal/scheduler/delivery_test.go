@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
 func TestInstantDelivery_DeliverBatch_Success(t *testing.T) {
 	n := &mockNotifier{}
-	d := NewInstantDelivery(n, nil)
+	d := NewInstantDelivery(n, nil, locale.English)
 
 	listings := []model.Listing{
 		{RawListing: model.RawListing{Token: "a", Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000}},
@@ -32,7 +33,7 @@ func TestInstantDelivery_DeliverBatch_Success(t *testing.T) {
 func TestInstantDelivery_DeliverBatch_FallsBackToQueue(t *testing.T) {
 	n := &mockNotifier{err: errors.New("telegram down")}
 	q := &mockNotificationQueue{}
-	d := NewInstantDelivery(n, q)
+	d := NewInstantDelivery(n, q, locale.English)
 
 	listings := []model.Listing{
 		{RawListing: model.RawListing{Token: "a"}},
@@ -76,7 +77,7 @@ func (m *failDigestStore) AddDigestItem(_ context.Context, _ int64, _ string) er
 func TestInstantDelivery_DeliverBatch_BothFail(t *testing.T) {
 	n := &mockNotifier{err: errors.New("telegram down")}
 	q := &failQueue{enqueueErr: errors.New("queue full")}
-	d := NewInstantDelivery(n, q)
+	d := NewInstantDelivery(n, q, locale.English)
 
 	listings := []model.Listing{
 		{RawListing: model.RawListing{Token: "a"}},
@@ -90,7 +91,7 @@ func TestInstantDelivery_DeliverBatch_BothFail(t *testing.T) {
 
 func TestInstantDelivery_DeliverBatch_NoQueue(t *testing.T) {
 	n := &mockNotifier{err: errors.New("telegram down")}
-	d := NewInstantDelivery(n, nil)
+	d := NewInstantDelivery(n, nil, locale.English)
 
 	listings := []model.Listing{
 		{RawListing: model.RawListing{Token: "a"}},
@@ -104,7 +105,7 @@ func TestInstantDelivery_DeliverBatch_NoQueue(t *testing.T) {
 
 func TestInstantDelivery_DeliverRaw_Success(t *testing.T) {
 	n := &mockNotifier{}
-	d := NewInstantDelivery(n, nil)
+	d := NewInstantDelivery(n, nil, locale.English)
 
 	err := d.DeliverRaw(context.Background(), 100, "price drop!")
 	if err != nil {
@@ -139,7 +140,7 @@ func (m *errRawNotifier) NotifyRaw(_ context.Context, recipient string, message 
 func TestInstantDelivery_DeliverRaw_FallsBackToQueue(t *testing.T) {
 	n := &errRawNotifier{rawErr: errors.New("telegram down")}
 	q := &mockNotificationQueue{}
-	d := NewInstantDelivery(n, q)
+	d := NewInstantDelivery(n, q, locale.English)
 
 	err := d.DeliverRaw(context.Background(), 100, "price drop!")
 	if err != nil {
@@ -150,7 +151,7 @@ func TestInstantDelivery_DeliverRaw_FallsBackToQueue(t *testing.T) {
 func TestInstantDelivery_DeliverRaw_BothFail(t *testing.T) {
 	n := &errRawNotifier{rawErr: errors.New("telegram down")}
 	q := &failQueue{enqueueErr: errors.New("queue full")}
-	d := NewInstantDelivery(n, q)
+	d := NewInstantDelivery(n, q, locale.English)
 
 	err := d.DeliverRaw(context.Background(), 100, "price drop!")
 	if err == nil {
@@ -160,7 +161,7 @@ func TestInstantDelivery_DeliverRaw_BothFail(t *testing.T) {
 
 func TestDigestDelivery_DeliverBatch(t *testing.T) {
 	ds := newMockDigestStore()
-	d := NewDigestDelivery(ds)
+	d := NewDigestDelivery(ds, locale.English)
 
 	listings := []model.Listing{
 		{RawListing: model.RawListing{Token: "a", Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000}},
@@ -180,7 +181,7 @@ func TestDigestDelivery_DeliverBatch(t *testing.T) {
 
 func TestDigestDelivery_DeliverRaw(t *testing.T) {
 	ds := newMockDigestStore()
-	d := NewDigestDelivery(ds)
+	d := NewDigestDelivery(ds, locale.English)
 
 	err := d.DeliverRaw(context.Background(), 100, "price drop!")
 	if err != nil {
@@ -213,7 +214,7 @@ func (q *ctxSensitiveQueue) EnqueueNotification(ctx context.Context, _, _, _ str
 func TestInstantDelivery_DeliverBatch_QueueOnCancelledCtx(t *testing.T) {
 	n := &mockNotifier{err: context.Canceled}
 	q := &ctxSensitiveQueue{}
-	d := NewInstantDelivery(n, q)
+	d := NewInstantDelivery(n, q, locale.English)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -234,7 +235,7 @@ func TestInstantDelivery_DeliverBatch_QueueOnCancelledCtx(t *testing.T) {
 func TestInstantDelivery_DeliverRaw_QueueOnCancelledCtx(t *testing.T) {
 	n := &errRawNotifier{rawErr: context.Canceled}
 	q := &ctxSensitiveQueue{}
-	d := NewInstantDelivery(n, q)
+	d := NewInstantDelivery(n, q, locale.English)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -250,7 +251,7 @@ func TestInstantDelivery_DeliverRaw_QueueOnCancelledCtx(t *testing.T) {
 
 func TestDigestDelivery_DeliverBatch_Error(t *testing.T) {
 	ds := newFailDigestStore(errors.New("write failed"))
-	d := NewDigestDelivery(ds)
+	d := NewDigestDelivery(ds, locale.English)
 
 	listings := []model.Listing{
 		{RawListing: model.RawListing{Token: "a"}},

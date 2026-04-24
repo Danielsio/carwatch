@@ -197,7 +197,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64) DeliveryStrategy {
+func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.Lang) DeliveryStrategy {
 	if s.digestStore != nil {
 		mode, _, err := s.digestStore.GetDigestMode(ctx, chatID)
 		if err != nil {
@@ -205,10 +205,10 @@ func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64) DeliveryStrat
 				s.logger.Error("get digest mode failed", "chat_id", chatID, "error", err)
 			}
 		} else if mode == "digest" {
-			return NewDigestDelivery(s.digestStore)
+			return NewDigestDelivery(s.digestStore, lang)
 		}
 	}
-	return NewInstantDelivery(s.notifier, s.queue)
+	return NewInstantDelivery(s.notifier, s.queue, lang)
 }
 
 func (s *Scheduler) fetcherForSource(source string) fetcher.Fetcher {
@@ -529,10 +529,18 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 		}
 
 		if search.Keywords != "" {
-			criteria.Keywords = strings.Split(search.Keywords, ",")
+			for _, kw := range strings.Split(search.Keywords, ",") {
+				if kw = strings.TrimSpace(kw); kw != "" {
+					criteria.Keywords = append(criteria.Keywords, kw)
+				}
+			}
 		}
 		if search.ExcludeKeys != "" {
-			criteria.ExcludeKeys = strings.Split(search.ExcludeKeys, ",")
+			for _, kw := range strings.Split(search.ExcludeKeys, ",") {
+				if kw = strings.TrimSpace(kw); kw != "" {
+					criteria.ExcludeKeys = append(criteria.ExcludeKeys, kw)
+				}
+			}
 		}
 
 		filtered := filter.Apply(criteria, raw)
@@ -543,7 +551,12 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 		var priceDropMessages []string
 		for _, l := range filtered {
 			if s.hiddenStore != nil {
-				if hidden, _ := s.hiddenStore.IsHidden(ctx, search.ChatID, l.Token); hidden {
+				hidden, err := s.hiddenStore.IsHidden(ctx, search.ChatID, l.Token)
+				if err != nil {
+					s.logger.Error("hidden check failed", "token", l.Token, "error", err)
+					continue
+				}
+				if hidden {
 					continue
 				}
 			}
@@ -587,7 +600,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			}
 		}
 
-		delivery := s.deliveryFor(ctx, search.ChatID)
+		delivery := s.deliveryFor(ctx, search.ChatID, lang)
 
 		for _, msg := range priceDropMessages {
 			if err := delivery.DeliverRaw(ctx, search.ChatID, msg); err != nil {

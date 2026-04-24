@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
@@ -92,6 +93,10 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 		b.onSaveListing(ctx, chatID, data)
 	case strings.HasPrefix(data, cbPrefixHide):
 		b.onHideListing(ctx, chatID, data)
+	case strings.HasPrefix(data, cbSavedPage):
+		b.onSavedPage(ctx, chatID, data)
+	case strings.HasPrefix(data, cbHiddenPage):
+		b.onHiddenPage(ctx, chatID, data)
 	case data == cbHiddenClear:
 		b.onClearHidden(ctx, chatID)
 	case data == "watch":
@@ -264,7 +269,7 @@ func (b *Bot) onQuickStart(ctx context.Context, chatID int64) {
 		Manufacturer: 19,
 		Model:        8640,
 		YearMin:      2018,
-		YearMax:      2026,
+		YearMax:      time.Now().Year() + 2,
 		PriceMax:     200000,
 	})
 	if err != nil {
@@ -308,6 +313,7 @@ func (b *Bot) onSaveListing(ctx context.Context, chatID int64, data string) {
 	}
 	if err := b.saved.SaveBookmark(ctx, chatID, token); err != nil {
 		b.logger.Error("save listing failed", "chat_id", chatID, "token", token, "error", err)
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
 		return
 	}
 	b.send(ctx, chatID, locale.T(lang, "listing_saved"))
@@ -321,6 +327,7 @@ func (b *Bot) onHideListing(ctx context.Context, chatID int64, data string) {
 	}
 	if err := b.hidden.HideListing(ctx, chatID, token); err != nil {
 		b.logger.Error("hide listing failed", "chat_id", chatID, "token", token, "error", err)
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
 		return
 	}
 	b.send(ctx, chatID, locale.T(lang, "listing_hidden"))

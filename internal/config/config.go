@@ -115,7 +115,7 @@ func applyDefaults(cfg *Config) {
 	if cfg.Telegram.MaxSearches == 0 {
 		cfg.Telegram.MaxSearches = 3
 	}
-	if cfg.Polling.MaxConcurrentFetches == 0 {
+	if cfg.Polling.MaxConcurrentFetches <= 0 {
 		cfg.Polling.MaxConcurrentFetches = 4
 	}
 	if cfg.LogLevel == "" {
