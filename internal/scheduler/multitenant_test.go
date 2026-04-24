@@ -53,6 +53,7 @@ func (m *mockSearchStore) DeleteSearch(_ context.Context, id int64, _ int64) err
 func (m *mockSearchStore) SetSearchActive(_ context.Context, _ int64, _ bool) error   { return nil }
 func (m *mockSearchStore) CountSearches(_ context.Context, _ int64) (int64, error)    { return 0, nil }
 func (m *mockSearchStore) CountAllSearches(_ context.Context) (int64, error)          { return 0, nil }
+func (m *mockSearchStore) UpdateSearch(_ context.Context, _ storage.Search) error     { return nil }
 
 func (m *mockSearchStore) ListAllActiveSearches(_ context.Context) ([]storage.Search, error) {
 	var active []storage.Search
@@ -206,8 +207,8 @@ func TestProcessGroup_PriceDropNotification(t *testing.T) {
 	}
 
 	msg := n.rawMessages[0].message
-	if !strings.Contains(msg, "Price Drop!") {
-		t.Errorf("price drop message should contain 'Price Drop!', got:\n%s", msg)
+	if !strings.Contains(msg, "ירידת מחיר") {
+		t.Errorf("price drop message should contain 'ירידת מחיר', got:\n%s", msg)
 	}
 	if !strings.Contains(msg, "₪95,000") || !strings.Contains(msg, "₪89,000") {
 		t.Errorf("message should contain old and new prices, got:\n%s", msg)
@@ -414,7 +415,7 @@ func TestProcessDigests_FlushesWhenIntervalElapsed(t *testing.T) {
 	if !strings.Contains(msg, "listing A") || !strings.Contains(msg, "listing B") {
 		t.Errorf("digest message should contain items, got: %s", msg)
 	}
-	if !strings.Contains(msg, "Digest Summary") {
+	if !strings.Contains(msg, "סיכום יומי") {
 		t.Errorf("digest message should contain header, got: %s", msg)
 	}
 }

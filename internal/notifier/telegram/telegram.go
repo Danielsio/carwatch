@@ -10,6 +10,7 @@ import (
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
 
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
 )
@@ -44,11 +45,11 @@ func (n *Notifier) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.Listing) error {
+func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.Listing, lang locale.Lang) error {
 	if len(listings) == 1 && listings[0].ImageURL != "" {
-		return n.sendListingWithPhoto(ctx, chatID, listings[0])
+		return n.sendListingWithPhoto(ctx, chatID, listings[0], lang)
 	}
-	msg := notifier.FormatBatch(listings)
+	msg := notifier.FormatBatch(listings, lang)
 	return n.sendMessageMarkdown(ctx, chatID, msg)
 }
 
@@ -65,13 +66,13 @@ const (
 	maxCaptionLen = 1024
 )
 
-func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, listing model.Listing) error {
+func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, listing model.Listing, lang locale.Lang) error {
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid chat ID %q: %w", chatID, err)
 	}
 
-	caption := notifier.FormatListing(listing)
+	caption := notifier.FormatListing(listing, lang)
 
 	if len([]rune(caption)) > maxCaptionLen {
 		_, err = n.bot.SendPhoto(ctx, &tgbot.SendPhotoParams{

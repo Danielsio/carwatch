@@ -58,6 +58,7 @@ func (m *errUserStore) UpdateUserState(_ context.Context, _ int64, _ string, _ s
 
 func (m *errUserStore) ListActiveUsers(_ context.Context) ([]storage.User, error) { return nil, nil }
 func (m *errUserStore) SetUserActive(_ context.Context, _ int64, _ bool) error    { return nil }
+func (m *errUserStore) SetUserLanguage(_ context.Context, _ int64, _ string) error { return nil }
 func (m *errUserStore) CountUsers(_ context.Context) (int64, error)               { return 0, nil }
 
 // errSearchStore implements SearchStore and returns errors.
@@ -115,6 +116,7 @@ func (m *errSearchStore) CountSearches(_ context.Context, _ int64) (int64, error
 }
 
 func (m *errSearchStore) CountAllSearches(_ context.Context) (int64, error) { return 0, nil }
+func (m *errSearchStore) UpdateSearch(_ context.Context, _ storage.Search) error { return nil }
 
 func (m *errSearchStore) GetSearchBySeq(_ context.Context, chatID int64, seq int) (*storage.Search, error) {
 	if m.getErr != nil {
@@ -174,7 +176,7 @@ func newErrBot(t *testing.T, msg messenger, users storage.UserStore, searches st
 
 func TestSend_Error_LogsAndContinues(t *testing.T) {
 	msg := &errMessenger{sendErr: errors.New("telegram down")}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
 
@@ -184,7 +186,7 @@ func TestSend_Error_LogsAndContinues(t *testing.T) {
 
 func TestSendMarkdown_Error_LogsAndContinues(t *testing.T) {
 	msg := &errMessenger{sendErr: errors.New("telegram down")}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
 
@@ -194,7 +196,7 @@ func TestSendMarkdown_Error_LogsAndContinues(t *testing.T) {
 
 func TestSendWithKeyboard_Error_LogsAndContinues(t *testing.T) {
 	msg := &errMessenger{sendErr: errors.New("telegram down")}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
 
@@ -248,7 +250,7 @@ func TestLoadWizardData_NilUser(t *testing.T) {
 func TestLoadWizardData_CorruptJSON(t *testing.T) {
 	msg := &mockMessenger{}
 	users := &errUserStore{
-		user: &storage.User{ChatID: 100, State: StateAskYearMin, StateData: "{{not json"},
+		user: &storage.User{ChatID: 100, State: StateAskYearMin, StateData: "{{not json", Language: "en"},
 	}
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
@@ -275,7 +277,7 @@ func TestSaveWizardState_UpdateError(t *testing.T) {
 
 func TestHandleList_StoreError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{listErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
 
@@ -292,7 +294,7 @@ func TestHandleList_StoreError(t *testing.T) {
 
 func TestHandleWatch_CountSearchesError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{countErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
 
@@ -314,6 +316,7 @@ func TestOnConfirm_CreateSearchError(t *testing.T) {
 			ChatID:    100,
 			State:     StateConfirm,
 			StateData: `{"manufacturer":27,"manufacturerName":"Mazda","model":10332,"modelName":"3","yearMin":2020,"yearMax":2024,"priceMax":150000,"engineMinCC":2000,"source":"yad2"}`,
+			Language:  "en",
 		},
 	}
 	searches := &errSearchStore{createErr: errors.New("db full")}
@@ -331,7 +334,7 @@ func TestOnConfirm_CreateSearchError(t *testing.T) {
 
 func TestOnDeleteSearch_NotFoundError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{deleteErr: storage.ErrNotFound}
 	b := newErrBot(t, msg, users, searches)
 
@@ -345,7 +348,7 @@ func TestOnDeleteSearch_NotFoundError(t *testing.T) {
 
 func TestOnDeleteSearch_GenericError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{deleteErr: errors.New("db locked")}
 	b := newErrBot(t, msg, users, searches)
 
@@ -359,7 +362,7 @@ func TestOnDeleteSearch_GenericError(t *testing.T) {
 
 func TestOnDeleteSearch_InvalidID(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
 
@@ -375,7 +378,7 @@ func TestOnDeleteSearch_InvalidID(t *testing.T) {
 
 func TestHandleDigest_GetModeError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{}
 	ds := &errDigestStore{getModeErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
@@ -392,7 +395,7 @@ func TestHandleDigest_GetModeError(t *testing.T) {
 
 func TestOnDigestOn_SetModeError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{}
 	ds := &errDigestStore{setModeErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
@@ -408,7 +411,7 @@ func TestOnDigestOn_SetModeError(t *testing.T) {
 
 func TestOnDigestOff_SetModeError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{}
 	ds := &errDigestStore{setModeErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
@@ -424,7 +427,7 @@ func TestOnDigestOff_SetModeError(t *testing.T) {
 
 func TestOnDigestInterval_SetModeError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{}
 	ds := &errDigestStore{setModeErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
@@ -461,7 +464,7 @@ func TestHandleCallback_InaccessibleMessage(t *testing.T) {
 
 func TestHandleCallback_AnswerCallbackError(t *testing.T) {
 	msg := &errMessenger{callbackErr: errors.New("callback ack failed")}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
 
@@ -490,7 +493,7 @@ func TestHandleDefault_GetUserError(t *testing.T) {
 
 func TestHandleStop_DeleteError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{deleteErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
 
@@ -507,7 +510,7 @@ func TestHandleStop_DeleteError(t *testing.T) {
 
 func TestHandlePause_SetActiveError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{
 		searches:     []storage.Search{{ID: 1, ChatID: 100, Active: true}},
 		setActiveErr: errors.New("db error"),
@@ -527,7 +530,7 @@ func TestHandlePause_SetActiveError(t *testing.T) {
 
 func TestHandleResume_SetActiveError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{
 		searches:     []storage.Search{{ID: 1, ChatID: 100, Active: false}},
 		setActiveErr: errors.New("db error"),
@@ -547,7 +550,7 @@ func TestHandleResume_SetActiveError(t *testing.T) {
 
 func TestOnShareCopy_CreateSearchError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 200, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 200, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{
 		searches:  []storage.Search{{ID: 1, ChatID: 100, Manufacturer: 27, Model: 10332, Source: "yad2"}},
 		createErr: errors.New("db full"),
@@ -580,7 +583,7 @@ func TestDefaultHandler_ReturnsFunction(t *testing.T) {
 	}
 
 	update := fakeMessage(100, "test")
-	_ = tb.store.UpsertUser(context.Background(), 100, "alice")
+	tb.createUser(context.Background(), t, 100, "alice")
 	handler(context.Background(), nil, update)
 	// Should handle without panic.
 }
@@ -599,7 +602,7 @@ func TestShareLink_Format(t *testing.T) {
 
 func TestHandleShareStart_InvalidID(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
 
@@ -613,7 +616,7 @@ func TestHandleShareStart_InvalidID(t *testing.T) {
 
 func TestHandleShareStart_NotFoundSearch(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{getErr: errors.New("not found")}
 	b := newErrBot(t, msg, users, searches)
 
@@ -627,7 +630,7 @@ func TestHandleShareStart_NotFoundSearch(t *testing.T) {
 
 func TestHandleShareStart_WithEngine(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{
 		searches: []storage.Search{{
 			ID: 1, ChatID: 200, Manufacturer: 27, Model: 10332,
@@ -649,7 +652,7 @@ func TestHandleShareStart_WithEngine(t *testing.T) {
 
 func TestHandleShareStart_WithoutEngine(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{
 		searches: []storage.Search{{
 			ID: 1, ChatID: 200, Manufacturer: 27, Model: 10332,
@@ -670,7 +673,7 @@ func TestHandleShareStart_WithoutEngine(t *testing.T) {
 
 func TestHandleShare_GetSearchError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{getErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
 
@@ -687,7 +690,7 @@ func TestHandleShare_GetSearchError(t *testing.T) {
 
 func TestHandlePause_GetSearchError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{getErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
 
@@ -702,7 +705,7 @@ func TestHandlePause_GetSearchError(t *testing.T) {
 
 func TestHandleResume_GetSearchError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{getErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
 
@@ -739,7 +742,7 @@ func TestNew_WithCatalog(t *testing.T) {
 
 func TestHandleStats_Admin_CountErrors(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 999, State: StateIdle, StateData: "{}"}}
+	users := &errUserStore{user: &storage.User{ChatID: 999, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{countErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
 
@@ -759,7 +762,7 @@ func TestOnSourceSelected_WinWin(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.msg.reset()
 
@@ -784,7 +787,7 @@ func TestWizardFlow_WinWin(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"winwin")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -817,7 +820,7 @@ func TestOnConfirm_EmptySourceDefaultsToYad2(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 
 	wd := WizardData{
 		Manufacturer: 27, ManufacturerName: "Mazda",
@@ -845,7 +848,7 @@ func TestDeleteSearch_TwiceYields404(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	id, _ := tb.store.CreateSearch(ctx, newFakeSearch(chatID, 27))
 	tb.msg.reset()
 

@@ -10,6 +10,7 @@ import (
 	tgmodels "github.com/go-telegram/bot/models"
 
 	"github.com/dsionov/carwatch/internal/format"
+	"github.com/dsionov/carwatch/internal/locale"
 )
 
 // --- Command Handlers ---
@@ -19,44 +20,55 @@ func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	username := update.Message.From.Username
 	b.ensureUser(ctx, chatID, username)
 
-	// Check for deep-link parameter: /start share_123
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) == 2 && strings.HasPrefix(parts[1], "share_") {
 		b.handleShareStart(ctx, chatID, parts[1])
 		return
 	}
 
-	b.sendMarkdown(ctx, chatID,
-		"Welcome to *CarWatch*! I monitor car listings on Yad2 and WinWin and send you alerts when new matches appear.\n\n"+
-			"Use /watch to set up a new car search.\n"+
-			"Use /list to see your active searches.\n"+
-			"Use /help for all commands.")
+	lang := b.getUserLang(ctx, chatID)
+
+	kb := &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+			{
+				{Text: locale.T(lang, "btn_quick_start"), CallbackData: cbQuickStart},
+				{Text: locale.T(lang, "btn_custom"), CallbackData: "watch"},
+			},
+		},
+	}
+
+	if err := b.msg.SendPhoto(ctx, chatID, "carwatch-logo.png",
+		locale.T(lang, "onboarding_welcome"), "Markdown", kb); err != nil {
+		b.logger.Warn("sendPhoto failed, falling back to text", "error", err)
+		b.sendWithKeyboard(ctx, chatID, locale.T(lang, "onboarding_welcome"), kb)
+	}
 }
 
 func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	lang := b.getUserLang(ctx, chatID)
 
 	if b.botUsername == "" {
-		b.send(ctx, chatID, "Sharing is not configured. Bot username is missing.")
+		b.send(ctx, chatID, locale.T(lang, "share_not_configured"))
 		return
 	}
 
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) < 2 {
-		b.send(ctx, chatID, "Usage: /share <search_id>\nUse /list to see your search IDs.")
+		b.sendMarkdown(ctx, chatID, locale.T(lang, "share_usage"))
 		return
 	}
 
 	id, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		b.send(ctx, chatID, "Invalid search ID. Use /list to see your searches.")
+		b.send(ctx, chatID, locale.T(lang, "share_invalid"))
 		return
 	}
 
 	search, err := b.searches.GetSearch(ctx, id)
 	if err != nil || search == nil || search.ChatID != chatID {
-		b.send(ctx, chatID, "Search not found. Use /list to see your searches.")
+		b.send(ctx, chatID, locale.T(lang, "share_not_found"))
 		return
 	}
 
@@ -64,51 +76,44 @@ func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	mfr := b.catalog.ManufacturerName(search.Manufacturer)
 	mdl := b.modelDisplayName(search.Manufacturer, search.Model)
 
-	b.sendMarkdown(ctx, chatID, fmt.Sprintf(
-		"Share this link for *%s %s* search:\n\n%s",
-		mfr, mdl, link))
+	b.sendMarkdown(ctx, chatID, locale.Tf(lang, "share_link", mfr, mdl, link))
 }
 
-// ShareLink returns a Telegram deep link for sharing a search.
 func ShareLink(botUsername string, searchID int64) string {
 	return fmt.Sprintf("https://t.me/%s?start=share_%d", botUsername, searchID)
 }
 
 func (b *Bot) handleShareStart(ctx context.Context, chatID int64, param string) {
+	lang := b.getUserLang(ctx, chatID)
+
 	idStr := strings.TrimPrefix(param, "share_")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		b.send(ctx, chatID, "Invalid share link.")
+		b.send(ctx, chatID, locale.T(lang, "share_invalid_link"))
 		return
 	}
 
 	search, err := b.searches.GetSearch(ctx, id)
 	if err != nil || search == nil {
-		b.send(ctx, chatID, "The shared search was not found. It may have been deleted.")
+		b.send(ctx, chatID, locale.T(lang, "share_search_deleted"))
 		return
 	}
 
 	mfr := b.catalog.ManufacturerName(search.Manufacturer)
 	mdl := b.modelDisplayName(search.Manufacturer, search.Model)
 
-	engineStr := "Any"
+	engineStr := locale.T(lang, "label_any")
 	if search.EngineMinCC > 0 {
 		engineStr = fmt.Sprintf("%.1fL+", float64(search.EngineMinCC)/1000)
 	}
 
-	summary := fmt.Sprintf(
-		"*Shared search:*\n"+
-			"Car: %s %s\n"+
-			"Year: %d–%d\n"+
-			"Max price: %s NIS\n"+
-			"Engine: %s\n\n"+
-			"Copy this search to start receiving alerts?",
+	summary := locale.Tf(lang, "share_summary",
 		mfr, mdl, search.YearMin, search.YearMax,
 		format.Number(search.PriceMax), engineStr)
 
 	kb := &tgmodels.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{{
-			{Text: "Copy this search", CallbackData: cbPrefixShareCopy + strconv.FormatInt(id, 10)},
+			{Text: locale.T(lang, "share_copy_btn"), CallbackData: cbPrefixShareCopy + strconv.FormatInt(id, 10)},
 		}},
 	}
 
@@ -119,43 +124,43 @@ func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	chatID := update.Message.Chat.ID
 	b.logger.Debug("/watch command", "chat_id", chatID, "username", update.Message.From.Username)
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	lang := b.getUserLang(ctx, chatID)
 
 	count, err := b.searches.CountSearches(ctx, chatID)
 	if err != nil {
 		b.logger.Error("count searches failed", "chat_id", chatID, "error", err)
-		b.send(ctx, chatID, "Failed to check search limits. Please try again.")
+		b.send(ctx, chatID, locale.T(lang, "watch_limit_error"))
 		return
 	}
 	if count >= int64(b.maxSearches) {
-		b.send(ctx, chatID, fmt.Sprintf(
-			"You already have %d active searches (max %d). Use /stop to remove one first.",
-			count, b.maxSearches))
+		b.send(ctx, chatID, locale.Tf(lang, "watch_limit_reached", count, b.maxSearches))
 		return
 	}
 
 	_ = b.users.UpdateUserState(ctx, chatID, StateAskSource, "{}")
 	b.sendWithKeyboard(ctx, chatID,
-		"Which marketplaces do you want to search? (select one or both)",
-		sourceKeyboard(""))
+		locale.T(lang, "wizard_source_prompt"),
+		sourceKeyboard("", lang))
 }
 
 func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	lang := b.getUserLang(ctx, chatID)
 
 	searches, err := b.searches.ListSearches(ctx, chatID)
 	if err != nil {
-		b.send(ctx, chatID, "Failed to load searches. Please try again.")
+		b.send(ctx, chatID, locale.T(lang, "list_load_error"))
 		return
 	}
 
 	if len(searches) == 0 {
-		b.send(ctx, chatID, "You have no active searches. Use /watch to create one.")
+		b.send(ctx, chatID, locale.T(lang, "list_empty"))
 		return
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("*Your searches (%d):*\n\n", len(searches)))
+	sb.WriteString(locale.Tf(lang, "list_header", len(searches)))
 
 	var buttons [][]tgmodels.InlineKeyboardButton
 	for _, s := range searches {
@@ -166,9 +171,9 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 		mfr := b.catalog.ManufacturerName(s.Manufacturer)
 		mdl := b.modelDisplayName(s.Manufacturer, s.Model)
 
-		status := "active"
+		status := locale.T(lang, "label_active")
 		if !s.Active {
-			status = "paused"
+			status = locale.T(lang, "label_paused")
 		}
 
 		src := sourceDisplayName(s.Source)
@@ -177,7 +182,7 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 			prefix, s.ID, src, mfr, mdl, s.YearMin, s.YearMax, format.Number(s.PriceMax), status))
 
 		buttons = append(buttons, []tgmodels.InlineKeyboardButton{{
-			Text:         fmt.Sprintf("Delete #%d", s.ID),
+			Text:         locale.Tf(lang, "list_delete_btn", s.ID),
 			CallbackData: cbDeleteSearch + strconv.FormatInt(s.ID, 10),
 		}})
 	}
@@ -188,127 +193,121 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 
 func (b *Bot) handleStop(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
+	lang := b.getUserLang(ctx, chatID)
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) < 2 {
-		b.send(ctx, chatID, "Usage: /stop <search_id>\nUse /list to see your search IDs.")
+		b.sendMarkdown(ctx, chatID, locale.T(lang, "stop_usage"))
 		return
 	}
 
 	id, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		b.send(ctx, chatID, "Invalid search ID. Use /list to see your searches.")
+		b.send(ctx, chatID, locale.T(lang, "stop_invalid"))
 		return
 	}
 
 	if err := b.searches.DeleteSearch(ctx, id, chatID); err != nil {
-		b.send(ctx, chatID, "Failed to delete search.")
+		b.send(ctx, chatID, locale.T(lang, "stop_failed"))
 		return
 	}
 
-	b.send(ctx, chatID, fmt.Sprintf("Search #%d deleted.", id))
+	b.send(ctx, chatID, locale.Tf(lang, "stop_success", id))
 }
 
 func (b *Bot) handlePause(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
+	lang := b.getUserLang(ctx, chatID)
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) < 2 {
-		b.send(ctx, chatID, "Usage: /pause <search_id>\nUse /list to see your search IDs.")
+		b.sendMarkdown(ctx, chatID, locale.T(lang, "pause_usage"))
 		return
 	}
 
 	id, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		b.send(ctx, chatID, "Invalid search ID. Use /list to see your searches.")
+		b.send(ctx, chatID, locale.T(lang, "pause_invalid"))
 		return
 	}
 
 	search, err := b.searches.GetSearch(ctx, id)
 	if err != nil || search == nil || search.ChatID != chatID {
-		b.send(ctx, chatID, "Search not found. Use /list to see your searches.")
+		b.send(ctx, chatID, locale.T(lang, "pause_not_found"))
 		return
 	}
 
 	if !search.Active {
-		b.send(ctx, chatID, fmt.Sprintf("Search #%d is already paused.", id))
+		b.send(ctx, chatID, locale.Tf(lang, "pause_already_paused", id))
 		return
 	}
 
 	if err := b.searches.SetSearchActive(ctx, id, false); err != nil {
-		b.send(ctx, chatID, "Failed to pause search.")
+		b.send(ctx, chatID, locale.T(lang, "pause_failed"))
 		return
 	}
 
-	b.send(ctx, chatID, fmt.Sprintf("Search #%d paused. Use /resume %d to resume it.", id, id))
+	b.send(ctx, chatID, locale.Tf(lang, "pause_success", id, id))
 }
 
 func (b *Bot) handleResume(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
+	lang := b.getUserLang(ctx, chatID)
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) < 2 {
-		b.send(ctx, chatID, "Usage: /resume <search_id>\nUse /list to see your search IDs.")
+		b.sendMarkdown(ctx, chatID, locale.T(lang, "resume_usage"))
 		return
 	}
 
 	id, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		b.send(ctx, chatID, "Invalid search ID. Use /list to see your searches.")
+		b.send(ctx, chatID, locale.T(lang, "resume_invalid"))
 		return
 	}
 
 	search, err := b.searches.GetSearch(ctx, id)
 	if err != nil || search == nil || search.ChatID != chatID {
-		b.send(ctx, chatID, "Search not found. Use /list to see your searches.")
+		b.send(ctx, chatID, locale.T(lang, "resume_not_found"))
 		return
 	}
 
 	if search.Active {
-		b.send(ctx, chatID, fmt.Sprintf("Search #%d is already active.", id))
+		b.send(ctx, chatID, locale.Tf(lang, "resume_already_active", id))
 		return
 	}
 
 	if err := b.searches.SetSearchActive(ctx, id, true); err != nil {
-		b.send(ctx, chatID, "Failed to resume search.")
+		b.send(ctx, chatID, locale.T(lang, "resume_failed"))
 		return
 	}
 
-	b.send(ctx, chatID, fmt.Sprintf("Search #%d resumed.", id))
+	b.send(ctx, chatID, locale.Tf(lang, "resume_success", id))
 }
 
 func (b *Bot) handleCancel(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
+	lang := b.getUserLang(ctx, chatID)
 	_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
-	b.send(ctx, chatID, "Cancelled. Use /watch to start a new search.")
+	b.send(ctx, chatID, locale.T(lang, "cancel"))
 }
 
 func (b *Bot) handleHelp(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
-	b.sendMarkdown(ctx, update.Message.Chat.ID,
-		"*CarWatch Commands:*\n\n"+
-			"/watch — Set up a new car search\n"+
-			"/list — Show your active searches\n"+
-			"/history — View past matched listings\n"+
-			"/pause <id> — Pause a search\n"+
-			"/resume <id> — Resume a paused search\n"+
-			"/stop <id> — Delete a search\n"+
-			"/share <id> — Share a search via link\n"+
-			"/digest — Toggle notification mode (instant/digest)\n"+
-			"/settings — View your current limits\n"+
-			"/cancel — Cancel current wizard\n"+
-			"/help — Show this message")
+	lang := b.getUserLang(ctx, update.Message.Chat.ID)
+	b.sendMarkdown(ctx, update.Message.Chat.ID, locale.T(lang, "help"))
 }
 
 func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	lang := b.getUserLang(ctx, chatID)
 
 	count, _ := b.searches.CountSearches(ctx, chatID)
-	b.sendMarkdown(ctx, chatID, fmt.Sprintf(
-		"*Your settings:*\nActive searches: %d/%d", count, b.maxSearches))
+	b.sendMarkdown(ctx, chatID, locale.Tf(lang, "settings", count, b.maxSearches))
 }
 
 func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
 	if chatID != b.adminChatID {
-		b.send(ctx, chatID, "Unknown command. Use /help for available commands.")
+		lang := b.getUserLang(ctx, chatID)
+		b.send(ctx, chatID, locale.T(lang, "unknown_command"))
 		return
 	}
 
@@ -342,15 +341,16 @@ func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	lang := b.getUserLang(ctx, chatID)
 
 	if b.digests == nil {
-		b.send(ctx, chatID, "Digest mode is not available.")
+		b.send(ctx, chatID, locale.T(lang, "digest_unavailable"))
 		return
 	}
 
 	mode, interval, err := b.digests.GetDigestMode(ctx, chatID)
 	if err != nil {
-		b.send(ctx, chatID, "Failed to load digest settings.")
+		b.send(ctx, chatID, locale.T(lang, "digest_load_error"))
 		return
 	}
 
@@ -365,26 +365,90 @@ func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 					{Text: "24h", CallbackData: cbDigestInterval + "24h"},
 				},
 				{
-					{Text: "Switch to instant", CallbackData: cbDigestOff},
+					{Text: locale.T(lang, "btn_switch_instant"), CallbackData: cbDigestOff},
 				},
 			},
 		}
 		b.sendWithKeyboard(ctx, chatID,
-			fmt.Sprintf("*Notification mode:* digest (every %s)\n\nChoose interval or switch to instant:", interval), kb)
+			locale.Tf(lang, "digest_mode_digest", interval), kb)
 	} else {
 		kb = &tgmodels.InlineKeyboardMarkup{
 			InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
 				{
-					{Text: "Every 2h", CallbackData: cbDigestInterval + "2h"},
-					{Text: "Every 6h", CallbackData: cbDigestInterval + "6h"},
+					{Text: "2h", CallbackData: cbDigestInterval + "2h"},
+					{Text: "6h", CallbackData: cbDigestInterval + "6h"},
 				},
 				{
-					{Text: "Every 12h", CallbackData: cbDigestInterval + "12h"},
-					{Text: "Every 24h", CallbackData: cbDigestInterval + "24h"},
+					{Text: "12h", CallbackData: cbDigestInterval + "12h"},
+					{Text: "24h", CallbackData: cbDigestInterval + "24h"},
 				},
 			},
 		}
 		b.sendWithKeyboard(ctx, chatID,
-			"*Notification mode:* instant\n\nSwitch to digest mode — choose how often to receive batched listings:", kb)
+			locale.T(lang, "digest_mode_instant"), kb)
 	}
+}
+
+func (b *Bot) handleLanguage(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	chatID := update.Message.Chat.ID
+	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	lang := b.getUserLang(ctx, chatID)
+
+	kb := &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+			{
+				{Text: "עברית", CallbackData: cbLangHe},
+				{Text: "English", CallbackData: cbLangEn},
+			},
+		},
+	}
+	b.sendWithKeyboard(ctx, chatID, locale.T(lang, "language_current"), kb)
+}
+
+func (b *Bot) handleEdit(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	chatID := update.Message.Chat.ID
+	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	lang := b.getUserLang(ctx, chatID)
+
+	parts := strings.Fields(update.Message.Text)
+	if len(parts) < 2 {
+		b.sendMarkdown(ctx, chatID, locale.T(lang, "edit_usage"))
+		return
+	}
+
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		b.send(ctx, chatID, locale.T(lang, "edit_invalid"))
+		return
+	}
+
+	search, err := b.searches.GetSearch(ctx, id)
+	if err != nil || search == nil || search.ChatID != chatID {
+		b.send(ctx, chatID, locale.T(lang, "edit_not_found"))
+		return
+	}
+
+	mfr := b.catalog.ManufacturerName(search.Manufacturer)
+	mdl := b.modelDisplayName(search.Manufacturer, search.Model)
+
+	wd := WizardData{
+		Source:           search.Source,
+		Manufacturer:     search.Manufacturer,
+		ManufacturerName: mfr,
+		Model:            search.Model,
+		ModelName:        mdl,
+		YearMin:          search.YearMin,
+		YearMax:          search.YearMax,
+		PriceMax:         search.PriceMax,
+		EngineMinCC:      search.EngineMinCC,
+		MaxKm:            search.MaxKm,
+		MaxHand:          search.MaxHand,
+		Keywords:         search.Keywords,
+		ExcludeKeys:      search.ExcludeKeys,
+		EditSearchID:     search.ID,
+	}
+	b.saveWizardState(ctx, chatID, StateAskSource, wd)
+	b.sendWithKeyboard(ctx, chatID,
+		locale.T(lang, "wizard_source_prompt"),
+		sourceKeyboard(wd.Source, lang))
 }

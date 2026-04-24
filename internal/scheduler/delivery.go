@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -18,15 +19,16 @@ type DeliveryStrategy interface {
 type InstantDelivery struct {
 	notifier notifier.Notifier
 	queue    storage.NotificationQueue
+	lang     locale.Lang
 }
 
-func NewInstantDelivery(n notifier.Notifier, q storage.NotificationQueue) *InstantDelivery {
-	return &InstantDelivery{notifier: n, queue: q}
+func NewInstantDelivery(n notifier.Notifier, q storage.NotificationQueue, lang locale.Lang) *InstantDelivery {
+	return &InstantDelivery{notifier: n, queue: q, lang: lang}
 }
 
 func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error {
 	chatIDStr := fmt.Sprintf("%d", chatID)
-	err := d.notifier.Notify(ctx, chatIDStr, listings)
+	err := d.notifier.Notify(ctx, chatIDStr, listings, d.lang)
 	if err == nil {
 		return nil
 	}
@@ -34,9 +36,8 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 		return err
 	}
 
-	// Use background context so the enqueue succeeds even during shutdown.
 	if d.queue != nil {
-		msg := notifier.FormatBatch(listings)
+		msg := notifier.FormatBatch(listings, d.lang)
 		if qErr := d.queue.EnqueueNotification(context.Background(), chatIDStr, "", msg); qErr == nil {
 			return nil
 		}
@@ -62,14 +63,15 @@ func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message 
 
 type DigestDelivery struct {
 	store storage.DigestStore
+	lang  locale.Lang
 }
 
-func NewDigestDelivery(s storage.DigestStore) *DigestDelivery {
-	return &DigestDelivery{store: s}
+func NewDigestDelivery(s storage.DigestStore, lang locale.Lang) *DigestDelivery {
+	return &DigestDelivery{store: s, lang: lang}
 }
 
 func (d *DigestDelivery) DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error {
-	msg := notifier.FormatBatch(listings)
+	msg := notifier.FormatBatch(listings, d.lang)
 	return d.store.AddDigestItem(ctx, chatID, msg)
 }
 

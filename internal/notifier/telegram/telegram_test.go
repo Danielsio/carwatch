@@ -15,6 +15,7 @@ import (
 
 	tgbot "github.com/go-telegram/bot"
 
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
 )
@@ -297,7 +298,7 @@ func TestNotify_FormatsAndSends(t *testing.T) {
 		},
 	}
 
-	err := n.Notify(context.Background(), "123", listings)
+	err := n.Notify(context.Background(), "123", listings, locale.English)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -425,7 +426,7 @@ func TestNotify_SingleListingWithPhoto(t *testing.T) {
 		},
 	}
 
-	err := n.Notify(context.Background(), "123", listings)
+	err := n.Notify(context.Background(), "123", listings, locale.English)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -468,7 +469,7 @@ func TestNotify_SingleListingNoPhoto_FallsBackToText(t *testing.T) {
 		},
 	}
 
-	err := n.Notify(context.Background(), "123", listings)
+	err := n.Notify(context.Background(), "123", listings, locale.English)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -510,7 +511,7 @@ func TestNotify_PhotoFails_FallsBackToText(t *testing.T) {
 		},
 	}
 
-	err := n.Notify(context.Background(), "123", listings)
+	err := n.Notify(context.Background(), "123", listings, locale.English)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -539,7 +540,7 @@ func TestNotify_BatchListings_UsesText(t *testing.T) {
 		{RawListing: model.RawListing{Token: "b", Manufacturer: "Honda", Model: "Civic", Year: 2022, Price: 110000, ImageURL: "https://example.com/2.jpg"}, SearchName: "test"},
 	}
 
-	err := n.Notify(context.Background(), "123", listings)
+	err := n.Notify(context.Background(), "123", listings, locale.English)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

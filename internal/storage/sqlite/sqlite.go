@@ -128,6 +128,20 @@ func migrate(db *sql.DB) error {
 			PRIMARY KEY (manufacturer_id, model_id)
 		);
 
+		CREATE TABLE IF NOT EXISTS saved_listings (
+			chat_id   INTEGER NOT NULL,
+			token     TEXT NOT NULL,
+			saved_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (chat_id, token)
+		);
+
+		CREATE TABLE IF NOT EXISTS hidden_listings (
+			chat_id    INTEGER NOT NULL,
+			token      TEXT NOT NULL,
+			hidden_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (chat_id, token)
+		);
+
 		CREATE INDEX IF NOT EXISTS idx_seen_listings_first_seen_at
 			ON seen_listings(first_seen_at);
 
@@ -203,6 +217,42 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	// Add language column to users table if it doesn't exist.
+	var hasLanguage int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('users') WHERE name = 'language'",
+	).Scan(&hasLanguage); err != nil {
+		return fmt.Errorf("check users language: %w", err)
+	}
+	if hasLanguage == 0 {
+		if _, err := db.Exec("ALTER TABLE users ADD COLUMN language TEXT NOT NULL DEFAULT 'he'"); err != nil {
+			return fmt.Errorf("add language column: %w", err)
+		}
+	}
+
+	// Add keywords columns to searches table if they don't exist.
+	for _, col := range []struct {
+		name string
+		def  string
+	}{
+		{"keywords", "TEXT NOT NULL DEFAULT ''"},
+		{"exclude_keys", "TEXT NOT NULL DEFAULT ''"},
+	} {
+		var colCount int
+		err := db.QueryRow(
+			"SELECT COUNT(*) FROM pragma_table_info('searches') WHERE name = ?", col.name,
+		).Scan(&colCount)
+		if err != nil {
+			return fmt.Errorf("check column %s: %w", col.name, err)
+		}
+		if colCount == 0 {
+			_, err = db.Exec(fmt.Sprintf("ALTER TABLE searches ADD COLUMN %s %s", col.name, col.def))
+			if err != nil {
+				return fmt.Errorf("add column %s: %w", col.name, err)
+			}
+		}
+	}
+
 	// Add user_seq column to searches table if it doesn't exist.
 	var hasUserSeq int
 	if err := db.QueryRow(
@@ -245,11 +295,11 @@ func (s *Store) UpsertUser(ctx context.Context, chatID int64, username string) e
 
 func (s *Store) GetUser(ctx context.Context, chatID int64) (*storage.User, error) {
 	row := s.db.QueryRowContext(ctx,
-		"SELECT chat_id, username, state, state_data, created_at, active FROM users WHERE chat_id = ?",
+		"SELECT chat_id, username, state, state_data, created_at, active, language FROM users WHERE chat_id = ?",
 		chatID)
 
 	var u storage.User
-	err := row.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active)
+	err := row.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -268,7 +318,7 @@ func (s *Store) UpdateUserState(ctx context.Context, chatID int64, state string,
 
 func (s *Store) ListActiveUsers(ctx context.Context) ([]storage.User, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT chat_id, username, state, state_data, created_at, active FROM users WHERE active = true")
+		"SELECT chat_id, username, state, state_data, created_at, active, language FROM users WHERE active = true")
 	if err != nil {
 		return nil, err
 	}
@@ -289,11 +339,18 @@ func (s *Store) CountUsers(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+func (s *Store) SetUserLanguage(ctx context.Context, chatID int64, lang string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE users SET language = ? WHERE chat_id = ?",
+		lang, chatID)
+	return err
+}
+
 func scanUsers(rows *sql.Rows) ([]storage.User, error) {
 	var users []storage.User
 	for rows.Next() {
 		var u storage.User
-		if err := rows.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active); err != nil {
+		if err := rows.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -324,11 +381,12 @@ func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64,
 	}
 
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO searches (chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, user_seq)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO searches (chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, user_seq)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		search.ChatID, search.Name, source, search.Manufacturer, search.Model,
 		search.YearMin, search.YearMax, search.PriceMax,
-		search.EngineMinCC, search.MaxKm, search.MaxHand, nextSeq)
+		search.EngineMinCC, search.MaxKm, search.MaxHand,
+		search.Keywords, search.ExcludeKeys, nextSeq)
 	if err != nil {
 		return 0, err
 	}
@@ -346,7 +404,7 @@ func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64,
 
 func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Search, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at
 		FROM searches WHERE chat_id = ? ORDER BY created_at DESC`, chatID)
 	if err != nil {
 		return nil, err
@@ -357,13 +415,14 @@ func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Searc
 
 func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at
 		FROM searches WHERE id = ?`, id)
 
 	var search storage.Search
 	err := row.Scan(&search.ID, &search.ChatID, &search.UserSeq, &search.Name, &search.Source, &search.Manufacturer, &search.Model,
 		&search.YearMin, &search.YearMax, &search.PriceMax,
 		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
+		&search.Keywords, &search.ExcludeKeys,
 		&search.Active, &search.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -376,13 +435,14 @@ func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error
 
 func (s *Store) GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*storage.Search, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, active, created_at
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at
 		FROM searches WHERE chat_id = ? AND user_seq = ?`, chatID, seq)
 
 	var search storage.Search
 	err := row.Scan(&search.ID, &search.ChatID, &search.UserSeq, &search.Name, &search.Source, &search.Manufacturer, &search.Model,
 		&search.YearMin, &search.YearMax, &search.PriceMax,
 		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
+		&search.Keywords, &search.ExcludeKeys,
 		&search.Active, &search.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -391,6 +451,33 @@ func (s *Store) GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*sto
 		return nil, err
 	}
 	return &search, nil
+}
+
+func (s *Store) UpdateSearch(ctx context.Context, search storage.Search) error {
+	source := search.Source
+	if source == "" {
+		source = "yad2"
+	}
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE searches SET name=?, source=?, manufacturer=?, model=?,
+			year_min=?, year_max=?, price_max=?, engine_min_cc=?,
+			max_km=?, max_hand=?, keywords=?, exclude_keys=?
+		WHERE id=? AND chat_id=?`,
+		search.Name, source, search.Manufacturer, search.Model,
+		search.YearMin, search.YearMax, search.PriceMax, search.EngineMinCC,
+		search.MaxKm, search.MaxHand, search.Keywords, search.ExcludeKeys,
+		search.ID, search.ChatID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return storage.ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error {
@@ -417,7 +504,7 @@ func (s *Store) SetSearchActive(ctx context.Context, id int64, active bool) erro
 
 func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT s.id, s.chat_id, s.user_seq, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max, s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.active, s.created_at
+		SELECT s.id, s.chat_id, s.user_seq, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max, s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.keywords, s.exclude_keys, s.active, s.created_at
 		FROM searches s
 		JOIN users u ON s.chat_id = u.chat_id
 		WHERE s.active = true AND u.active = true
@@ -451,6 +538,7 @@ func scanSearches(rows *sql.Rows) ([]storage.Search, error) {
 		if err := rows.Scan(&s.ID, &s.ChatID, &s.UserSeq, &s.Name, &s.Source, &s.Manufacturer, &s.Model,
 			&s.YearMin, &s.YearMax, &s.PriceMax,
 			&s.EngineMinCC, &s.MaxKm, &s.MaxHand,
+			&s.Keywords, &s.ExcludeKeys,
 			&s.Active, &s.CreatedAt); err != nil {
 			return nil, err
 		}
@@ -813,6 +901,105 @@ func (s *Store) CatalogAge(ctx context.Context) (time.Duration, error) {
 		return 0, fmt.Errorf("parse updated_at: %w", err)
 	}
 	return time.Since(updatedAt), nil
+}
+
+// --- SavedListingStore ---
+
+func (s *Store) SaveBookmark(ctx context.Context, chatID int64, token string) error {
+	_, err := s.db.ExecContext(ctx,
+		"INSERT OR IGNORE INTO saved_listings (chat_id, token) VALUES (?, ?)",
+		chatID, token)
+	return err
+}
+
+func (s *Store) RemoveBookmark(ctx context.Context, chatID int64, token string) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM saved_listings WHERE chat_id = ? AND token = ?",
+		chatID, token)
+	return err
+}
+
+func (s *Store) ListSaved(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.year, lh.price,
+			lh.km, lh.hand, lh.city, lh.page_link, lh.first_seen_at
+		FROM saved_listings sl
+		JOIN listing_history lh ON sl.token = lh.token AND sl.chat_id = lh.chat_id
+		WHERE sl.chat_id = ?
+		ORDER BY sl.saved_at DESC
+		LIMIT ? OFFSET ?`, chatID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var listings []storage.ListingRecord
+	for rows.Next() {
+		var l storage.ListingRecord
+		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FirstSeenAt); err != nil {
+			return nil, err
+		}
+		listings = append(listings, l)
+	}
+	return listings, rows.Err()
+}
+
+func (s *Store) CountSaved(ctx context.Context, chatID int64) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM saved_listings WHERE chat_id = ?", chatID).Scan(&count)
+	return count, err
+}
+
+// --- HiddenListingStore ---
+
+func (s *Store) HideListing(ctx context.Context, chatID int64, token string) error {
+	_, err := s.db.ExecContext(ctx,
+		"INSERT OR IGNORE INTO hidden_listings (chat_id, token) VALUES (?, ?)",
+		chatID, token)
+	return err
+}
+
+func (s *Store) IsHidden(ctx context.Context, chatID int64, token string) (bool, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM hidden_listings WHERE chat_id = ? AND token = ?",
+		chatID, token).Scan(&count)
+	return count > 0, err
+}
+
+func (s *Store) ListHidden(ctx context.Context, chatID int64, limit, offset int) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT token FROM hidden_listings WHERE chat_id = ? ORDER BY hidden_at DESC LIMIT ? OFFSET ?",
+		chatID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var tokens []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, t)
+	}
+	return tokens, rows.Err()
+}
+
+func (s *Store) CountHidden(ctx context.Context, chatID int64) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM hidden_listings WHERE chat_id = ?", chatID).Scan(&count)
+	return count, err
+}
+
+func (s *Store) ClearHidden(ctx context.Context, chatID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM hidden_listings WHERE chat_id = ?", chatID)
+	return err
 }
 
 // --- Close ---

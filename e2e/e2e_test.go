@@ -13,6 +13,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/model"
@@ -33,7 +34,7 @@ type mockNotifier struct {
 func (m *mockNotifier) Connect(_ context.Context) error    { return nil }
 func (m *mockNotifier) Disconnect() error                  { return nil }
 
-func (m *mockNotifier) Notify(_ context.Context, _ string, listings []model.Listing) error {
+func (m *mockNotifier) Notify(_ context.Context, _ string, listings []model.Listing, _ locale.Lang) error {
 	m.messages = append(m.messages, listings...)
 	return nil
 }
@@ -138,7 +139,7 @@ func TestE2E_FullPipeline(t *testing.T) {
 	factory.Register("yad2", f)
 
 	sched, err := scheduler.NewWithOptions(cfg, f, store, n, testLogger, scheduler.Options{
-		Health:         h,
+		Observer:       h,
 		Queue:          store,
 		Prices:         store,
 		FetcherFactory: factory,
@@ -181,7 +182,7 @@ func TestE2E_FullPipeline(t *testing.T) {
 	// Verify dedup: running again should not re-notify
 	n2 := &mockNotifier{}
 	sched2, _ := scheduler.NewWithOptions(cfg, f, store, n2, testLogger, scheduler.Options{
-		Health:         h,
+		Observer:       h,
 		Queue:          store,
 		Prices:         store,
 		FetcherFactory: factory,

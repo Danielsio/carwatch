@@ -10,6 +10,7 @@ import (
 	tgmodels "github.com/go-telegram/bot/models"
 
 	"github.com/dsionov/carwatch/internal/health"
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -18,7 +19,7 @@ func TestHandlePause_NoArg(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/pause")
 
 	msg := tb.msg.last()
@@ -32,7 +33,7 @@ func TestHandlePause_InvalidID(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/pause abc")
 
 	msg := tb.msg.last()
@@ -46,7 +47,7 @@ func TestHandlePause_NonexistentSearch(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/pause 999")
 
 	msg := tb.msg.last()
@@ -60,7 +61,7 @@ func TestHandlePause_AlreadyPaused(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	id, _ := tb.store.CreateSearch(ctx, newFakeSearch(chatID, 27))
 	_ = tb.store.SetSearchActive(ctx, id, false)
 	tb.msg.reset()
@@ -77,8 +78,8 @@ func TestHandlePause_OtherUsersSearch(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 
-	_ = tb.store.UpsertUser(ctx, 100, "alice")
-	_ = tb.store.UpsertUser(ctx, 200, "bob")
+	tb.createUser(ctx, t, 100, "alice")
+	tb.createUser(ctx, t, 200, "bob")
 
 	id, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 200, Name: "bob-search", Manufacturer: 27, Model: 10332,
@@ -98,7 +99,7 @@ func TestHandleResume_NoArg(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/resume")
 
 	msg := tb.msg.last()
@@ -112,7 +113,7 @@ func TestHandleResume_InvalidID(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/resume abc")
 
 	msg := tb.msg.last()
@@ -126,7 +127,7 @@ func TestHandleResume_NonexistentSearch(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/resume 999")
 
 	msg := tb.msg.last()
@@ -140,7 +141,7 @@ func TestHandleResume_AlreadyActive(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	id, _ := tb.store.CreateSearch(ctx, newFakeSearch(chatID, 27))
 	tb.msg.reset()
 
@@ -157,7 +158,7 @@ func TestHandleStop_InvalidID(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 
 	update := fakeMessage(chatID, "/stop abc")
 	var nilBot *tgbot.Bot
@@ -179,7 +180,7 @@ func TestHandleStats_AdminWithHealth(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 999
 
-	_ = tb.store.UpsertUser(ctx, chatID, "admin")
+	tb.createUser(ctx, t, chatID, "admin")
 
 	update := fakeMessage(chatID, "/stats")
 	var nilBot *tgbot.Bot
@@ -222,7 +223,7 @@ func TestDefaultHandler_SlashCommandInIdleState(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.msg.reset()
 
 	tb.simulateText(ctx, chatID, "/unknowncommand")
@@ -261,7 +262,7 @@ func TestConfirmKeyboard_WithZeroEngine(t *testing.T) {
 		EngineMinCC:      0,
 	}
 
-	_, summary := confirmKeyboard(wd)
+	_, summary := confirmKeyboard(wd, locale.English)
 	if !strings.Contains(summary, "Any") {
 		t.Errorf("engine should show 'Any' when EngineMinCC is 0, got %q", summary)
 	}
@@ -276,7 +277,7 @@ func TestConfirmKeyboard_EmptySource(t *testing.T) {
 		PriceMax:         100000,
 	}
 
-	_, summary := confirmKeyboard(wd)
+	_, summary := confirmKeyboard(wd, locale.English)
 	if !strings.Contains(summary, "Yad2") {
 		t.Errorf("empty source should default to Yad2, got %q", summary)
 	}

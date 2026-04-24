@@ -40,6 +40,19 @@ func (m *mockMessenger) SendMessage(_ context.Context, chatID int64, text string
 	return nil
 }
 
+func (m *mockMessenger) SendPhoto(_ context.Context, chatID int64, _ string, caption string, parseMode string, kb *tgmodels.InlineKeyboardMarkup) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	msg := sentMessage{ChatID: chatID, Text: caption, ParseMode: parseMode, HasKB: kb != nil}
+	if kb != nil {
+		for _, row := range kb.InlineKeyboard {
+			msg.Buttons += len(row)
+		}
+	}
+	m.messages = append(m.messages, msg)
+	return nil
+}
+
 func (m *mockMessenger) AnswerCallback(_ context.Context, _ string) error {
 	return nil
 }
@@ -147,6 +160,18 @@ func newTestBotWithDigests(t *testing.T) *testBot {
 	return &testBot{bot: b, msg: mm, store: store}
 }
 
+// createUser is a test helper that creates a user with English as the default language.
+// Use this in tests that assert English message text.
+func (tb *testBot) createUser(ctx context.Context, t *testing.T, chatID int64, username string) {
+	t.Helper()
+	if err := tb.store.UpsertUser(ctx, chatID, username); err != nil {
+		t.Fatalf("upsert user: %v", err)
+	}
+	if err := tb.store.SetUserLanguage(ctx, chatID, "en"); err != nil {
+		t.Fatalf("set user language: %v", err)
+	}
+}
+
 func (tb *testBot) simulateCommand(ctx context.Context, chatID int64, text string) {
 	update := fakeMessage(chatID, text)
 	var nilBot *tgbot.Bot
@@ -176,6 +201,14 @@ func (tb *testBot) simulateCommand(ctx context.Context, chatID int64, text strin
 		tb.bot.handleResume(ctx, nilBot, update)
 	case strings.HasPrefix(text, "/share"):
 		tb.bot.handleShare(ctx, nilBot, update)
+	case strings.HasPrefix(text, "/edit"):
+		tb.bot.handleEdit(ctx, nilBot, update)
+	case text == "/language":
+		tb.bot.handleLanguage(ctx, nilBot, update)
+	case text == "/saved":
+		tb.bot.handleSaved(ctx, nilBot, update)
+	case text == "/hidden":
+		tb.bot.handleHidden(ctx, nilBot, update)
 	default:
 		tb.bot.handleDefault(ctx, nilBot, update)
 	}

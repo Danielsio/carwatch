@@ -13,6 +13,8 @@ const (
 	StateAskEngine          = "ask_engine"
 	StateAskMaxKm           = "ask_max_km"
 	StateAskMaxHand         = "ask_max_hand"
+	StateAskKeywords        = "ask_keywords"
+	StateAskExcludeKeys     = "ask_exclude_keys"
 	StateConfirm            = "confirm"
 )
 
@@ -28,4 +30,7 @@ type WizardData struct {
 	EngineMinCC      int    `json:"engine_min_cc,omitempty"`
 	MaxKm            int    `json:"max_km,omitempty"`
 	MaxHand          int    `json:"max_hand,omitempty"`
+	Keywords         string `json:"keywords,omitempty"`
+	ExcludeKeys      string `json:"exclude_keys,omitempty"`
+	EditSearchID     int64  `json:"edit_search_id,omitempty"`
 }

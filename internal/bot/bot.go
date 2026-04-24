@@ -13,6 +13,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/health"
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -27,6 +28,8 @@ type Bot struct {
 	searches     storage.SearchStore
 	listings     storage.ListingStore
 	digests      storage.DigestStore
+	saved        storage.SavedListingStore
+	hidden       storage.HiddenListingStore
 	catalog      catalog.Catalog
 	adminChatID  int64
 	maxSearches  int
@@ -82,6 +85,8 @@ type Config struct {
 	Health         *health.Status
 	Digests        storage.DigestStore
 	Listings       storage.ListingStore
+	Saved          storage.SavedListingStore
+	Hidden         storage.HiddenListingStore
 	Catalog        catalog.Catalog
 }
 
@@ -107,6 +112,8 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		searches:     searches,
 		listings:     cfg.Listings,
 		digests:      cfg.Digests,
+		saved:        cfg.Saved,
+		hidden:       cfg.Hidden,
 		catalog:      cat,
 		adminChatID:  cfg.AdminChatID,
 		maxSearches:  cfg.MaxSearches,
@@ -167,6 +174,10 @@ func (b *Bot) RegisterHandlers() {
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/digest", tgbot.MatchTypeExact, b.rateLimited(b.handleDigest))
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/settings", tgbot.MatchTypeExact, b.rateLimited(b.handleSettings))
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/stats", tgbot.MatchTypeExact, b.rateLimited(b.handleStats))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/language", tgbot.MatchTypeExact, b.rateLimited(b.handleLanguage))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/edit", tgbot.MatchTypePrefix, b.rateLimited(b.handleEdit))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/saved", tgbot.MatchTypeExact, b.rateLimited(b.handleSaved))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/hidden", tgbot.MatchTypeExact, b.rateLimited(b.handleHidden))
 	b.bot.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "", tgbot.MatchTypePrefix, b.rateLimited(b.handleCallback))
 }
 
@@ -231,6 +242,14 @@ func (b *Bot) modelDisplayName(manufacturerID, modelID int) string {
 		return "Any model"
 	}
 	return b.catalog.ModelName(manufacturerID, modelID)
+}
+
+func (b *Bot) getUserLang(ctx context.Context, chatID int64) locale.Lang {
+	user, err := b.users.GetUser(ctx, chatID)
+	if err != nil || user == nil || user.Language == "" {
+		return locale.Hebrew
+	}
+	return locale.Lang(user.Language)
 }
 
 // --- Wizard State Helpers ---
