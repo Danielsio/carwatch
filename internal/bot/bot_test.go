@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
@@ -64,7 +65,7 @@ func TestWizardData_JSON(t *testing.T) {
 func TestKeyboards_ManufacturerKeyboard_Page0(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
-	kb := tb.bot.manufacturerKeyboard(ctx, 0, 0)
+	kb := tb.bot.manufacturerKeyboard(ctx, 0, 0, locale.English)
 	if len(kb.InlineKeyboard) == 0 {
 		t.Fatal("keyboard should have rows")
 	}
@@ -90,8 +91,8 @@ func TestKeyboards_ManufacturerKeyboard_Page0(t *testing.T) {
 func TestKeyboards_ManufacturerKeyboard_Pagination(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
-	kb0 := tb.bot.manufacturerKeyboard(ctx, 0, 0)
-	kb1 := tb.bot.manufacturerKeyboard(ctx, 0, 1)
+	kb0 := tb.bot.manufacturerKeyboard(ctx, 0, 0, locale.English)
+	kb1 := tb.bot.manufacturerKeyboard(ctx, 0, 1, locale.English)
 
 	// Different pages should show different content.
 	if len(kb0.InlineKeyboard) == 0 || len(kb1.InlineKeyboard) == 0 {
@@ -111,9 +112,7 @@ func TestKeyboards_ManufacturerKeyboard_RecentSection(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 500
 
-	if err := tb.store.UpsertUser(ctx, chatID, "alice"); err != nil {
-		t.Fatalf("upsert user: %v", err)
-	}
+	tb.createUser(ctx, t, chatID, "alice")
 
 	// Create searches for Mazda (27) and Toyota (19).
 	if _, err := tb.store.CreateSearch(ctx, storage.Search{
@@ -127,7 +126,7 @@ func TestKeyboards_ManufacturerKeyboard_RecentSection(t *testing.T) {
 		t.Fatalf("create search s2: %v", err)
 	}
 
-	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
+	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0, locale.English)
 
 	// Row 0: search button.
 	if kb.InlineKeyboard[0][0].CallbackData != cbMfrSearch {
@@ -166,11 +165,9 @@ func TestKeyboards_ManufacturerKeyboard_NoRecentForNewUser(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 501
 
-	if err := tb.store.UpsertUser(ctx, chatID, "bob"); err != nil {
-		t.Fatalf("upsert user: %v", err)
-	}
+	tb.createUser(ctx, t, chatID, "bob")
 
-	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
+	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0, locale.English)
 
 	// Row 0: search button, row 1: first manufacturer (no recent section).
 	if kb.InlineKeyboard[0][0].CallbackData != cbMfrSearch {
@@ -187,16 +184,14 @@ func TestKeyboards_ManufacturerKeyboard_RecentNotOnPage2(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 502
 
-	if err := tb.store.UpsertUser(ctx, chatID, "carol"); err != nil {
-		t.Fatalf("upsert user: %v", err)
-	}
+	tb.createUser(ctx, t, chatID, "carol")
 	if _, err := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: chatID, Name: "s1", Manufacturer: 27, Model: 1,
 	}); err != nil {
 		t.Fatalf("create search: %v", err)
 	}
 
-	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 1)
+	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 1, locale.English)
 
 	// On page 1, no recent section — second row should not be a separator.
 	for _, row := range kb.InlineKeyboard {
@@ -213,9 +208,7 @@ func TestKeyboards_ManufacturerKeyboard_RecentCappedAt4(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 503
 
-	if err := tb.store.UpsertUser(ctx, chatID, "dave"); err != nil {
-		t.Fatalf("upsert user: %v", err)
-	}
+	tb.createUser(ctx, t, chatID, "dave")
 
 	// Create 6 searches with different manufacturers.
 	mfrIDs := []int{19, 27, 5, 21, 12, 40}
@@ -227,7 +220,7 @@ func TestKeyboards_ManufacturerKeyboard_RecentCappedAt4(t *testing.T) {
 		}
 	}
 
-	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
+	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0, locale.English)
 
 	// Count recent manufacturer buttons (between search row and separator).
 	recentCount := 0
@@ -247,9 +240,7 @@ func TestKeyboards_ManufacturerKeyboard_RecentDeduplicates(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 504
 
-	if err := tb.store.UpsertUser(ctx, chatID, "eve"); err != nil {
-		t.Fatalf("upsert user: %v", err)
-	}
+	tb.createUser(ctx, t, chatID, "eve")
 
 	// Create 3 searches for the same manufacturer.
 	for i := range 3 {
@@ -260,7 +251,7 @@ func TestKeyboards_ManufacturerKeyboard_RecentDeduplicates(t *testing.T) {
 		}
 	}
 
-	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0)
+	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0, locale.English)
 
 	// Should have exactly 1 recent button (Mazda), not 3.
 	recentCount := 0
@@ -277,7 +268,7 @@ func TestKeyboards_ManufacturerKeyboard_RecentDeduplicates(t *testing.T) {
 
 func TestKeyboards_ModelKeyboard(t *testing.T) {
 	tb := newTestBot(t)
-	kb := tb.bot.modelKeyboard(27, 0) // Mazda
+	kb := tb.bot.modelKeyboard(27, 0, locale.English) // Mazda
 	if len(kb.InlineKeyboard) == 0 {
 		t.Fatal("Mazda model keyboard should have rows")
 	}
@@ -297,7 +288,7 @@ func TestKeyboards_ModelKeyboard(t *testing.T) {
 
 func TestKeyboards_ModelKeyboard_AnyModel(t *testing.T) {
 	tb := newTestBot(t)
-	kb := tb.bot.modelKeyboard(27, 0) // Mazda
+	kb := tb.bot.modelKeyboard(27, 0, locale.English) // Mazda
 
 	hasAny := false
 	for _, row := range kb.InlineKeyboard {
@@ -314,7 +305,7 @@ func TestKeyboards_ModelKeyboard_AnyModel(t *testing.T) {
 
 func TestKeyboards_ManufacturerSearch(t *testing.T) {
 	tb := newTestBot(t)
-	kb := tb.bot.manufacturerSearchResults("maz")
+	kb := tb.bot.manufacturerSearchResults("maz", locale.English)
 
 	found := false
 	for _, row := range kb.InlineKeyboard {
@@ -331,7 +322,7 @@ func TestKeyboards_ManufacturerSearch(t *testing.T) {
 
 func TestKeyboards_ManufacturerSearch_NoResults(t *testing.T) {
 	tb := newTestBot(t)
-	kb := tb.bot.manufacturerSearchResults("zzzzz")
+	kb := tb.bot.manufacturerSearchResults("zzzzz", locale.English)
 
 	hasNoResults := false
 	for _, row := range kb.InlineKeyboard {
@@ -347,7 +338,7 @@ func TestKeyboards_ManufacturerSearch_NoResults(t *testing.T) {
 }
 
 func TestKeyboards_EngineKeyboard(t *testing.T) {
-	kb := engineKeyboard()
+	kb := engineKeyboard(locale.English)
 	if len(kb.InlineKeyboard) != 2 {
 		t.Errorf("expected 2 rows, got %d", len(kb.InlineKeyboard))
 	}
@@ -363,7 +354,7 @@ func TestKeyboards_ConfirmKeyboard(t *testing.T) {
 		EngineMinCC:      2000,
 	}
 
-	kb, summary := confirmKeyboard(wd)
+	kb, summary := confirmKeyboard(wd, locale.English)
 	if kb == nil {
 		t.Fatal("keyboard should not be nil")
 	}
@@ -542,7 +533,7 @@ func TestSourceDisplayName_Multi(t *testing.T) {
 }
 
 func TestSourceKeyboard_NoneSelected(t *testing.T) {
-	kb := sourceKeyboard("")
+	kb := sourceKeyboard("", locale.English)
 	if len(kb.InlineKeyboard) != 1 {
 		t.Fatalf("expected 1 row (no Done button), got %d", len(kb.InlineKeyboard))
 	}
@@ -552,7 +543,7 @@ func TestSourceKeyboard_NoneSelected(t *testing.T) {
 }
 
 func TestSourceKeyboard_BothSelected(t *testing.T) {
-	kb := sourceKeyboard("yad2,winwin")
+	kb := sourceKeyboard("yad2,winwin", locale.English)
 	if len(kb.InlineKeyboard) != 2 {
 		t.Fatalf("expected 2 rows (toggles + Done), got %d", len(kb.InlineKeyboard))
 	}
@@ -572,9 +563,7 @@ func TestWizardFlow_BothSources(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 600
 
-	if err := tb.store.UpsertUser(ctx, chatID, "frank"); err != nil {
-		t.Fatalf("upsert: %v", err)
-	}
+	tb.createUser(ctx, t, chatID, "frank")
 
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")

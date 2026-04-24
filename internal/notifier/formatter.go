@@ -5,13 +5,14 @@ import (
 	"strings"
 
 	"github.com/dsionov/carwatch/internal/format"
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
-func FormatListing(l model.Listing) string {
+func FormatListing(l model.Listing, lang locale.Lang) string {
 	var b strings.Builder
 
-	b.WriteString("🚗 *New Car Listing*\n\n")
+	b.WriteString(locale.T(lang, "fmt_new_listing"))
 
 	title := format.EscapeMarkdown(strings.TrimSpace(l.Manufacturer + " " + l.Model))
 	if l.SubModel != "" {
@@ -20,15 +21,15 @@ func FormatListing(l model.Listing) string {
 	b.WriteString("*" + title + "*\n\n")
 
 	if l.Year > 0 {
-		b.WriteString(fmt.Sprintf("📅 Year: %d", l.Year))
+		b.WriteString(locale.Tf(lang, "fmt_year", l.Year))
 		if l.Month > 0 {
-			b.WriteString(fmt.Sprintf("/%02d", l.Month))
+			b.WriteString(locale.Tf(lang, "fmt_year_month", l.Month))
 		}
 		b.WriteString("\n")
 	}
 
 	if l.EngineVolume > 0 {
-		b.WriteString(fmt.Sprintf("⚙️ Engine: %.1fL", l.EngineVolume/1000))
+		b.WriteString(locale.Tf(lang, "fmt_engine", l.EngineVolume/1000))
 		if l.GearBox != "" {
 			b.WriteString(", " + format.EscapeMarkdown(l.GearBox))
 		}
@@ -36,15 +37,15 @@ func FormatListing(l model.Listing) string {
 	}
 
 	if l.HorsePower > 0 {
-		b.WriteString(fmt.Sprintf("🐴 Power: %d HP\n", l.HorsePower))
+		b.WriteString(locale.Tf(lang, "fmt_power", l.HorsePower))
 	}
 
 	if l.Km > 0 {
-		b.WriteString(fmt.Sprintf("🛣️ Mileage: %s km\n", format.Number(l.Km)))
+		b.WriteString(locale.Tf(lang, "fmt_mileage", format.Number(l.Km)))
 	}
 
 	if l.Hand > 0 {
-		b.WriteString(fmt.Sprintf("✋ Hand: %d\n", l.Hand))
+		b.WriteString(locale.Tf(lang, "fmt_hand", l.Hand))
 	}
 
 	if l.City != "" {
@@ -52,11 +53,11 @@ func FormatListing(l model.Listing) string {
 		if l.Area != "" {
 			location += ", " + format.EscapeMarkdown(l.Area)
 		}
-		b.WriteString(fmt.Sprintf("📍 Location: %s\n", location))
+		b.WriteString(locale.Tf(lang, "fmt_location", location))
 	}
 
 	if l.Price > 0 {
-		b.WriteString(fmt.Sprintf("💰 Price: ₪%s\n", format.Number(l.Price)))
+		b.WriteString(locale.Tf(lang, "fmt_price", format.Number(l.Price)))
 	}
 
 	if l.PageLink != "" {
@@ -66,7 +67,7 @@ func FormatListing(l model.Listing) string {
 	return b.String()
 }
 
-func FormatPriceDrop(l model.Listing, oldPrice int) string {
+func FormatPriceDrop(l model.Listing, oldPrice int, lang locale.Lang) string {
 	var b strings.Builder
 
 	title := format.EscapeMarkdown(strings.TrimSpace(l.Manufacturer + " " + l.Model))
@@ -78,7 +79,7 @@ func FormatPriceDrop(l model.Listing, oldPrice int) string {
 	}
 
 	drop := oldPrice - l.Price
-	b.WriteString(fmt.Sprintf("💰 *Price Drop!* %s: ₪%s → ₪%s (-₪%s)\n",
+	b.WriteString(locale.Tf(lang, "fmt_price_drop",
 		title,
 		format.Number(oldPrice),
 		format.Number(l.Price),
@@ -100,18 +101,18 @@ func FormatPriceDrop(l model.Listing, oldPrice int) string {
 	return b.String()
 }
 
-func FormatBatch(listings []model.Listing) string {
+func FormatBatch(listings []model.Listing, lang locale.Lang) string {
 	if len(listings) == 1 {
-		return FormatListing(listings[0])
+		return FormatListing(listings[0], lang)
 	}
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("🚗 *%d New Listings Found*\n", len(listings)))
+	b.WriteString(locale.Tf(lang, "fmt_batch_header", len(listings)))
 
 	for i, l := range listings {
 		b.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
-		b.WriteString(fmt.Sprintf("*[%d/%d]*\n", i+1, len(listings)))
-		b.WriteString(FormatListing(l))
+		b.WriteString(locale.Tf(lang, "fmt_batch_item", i+1, len(listings)))
+		b.WriteString(FormatListing(l, lang))
 	}
 
 	return b.String()

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -34,9 +35,8 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 		return err
 	}
 
-	// Use background context so the enqueue succeeds even during shutdown.
 	if d.queue != nil {
-		msg := notifier.FormatBatch(listings)
+		msg := notifier.FormatBatch(listings, locale.Hebrew)
 		if qErr := d.queue.EnqueueNotification(context.Background(), chatIDStr, "", msg); qErr == nil {
 			return nil
 		}
@@ -69,7 +69,7 @@ func NewDigestDelivery(s storage.DigestStore) *DigestDelivery {
 }
 
 func (d *DigestDelivery) DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error {
-	msg := notifier.FormatBatch(listings)
+	msg := notifier.FormatBatch(listings, locale.Hebrew)
 	return d.store.AddDigestItem(ctx, chatID, msg)
 }
 

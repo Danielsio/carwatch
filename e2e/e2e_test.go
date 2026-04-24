@@ -138,7 +138,7 @@ func TestE2E_FullPipeline(t *testing.T) {
 	factory.Register("yad2", f)
 
 	sched, err := scheduler.NewWithOptions(cfg, f, store, n, testLogger, scheduler.Options{
-		Health:         h,
+		Observer:       h,
 		Queue:          store,
 		Prices:         store,
 		FetcherFactory: factory,
@@ -181,7 +181,7 @@ func TestE2E_FullPipeline(t *testing.T) {
 	// Verify dedup: running again should not re-notify
 	n2 := &mockNotifier{}
 	sched2, _ := scheduler.NewWithOptions(cfg, f, store, n2, testLogger, scheduler.Options{
-		Health:         h,
+		Observer:       h,
 		Queue:          store,
 		Prices:         store,
 		FetcherFactory: factory,

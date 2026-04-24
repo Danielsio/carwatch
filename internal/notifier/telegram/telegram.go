@@ -10,6 +10,7 @@ import (
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
 
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
 )
@@ -48,7 +49,7 @@ func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.L
 	if len(listings) == 1 && listings[0].ImageURL != "" {
 		return n.sendListingWithPhoto(ctx, chatID, listings[0])
 	}
-	msg := notifier.FormatBatch(listings)
+	msg := notifier.FormatBatch(listings, locale.Hebrew)
 	return n.sendMessageMarkdown(ctx, chatID, msg)
 }
 
@@ -71,7 +72,7 @@ func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, list
 		return fmt.Errorf("invalid chat ID %q: %w", chatID, err)
 	}
 
-	caption := notifier.FormatListing(listing)
+	caption := notifier.FormatListing(listing, locale.Hebrew)
 
 	if len([]rune(caption)) > maxCaptionLen {
 		_, err = n.bot.SendPhoto(ctx, &tgbot.SendPhotoParams{

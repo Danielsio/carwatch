@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -25,7 +26,7 @@ func TestFormatListing(t *testing.T) {
 		},
 	}
 
-	msg := FormatListing(l)
+	msg := FormatListing(l, locale.English)
 
 	checks := []string{
 		"Mazda 3",
@@ -59,7 +60,7 @@ func TestFormatPriceDrop(t *testing.T) {
 		},
 	}
 
-	msg := FormatPriceDrop(l, 95000)
+	msg := FormatPriceDrop(l, 95000, locale.English)
 
 	checks := []string{
 		"Price Drop!",
@@ -90,7 +91,7 @@ func TestFormatPriceDrop_MinimalFields(t *testing.T) {
 		},
 	}
 
-	msg := FormatPriceDrop(l, 80000)
+	msg := FormatPriceDrop(l, 80000, locale.English)
 
 	if !strings.Contains(msg, "Toyota Corolla GLi") {
 		t.Errorf("should include submodel in title:\n%s", msg)
@@ -121,7 +122,7 @@ func TestFormatListing_EscapesMarkdown(t *testing.T) {
 		},
 	}
 
-	msg := FormatListing(l)
+	msg := FormatListing(l, locale.English)
 
 	if strings.Contains(msg, "Land_Rover") {
 		t.Error("underscore in manufacturer should be escaped")
@@ -161,7 +162,7 @@ func TestFormatPriceDrop_EscapesMarkdown(t *testing.T) {
 		},
 	}
 
-	msg := FormatPriceDrop(l, 300000)
+	msg := FormatPriceDrop(l, 300000, locale.English)
 
 	if !strings.Contains(msg, "Land\\_Rover") {
 		t.Errorf("expected escaped manufacturer in price drop, got:\n%s", msg)
@@ -179,7 +180,7 @@ func TestFormatBatch_SingleListing(t *testing.T) {
 		RawListing: model.RawListing{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 90000},
 	}}
 
-	msg := FormatBatch(listings)
+	msg := FormatBatch(listings, locale.English)
 	if strings.Contains(msg, "2 New Listings") {
 		t.Error("single listing should not use batch header")
 	}
@@ -191,7 +192,7 @@ func TestFormatBatch_MultipleListing(t *testing.T) {
 		{RawListing: model.RawListing{Token: "b", Manufacturer: "Mazda", Model: "3"}},
 	}
 
-	msg := FormatBatch(listings)
+	msg := FormatBatch(listings, locale.English)
 	if !strings.Contains(msg, "2 New Listings") {
 		t.Error("batch should contain count header")
 	}

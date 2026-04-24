@@ -119,6 +119,8 @@ func run(configPath string, logger *slog.Logger) error {
 		PollInterval: cfg.Polling.Interval,
 		Health:       h,
 		Listings:     store,
+		Saved:        store,
+		Hidden:       store,
 		Catalog:      dynCatalog,
 	}, logger)
 
@@ -173,6 +175,7 @@ func run(configPath string, logger *slog.Logger) error {
 		ListingStore:    store,
 		SearchStore:     store,
 		UserStore:       store,
+		HiddenStore:     store,
 		CatalogIngester: dynCatalog,
 	})
 	if err != nil {

@@ -11,7 +11,7 @@ func TestHandleDigest_NoDigestStore(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/digest")
 
 	msg := tb.msg.last()
@@ -25,7 +25,7 @@ func TestHandleDigest_InstantMode(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/digest")
 
 	msg := tb.msg.last()
@@ -42,7 +42,7 @@ func TestHandleDigest_DigestMode(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	_ = tb.store.SetDigestMode(ctx, chatID, "digest", "6h")
 
 	tb.simulateCommand(ctx, chatID, "/digest")
@@ -61,7 +61,7 @@ func TestDigestOn_Callback(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCallback(ctx, chatID, cbDigestOn)
 
 	msg := tb.msg.last()
@@ -83,7 +83,7 @@ func TestDigestOff_Callback(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	_ = tb.store.SetDigestMode(ctx, chatID, "digest", "6h")
 
 	tb.simulateCallback(ctx, chatID, cbDigestOff)
@@ -109,7 +109,7 @@ func TestDigestInterval_Callback(t *testing.T) {
 			ctx := context.Background()
 			const chatID int64 = 100
 
-			_ = tb.store.UpsertUser(ctx, chatID, "alice")
+			tb.createUser(ctx, t, chatID, "alice")
 			tb.simulateCallback(ctx, chatID, cbDigestInterval+interval)
 
 			msg := tb.msg.last()
@@ -136,7 +136,7 @@ func TestDigestInterval_Invalid(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCallback(ctx, chatID, cbDigestInterval+"99h")
 
 	msg := tb.msg.last()
@@ -150,7 +150,7 @@ func TestDigestInterval_NilStore(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.msg.reset()
 
 	tb.simulateCallback(ctx, chatID, cbDigestInterval+"6h")
@@ -165,7 +165,7 @@ func TestDigestOn_NilStore(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.msg.reset()
 
 	tb.simulateCallback(ctx, chatID, cbDigestOn)

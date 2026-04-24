@@ -9,6 +9,7 @@ import (
 	tgbot "github.com/go-telegram/bot"
 
 	"github.com/dsionov/carwatch/internal/catalog"
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -43,7 +44,7 @@ func TestWizardPrompts_NoMarkdownParseMode(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 
 	// Walk through the wizard until we hit text prompts.
 	tb.simulateCommand(ctx, chatID, "/watch")
@@ -77,7 +78,7 @@ func TestWizardYearMaxPrompt_NoMarkdownParseMode(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -99,7 +100,7 @@ func TestWizardPricePrompt_NoMarkdownParseMode(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -124,7 +125,7 @@ func TestWizardFlow_EndToEnd(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 
 	// Step 1: /watch → source keyboard
 	tb.simulateCommand(ctx, chatID, "/watch")
@@ -229,21 +230,43 @@ func TestWizardFlow_EndToEnd(t *testing.T) {
 		t.Fatalf("step 9: state=%q, want %q", user.State, StateAskMaxHand)
 	}
 
-	// Step 10: select max hand → confirm
+	// Step 10: select max hand → keywords prompt
 	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"3")
 	msg = tb.msg.last()
+	if !msg.HasKB {
+		t.Fatal("step 10: expected keywords prompt with skip button")
+	}
+	user, _ = tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskKeywords {
+		t.Fatalf("step 10: state=%q, want %q", user.State, StateAskKeywords)
+	}
+
+	// Step 11: skip keywords → exclude-keys prompt
+	tb.simulateCallback(ctx, chatID, cbSkipKeywords)
+	msg = tb.msg.last()
+	if !msg.HasKB {
+		t.Fatal("step 11: expected exclude-keys prompt with skip button")
+	}
+	user, _ = tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskExcludeKeys {
+		t.Fatalf("step 11: state=%q, want %q", user.State, StateAskExcludeKeys)
+	}
+
+	// Step 12: skip exclude-keys → confirm
+	tb.simulateCallback(ctx, chatID, cbSkipExcludeKeys)
+	msg = tb.msg.last()
 	if !msg.HasKB || !strings.Contains(msg.Text, "Mazda") {
-		t.Fatalf("step 10: expected confirm summary with Mazda, got %q", msg.Text)
+		t.Fatalf("step 12: expected confirm summary with Mazda, got %q", msg.Text)
 	}
 	if !strings.Contains(msg.Text, "150,000") {
-		t.Errorf("step 10: confirm should show formatted price 150,000, got %q", msg.Text)
+		t.Errorf("step 12: confirm should show formatted price 150,000, got %q", msg.Text)
 	}
 	user, _ = tb.store.GetUser(ctx, chatID)
 	if user.State != StateConfirm {
-		t.Fatalf("step 10: state=%q, want %q", user.State, StateConfirm)
+		t.Fatalf("step 12: state=%q, want %q", user.State, StateConfirm)
 	}
 
-	// Step 11: confirm → search created, state back to idle
+	// Step 13: confirm → search created, state back to idle
 	tb.simulateCallback(ctx, chatID, cbConfirm)
 	user, _ = tb.store.GetUser(ctx, chatID)
 	if user.State != StateIdle {
@@ -298,7 +321,7 @@ func TestCallback_InvalidManufacturerID(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -320,7 +343,7 @@ func TestCallback_InvalidModelID(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -340,7 +363,7 @@ func TestCallback_InvalidEngineCC(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -364,7 +387,7 @@ func TestManufacturerWithNoModels(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -388,7 +411,7 @@ func TestYearMin_InvalidInput(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -415,7 +438,7 @@ func TestYearMax_LessThanMin(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -441,7 +464,7 @@ func TestPrice_OutOfRange(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -468,7 +491,7 @@ func TestWatch_AtMaxSearches(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 
 	for i := range 3 {
 		_, _ = tb.store.CreateSearch(ctx, newFakeSearch(chatID, i+1))
@@ -488,7 +511,7 @@ func TestCancel_ResetsState(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -512,7 +535,7 @@ func TestCancelCallback_ResetsState(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -542,7 +565,7 @@ func TestEdit_RestartsWizard(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -567,7 +590,7 @@ func TestUnexpectedText_InIdleState(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.msg.reset()
 
 	tb.simulateText(ctx, chatID, "hello bot")
@@ -583,7 +606,7 @@ func TestDeleteSearch_ViaCallback(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	id, _ := tb.store.CreateSearch(ctx, newFakeSearch(chatID, 1))
 	tb.msg.reset()
 
@@ -603,7 +626,7 @@ func TestCatalog_ManufacturersWithoutModels_HaveAnyModelFallback(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
@@ -616,7 +639,7 @@ func TestCatalog_ManufacturersWithoutModels_HaveAnyModelFallback(t *testing.T) {
 	}
 
 	// Verify the keyboard has an "Any model" button.
-	kb := tb.bot.modelKeyboard(35, 0)
+	kb := tb.bot.modelKeyboard(35, 0, locale.English)
 	hasAnyBtn := false
 	for _, row := range kb.InlineKeyboard {
 		for _, btn := range row {
@@ -707,7 +730,7 @@ func TestHandleList_Empty(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/list")
 
 	msg := tb.msg.last()
@@ -721,7 +744,7 @@ func TestHandleList_WithSearches(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	_, _ = tb.store.CreateSearch(ctx, newFakeSearch(chatID, 27))
 	tb.msg.reset()
 
@@ -741,7 +764,7 @@ func TestHandleStop_NoArg(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 
 	update := fakeMessage(chatID, "/stop")
 	var nilBot *tgbot.Bot
@@ -758,7 +781,7 @@ func TestHandleStop_WithID(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	id, _ := tb.store.CreateSearch(ctx, newFakeSearch(chatID, 27))
 	tb.msg.reset()
 
@@ -782,7 +805,7 @@ func TestHandleHelp(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/help")
 
 	msg := tb.msg.last()
@@ -799,7 +822,7 @@ func TestHandleSettings(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/settings")
 
 	msg := tb.msg.last()
@@ -826,7 +849,7 @@ func TestHandlePause(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	id, _ := tb.store.CreateSearch(ctx, newFakeSearch(chatID, 27))
 	tb.msg.reset()
 
@@ -850,7 +873,7 @@ func TestHandleResume(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	id, _ := tb.store.CreateSearch(ctx, newFakeSearch(chatID, 27))
 	_ = tb.store.SetSearchActive(ctx, id, false)
 	tb.msg.reset()
@@ -870,13 +893,13 @@ func TestHandleStats_NonAdmin(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100 // not admin (999)
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	update := fakeMessage(chatID, "/stats")
 	var nilBot *tgbot.Bot
 	tb.bot.handleStats(ctx, nilBot, update)
 
 	msg := tb.msg.last()
-	if !strings.Contains(msg.Text, "Unknown command") {
+	if !strings.Contains(msg.Text, "didn't understand") {
 		t.Errorf("non-admin should get rejected, got %q", msg.Text)
 	}
 }
@@ -886,7 +909,7 @@ func TestHandleStats_Admin(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 999 // admin
 
-	_ = tb.store.UpsertUser(ctx, chatID, "admin")
+	tb.createUser(ctx, t, chatID, "admin")
 	update := fakeMessage(chatID, "/stats")
 	var nilBot *tgbot.Bot
 	tb.bot.handleStats(ctx, nilBot, update)

@@ -15,6 +15,7 @@ type User struct {
 	StateData string
 	CreatedAt time.Time
 	Active    bool
+	Language  string
 }
 
 type Search struct {
@@ -31,6 +32,8 @@ type Search struct {
 	EngineMinCC  int
 	MaxKm        int
 	MaxHand      int
+	Keywords     string
+	ExcludeKeys  string
 	Active       bool
 	CreatedAt    time.Time
 }
@@ -41,11 +44,13 @@ type UserStore interface {
 	UpdateUserState(ctx context.Context, chatID int64, state string, stateData string) error
 	ListActiveUsers(ctx context.Context) ([]User, error)
 	SetUserActive(ctx context.Context, chatID int64, active bool) error
+	SetUserLanguage(ctx context.Context, chatID int64, lang string) error
 	CountUsers(ctx context.Context) (int64, error)
 }
 
 type SearchStore interface {
 	CreateSearch(ctx context.Context, s Search) (int64, error)
+	UpdateSearch(ctx context.Context, s Search) error
 	ListSearches(ctx context.Context, chatID int64) ([]Search, error)
 	GetSearch(ctx context.Context, id int64) (*Search, error)
 	GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*Search, error)
@@ -110,6 +115,21 @@ type ListingStore interface {
 	SaveListing(ctx context.Context, r ListingRecord) error
 	ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]ListingRecord, error)
 	CountUserListings(ctx context.Context, chatID int64) (int64, error)
+}
+
+type SavedListingStore interface {
+	SaveBookmark(ctx context.Context, chatID int64, token string) error
+	RemoveBookmark(ctx context.Context, chatID int64, token string) error
+	ListSaved(ctx context.Context, chatID int64, limit, offset int) ([]ListingRecord, error)
+	CountSaved(ctx context.Context, chatID int64) (int64, error)
+}
+
+type HiddenListingStore interface {
+	HideListing(ctx context.Context, chatID int64, token string) error
+	IsHidden(ctx context.Context, chatID int64, token string) (bool, error)
+	ListHidden(ctx context.Context, chatID int64, limit, offset int) ([]string, error)
+	CountHidden(ctx context.Context, chatID int64) (int64, error)
+	ClearHidden(ctx context.Context, chatID int64) error
 }
 
 type CatalogEntry struct {

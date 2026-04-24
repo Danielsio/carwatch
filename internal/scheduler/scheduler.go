@@ -16,6 +16,7 @@ import (
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/filter"
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -54,6 +55,7 @@ type Scheduler struct {
 	searchStore       storage.SearchStore
 	userStore         storage.UserStore
 	digestStore       storage.DigestStore
+	hiddenStore       storage.HiddenListingStore
 	catalogIngester   CatalogIngester
 	triggerCh         chan struct{}
 }
@@ -68,6 +70,7 @@ type Options struct {
 	SearchStore     storage.SearchStore
 	UserStore       storage.UserStore
 	DigestStore     storage.DigestStore
+	HiddenStore     storage.HiddenListingStore
 	CatalogIngester CatalogIngester
 }
 
@@ -115,6 +118,7 @@ func NewWithOptions(
 		searchStore:       opts.SearchStore,
 		userStore:         opts.UserStore,
 		digestStore:       opts.DigestStore,
+		hiddenStore:       opts.HiddenStore,
 		catalogIngester:   opts.CatalogIngester,
 		triggerCh:         make(chan struct{}, 1),
 	}, nil
@@ -386,29 +390,55 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	groups := GroupSearches(searches)
 	s.logger.Info("grouped searches", "groups", len(groups), "total_searches", len(searches))
 
-	allFailed := true
-	for i, group := range groups {
-		if i > 0 {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(2*time.Second + time.Duration(rand.Int64N(int64(3*time.Second)))):
-			}
-		}
-		if err := s.processGroup(ctx, group); err != nil {
-			s.logger.Error("group failed",
-				"manufacturer", group.Manufacturer,
-				"model", group.Model,
-				"error", err,
-			)
-			if errors.Is(err, fetcher.ErrChallenge) {
-				s.backoffMultiplier = min(s.backoffMultiplier*2, maxBackoff)
-			}
-			continue
-		}
-		allFailed = false
-		s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
+	s.cfgMu.RLock()
+	concurrency := s.cfg.Polling.MaxConcurrentFetches
+	s.cfgMu.RUnlock()
+	if concurrency <= 0 {
+		concurrency = 4
 	}
+
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	allFailed := true
+
+	cancelled := false
+	for _, group := range groups {
+		if cancelled {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			cancelled = true
+			continue
+		case sem <- struct{}{}:
+		}
+
+		wg.Add(1)
+		go func(g CanonicalGroup) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			if err := s.processGroup(ctx, g); err != nil {
+				s.logger.Error("group failed",
+					"manufacturer", g.Manufacturer,
+					"model", g.Model,
+					"error", err,
+				)
+				if errors.Is(err, fetcher.ErrChallenge) {
+					mu.Lock()
+					s.backoffMultiplier = min(s.backoffMultiplier*2, maxBackoff)
+					mu.Unlock()
+				}
+				return
+			}
+			mu.Lock()
+			allFailed = false
+			s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
+			mu.Unlock()
+		}(group)
+	}
+	wg.Wait()
 
 	if s.catalogIngester != nil {
 		s.catalogIngester.Flush(ctx)
@@ -498,11 +528,26 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			MaxHand:     search.MaxHand,
 		}
 
+		if search.Keywords != "" {
+			criteria.Keywords = strings.Split(search.Keywords, ",")
+		}
+		if search.ExcludeKeys != "" {
+			criteria.ExcludeKeys = strings.Split(search.ExcludeKeys, ",")
+		}
+
 		filtered := filter.Apply(criteria, raw)
+
+		lang := s.userLang(ctx, search.ChatID)
 
 		var newListings []model.Listing
 		var priceDropMessages []string
 		for _, l := range filtered {
+			if s.hiddenStore != nil {
+				if hidden, _ := s.hiddenStore.IsHidden(ctx, search.ChatID, l.Token); hidden {
+					continue
+				}
+			}
+
 			isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.ChatID, search.ID)
 			if err != nil {
 				s.logger.Error("claim failed", "token", l.Token, "error", err)
@@ -520,7 +565,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 						"new_price", l.Price,
 					)
 					listing := model.Listing{RawListing: l, SearchName: search.Name}
-					priceDropMessages = append(priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice))
+					priceDropMessages = append(priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice, lang))
 					continue
 				}
 			}
@@ -655,7 +700,8 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 	}
 
 	chatIDStr := fmt.Sprintf("%d", chatID)
-	header := fmt.Sprintf("*Digest Summary (%d items):*\n", len(payloads))
+	lang := s.userLang(ctx, chatID)
+	header := locale.Tf(lang, "fmt_digest_header", len(payloads))
 	combined := header + strings.Join(payloads, "\n\n━━━━━━━━━━━━━━━━━━━━\n\n")
 
 	if err := s.notifier.NotifyRaw(ctx, chatIDStr, combined); err != nil {
@@ -672,6 +718,17 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 		"items", len(payloads),
 	)
 	s.observer.RecordNotificationSent()
+}
+
+func (s *Scheduler) userLang(ctx context.Context, chatID int64) locale.Lang {
+	if s.userStore == nil {
+		return locale.Hebrew
+	}
+	user, err := s.userStore.GetUser(ctx, chatID)
+	if err != nil || user == nil || user.Language == "" {
+		return locale.Hebrew
+	}
+	return locale.Lang(user.Language)
 }
 
 func maskPhone(phone string) string {

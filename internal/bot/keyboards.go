@@ -10,6 +10,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/format"
+	"github.com/dsionov/carwatch/internal/locale"
 )
 
 const maxRecentManufacturers = 4
@@ -37,12 +38,22 @@ const (
 	cbHistoryPage     = "hist_pg:"
 	cbSourceToggle    = "src_toggle:"
 	cbSourceDone      = "src_done"
+	cbLangHe          = "lang:he"
+	cbLangEn          = "lang:en"
+	cbPrefixSave      = "save:"
+	cbPrefixHide      = "hide:"
+	cbQuickStart      = "quick_start"
+	cbHiddenClear     = "hidden_clear"
+	cbSavedPage       = "saved_pg:"
+	cbHiddenPage      = "hidden_pg:"
+	cbSkipKeywords    = "skip_keywords"
+	cbSkipExcludeKeys = "skip_exclude_keys"
 
-	pageSize = 15
+	pageSize   = 15
 	colsPerRow = 3
 )
 
-func sourceKeyboard(selected string) *tgmodels.InlineKeyboardMarkup {
+func sourceKeyboard(selected string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	yad2Label := "Yad2"
 	winwinLabel := "WinWin"
 	if strings.Contains(selected, "yad2") {
@@ -60,16 +71,16 @@ func sourceKeyboard(selected string) *tgmodels.InlineKeyboardMarkup {
 	}
 	if selected != "" {
 		rows = append(rows, []tgmodels.InlineKeyboardButton{
-			{Text: "Done ✓", CallbackData: cbSourceDone},
+			{Text: locale.T(lang, "btn_done"), CallbackData: cbSourceDone},
 		})
 	}
 
 	return &tgmodels.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-func (b *Bot) manufacturerKeyboard(ctx context.Context, chatID int64, page int) *tgmodels.InlineKeyboardMarkup {
+func (b *Bot) manufacturerKeyboard(ctx context.Context, chatID int64, page int, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	mfrs := b.catalog.Manufacturers()
-	kb := paginatedKeyboard(mfrs, page, cbPrefixMfr, cbMfrPage, cbMfrSearch, "")
+	kb := paginatedKeyboard(mfrs, page, cbPrefixMfr, cbMfrPage, cbMfrSearch, "", lang)
 
 	if page == 0 {
 		recent := b.recentManufacturers(ctx, chatID)
@@ -127,22 +138,22 @@ func (b *Bot) recentManufacturers(ctx context.Context, chatID int64) []catalog.E
 	return recent
 }
 
-func (b *Bot) manufacturerSearchResults(query string) *tgmodels.InlineKeyboardMarkup {
+func (b *Bot) manufacturerSearchResults(query string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	results := b.catalog.SearchManufacturers(query)
-	return searchResultKeyboard(results, cbPrefixMfr, cbMfrPage)
+	return searchResultKeyboard(results, cbPrefixMfr, cbMfrPage, lang)
 }
 
-func (b *Bot) modelKeyboard(manufacturerID int, page int) *tgmodels.InlineKeyboardMarkup {
+func (b *Bot) modelKeyboard(manufacturerID int, page int, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	models := b.catalog.Models(manufacturerID)
-	return paginatedKeyboard(models, page, cbPrefixModel, cbMdlPage, cbMdlSearch, cbAnyModel)
+	return paginatedKeyboard(models, page, cbPrefixModel, cbMdlPage, cbMdlSearch, cbAnyModel, lang)
 }
 
-func (b *Bot) modelSearchResults(manufacturerID int, query string) *tgmodels.InlineKeyboardMarkup {
+func (b *Bot) modelSearchResults(manufacturerID int, query string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	results := b.catalog.SearchModels(manufacturerID, query)
-	return searchResultKeyboard(results, cbPrefixModel, cbMdlPage)
+	return searchResultKeyboard(results, cbPrefixModel, cbMdlPage, lang)
 }
 
-func paginatedKeyboard(entries []catalog.Entry, page int, selectPrefix, pagePrefix, searchCB, anyCB string) *tgmodels.InlineKeyboardMarkup {
+func paginatedKeyboard(entries []catalog.Entry, page int, selectPrefix, pagePrefix, searchCB, anyCB string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	totalPages := (len(entries) + pageSize - 1) / pageSize
 	if totalPages == 0 {
 		totalPages = 1
@@ -160,12 +171,12 @@ func paginatedKeyboard(entries []catalog.Entry, page int, selectPrefix, pagePref
 	var rows [][]tgmodels.InlineKeyboardButton
 
 	rows = append(rows, []tgmodels.InlineKeyboardButton{
-		{Text: "Search", CallbackData: searchCB},
+		{Text: locale.T(lang, "btn_search"), CallbackData: searchCB},
 	})
 
 	if anyCB != "" {
 		rows = append(rows, []tgmodels.InlineKeyboardButton{
-			{Text: "Any model", CallbackData: anyCB},
+			{Text: locale.T(lang, "btn_any_model"), CallbackData: anyCB},
 		})
 	}
 
@@ -185,7 +196,7 @@ func paginatedKeyboard(entries []catalog.Entry, page int, selectPrefix, pagePref
 		var navRow []tgmodels.InlineKeyboardButton
 		if page > 0 {
 			navRow = append(navRow, tgmodels.InlineKeyboardButton{
-				Text: "Previous", CallbackData: pagePrefix + strconv.Itoa(page-1),
+				Text: locale.T(lang, "btn_previous"), CallbackData: pagePrefix + strconv.Itoa(page-1),
 			})
 		}
 		navRow = append(navRow, tgmodels.InlineKeyboardButton{
@@ -193,7 +204,7 @@ func paginatedKeyboard(entries []catalog.Entry, page int, selectPrefix, pagePref
 		})
 		if page < totalPages-1 {
 			navRow = append(navRow, tgmodels.InlineKeyboardButton{
-				Text: "Next", CallbackData: pagePrefix + strconv.Itoa(page+1),
+				Text: locale.T(lang, "btn_next"), CallbackData: pagePrefix + strconv.Itoa(page+1),
 			})
 		}
 		rows = append(rows, navRow)
@@ -202,12 +213,12 @@ func paginatedKeyboard(entries []catalog.Entry, page int, selectPrefix, pagePref
 	return &tgmodels.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-func searchResultKeyboard(results []catalog.Entry, selectPrefix, backPageCB string) *tgmodels.InlineKeyboardMarkup {
+func searchResultKeyboard(results []catalog.Entry, selectPrefix, backPageCB string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	var rows [][]tgmodels.InlineKeyboardButton
 
 	if len(results) == 0 {
 		rows = append(rows, []tgmodels.InlineKeyboardButton{
-			{Text: "No results found", CallbackData: "noop"},
+			{Text: locale.T(lang, "btn_no_results"), CallbackData: "noop"},
 		})
 	} else {
 		var row []tgmodels.InlineKeyboardButton
@@ -224,17 +235,17 @@ func searchResultKeyboard(results []catalog.Entry, selectPrefix, backPageCB stri
 	}
 
 	rows = append(rows, []tgmodels.InlineKeyboardButton{
-		{Text: "Back to list", CallbackData: backPageCB + "0"},
+		{Text: locale.T(lang, "btn_back"), CallbackData: backPageCB + "0"},
 	})
 
 	return &tgmodels.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-func engineKeyboard() *tgmodels.InlineKeyboardMarkup {
+func engineKeyboard(lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	return &tgmodels.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
 			{
-				{Text: "Any engine", CallbackData: cbPrefixEngine + "0"},
+				{Text: locale.T(lang, "btn_any_engine"), CallbackData: cbPrefixEngine + "0"},
 				{Text: "1.5L+", CallbackData: cbPrefixEngine + "1500"},
 				{Text: "2.0L+", CallbackData: cbPrefixEngine + "2000"},
 			},
@@ -246,11 +257,11 @@ func engineKeyboard() *tgmodels.InlineKeyboardMarkup {
 	}
 }
 
-func maxKmKeyboard() *tgmodels.InlineKeyboardMarkup {
+func maxKmKeyboard(lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	return &tgmodels.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
 			{
-				{Text: "Any", CallbackData: cbPrefixMaxKm + "0"},
+				{Text: locale.T(lang, "btn_any"), CallbackData: cbPrefixMaxKm + "0"},
 				{Text: "50,000", CallbackData: cbPrefixMaxKm + "50000"},
 				{Text: "100,000", CallbackData: cbPrefixMaxKm + "100000"},
 			},
@@ -262,17 +273,27 @@ func maxKmKeyboard() *tgmodels.InlineKeyboardMarkup {
 	}
 }
 
-func maxHandKeyboard() *tgmodels.InlineKeyboardMarkup {
+func maxHandKeyboard(lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	return &tgmodels.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
 			{
-				{Text: "Any", CallbackData: cbPrefixMaxHand + "0"},
-				{Text: "1st", CallbackData: cbPrefixMaxHand + "1"},
-				{Text: "2nd", CallbackData: cbPrefixMaxHand + "2"},
+				{Text: locale.T(lang, "btn_any"), CallbackData: cbPrefixMaxHand + "0"},
+				{Text: locale.T(lang, "btn_hand_1"), CallbackData: cbPrefixMaxHand + "1"},
+				{Text: locale.T(lang, "btn_hand_2"), CallbackData: cbPrefixMaxHand + "2"},
 			},
 			{
-				{Text: "3rd", CallbackData: cbPrefixMaxHand + "3"},
-				{Text: "4th", CallbackData: cbPrefixMaxHand + "4"},
+				{Text: locale.T(lang, "btn_hand_3"), CallbackData: cbPrefixMaxHand + "3"},
+				{Text: locale.T(lang, "btn_hand_4"), CallbackData: cbPrefixMaxHand + "4"},
+			},
+		},
+	}
+}
+
+func skipKeyboard(cbData string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
+	return &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+			{
+				{Text: locale.T(lang, "btn_skip"), CallbackData: cbData},
 			},
 		},
 	}
@@ -298,18 +319,18 @@ func sourceDisplayName(source string) string {
 	return strings.Join(names, ", ")
 }
 
-func confirmKeyboard(data WizardData) (*tgmodels.InlineKeyboardMarkup, string) {
-	engineStr := "Any"
+func confirmKeyboard(data WizardData, lang locale.Lang) (*tgmodels.InlineKeyboardMarkup, string) {
+	engineStr := locale.T(lang, "label_any")
 	if data.EngineMinCC > 0 {
 		engineStr = fmt.Sprintf("%.1fL+", float64(data.EngineMinCC)/1000)
 	}
 
-	kmStr := "Any"
+	kmStr := locale.T(lang, "label_any")
 	if data.MaxKm > 0 {
 		kmStr = format.Number(data.MaxKm) + " km"
 	}
 
-	handStr := "Any"
+	handStr := locale.T(lang, "label_any")
 	if data.MaxHand > 0 {
 		handStr = strconv.Itoa(data.MaxHand)
 	}
@@ -321,18 +342,10 @@ func confirmKeyboard(data WizardData) (*tgmodels.InlineKeyboardMarkup, string) {
 
 	modelDisplay := data.ModelName
 	if data.Model == 0 {
-		modelDisplay = "Any model"
+		modelDisplay = locale.T(lang, "btn_any_model")
 	}
 
-	summary := fmt.Sprintf(
-		"*Your search:*\n"+
-			"Source: %s\n"+
-			"Car: %s %s\n"+
-			"Year: %d–%d\n"+
-			"Max price: %s NIS\n"+
-			"Engine: %s\n"+
-			"Max km: %s\n"+
-			"Max hand: %s",
+	summary := locale.Tf(lang, "wizard_confirm_summary",
 		sourceDisplayName(source),
 		data.ManufacturerName, modelDisplay,
 		data.YearMin, data.YearMax,
@@ -342,15 +355,33 @@ func confirmKeyboard(data WizardData) (*tgmodels.InlineKeyboardMarkup, string) {
 		handStr,
 	)
 
+	if data.Keywords != "" {
+		summary += locale.Tf(lang, "wizard_confirm_keywords", data.Keywords)
+	}
+	if data.ExcludeKeys != "" {
+		summary += locale.Tf(lang, "wizard_confirm_exclude_keys", data.ExcludeKeys)
+	}
+
 	kb := &tgmodels.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
 			{
-				{Text: "Confirm", CallbackData: cbConfirm},
-				{Text: "Start over", CallbackData: cbEdit},
-				{Text: "Cancel", CallbackData: cbCancel},
+				{Text: locale.T(lang, "btn_confirm"), CallbackData: cbConfirm},
+				{Text: locale.T(lang, "btn_start_over"), CallbackData: cbEdit},
+				{Text: locale.T(lang, "btn_cancel"), CallbackData: cbCancel},
 			},
 		},
 	}
 
 	return kb, summary
+}
+
+func listingActionKeyboard(token string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
+	return &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+			{
+				{Text: locale.T(lang, "btn_save"), CallbackData: cbPrefixSave + token},
+				{Text: locale.T(lang, "btn_hide"), CallbackData: cbPrefixHide + token},
+			},
+		},
+	}
 }

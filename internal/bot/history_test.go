@@ -14,6 +14,7 @@ func TestHistory_Empty(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 700
 
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/history")
 
 	msg := tb.msg.last()
@@ -27,7 +28,7 @@ func TestHistory_ShowsListings(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 701
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	_, _ = tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: chatID, Name: "mazda-3", Manufacturer: 27, Model: 1,
 	})
@@ -67,7 +68,7 @@ func TestHistory_Pagination(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 702
 
-	_ = tb.store.UpsertUser(ctx, chatID, "bob")
+	tb.createUser(ctx, t, chatID, "bob")
 
 	// Create more listings than one page (historyPageSize = 5).
 	for i := range 7 {
@@ -108,8 +109,8 @@ func TestHistory_IsolatedPerUser(t *testing.T) {
 	const alice int64 = 710
 	const bob int64 = 711
 
-	_ = tb.store.UpsertUser(ctx, alice, "alice")
-	_ = tb.store.UpsertUser(ctx, bob, "bob")
+	tb.createUser(ctx, t, alice, "alice")
+	tb.createUser(ctx, t, bob, "bob")
 
 	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
 		Token: "alice-tok", ChatID: alice, SearchName: "a-search",
@@ -150,7 +151,7 @@ func TestHistory_InvalidPage(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 720
 
-	_ = tb.store.UpsertUser(ctx, chatID, "dave")
+	tb.createUser(ctx, t, chatID, "dave")
 	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
 		Token: "tok-1", ChatID: chatID, SearchName: "test",
 		Manufacturer: "Mazda", Model: "3", Year: 2020,
@@ -178,7 +179,7 @@ func TestHistory_SurvivesPrune(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 740
 
-	_ = tb.store.UpsertUser(ctx, chatID, "frank")
+	tb.createUser(ctx, t, chatID, "frank")
 	_, _ = tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: chatID, Name: "test", Manufacturer: 27, Model: 1,
 	})
@@ -210,7 +211,7 @@ func TestHistory_MarkdownEscaping(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 730
 
-	_ = tb.store.UpsertUser(ctx, chatID, "eve")
+	tb.createUser(ctx, t, chatID, "eve")
 	_ = tb.store.SaveListing(ctx, storage.ListingRecord{
 		Token: "tok-md", ChatID: chatID, SearchName: "test",
 		Manufacturer: "Land_Rover", Model: "Range*Rover", Year: 2020,

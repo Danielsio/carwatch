@@ -14,7 +14,7 @@ func TestHandleShare_NoArg(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/share")
 
 	msg := tb.msg.last()
@@ -28,7 +28,7 @@ func TestHandleShare_InvalidID(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/share abc")
 
 	msg := tb.msg.last()
@@ -42,7 +42,7 @@ func TestHandleShare_NonexistentSearch(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/share 999")
 
 	msg := tb.msg.last()
@@ -55,8 +55,8 @@ func TestHandleShare_OtherUsersSearch(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 
-	_ = tb.store.UpsertUser(ctx, 100, "alice")
-	_ = tb.store.UpsertUser(ctx, 200, "bob")
+	tb.createUser(ctx, t, 100, "alice")
+	tb.createUser(ctx, t, 200, "bob")
 
 	id, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 200, Name: "bob-search", Manufacturer: 27, Model: 10332,
@@ -77,7 +77,7 @@ func TestHandleShare_Success(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	id, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: chatID, Name: "mazda-3", Manufacturer: 27, Model: 10332,
 		YearMin: 2020, YearMax: 2024, PriceMax: 100000,
@@ -101,7 +101,7 @@ func TestHandleShare_NoBotUsername(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/share 1")
 
 	msg := tb.msg.last()
@@ -114,8 +114,8 @@ func TestHandleShareStart_ValidLink(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 
-	_ = tb.store.UpsertUser(ctx, 100, "alice")
-	_ = tb.store.UpsertUser(ctx, 200, "bob")
+	tb.createUser(ctx, t, 100, "alice")
+	tb.createUser(ctx, t, 200, "bob")
 
 	id, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "mazda-3", Manufacturer: 27, Model: 10332,
@@ -138,8 +138,8 @@ func TestHandleShareStart_DeletedSearch(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 
-	_ = tb.store.UpsertUser(ctx, 100, "alice")
-	_ = tb.store.UpsertUser(ctx, 200, "bob")
+	tb.createUser(ctx, t, 100, "alice")
+	tb.createUser(ctx, t, 200, "bob")
 
 	id, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "temp", Manufacturer: 27, Model: 10332,
@@ -160,7 +160,7 @@ func TestHandleShareStart_InvalidParam(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCommand(ctx, chatID, "/start share_abc")
 
 	msg := tb.msg.last()
@@ -173,8 +173,8 @@ func TestOnShareCopy_Success(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 
-	_ = tb.store.UpsertUser(ctx, 100, "alice")
-	_ = tb.store.UpsertUser(ctx, 200, "bob")
+	tb.createUser(ctx, t, 100, "alice")
+	tb.createUser(ctx, t, 200, "bob")
 
 	srcID, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "mazda-3", Source: "yad2", Manufacturer: 27, Model: 10332,
@@ -202,8 +202,8 @@ func TestOnShareCopy_AtMaxSearches(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 
-	_ = tb.store.UpsertUser(ctx, 100, "alice")
-	_ = tb.store.UpsertUser(ctx, 200, "bob")
+	tb.createUser(ctx, t, 100, "alice")
+	tb.createUser(ctx, t, 200, "bob")
 
 	srcID, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "shared", Manufacturer: 27, Model: 10332,
@@ -228,8 +228,8 @@ func TestOnShareCopy_DeletedSource(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 
-	_ = tb.store.UpsertUser(ctx, 100, "alice")
-	_ = tb.store.UpsertUser(ctx, 200, "bob")
+	tb.createUser(ctx, t, 100, "alice")
+	tb.createUser(ctx, t, 200, "bob")
 
 	srcID, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "temp", Manufacturer: 27, Model: 10332,
@@ -250,7 +250,7 @@ func TestOnShareCopy_InvalidID(t *testing.T) {
 	ctx := context.Background()
 	const chatID int64 = 100
 
-	_ = tb.store.UpsertUser(ctx, chatID, "alice")
+	tb.createUser(ctx, t, chatID, "alice")
 	tb.simulateCallback(ctx, chatID, cbPrefixShareCopy+"notanumber")
 
 	msg := tb.msg.last()

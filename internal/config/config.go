@@ -18,10 +18,11 @@ type Config struct {
 }
 
 type PollingConfig struct {
-	Interval    time.Duration `yaml:"interval"`
-	Jitter      time.Duration `yaml:"jitter"`
-	ActiveHours *ActiveHours  `yaml:"active_hours"`
-	Timezone    string        `yaml:"timezone"`
+	Interval             time.Duration `yaml:"interval"`
+	Jitter               time.Duration `yaml:"jitter"`
+	ActiveHours          *ActiveHours  `yaml:"active_hours"`
+	Timezone             string        `yaml:"timezone"`
+	MaxConcurrentFetches int           `yaml:"max_concurrent_fetches"`
 }
 
 type ActiveHours struct {
@@ -113,6 +114,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Telegram.MaxSearches == 0 {
 		cfg.Telegram.MaxSearches = 3
+	}
+	if cfg.Polling.MaxConcurrentFetches == 0 {
+		cfg.Polling.MaxConcurrentFetches = 4
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
