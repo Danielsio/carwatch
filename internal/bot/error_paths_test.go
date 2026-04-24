@@ -300,8 +300,8 @@ func TestHandleWatch_CountSearchesError(t *testing.T) {
 	b.handleWatch(context.Background(), nil, update)
 
 	last := msg.last()
-	if !strings.Contains(last.Text, "marketplace") {
-		t.Errorf("should proceed despite count error, got %q", last.Text)
+	if !strings.Contains(last.Text, "Failed to check search limits") {
+		t.Errorf("expected error message about search limits, got %q", last.Text)
 	}
 }
 
