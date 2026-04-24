@@ -18,11 +18,6 @@ import (
 type Notifier struct {
 	bot    *tgbot.Bot
 	logger *slog.Logger
-	lang   locale.Lang
-}
-
-func (n *Notifier) SetLang(lang locale.Lang) {
-	n.lang = lang
 }
 
 func New(token string, logger *slog.Logger, opts ...tgbot.Option) (*Notifier, error) {
@@ -34,7 +29,7 @@ func New(token string, logger *slog.Logger, opts ...tgbot.Option) (*Notifier, er
 	if err != nil {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
-	return &Notifier{bot: b, logger: logger, lang: locale.Hebrew}, nil
+	return &Notifier{bot: b, logger: logger}, nil
 }
 
 func (n *Notifier) Bot() *tgbot.Bot {
@@ -50,11 +45,11 @@ func (n *Notifier) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.Listing) error {
+func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.Listing, lang locale.Lang) error {
 	if len(listings) == 1 && listings[0].ImageURL != "" {
-		return n.sendListingWithPhoto(ctx, chatID, listings[0])
+		return n.sendListingWithPhoto(ctx, chatID, listings[0], lang)
 	}
-	msg := notifier.FormatBatch(listings, n.lang)
+	msg := notifier.FormatBatch(listings, lang)
 	return n.sendMessageMarkdown(ctx, chatID, msg)
 }
 
@@ -71,13 +66,13 @@ const (
 	maxCaptionLen = 1024
 )
 
-func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, listing model.Listing) error {
+func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, listing model.Listing, lang locale.Lang) error {
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid chat ID %q: %w", chatID, err)
 	}
 
-	caption := notifier.FormatListing(listing, n.lang)
+	caption := notifier.FormatListing(listing, lang)
 
 	if len([]rune(caption)) > maxCaptionLen {
 		_, err = n.bot.SendPhoto(ctx, &tgbot.SendPhotoParams{

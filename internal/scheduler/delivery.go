@@ -28,7 +28,7 @@ func NewInstantDelivery(n notifier.Notifier, q storage.NotificationQueue, lang l
 
 func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error {
 	chatIDStr := fmt.Sprintf("%d", chatID)
-	err := d.notifier.Notify(ctx, chatIDStr, listings)
+	err := d.notifier.Notify(ctx, chatIDStr, listings, d.lang)
 	if err == nil {
 		return nil
 	}

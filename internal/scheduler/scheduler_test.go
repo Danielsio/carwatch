@@ -12,6 +12,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -105,7 +106,7 @@ func (m *mockNotifier) NotifyRaw(_ context.Context, recipient string, message st
 	return nil
 }
 
-func (m *mockNotifier) Notify(_ context.Context, recipient string, listings []model.Listing) error {
+func (m *mockNotifier) Notify(_ context.Context, recipient string, listings []model.Listing, _ locale.Lang) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.err != nil {
