@@ -43,10 +43,16 @@ type Bot struct {
 	rateLimiter  sync.Map
 }
 
+type chatMuEntry struct {
+	mu       sync.Mutex
+	lastUsed int64 // UnixNano for atomic-safe reads during sweep
+}
+
 type userRateLimit struct {
 	mu       sync.Mutex
 	tokens   int
 	lastTick time.Time
+	lastSeen int64 // UnixNano for atomic-safe reads during sweep
 }
 
 const (
@@ -75,6 +81,7 @@ func (b *Bot) isRateLimited(chatID int64) bool {
 		return true
 	}
 	rl.tokens--
+	rl.lastSeen = now.UnixNano()
 	return false
 }
 
@@ -219,10 +226,57 @@ func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string, k
 }
 
 func (b *Bot) lockChat(chatID int64) func() {
-	v, _ := b.chatMu.LoadOrStore(chatID, &sync.Mutex{})
-	mu := v.(*sync.Mutex)
-	mu.Lock()
-	return mu.Unlock
+	v, _ := b.chatMu.LoadOrStore(chatID, &chatMuEntry{})
+	entry := v.(*chatMuEntry)
+	entry.mu.Lock()
+	entry.lastUsed = time.Now().UnixNano()
+	return entry.mu.Unlock
+}
+
+const (
+	cleanupInterval = 1 * time.Hour
+	staleThreshold  = 1 * time.Hour
+)
+
+func (b *Bot) StartCleanup(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(cleanupInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				b.sweepStaleMaps()
+			}
+		}
+	}()
+}
+
+func (b *Bot) sweepStaleMaps() {
+	cutoff := time.Now().Add(-staleThreshold).UnixNano()
+
+	b.rateLimiter.Range(func(key, value any) bool {
+		rl := value.(*userRateLimit)
+		rl.mu.Lock()
+		seen := rl.lastSeen
+		rl.mu.Unlock()
+		if seen > 0 && seen < cutoff {
+			b.rateLimiter.Delete(key)
+		}
+		return true
+	})
+
+	b.chatMu.Range(func(key, value any) bool {
+		entry := value.(*chatMuEntry)
+		entry.mu.Lock()
+		used := entry.lastUsed
+		entry.mu.Unlock()
+		if used > 0 && used < cutoff {
+			b.chatMu.Delete(key)
+		}
+		return true
+	})
 }
 
 func (b *Bot) formatInterval() string {

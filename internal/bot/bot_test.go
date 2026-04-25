@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -555,6 +556,40 @@ func TestSourceKeyboard_BothSelected(t *testing.T) {
 	}
 	if kb.InlineKeyboard[1][0].Text != "Done ✓" {
 		t.Errorf("done button = %q, want 'Done ✓'", kb.InlineKeyboard[1][0].Text)
+	}
+}
+
+func TestSweepStaleMaps(t *testing.T) {
+	tb := newTestBot(t)
+
+	now := time.Now()
+	stale := now.Add(-2 * time.Hour).UnixNano()
+	fresh := now.UnixNano()
+
+	// Populate rateLimiter with stale and fresh entries.
+	tb.bot.rateLimiter.Store(int64(1), &userRateLimit{lastSeen: stale, tokens: 5, lastTick: now})
+	tb.bot.rateLimiter.Store(int64(2), &userRateLimit{lastSeen: fresh, tokens: 5, lastTick: now})
+
+	// Populate chatMu with stale and fresh entries.
+	tb.bot.chatMu.Store(int64(10), &chatMuEntry{lastUsed: stale})
+	tb.bot.chatMu.Store(int64(20), &chatMuEntry{lastUsed: fresh})
+
+	tb.bot.sweepStaleMaps()
+
+	// Stale entries should be removed.
+	if _, ok := tb.bot.rateLimiter.Load(int64(1)); ok {
+		t.Error("stale rate limiter entry should have been swept")
+	}
+	if _, ok := tb.bot.chatMu.Load(int64(10)); ok {
+		t.Error("stale chatMu entry should have been swept")
+	}
+
+	// Fresh entries should remain.
+	if _, ok := tb.bot.rateLimiter.Load(int64(2)); !ok {
+		t.Error("fresh rate limiter entry should remain")
+	}
+	if _, ok := tb.bot.chatMu.Load(int64(20)); !ok {
+		t.Error("fresh chatMu entry should remain")
 	}
 }
 

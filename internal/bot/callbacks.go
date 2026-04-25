@@ -324,10 +324,42 @@ func (b *Bot) onWatchFromCallback(ctx context.Context, chatID int64) {
 		sourceKeyboard("", lang))
 }
 
+const (
+	maxSavedListings  = 500
+	maxHiddenListings = 1000
+)
+
+func isValidToken(token string) bool {
+	if len(token) < 5 || len(token) > 20 {
+		return false
+	}
+	for _, c := range token {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+			return false
+		}
+	}
+	return true
+}
+
 func (b *Bot) onSaveListing(ctx context.Context, chatID int64, data string) {
 	lang := b.getUserLang(ctx, chatID)
 	token := strings.TrimPrefix(data, cbPrefixSave)
 	if b.saved == nil {
+		return
+	}
+	if !isValidToken(token) {
+		b.logger.Warn("invalid save token", "chat_id", chatID, "token", token)
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	count, err := b.saved.CountSaved(ctx, chatID)
+	if err != nil {
+		b.logger.Error("count saved failed", "chat_id", chatID, "error", err)
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	if count >= maxSavedListings {
+		b.send(ctx, chatID, locale.Tf(lang, "saved_limit_reached", maxSavedListings))
 		return
 	}
 	if err := b.saved.SaveBookmark(ctx, chatID, token); err != nil {
@@ -342,6 +374,21 @@ func (b *Bot) onHideListing(ctx context.Context, chatID int64, data string) {
 	lang := b.getUserLang(ctx, chatID)
 	token := strings.TrimPrefix(data, cbPrefixHide)
 	if b.hidden == nil {
+		return
+	}
+	if !isValidToken(token) {
+		b.logger.Warn("invalid hide token", "chat_id", chatID, "token", token)
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	count, err := b.hidden.CountHidden(ctx, chatID)
+	if err != nil {
+		b.logger.Error("count hidden failed", "chat_id", chatID, "error", err)
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	if count >= maxHiddenListings {
+		b.send(ctx, chatID, locale.Tf(lang, "hidden_limit_reached", maxHiddenListings))
 		return
 	}
 	if err := b.hidden.HideListing(ctx, chatID, token); err != nil {

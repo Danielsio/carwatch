@@ -1,9 +1,11 @@
 package config
 
 import (
+	"bytes"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -89,6 +91,43 @@ telegram:
 log_level: verbose
 `
 	expectLoadError(t, yaml, "log_level")
+}
+
+func TestLoad_WarnHardcodedToken(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	yaml := `
+telegram:
+  token: "123456:ABCdef"
+`
+	_ = loadFromString(t, yaml)
+	if !strings.Contains(buf.String(), "telegram.token appears hardcoded") {
+		t.Fatal("expected hardcoded token warning")
+	}
+}
+
+func TestLoad_EnvVarTokenNoWarning(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	t.Setenv("TELEGRAM_BOT_TOKEN", "test-token")
+
+	yaml := `
+telegram:
+  token: "${TELEGRAM_BOT_TOKEN}"
+`
+	cfg := loadFromString(t, yaml)
+	if cfg.Telegram.Token != "test-token" {
+		t.Errorf("token = %q, want test-token", cfg.Telegram.Token)
+	}
+	if strings.Contains(buf.String(), "telegram.token appears hardcoded") {
+		t.Fatal("did not expect hardcoded token warning for env-var token")
+	}
 }
 
 func TestLoad_EnvVarInterpolation(t *testing.T) {

@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -198,6 +199,340 @@ func TestSourceDefaultsToYad2(t *testing.T) {
 	if searches[0].Source != "yad2" {
 		t.Errorf("Source = %q, want %q (default)", searches[0].Source, "yad2")
 	}
+}
+
+func TestNormalizeKeywords(t *testing.T) {
+	tests := []struct {
+		input, want string
+	}{
+		{"", ""},
+		{"  ", ""},
+		{"hybrid", "hybrid"},
+		{"hybrid, auto", "hybrid,auto"},
+		{" hybrid , auto , ", "hybrid,auto"},
+		{"hybrid,,auto", "hybrid,auto"},
+		{"  sunroof  ", "sunroof"},
+		{"a,b,c", "a,b,c"},
+	}
+	for _, tt := range tests {
+		got := normalizeKeywords(tt.input)
+		if got != tt.want {
+			t.Errorf("normalizeKeywords(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestHandleKeywordsInput(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 800
+	tb.createUser(ctx, t, chatID, "alice")
+
+	tb.simulateCommand(ctx, chatID, "/watch")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
+	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
+	tb.simulateText(ctx, chatID, "2018")
+	tb.simulateText(ctx, chatID, "2024")
+	tb.simulateText(ctx, chatID, "150000")
+	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"0")
+
+	// Now in StateAskKeywords — type actual keywords
+	tb.simulateText(ctx, chatID, "sunroof, leather")
+
+	// Should now be in StateAskExcludeKeys
+	user, err := tb.store.GetUser(ctx, chatID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if user.State != StateAskExcludeKeys {
+		t.Errorf("state = %q, want %q", user.State, StateAskExcludeKeys)
+	}
+
+	var wd WizardData
+	if err := json.Unmarshal([]byte(user.StateData), &wd); err != nil {
+		t.Fatalf("unmarshal wizard data: %v", err)
+	}
+	if wd.Keywords != "sunroof,leather" {
+		t.Errorf("Keywords = %q, want %q", wd.Keywords, "sunroof,leather")
+	}
+}
+
+func TestHandleKeywordsInput_Skip(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 801
+	tb.createUser(ctx, t, chatID, "bob")
+
+	tb.simulateCommand(ctx, chatID, "/watch")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
+	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
+	tb.simulateText(ctx, chatID, "2018")
+	tb.simulateText(ctx, chatID, "2024")
+	tb.simulateText(ctx, chatID, "150000")
+	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"0")
+
+	// Skip keywords
+	tb.simulateText(ctx, chatID, "skip")
+
+	user, err := tb.store.GetUser(ctx, chatID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if user.State != StateAskExcludeKeys {
+		t.Errorf("state = %q, want %q", user.State, StateAskExcludeKeys)
+	}
+
+	var wd WizardData
+	if err := json.Unmarshal([]byte(user.StateData), &wd); err != nil {
+		t.Fatalf("unmarshal wizard data: %v", err)
+	}
+	if wd.Keywords != "" {
+		t.Errorf("Keywords = %q, want empty after skip", wd.Keywords)
+	}
+}
+
+func TestWizardFlow_WithKeywords(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 802
+	tb.createUser(ctx, t, chatID, "carol")
+
+	tb.simulateCommand(ctx, chatID, "/watch")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
+	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
+	tb.simulateText(ctx, chatID, "2018")
+	tb.simulateText(ctx, chatID, "2024")
+	tb.simulateText(ctx, chatID, "150000")
+	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"0")
+
+	// Enter keywords
+	tb.simulateText(ctx, chatID, "hybrid, automatic")
+	// Enter exclude keys
+	tb.simulateText(ctx, chatID, "accident, damaged")
+	// Confirm
+	tb.simulateCallback(ctx, chatID, cbConfirm)
+
+	searches, err := tb.store.ListSearches(ctx, chatID)
+	if err != nil {
+		t.Fatalf("list searches: %v", err)
+	}
+	if len(searches) != 1 {
+		t.Fatalf("expected 1 search, got %d", len(searches))
+	}
+	if searches[0].Keywords != "hybrid,automatic" {
+		t.Errorf("Keywords = %q, want %q", searches[0].Keywords, "hybrid,automatic")
+	}
+	if searches[0].ExcludeKeys != "accident,damaged" {
+		t.Errorf("ExcludeKeys = %q, want %q", searches[0].ExcludeKeys, "accident,damaged")
+	}
+}
+
+// --- /edit flow tests ---
+
+func TestHandleEdit_NoArgs(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 810
+	tb.createUser(ctx, t, chatID, "eve")
+
+	tb.simulateCommand(ctx, chatID, "/edit")
+	last := tb.msg.last()
+	if !contains(last.Text, "edit") {
+		t.Errorf("expected edit usage message, got %q", last.Text)
+	}
+}
+
+func TestHandleEdit_InvalidID(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 811
+	tb.createUser(ctx, t, chatID, "frank")
+
+	tb.simulateCommand(ctx, chatID, "/edit abc")
+	last := tb.msg.last()
+	if !contains(last.Text, "Invalid") {
+		t.Errorf("expected invalid ID message, got %q", last.Text)
+	}
+}
+
+func TestHandleEdit_NonexistentID(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 812
+	tb.createUser(ctx, t, chatID, "grace")
+
+	tb.simulateCommand(ctx, chatID, "/edit 999")
+	last := tb.msg.last()
+	if !contains(last.Text, "not found") {
+		t.Errorf("expected not found message, got %q", last.Text)
+	}
+}
+
+func TestHandleEdit_WrongUser(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const ownerID int64 = 813
+	const otherID int64 = 814
+	tb.createUser(ctx, t, ownerID, "hank")
+	tb.createUser(ctx, t, otherID, "iris")
+
+	id, _ := tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: ownerID, Name: "test", Manufacturer: 27, Model: 10332,
+		YearMin: 2018, YearMax: 2024, PriceMax: 150000,
+	})
+
+	tb.simulateCommand(ctx, otherID, "/edit "+itoa(id))
+	last := tb.msg.last()
+	if !contains(last.Text, "not found") {
+		t.Errorf("expected not found for wrong user, got %q", last.Text)
+	}
+}
+
+func TestHandleEdit_ValidID(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 815
+	tb.createUser(ctx, t, chatID, "jack")
+
+	id, _ := tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "mazda-3", Source: "yad2",
+		Manufacturer: 27, Model: 10332,
+		YearMin: 2018, YearMax: 2024, PriceMax: 150000,
+		Keywords: "sunroof", ExcludeKeys: "accident",
+	})
+
+	tb.simulateCommand(ctx, chatID, "/edit "+itoa(id))
+
+	// Should be in StateAskSource with wizard data populated from the search.
+	user, err := tb.store.GetUser(ctx, chatID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if user.State != StateAskSource {
+		t.Errorf("state = %q, want %q", user.State, StateAskSource)
+	}
+
+	var wd WizardData
+	if err := json.Unmarshal([]byte(user.StateData), &wd); err != nil {
+		t.Fatalf("unmarshal wizard data: %v", err)
+	}
+	if wd.EditSearchID != id {
+		t.Errorf("EditSearchID = %d, want %d", wd.EditSearchID, id)
+	}
+	if wd.Manufacturer != 27 {
+		t.Errorf("Manufacturer = %d, want 27", wd.Manufacturer)
+	}
+	if wd.Keywords != "sunroof" {
+		t.Errorf("Keywords = %q, want %q", wd.Keywords, "sunroof")
+	}
+	if wd.ExcludeKeys != "accident" {
+		t.Errorf("ExcludeKeys = %q, want %q", wd.ExcludeKeys, "accident")
+	}
+}
+
+func TestHandleEdit_FullFlow(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 816
+	tb.createUser(ctx, t, chatID, "kate")
+
+	id, _ := tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "mazda-3", Source: "yad2",
+		Manufacturer: 27, Model: 10332,
+		YearMin: 2018, YearMax: 2024, PriceMax: 150000,
+		Keywords: "sunroof",
+	})
+
+	tb.simulateCommand(ctx, chatID, "/edit "+itoa(id))
+
+	// Walk through wizard: keep source, mfr, model, update years and price
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
+	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
+	tb.simulateText(ctx, chatID, "2020")
+	tb.simulateText(ctx, chatID, "2025")
+	tb.simulateText(ctx, chatID, "200000")
+	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"0")
+	tb.simulateCallback(ctx, chatID, cbSkipKeywords)
+	tb.simulateCallback(ctx, chatID, cbSkipExcludeKeys)
+	tb.simulateCallback(ctx, chatID, cbConfirm)
+
+	// Verify the search was updated, not a new one created.
+	searches, err := tb.store.ListSearches(ctx, chatID)
+	if err != nil {
+		t.Fatalf("list searches: %v", err)
+	}
+	if len(searches) != 1 {
+		t.Fatalf("expected 1 search (updated), got %d", len(searches))
+	}
+	s := searches[0]
+	if s.ID != id {
+		t.Errorf("search ID = %d, want %d (same search updated)", s.ID, id)
+	}
+	if s.YearMin != 2020 || s.YearMax != 2025 || s.PriceMax != 200000 {
+		t.Errorf("search not updated: year=%d-%d price=%d", s.YearMin, s.YearMax, s.PriceMax)
+	}
+}
+
+func TestHandleEdit_KeywordsRoundTrip(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 817
+	tb.createUser(ctx, t, chatID, "leo")
+
+	id, _ := tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "mazda-3", Source: "yad2",
+		Manufacturer: 27, Model: 10332,
+		YearMin: 2018, YearMax: 2024, PriceMax: 150000,
+		Keywords: "sunroof,leather", ExcludeKeys: "accident",
+	})
+
+	tb.simulateCommand(ctx, chatID, "/edit "+itoa(id))
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
+	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
+	tb.simulateText(ctx, chatID, "2018")
+	tb.simulateText(ctx, chatID, "2024")
+	tb.simulateText(ctx, chatID, "150000")
+	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"0")
+
+	// Enter new keywords
+	tb.simulateText(ctx, chatID, "hybrid, electric")
+	// Keep old exclude keys
+	tb.simulateText(ctx, chatID, "damaged, broken")
+	// Confirm
+	tb.simulateCallback(ctx, chatID, cbConfirm)
+
+	s, err := tb.store.GetSearch(ctx, id)
+	if err != nil {
+		t.Fatalf("get search: %v", err)
+	}
+	if s.Keywords != "hybrid,electric" {
+		t.Errorf("Keywords = %q, want %q", s.Keywords, "hybrid,electric")
+	}
+	if s.ExcludeKeys != "damaged,broken" {
+		t.Errorf("ExcludeKeys = %q, want %q", s.ExcludeKeys, "damaged,broken")
+	}
+}
+
+func itoa(n int64) string {
+	return fmt.Sprintf("%d", n)
 }
 
 func TestSearchRateLimit(t *testing.T) {
