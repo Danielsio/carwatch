@@ -12,6 +12,8 @@ import (
 	"time"
 
 	tgbot "github.com/go-telegram/bot"
+	"github.com/lmittmann/tint"
+	"github.com/mattn/go-isatty"
 
 	cwbot "github.com/dsionov/carwatch/internal/bot"
 	"github.com/dsionov/carwatch/internal/catalog"
@@ -42,9 +44,7 @@ func main() {
 		return
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
+	logger := slog.New(newLogHandler("auto", slog.LevelInfo))
 
 	if err := run(*configPath, logger); err != nil {
 		logger.Error("fatal", "error", err)
@@ -59,10 +59,8 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 
 	logLevel, _ := config.ParseLogLevel(cfg.LogLevel)
-	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: logLevel,
-	}))
-	logger.Info("config loaded", "log_level", cfg.LogLevel, "version", version)
+	logger = slog.New(newLogHandler(cfg.LogFormat, logLevel))
+	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
 	store, err := sqlite.New(cfg.Storage.DBPath)
 	if err != nil {
@@ -197,4 +195,19 @@ func run(configPath string, logger *slog.Logger) error {
 	)
 
 	return sched.Run(ctx)
+}
+
+func newLogHandler(format string, level slog.Level) slog.Handler {
+	usePretty := format == "pretty" ||
+		(format == "auto" && isatty.IsTerminal(os.Stdout.Fd()))
+
+	if usePretty {
+		return tint.NewHandler(os.Stdout, &tint.Options{
+			Level:      level,
+			TimeFormat: time.Kitchen,
+		})
+	}
+	return slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: level,
+	})
 }

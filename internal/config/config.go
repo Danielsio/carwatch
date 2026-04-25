@@ -16,7 +16,8 @@ type Config struct {
 	Telegram TelegramConfig `yaml:"telegram"`
 	Storage  StorageConfig  `yaml:"storage"`
 	HTTP     HTTPConfig     `yaml:"http"`
-	LogLevel string         `yaml:"log_level"`
+	LogLevel  string         `yaml:"log_level"`
+	LogFormat string         `yaml:"log_format"`
 }
 
 type PollingConfig struct {
@@ -146,6 +147,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
 	}
+	if cfg.LogFormat == "" {
+		cfg.LogFormat = "auto"
+	}
 }
 
 func validate(cfg *Config) error {
@@ -162,6 +166,11 @@ func validate(cfg *Config) error {
 	}
 	if _, err := ParseLogLevel(cfg.LogLevel); err != nil {
 		return fmt.Errorf("log_level %q: must be debug, info, warn, or error", cfg.LogLevel)
+	}
+	switch cfg.LogFormat {
+	case "auto", "json", "pretty":
+	default:
+		return fmt.Errorf("log_format %q: must be auto, json, or pretty", cfg.LogFormat)
 	}
 	if cfg.Telegram.Token == "" {
 		return fmt.Errorf("telegram.token is required")
