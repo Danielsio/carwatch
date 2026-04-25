@@ -50,7 +50,7 @@ func (m *mockSearchStore) GetSearchBySeq(_ context.Context, chatID int64, seq in
 }
 
 func (m *mockSearchStore) DeleteSearch(_ context.Context, id int64, _ int64) error    { return nil }
-func (m *mockSearchStore) SetSearchActive(_ context.Context, _ int64, _ bool) error   { return nil }
+func (m *mockSearchStore) SetSearchActive(_ context.Context, _, _ int64, _ bool) error { return nil }
 func (m *mockSearchStore) CountSearches(_ context.Context, _ int64) (int64, error)    { return 0, nil }
 func (m *mockSearchStore) CountAllSearches(_ context.Context) (int64, error)          { return 0, nil }
 func (m *mockSearchStore) UpdateSearch(_ context.Context, _ storage.Search) error     { return nil }
@@ -267,17 +267,30 @@ func (m *mockUserStore) ListExpiredPremium(_ context.Context) ([]storage.User, e
 	return nil, nil
 }
 
+type digestItem struct {
+	payload   string
+	createdAt time.Time
+}
+
+func digestItems(payloads ...string) []digestItem {
+	items := make([]digestItem, len(payloads))
+	for i, p := range payloads {
+		items[i] = digestItem{payload: p, createdAt: time.Now()}
+	}
+	return items
+}
+
 type mockDigestStore struct {
 	mu       sync.Mutex
 	modes    map[int64]struct{ mode, interval string }
-	items    map[int64][]string
+	items    map[int64][]digestItem
 	flushed  map[int64]time.Time
 }
 
 func newMockDigestStore() *mockDigestStore {
 	return &mockDigestStore{
 		modes:   make(map[int64]struct{ mode, interval string }),
-		items:   make(map[int64][]string),
+		items:   make(map[int64][]digestItem),
 		flushed: make(map[int64]time.Time),
 	}
 }
@@ -301,17 +314,38 @@ func (m *mockDigestStore) GetDigestMode(_ context.Context, chatID int64) (string
 func (m *mockDigestStore) AddDigestItem(_ context.Context, chatID int64, payload string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.items[chatID] = append(m.items[chatID], payload)
+	m.items[chatID] = append(m.items[chatID], digestItem{payload: payload, createdAt: time.Now()})
 	return nil
 }
 
-func (m *mockDigestStore) FlushDigest(_ context.Context, chatID int64) ([]string, error) {
+
+func (m *mockDigestStore) PeekDigest(_ context.Context, chatID int64) ([]string, time.Time, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	items := m.items[chatID]
-	delete(m.items, chatID)
+	cutoff := time.Now()
+	var payloads []string
+	for _, item := range m.items[chatID] {
+		payloads = append(payloads, item.payload)
+	}
+	return payloads, cutoff, nil
+}
+
+func (m *mockDigestStore) AckDigest(_ context.Context, chatID int64, before time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var kept []digestItem
+	for _, item := range m.items[chatID] {
+		if item.createdAt.After(before) {
+			kept = append(kept, item)
+		}
+	}
+	if len(kept) == 0 {
+		delete(m.items, chatID)
+	} else {
+		m.items[chatID] = kept
+	}
 	m.flushed[chatID] = time.Now()
-	return items, nil
+	return nil
 }
 
 func (m *mockDigestStore) PendingDigestUsers(_ context.Context) ([]int64, error) {
@@ -440,7 +474,7 @@ func TestProcessDigests_FlushesWhenIntervalElapsed(t *testing.T) {
 
 	ds := newMockDigestStore()
 	_ = ds.SetDigestMode(context.Background(), 100, "digest", "1ms")
-	ds.items[100] = []string{"listing A", "listing B"}
+	ds.items[100] = digestItems("listing A", "listing B")
 	// Set last flushed to epoch so interval has elapsed.
 	ds.flushed[100] = time.Time{}
 
@@ -478,7 +512,7 @@ func TestProcessDigests_SkipsWhenIntervalNotElapsed(t *testing.T) {
 
 	ds := newMockDigestStore()
 	_ = ds.SetDigestMode(context.Background(), 100, "digest", "24h")
-	ds.items[100] = []string{"listing A"}
+	ds.items[100] = digestItems("listing A")
 	ds.flushed[100] = time.Now() // Just flushed.
 
 	f := &mockFetcher{listings: []model.RawListing{}}
@@ -507,7 +541,7 @@ func TestProcessDigests_FlushesImmediatelyWhenSwitchedToInstant(t *testing.T) {
 	ds := newMockDigestStore()
 	// User has pending items but switched back to instant.
 	_ = ds.SetDigestMode(context.Background(), 100, "instant", "6h")
-	ds.items[100] = []string{"leftover listing"}
+	ds.items[100] = digestItems("leftover listing")
 
 	f := &mockFetcher{listings: []model.RawListing{}}
 	d := newMockDedup()

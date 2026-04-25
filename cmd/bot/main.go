@@ -148,7 +148,7 @@ func run(configPath string, logger *slog.Logger) error {
 	mux.HandleFunc("/healthz", h.Handler())
 	mux.Handle("/dashboard", dash)
 	srv := &http.Server{
-		Addr:              ":8080",
+		Addr:              cfg.HTTP.Bind,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
@@ -191,8 +191,8 @@ func run(configPath string, logger *slog.Logger) error {
 
 	go tgNotif.Bot().Start(ctx)
 	logger.Info("bot started",
-		"health", ":8080/healthz",
-		"dashboard", ":8080/dashboard",
+		"health", "http://"+cfg.HTTP.Bind+"/healthz",
+		"dashboard", "http://"+cfg.HTTP.Bind+"/dashboard",
 	)
 
 	return sched.Run(ctx)

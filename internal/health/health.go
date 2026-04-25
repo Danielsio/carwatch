@@ -200,6 +200,11 @@ func (s *Status) Snapshot() map[string]any {
 
 func (s *Status) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+
 		resp := s.Snapshot()
 
 		httpCode := http.StatusOK

@@ -328,6 +328,17 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	if _, err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_listing_history_chat_first_seen
+			ON listing_history(chat_id, first_seen_at DESC);
+		CREATE INDEX IF NOT EXISTS idx_listing_history_token
+			ON listing_history(token);
+		CREATE INDEX IF NOT EXISTS idx_price_history_token_observed
+			ON price_history(token, observed_at DESC)
+	`); err != nil {
+		return fmt.Errorf("create performance indexes: %w", err)
+	}
+
 	return nil
 }
 
@@ -546,9 +557,9 @@ func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error 
 	return nil
 }
 
-func (s *Store) SetSearchActive(ctx context.Context, id int64, active bool) error {
+func (s *Store) SetSearchActive(ctx context.Context, id int64, chatID int64, active bool) error {
 	_, err := s.db.ExecContext(ctx,
-		"UPDATE searches SET active = ? WHERE id = ?", active, id)
+		"UPDATE searches SET active = ? WHERE id = ? AND chat_id = ?", active, id, chatID)
 	return err
 }
 
@@ -670,24 +681,33 @@ func (s *Store) PruneNotifications(ctx context.Context, olderThan time.Duration)
 // --- PriceTracker ---
 
 func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error) {
-	row := s.db.QueryRowContext(ctx,
-		"SELECT price FROM price_history WHERE token = ? ORDER BY observed_at DESC LIMIT 1", token)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	row := tx.QueryRowContext(ctx,
+		"SELECT price FROM price_history WHERE token = ? ORDER BY observed_at DESC, rowid DESC LIMIT 1", token)
 	var prev int
 	scanErr := row.Scan(&prev)
 
-	_, err = s.db.ExecContext(ctx,
+	_, err = tx.ExecContext(ctx,
 		"INSERT OR IGNORE INTO price_history (token, price) VALUES (?, ?)", token, price)
 	if err != nil {
 		return 0, false, err
 	}
 
 	if scanErr == sql.ErrNoRows {
-		return 0, false, nil
+		return 0, false, tx.Commit()
 	}
 	if scanErr != nil {
 		return 0, false, scanErr
 	}
 
+	if err := tx.Commit(); err != nil {
+		return 0, false, err
+	}
 	if price != prev {
 		return prev, true, nil
 	}
@@ -801,46 +821,43 @@ func (s *Store) AddDigestItem(ctx context.Context, chatID int64, payload string)
 	return err
 }
 
-func (s *Store) FlushDigest(ctx context.Context, chatID int64) ([]string, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
 
-	rows, err := tx.QueryContext(ctx,
+func (s *Store) PeekDigest(ctx context.Context, chatID int64) ([]string, time.Time, error) {
+	rows, err := s.db.QueryContext(ctx,
 		"SELECT listing_payload FROM pending_digest WHERE chat_id = ? ORDER BY created_at", chatID)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 	defer func() { _ = rows.Close() }()
 
+	cutoff := time.Now()
 	var payloads []string
 	for rows.Next() {
 		var p string
 		if err := rows.Scan(&p); err != nil {
-			return nil, err
+			return nil, time.Time{}, err
 		}
 		payloads = append(payloads, p)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
+	return payloads, cutoff, rows.Err()
+}
 
-	if len(payloads) > 0 {
-		if _, err := tx.ExecContext(ctx, "DELETE FROM pending_digest WHERE chat_id = ?", chatID); err != nil {
-			return nil, err
-		}
-		if _, err := tx.ExecContext(ctx,
-			"UPDATE users SET digest_last_flushed = CURRENT_TIMESTAMP WHERE chat_id = ?", chatID); err != nil {
-			return nil, err
-		}
+func (s *Store) AckDigest(ctx context.Context, chatID int64, before time.Time) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
 	}
+	defer func() { _ = tx.Rollback() }()
 
-	if err := tx.Commit(); err != nil {
-		return nil, err
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM pending_digest WHERE chat_id = ? AND created_at <= ?", chatID, before); err != nil {
+		return err
 	}
-	return payloads, nil
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE users SET digest_last_flushed = CURRENT_TIMESTAMP WHERE chat_id = ?", chatID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) PendingDigestUsers(ctx context.Context) ([]int64, error) {
@@ -1050,6 +1067,25 @@ func (s *Store) ClearHidden(ctx context.Context, chatID int64) error {
 	_, err := s.db.ExecContext(ctx,
 		"DELETE FROM hidden_listings WHERE chat_id = ?", chatID)
 	return err
+}
+
+func (s *Store) ListHiddenTokens(ctx context.Context, chatID int64) (map[string]bool, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT token FROM hidden_listings WHERE chat_id = ?", chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	tokens := make(map[string]bool)
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		tokens[t] = true
+	}
+	return tokens, rows.Err()
 }
 
 // --- MarketStore ---

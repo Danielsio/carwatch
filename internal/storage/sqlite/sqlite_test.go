@@ -224,16 +224,29 @@ func TestSetSearchActive(t *testing.T) {
 		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
 	})
 
-	_ = store.SetSearchActive(ctx, id, false)
+	if err := store.SetSearchActive(ctx, id, 100, false); err != nil {
+		t.Fatalf("set inactive: %v", err)
+	}
 	s, _ := store.GetSearch(ctx, id)
 	if s.Active {
 		t.Error("search should be inactive")
 	}
 
-	_ = store.SetSearchActive(ctx, id, true)
+	if err := store.SetSearchActive(ctx, id, 100, true); err != nil {
+		t.Fatalf("set active: %v", err)
+	}
 	s, _ = store.GetSearch(ctx, id)
 	if !s.Active {
 		t.Error("search should be active again")
+	}
+
+	// Wrong owner should have no effect.
+	if err := store.SetSearchActive(ctx, id, 999, false); err != nil {
+		t.Fatalf("set active with wrong owner: %v", err)
+	}
+	s, _ = store.GetSearch(ctx, id)
+	if !s.Active {
+		t.Error("wrong owner should not be able to deactivate search")
 	}
 }
 
@@ -247,7 +260,9 @@ func TestListAllActiveSearches(t *testing.T) {
 	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "b", Manufacturer: 27, Model: 10332})
 
 	id3, _ := store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "c", Manufacturer: 1, Model: 1})
-	_ = store.SetSearchActive(ctx, id3, false)
+	if err := store.SetSearchActive(ctx, id3, 200, false); err != nil {
+		t.Fatalf("deactivate search: %v", err)
+	}
 
 	searches, err := store.ListAllActiveSearches(ctx)
 	if err != nil {
@@ -576,12 +591,11 @@ func TestGetDigestMode_NonexistentUser(t *testing.T) {
 	}
 }
 
-func TestAddAndFlushDigest(t *testing.T) {
+func TestPeekAndAckDigest(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 	seedUser(t, store, 100)
 
-	// Add items.
 	if err := store.AddDigestItem(ctx, 100, "listing 1"); err != nil {
 		t.Fatalf("add item: %v", err)
 	}
@@ -589,10 +603,10 @@ func TestAddAndFlushDigest(t *testing.T) {
 		t.Fatalf("add item: %v", err)
 	}
 
-	// Flush.
-	payloads, err := store.FlushDigest(ctx, 100)
+	// Peek should return items without deleting.
+	payloads, cutoff, err := store.PeekDigest(ctx, 100)
 	if err != nil {
-		t.Fatalf("flush: %v", err)
+		t.Fatalf("peek: %v", err)
 	}
 	if len(payloads) != 2 {
 		t.Fatalf("expected 2 payloads, got %d", len(payloads))
@@ -601,24 +615,38 @@ func TestAddAndFlushDigest(t *testing.T) {
 		t.Errorf("payloads = %v", payloads)
 	}
 
-	// Flush again should return empty.
-	payloads, err = store.FlushDigest(ctx, 100)
+	// Peek again should still return items (not deleted yet).
+	payloads, _, err = store.PeekDigest(ctx, 100)
 	if err != nil {
-		t.Fatalf("second flush: %v", err)
+		t.Fatalf("second peek: %v", err)
+	}
+	if len(payloads) != 2 {
+		t.Errorf("expected 2 payloads still present, got %d", len(payloads))
+	}
+
+	// Ack should delete items before cutoff.
+	if err := store.AckDigest(ctx, 100, cutoff); err != nil {
+		t.Fatalf("ack: %v", err)
+	}
+
+	// Peek after ack should return empty.
+	payloads, _, err = store.PeekDigest(ctx, 100)
+	if err != nil {
+		t.Fatalf("peek after ack: %v", err)
 	}
 	if len(payloads) != 0 {
-		t.Errorf("expected 0 payloads after flush, got %d", len(payloads))
+		t.Errorf("expected 0 payloads after ack, got %d", len(payloads))
 	}
 }
 
-func TestFlushDigest_Empty(t *testing.T) {
+func TestPeekDigest_Empty(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 	seedUser(t, store, 100)
 
-	payloads, err := store.FlushDigest(ctx, 100)
+	payloads, _, err := store.PeekDigest(ctx, 100)
 	if err != nil {
-		t.Fatalf("flush: %v", err)
+		t.Fatalf("peek: %v", err)
 	}
 	if len(payloads) != 0 {
 		t.Errorf("expected 0 payloads, got %d", len(payloads))
@@ -668,9 +696,10 @@ func TestDigestLastFlushed(t *testing.T) {
 		t.Errorf("expected epoch, got %v", ts)
 	}
 
-	// Add and flush to update timestamp.
+	// Add and ack to update timestamp.
 	_ = store.AddDigestItem(ctx, 100, "item")
-	_, _ = store.FlushDigest(ctx, 100)
+	_, cutoff, _ := store.PeekDigest(ctx, 100)
+	_ = store.AckDigest(ctx, 100, cutoff)
 
 	ts, err = store.DigestLastFlushed(ctx, 100)
 	if err != nil {
@@ -691,14 +720,15 @@ func TestDigestIsolation_BetweenUsers(t *testing.T) {
 	_ = store.AddDigestItem(ctx, 100, "user100-item")
 	_ = store.AddDigestItem(ctx, 200, "user200-item")
 
-	// Flush user 100 only.
-	payloads, _ := store.FlushDigest(ctx, 100)
+	// Ack user 100 only.
+	payloads, cutoff, _ := store.PeekDigest(ctx, 100)
 	if len(payloads) != 1 || payloads[0] != "user100-item" {
 		t.Errorf("user 100 payloads = %v", payloads)
 	}
+	_ = store.AckDigest(ctx, 100, cutoff)
 
 	// User 200 should still have their item.
-	payloads, _ = store.FlushDigest(ctx, 200)
+	payloads, _, _ = store.PeekDigest(ctx, 200)
 	if len(payloads) != 1 || payloads[0] != "user200-item" {
 		t.Errorf("user 200 payloads = %v", payloads)
 	}

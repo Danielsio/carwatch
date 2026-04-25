@@ -61,7 +61,7 @@ type SearchStore interface {
 	GetSearch(ctx context.Context, id int64) (*Search, error)
 	GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*Search, error)
 	DeleteSearch(ctx context.Context, id int64, chatID int64) error
-	SetSearchActive(ctx context.Context, id int64, active bool) error
+	SetSearchActive(ctx context.Context, id int64, chatID int64, active bool) error
 	ListAllActiveSearches(ctx context.Context) ([]Search, error)
 	CountSearches(ctx context.Context, chatID int64) (int64, error)
 	CountAllSearches(ctx context.Context) (int64, error)
@@ -97,7 +97,8 @@ type DigestStore interface {
 	SetDigestMode(ctx context.Context, chatID int64, mode string, interval string) error
 	GetDigestMode(ctx context.Context, chatID int64) (mode string, interval string, err error)
 	AddDigestItem(ctx context.Context, chatID int64, payload string) error
-	FlushDigest(ctx context.Context, chatID int64) ([]string, error)
+	PeekDigest(ctx context.Context, chatID int64) ([]string, time.Time, error)
+	AckDigest(ctx context.Context, chatID int64, before time.Time) error
 	PendingDigestUsers(ctx context.Context) ([]int64, error)
 	DigestLastFlushed(ctx context.Context, chatID int64) (time.Time, error)
 }
@@ -133,6 +134,7 @@ type SavedListingStore interface {
 type HiddenListingStore interface {
 	HideListing(ctx context.Context, chatID int64, token string) error
 	IsHidden(ctx context.Context, chatID int64, token string) (bool, error)
+	ListHiddenTokens(ctx context.Context, chatID int64) (map[string]bool, error)
 	ListHidden(ctx context.Context, chatID int64, limit, offset int) ([]string, error)
 	CountHidden(ctx context.Context, chatID int64) (int64, error)
 	ClearHidden(ctx context.Context, chatID int64) error

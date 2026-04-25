@@ -61,6 +61,14 @@ type Scheduler struct {
 	marketStore       storage.MarketStore
 	dailyDigestStore  storage.DailyDigestStore
 	triggerCh         chan struct{}
+
+	langCache   sync.Map
+	digestCache sync.Map
+}
+
+type digestMeta struct {
+	mode     string
+	interval string
 }
 
 type Options struct {
@@ -206,12 +214,21 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.Lang) DeliveryStrategy {
 	if s.digestStore != nil {
-		mode, _, err := s.digestStore.GetDigestMode(ctx, chatID)
-		if err != nil {
-			if !errors.Is(err, storage.ErrNotFound) {
-				s.logger.Error("get digest mode failed", "chat_id", chatID, "error", err)
+		var mode string
+		if v, ok := s.digestCache.Load(chatID); ok {
+			mode = v.(digestMeta).mode
+		} else {
+			m, interval, err := s.digestStore.GetDigestMode(ctx, chatID)
+			if err != nil {
+				if !errors.Is(err, storage.ErrNotFound) {
+					s.logger.Error("get digest mode failed", "chat_id", chatID, "error", err)
+				}
+			} else {
+				mode = m
+				s.digestCache.Store(chatID, digestMeta{mode: m, interval: interval})
 			}
-		} else if mode == "digest" {
+		}
+		if mode == "digest" {
 			return NewDigestDelivery(s.digestStore, lang)
 		}
 	}
@@ -381,6 +398,9 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 
 func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.logger.Info("starting poll cycle")
+
+	s.langCache = sync.Map{}
+	s.digestCache = sync.Map{}
 
 	searches, err := s.searchStore.ListAllActiveSearches(ctx)
 	if err != nil {
@@ -576,18 +596,20 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 		lang := s.userLang(ctx, search.ChatID)
 		isPremium := s.isUserPremium(ctx, search.ChatID)
 
+		var hiddenTokens map[string]bool
+		if s.hiddenStore != nil {
+			var err error
+			hiddenTokens, err = s.hiddenStore.ListHiddenTokens(ctx, search.ChatID)
+			if err != nil {
+				s.logger.Error("load hidden tokens failed", "chat_id", search.ChatID, "error", err)
+			}
+		}
+
 		var newListings []model.Listing
 		var priceDropMessages []string
 		for _, l := range filtered {
-			if s.hiddenStore != nil {
-				hidden, err := s.hiddenStore.IsHidden(ctx, search.ChatID, l.Token)
-				if err != nil {
-					s.logger.Error("hidden check failed", "token", l.Token, "error", err)
-					continue
-				}
-				if hidden {
-					continue
-				}
+			if hiddenTokens[l.Token] {
+				continue
 			}
 
 			isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.ChatID, search.ID)
@@ -742,9 +764,9 @@ func (s *Scheduler) processDigests(ctx context.Context) {
 }
 
 func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
-	payloads, err := s.digestStore.FlushDigest(ctx, chatID)
+	payloads, cutoff, err := s.digestStore.PeekDigest(ctx, chatID)
 	if err != nil {
-		s.logger.Error("flush digest failed", "chat_id", chatID, "error", err)
+		s.logger.Error("peek digest failed", "chat_id", chatID, "error", err)
 		return
 	}
 	if len(payloads) == 0 {
@@ -757,12 +779,16 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 	combined := header + strings.Join(payloads, "\n\n━━━━━━━━━━━━━━━━━━━━\n\n")
 
 	if err := s.notifier.NotifyRaw(ctx, chatIDStr, combined); err != nil {
-		s.logger.Error("send digest failed",
+		s.logger.Error("send digest failed, items preserved for retry",
 			"chat_id", chatID,
 			"items", len(payloads),
 			"error", err,
 		)
 		return
+	}
+
+	if err := s.digestStore.AckDigest(ctx, chatID, cutoff); err != nil {
+		s.logger.Error("ack digest failed", "chat_id", chatID, "error", err)
 	}
 
 	s.logger.Info("digest sent",
@@ -858,7 +884,7 @@ func (s *Scheduler) deactivateExcessSearches(ctx context.Context, chatID int64, 
 	}
 	// Keep the oldest (last in the slice since ListSearches orders by created_at DESC), pause the rest.
 	for i := 0; i < len(active)-maxActive; i++ {
-		if err := s.searchStore.SetSearchActive(ctx, active[i].ID, false); err != nil {
+		if err := s.searchStore.SetSearchActive(ctx, active[i].ID, chatID, false); err != nil {
 			s.logger.Error("deactivate excess search failed", "chat_id", chatID, "search_id", active[i].ID, "error", err)
 		}
 	}
@@ -911,14 +937,18 @@ func (s *Scheduler) processExpiredPremium(ctx context.Context) {
 }
 
 func (s *Scheduler) userLang(ctx context.Context, chatID int64) locale.Lang {
-	if s.userStore == nil {
-		return locale.Hebrew
+	if v, ok := s.langCache.Load(chatID); ok {
+		return v.(locale.Lang)
 	}
-	user, err := s.userStore.GetUser(ctx, chatID)
-	if err != nil || user == nil || user.Language == "" {
-		return locale.Hebrew
+	lang := locale.Hebrew
+	if s.userStore != nil {
+		user, err := s.userStore.GetUser(ctx, chatID)
+		if err == nil && user != nil && user.Language != "" {
+			lang = locale.Lang(user.Language)
+		}
 	}
-	return locale.Lang(user.Language)
+	s.langCache.Store(chatID, lang)
+	return lang
 }
 
 func maskPhone(phone string) string {

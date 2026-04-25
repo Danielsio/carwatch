@@ -3,6 +3,7 @@ module github.com/dsionov/carwatch
 go 1.24.0
 
 require (
+	github.com/Noooste/azuretls-client v1.13.2
 	github.com/go-telegram/bot v1.20.0
 	github.com/mattn/go-sqlite3 v1.14.28
 	golang.org/x/text v0.32.0
@@ -10,7 +11,6 @@ require (
 )
 
 require (
-	github.com/Noooste/azuretls-client v1.13.2 // indirect
 	github.com/Noooste/fhttp v1.0.15 // indirect
 	github.com/Noooste/go-socks4 v0.0.2 // indirect
 	github.com/Noooste/uquic-go v1.0.5 // indirect
@@ -18,7 +18,7 @@ require (
 	github.com/Noooste/websocket v1.0.3 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/bdandy/go-errors v1.2.2 // indirect
-	github.com/cloudflare/circl v1.6.2 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/gaukas/clienthellod v0.4.2 // indirect
 	github.com/gaukas/godicttls v0.0.4 // indirect

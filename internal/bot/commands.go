@@ -263,7 +263,7 @@ func (b *Bot) handlePause(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 		return
 	}
 
-	if err := b.searches.SetSearchActive(ctx, id, false); err != nil {
+	if err := b.searches.SetSearchActive(ctx, id, chatID, false); err != nil {
 		b.send(ctx, chatID, locale.T(lang, "pause_failed"))
 		return
 	}
@@ -297,7 +297,7 @@ func (b *Bot) handleResume(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 		return
 	}
 
-	if err := b.searches.SetSearchActive(ctx, id, true); err != nil {
+	if err := b.searches.SetSearchActive(ctx, id, chatID, true); err != nil {
 		b.send(ctx, chatID, locale.T(lang, "resume_failed"))
 		return
 	}

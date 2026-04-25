@@ -25,6 +25,11 @@ func NewHandler(store ListingLister) *Handler {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'unsafe-inline'")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+
 	limit := 100
 	if v := r.URL.Query().Get("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {

@@ -63,7 +63,9 @@ func TestHandlePause_AlreadyPaused(t *testing.T) {
 
 	tb.createUser(ctx, t, chatID, "alice")
 	id, _ := tb.store.CreateSearch(ctx, newFakeSearch(chatID, 27))
-	_ = tb.store.SetSearchActive(ctx, id, false)
+	if err := tb.store.SetSearchActive(ctx, id, chatID, false); err != nil {
+		t.Fatalf("set search inactive: %v", err)
+	}
 	tb.msg.reset()
 
 	tb.simulateCommand(ctx, chatID, fmt.Sprintf("/pause %d", id))
