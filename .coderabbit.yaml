@@ -1,0 +1,232 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit — free Pro for public repos, no trial/credit card needed.
+
+language: en-US
+tone_instructions: >-
+  Be concise and direct. Prioritize bugs, data-loss risks, race conditions,
+  and security issues. Skip style nits unless they hurt readability.
+  This is a solo-developer project — skip "team convention" advice.
+early_access: true
+
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  review_status: true
+  commit_status: true
+  fail_commit_status: false
+  collapse_walkthrough: true
+  changed_files_summary: true
+  sequence_diagrams: true
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  poem: false
+  in_progress_fortune: false
+
+  suggested_labels: true
+  auto_apply_labels: true
+  labeling_instructions:
+    - label: "bug-fix"
+      instructions: "Apply when the PR fixes a bug, resolves an error condition, or corrects wrong behavior."
+    - label: "feature"
+      instructions: "Apply when the PR adds new user-facing functionality or a new command."
+    - label: "scraper"
+      instructions: "Apply when the PR touches internal/fetcher/** — Yad2 or WinWin parsing, client, or cache logic."
+    - label: "storage"
+      instructions: "Apply when the PR modifies internal/storage/** — SQLite schema, queries, or dedup logic."
+    - label: "bot"
+      instructions: "Apply when the PR modifies internal/bot/** — Telegram commands, callbacks, or wizard."
+    - label: "breaking-change"
+      instructions: "Apply when the PR changes config format, CLI flags, database schema, or public API in a backward-incompatible way."
+    - label: "needs-tests"
+      instructions: "Apply when new Go functions or significant logic changes lack corresponding test coverage."
+
+  suggested_reviewers: false
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 8
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+      - "wip"
+    base_branches:
+      - "main"
+
+  path_filters:
+    - "!testdata/**"
+    - "!.coverage/**"
+    - "!data/**"
+    - "!**/*.pb.go"
+    - "!vendor/**"
+    - "!carwatch-logo.png"
+
+  path_instructions:
+    - path: "**/*.go"
+      instructions: |
+        Review for Go best practices:
+        - All errors MUST be handled; no blank _ assignments for error values
+        - Context (context.Context) must be propagated through function call chains
+        - Use structured logging (slog), never fmt.Print/log.Print for operational logging
+        - No goroutine leaks — ensure cleanup with defer, context cancellation, or WaitGroup
+        - Follow Effective Go naming: MixedCaps, short receiver names, interface naming (-er suffix)
+        - Avoid package-level mutable state; prefer dependency injection
+
+    - path: "internal/fetcher/**/*.go"
+      instructions: |
+        CRITICAL PATH — web scrapers break when target sites change HTML structure.
+        Review with extra scrutiny:
+        - Parsers must handle missing/changed HTML elements gracefully (no panics)
+        - HTTP clients must set timeouts, handle retries, and respect rate limits
+        - Check for hardcoded selectors that could break — flag any CSS/XPath without fallback
+        - Verify proxy and circuit-breaker integration is correct
+        - Anti-detection: ensure proper User-Agent rotation, request spacing, cookie handling
+
+    - path: "internal/scheduler/**/*.go"
+      instructions: |
+        RELIABILITY CRITICAL — the scheduler is the heartbeat of the system.
+        Review for:
+        - Race conditions in concurrent access to shared state
+        - Proper context cancellation and graceful shutdown
+        - Backoff/jitter logic correctness (no thundering herd)
+        - Active-hours boundary conditions (timezone edge cases, DST transitions)
+        - Resource leaks (unclosed channels, abandoned goroutines, ticker cleanup)
+
+    - path: "internal/storage/sqlite/**/*.go"
+      instructions: |
+        DATA INTEGRITY CRITICAL — SQLite is the single source of truth.
+        Review for:
+        - SQL injection (all queries must use parameterized statements)
+        - Transaction safety — multi-step operations must be atomic
+        - Deduplication correctness under concurrent writes
+        - Schema migration safety (backward compatibility, data preservation)
+        - Connection pool / WAL mode / busy timeout configuration
+        - Proper resource cleanup (defer rows.Close(), stmt.Close())
+
+    - path: "internal/bot/**/*.go"
+      instructions: |
+        USER-FACING — Telegram bot handlers directly affect user experience.
+        Review for:
+        - Input validation on all user-provided data (chat IDs, filter values, etc.)
+        - Graceful error messages — never expose internal errors to users
+        - State machine correctness in wizard/onboarding flows
+        - Callback data parsing safety (malformed callback data must not panic)
+        - Message length limits (Telegram has a 4096 char limit per message)
+        - Proper cleanup of user state on errors or timeouts
+
+    - path: "internal/notifier/**/*.go"
+      instructions: |
+        Review for:
+        - Telegram API rate limiting compliance (30 msg/sec to different chats, 1 msg/sec same chat)
+        - Retry logic with exponential backoff for transient failures
+        - Message formatting correctness (HTML/Markdown escaping)
+
+    - path: "**/*_test.go"
+      instructions: |
+        Review tests for quality:
+        - Prefer table-driven tests for multiple scenarios
+        - Test both happy path AND error/edge cases
+        - Use testify assertions consistently (assert vs require correctly)
+        - Test names should describe the scenario, not the implementation
+        - Mock interfaces, not concrete types
+        - No test pollution — each test must be independent
+
+    - path: "internal/config/**/*.go"
+      instructions: |
+        Review for:
+        - Environment variable substitution edge cases (empty, unset, special chars)
+        - Sensible defaults for all config values
+        - Validation of config values at load time, not at use time
+
+    - path: ".github/workflows/**"
+      instructions: |
+        Review for:
+        - Pinned action versions (use SHA, not tags) for supply chain security
+        - Proper secret handling — no secrets in logs or artifacts
+        - Job dependency correctness
+
+    - path: "Dockerfile"
+      instructions: |
+        Review for:
+        - Multi-stage build efficiency
+        - Minimal final image (no build tools in runtime image)
+        - Non-root user execution
+        - Proper signal handling (exec form CMD, not shell form)
+
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: true
+    simplify:
+      enabled: true
+
+  pre_merge_checks:
+    title:
+      mode: "error"
+      requirements: >-
+        PR title MUST follow conventional commit format:
+        feat:, fix:, chore:, docs:, test:, refactor:, ci:
+        with optional scope in parentheses, e.g. feat(bot): ...
+        A trailing ! before : indicates a breaking change.
+    description:
+      mode: "warning"
+    issue_assessment:
+      mode: "warning"
+    custom_checks:
+      - name: "Test Coverage"
+        mode: "warning"
+        instructions: >-
+          New exported Go functions and methods must have corresponding
+          test functions. Flag if new logic is added without tests.
+      - name: "Error Handling"
+        mode: "error"
+        instructions: >-
+          Every error return must be checked. Blank identifier _ for
+          error values is not allowed except in deferred Close() calls.
+
+chat:
+  art: false
+  auto_reply: true
+
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: true
+  code_guidelines:
+    enabled: true
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
+
+tools:
+  golangci-lint:
+    enabled: true
+  shellcheck:
+    enabled: true
+  markdownlint:
+    enabled: true
+  yamllint:
+    enabled: true
+  actionlint:
+    enabled: true
+  semgrep:
+    enabled: true
+  ast-grep:
+    enabled: true
+    essential_rules: true
+  github-checks:
+    enabled: true
+    timeout_ms: 120000
+  languagetool:
+    enabled: false
+  hadolint:
+    enabled: true
