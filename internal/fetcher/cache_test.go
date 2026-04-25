@@ -77,15 +77,21 @@ func TestCachingFetcher_EvictsOldest(t *testing.T) {
 	cf := NewCachingFetcher(inner, time.Hour)
 	ctx := context.Background()
 
-	// Fill cache to capacity.
+	// Fill cache to capacity with distinct lastUsed timestamps so
+	// eviction order is deterministic regardless of clock resolution.
+	base := time.Now().Add(-time.Hour)
 	for i := 0; i < maxCacheEntries; i++ {
 		params := config.SourceParams{Manufacturer: i, Model: 1}
 		if _, err := cf.Fetch(ctx, params); err != nil {
 			t.Fatalf("fetch %d: %v", i, err)
 		}
+		key := cacheKey(params)
+		entry := cf.cache[key]
+		entry.lastUsed = base.Add(time.Duration(i) * time.Second)
+		cf.cache[key] = entry
 	}
 
-	// Touch an early key to mark it recently used.
+	// Touch key 0 to give it the newest lastUsed.
 	touchedParams := config.SourceParams{Manufacturer: 0, Model: 1}
 	if _, err := cf.Fetch(ctx, touchedParams); err != nil {
 		t.Fatalf("touch fetch: %v", err)
