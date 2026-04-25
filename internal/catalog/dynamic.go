@@ -67,6 +67,13 @@ func (d *DynamicCatalog) Ingest(ctx context.Context, manufacturerID int, manufac
 		return
 	}
 
+	entries, gen, shouldSave := d.ingestLocked(manufacturerID, manufacturerName, modelID, modelName)
+	if shouldSave {
+		d.persistEntries(ctx, entries, gen)
+	}
+}
+
+func (d *DynamicCatalog) ingestLocked(manufacturerID int, manufacturerName string, modelID int, modelName string) ([]storage.CatalogEntry, int64, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -88,7 +95,7 @@ func (d *DynamicCatalog) Ingest(ctx context.Context, manufacturerID int, manufac
 	}
 
 	if !changed {
-		return
+		return nil, 0, false
 	}
 
 	d.rebuildSlices()
@@ -101,12 +108,7 @@ func (d *DynamicCatalog) Ingest(ctx context.Context, manufacturerID int, manufac
 	if shouldSave {
 		entries = d.buildEntries()
 	}
-	d.mu.Unlock()
-
-	if shouldSave {
-		d.persistEntries(ctx, entries, gen)
-	}
-	d.mu.Lock()
+	return entries, gen, shouldSave
 }
 
 func (d *DynamicCatalog) Flush(ctx context.Context) {
