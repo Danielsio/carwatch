@@ -50,6 +50,7 @@ var he = map[string]string{
 		"/saved — צפה ברכבים שמורים\n" +
 		"/hidden — צפה ברכבים מוסתרים\n" +
 		"/digest — התראות וסיכום שוק יומי\n" +
+		"/upgrade — שדרוג לפרימיום\n" +
 		"/language — שנה שפה\n" +
 		"/settings — הצג הגדרות\n" +
 		"/cancel — בטל אשף נוכחי\n" +
@@ -299,6 +300,43 @@ var he = map[string]string{
 		"אני עוקב אחרי מודעות רכב ביד2 ו-WinWin ושולח לך התראות כשמופיעים רכבים חדשים.\n\n" +
 		"הנה דוגמה להתראה שתקבל:",
 	"onboarding_post_search": "הכל מוכן! אתחיל לבדוק מיד. ציפייה להתראה הראשונה תוך %s.",
+
+	// tier system
+	"tier_free":    "חינמי",
+	"tier_premium": "פרימיום",
+	"tier_trial":   "ניסיון",
+	"tier_expires": "פג תוקף ב: %s",
+
+	"settings_tier":         "\nמנוי: %s",
+	"settings_tier_trial":   "\nמנוי: %s (ניסיון — פג ב: %s)",
+	"settings_tier_premium": "\nמנוי: %s (פג ב: %s)",
+
+	"upgrade_prompt": "תכונה זו זמינה רק למנויי *פרימיום*.\n\n" +
+		"שדרג ב-₪29/חודש כדי לקבל:\n" +
+		"• עד 10 חיפושים פעילים\n" +
+		"• ציוני עסקה לכל מודעה\n" +
+		"• סיכום שוק יומי\n" +
+		"• התראות על ירידות מחיר\n\n" +
+		"השתמש ב /upgrade להוראות שדרוג.",
+	"upgrade_info": "*שדרוג לפרימיום — ₪29/חודש*\n\n" +
+		"✅ עד 10 חיפושים פעילים\n" +
+		"✅ ציוני עסקה לכל מודעה\n" +
+		"✅ סיכום שוק יומי\n" +
+		"✅ התראות על ירידות מחיר\n\n" +
+		"לשדרוג, שלח תשלום דרך Bit / PayBox וצרף אישור לצ'אט.\n" +
+		"מנהל יפעיל את המנוי שלך.",
+	"upgrade_search_limit": "הגעת למגבלה של %d חיפושים (מקסימום %d לחינמיים).\n\nשדרג לפרימיום כדי ליצור עד 10 חיפושים. השתמש ב /upgrade לפרטים.",
+
+	"trial_welcome":  "🎉 קיבלת 7 ימי ניסיון *פרימיום*! כל התכונות פתוחות עד %s.",
+	"trial_expired":  "תקופת הניסיון הסתיימה. חזרת למנוי *חינמי*.\nהשתמש ב /upgrade כדי להמשיך ליהנות מתכונות פרימיום.",
+	"premium_expired":"מנוי הפרימיום שלך פג. חזרת למנוי *חינמי*.\nהשתמש ב /upgrade לחידוש.",
+
+	"admin_grant_usage":   "שימוש: /grant\\_premium <chat\\_id> <days>",
+	"admin_grant_success": "פרימיום הופעל למשתמש %d עד %s.",
+	"admin_grant_failed":  "הפעלת פרימיום נכשלה.",
+	"admin_revoke_usage":  "שימוש: /revoke\\_premium <chat\\_id>",
+	"admin_revoke_success":"פרימיום בוטל למשתמש %d.",
+	"admin_revoke_failed": "ביטול פרימיום נכשל.",
 }
 
 var en = map[string]string{
@@ -321,6 +359,7 @@ var en = map[string]string{
 		"/saved — View saved listings\n" +
 		"/hidden — View hidden listings\n" +
 		"/digest — Notifications & daily market summary\n" +
+		"/upgrade — Upgrade to Premium\n" +
 		"/language — Change language\n" +
 		"/settings — View your settings\n" +
 		"/cancel — Cancel current wizard\n" +
@@ -570,4 +609,41 @@ var en = map[string]string{
 		"I monitor car listings on Yad2 and WinWin and send you alerts when new cars match your criteria.\n\n" +
 		"Here's an example of the alerts you'll receive:",
 	"onboarding_post_search": "You're all set! I'll start checking right away. Expect your first alert within %s.",
+
+	// tier system
+	"tier_free":    "Free",
+	"tier_premium": "Premium",
+	"tier_trial":   "Trial",
+	"tier_expires": "Expires: %s",
+
+	"settings_tier":         "\nPlan: %s",
+	"settings_tier_trial":   "\nPlan: %s (trial — expires %s)",
+	"settings_tier_premium": "\nPlan: %s (expires %s)",
+
+	"upgrade_prompt": "This feature is available to *Premium* subscribers only.\n\n" +
+		"Upgrade for ₪29/month to get:\n" +
+		"• Up to 10 active searches\n" +
+		"• Deal scores on every listing\n" +
+		"• Daily market summary\n" +
+		"• Price drop alerts\n\n" +
+		"Use /upgrade for upgrade instructions.",
+	"upgrade_info": "*Upgrade to Premium — ₪29/month*\n\n" +
+		"✅ Up to 10 active searches\n" +
+		"✅ Deal scores on every listing\n" +
+		"✅ Daily market summary\n" +
+		"✅ Price drop alerts\n\n" +
+		"To upgrade, send payment via Bit / PayBox and forward the confirmation here.\n" +
+		"An admin will activate your subscription.",
+	"upgrade_search_limit": "You've reached the limit of %d searches (max %d for Free plan).\n\nUpgrade to Premium for up to 10 searches. Use /upgrade for details.",
+
+	"trial_welcome":  "🎉 You've received a 7-day *Premium* trial! All features unlocked until %s.",
+	"trial_expired":  "Your trial has ended. You're back on the *Free* plan.\nUse /upgrade to keep enjoying Premium features.",
+	"premium_expired":"Your Premium subscription has expired. You're back on the *Free* plan.\nUse /upgrade to renew.",
+
+	"admin_grant_usage":   "Usage: /grant\\_premium <chat\\_id> <days>",
+	"admin_grant_success": "Premium activated for user %d until %s.",
+	"admin_grant_failed":  "Failed to activate premium.",
+	"admin_revoke_usage":  "Usage: /revoke\\_premium <chat\\_id>",
+	"admin_revoke_success":"Premium revoked for user %d.",
+	"admin_revoke_failed": "Failed to revoke premium.",
 }

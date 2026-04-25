@@ -181,6 +181,9 @@ func (b *Bot) RegisterHandlers() {
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/edit", tgbot.MatchTypePrefix, b.rateLimited(b.handleEdit))
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/saved", tgbot.MatchTypeExact, b.rateLimited(b.handleSaved))
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/hidden", tgbot.MatchTypeExact, b.rateLimited(b.handleHidden))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/upgrade", tgbot.MatchTypeExact, b.rateLimited(b.handleUpgrade))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/grant_premium", tgbot.MatchTypePrefix, b.rateLimited(b.handleGrantPremium))
+	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/revoke_premium", tgbot.MatchTypePrefix, b.rateLimited(b.handleRevokePremium))
 	b.bot.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "", tgbot.MatchTypePrefix, b.rateLimited(b.handleCallback))
 }
 
@@ -253,6 +256,29 @@ func (b *Bot) getUserLang(ctx context.Context, chatID int64) locale.Lang {
 		return locale.Hebrew
 	}
 	return locale.Lang(user.Language)
+}
+
+const (
+	TierFree    = "free"
+	TierPremium = "premium"
+
+	freeMaxSearches    = 1
+	premiumMaxSearches = 10
+)
+
+func (b *Bot) isPremium(ctx context.Context, chatID int64) bool {
+	user, err := b.users.GetUser(ctx, chatID)
+	if err != nil || user == nil {
+		return false
+	}
+	return user.Tier == TierPremium && (user.TierExpires.IsZero() || user.TierExpires.After(time.Now()))
+}
+
+func (b *Bot) maxSearchesForUser(ctx context.Context, chatID int64) int {
+	if b.isPremium(ctx, chatID) {
+		return premiumMaxSearches
+	}
+	return freeMaxSearches
 }
 
 // --- Wizard State Helpers ---

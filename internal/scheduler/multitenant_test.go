@@ -180,9 +180,17 @@ func TestProcessGroup_PriceDropNotification(t *testing.T) {
 		},
 	}
 
+	us := newMockUserStore()
+	us.users[100] = &storage.User{
+		ChatID: 100, Tier: "premium",
+		TierExpires: time.Now().Add(30 * 24 * time.Hour),
+		Language:    "he",
+	}
+
 	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
 		SearchStore: ss,
 		Prices:      pt,
+		UserStore:   us,
 	})
 	ctx := context.Background()
 
@@ -213,6 +221,50 @@ func TestProcessGroup_PriceDropNotification(t *testing.T) {
 	if !strings.Contains(msg, "₪95,000") || !strings.Contains(msg, "₪89,000") {
 		t.Errorf("message should contain old and new prices, got:\n%s", msg)
 	}
+}
+
+type mockUserStore struct {
+	users map[int64]*storage.User
+}
+
+func newMockUserStore() *mockUserStore {
+	return &mockUserStore{users: make(map[int64]*storage.User)}
+}
+
+func (m *mockUserStore) UpsertUser(_ context.Context, chatID int64, username string) error {
+	if _, ok := m.users[chatID]; !ok {
+		m.users[chatID] = &storage.User{ChatID: chatID, Username: username, Tier: "free", Language: "he"}
+	}
+	return nil
+}
+
+func (m *mockUserStore) GetUser(_ context.Context, chatID int64) (*storage.User, error) {
+	u, ok := m.users[chatID]
+	if !ok {
+		return nil, nil
+	}
+	return u, nil
+}
+
+func (m *mockUserStore) UpdateUserState(_ context.Context, _ int64, _ string, _ string) error {
+	return nil
+}
+func (m *mockUserStore) ListActiveUsers(_ context.Context) ([]storage.User, error) { return nil, nil }
+func (m *mockUserStore) SetUserActive(_ context.Context, _ int64, _ bool) error    { return nil }
+func (m *mockUserStore) SetUserLanguage(_ context.Context, _ int64, _ string) error { return nil }
+func (m *mockUserStore) CountUsers(_ context.Context) (int64, error) {
+	return int64(len(m.users)), nil
+}
+func (m *mockUserStore) SetUserTier(_ context.Context, chatID int64, tier string, expires time.Time) error {
+	if u, ok := m.users[chatID]; ok {
+		u.Tier = tier
+		u.TierExpires = expires
+	}
+	return nil
+}
+func (m *mockUserStore) GrantTrial(_ context.Context, _ int64, _ time.Duration) error { return nil }
+func (m *mockUserStore) ListExpiredPremium(_ context.Context) ([]storage.User, error) {
+	return nil, nil
 }
 
 type mockDigestStore struct {
