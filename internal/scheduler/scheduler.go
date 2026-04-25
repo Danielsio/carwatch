@@ -61,6 +61,14 @@ type Scheduler struct {
 	marketStore       storage.MarketStore
 	dailyDigestStore  storage.DailyDigestStore
 	triggerCh         chan struct{}
+
+	langCache   map[int64]locale.Lang
+	digestCache map[int64]digestMeta
+}
+
+type digestMeta struct {
+	mode     string
+	interval string
 }
 
 type Options struct {
@@ -206,12 +214,23 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.Lang) DeliveryStrategy {
 	if s.digestStore != nil {
-		mode, _, err := s.digestStore.GetDigestMode(ctx, chatID)
-		if err != nil {
-			if !errors.Is(err, storage.ErrNotFound) {
-				s.logger.Error("get digest mode failed", "chat_id", chatID, "error", err)
+		var mode string
+		if dm, ok := s.digestCache[chatID]; ok {
+			mode = dm.mode
+		} else {
+			m, interval, err := s.digestStore.GetDigestMode(ctx, chatID)
+			if err != nil {
+				if !errors.Is(err, storage.ErrNotFound) {
+					s.logger.Error("get digest mode failed", "chat_id", chatID, "error", err)
+				}
+			} else {
+				mode = m
+				if s.digestCache != nil {
+					s.digestCache[chatID] = digestMeta{mode: m, interval: interval}
+				}
 			}
-		} else if mode == "digest" {
+		}
+		if mode == "digest" {
 			return NewDigestDelivery(s.digestStore, lang)
 		}
 	}
@@ -381,6 +400,9 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 
 func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.logger.Info("starting poll cycle")
+
+	s.langCache = make(map[int64]locale.Lang)
+	s.digestCache = make(map[int64]digestMeta)
 
 	searches, err := s.searchStore.ListAllActiveSearches(ctx)
 	if err != nil {
@@ -917,14 +939,20 @@ func (s *Scheduler) processExpiredPremium(ctx context.Context) {
 }
 
 func (s *Scheduler) userLang(ctx context.Context, chatID int64) locale.Lang {
-	if s.userStore == nil {
-		return locale.Hebrew
+	if lang, ok := s.langCache[chatID]; ok {
+		return lang
 	}
-	user, err := s.userStore.GetUser(ctx, chatID)
-	if err != nil || user == nil || user.Language == "" {
-		return locale.Hebrew
+	lang := locale.Hebrew
+	if s.userStore != nil {
+		user, err := s.userStore.GetUser(ctx, chatID)
+		if err == nil && user != nil && user.Language != "" {
+			lang = locale.Lang(user.Language)
+		}
 	}
-	return locale.Lang(user.Language)
+	if s.langCache != nil {
+		s.langCache[chatID] = lang
+	}
+	return lang
 }
 
 func maskPhone(phone string) string {
