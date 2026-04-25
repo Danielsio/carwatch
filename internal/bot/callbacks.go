@@ -153,8 +153,13 @@ func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 		b.send(ctx, chatID, locale.T(lang, "share_limit_error"))
 		return
 	}
-	if count >= int64(b.maxSearches) {
-		b.send(ctx, chatID, locale.Tf(lang, "share_limit_reached", count, b.maxSearches))
+	limit := b.maxSearchesForUser(ctx, chatID)
+	if count >= int64(limit) {
+		if !b.isPremium(ctx, chatID) {
+			b.sendMarkdown(ctx, chatID, locale.Tf(lang, "upgrade_search_limit", count, limit))
+		} else {
+			b.send(ctx, chatID, locale.Tf(lang, "share_limit_reached", count, limit))
+		}
 		return
 	}
 
@@ -261,8 +266,13 @@ func (b *Bot) onQuickStart(ctx context.Context, chatID int64) {
 		b.send(ctx, chatID, locale.T(lang, "watch_limit_error"))
 		return
 	}
-	if count >= int64(b.maxSearches) {
-		b.send(ctx, chatID, locale.Tf(lang, "watch_limit_reached", count, b.maxSearches))
+	limit := b.maxSearchesForUser(ctx, chatID)
+	if count >= int64(limit) {
+		if !b.isPremium(ctx, chatID) {
+			b.sendMarkdown(ctx, chatID, locale.Tf(lang, "upgrade_search_limit", count, limit))
+		} else {
+			b.send(ctx, chatID, locale.Tf(lang, "watch_limit_reached", count, limit))
+		}
 		return
 	}
 
@@ -298,8 +308,13 @@ func (b *Bot) onWatchFromCallback(ctx context.Context, chatID int64) {
 		b.send(ctx, chatID, locale.T(lang, "watch_limit_error"))
 		return
 	}
-	if count >= int64(b.maxSearches) {
-		b.send(ctx, chatID, locale.Tf(lang, "watch_limit_reached", count, b.maxSearches))
+	limit := b.maxSearchesForUser(ctx, chatID)
+	if count >= int64(limit) {
+		if !b.isPremium(ctx, chatID) {
+			b.sendMarkdown(ctx, chatID, locale.Tf(lang, "upgrade_search_limit", count, limit))
+		} else {
+			b.send(ctx, chatID, locale.Tf(lang, "watch_limit_reached", count, limit))
+		}
 		return
 	}
 
@@ -355,6 +370,10 @@ func (b *Bot) onDailyDigestOn(ctx context.Context, chatID int64) {
 		return
 	}
 	lang := b.getUserLang(ctx, chatID)
+	if !b.isPremium(ctx, chatID) {
+		b.sendMarkdown(ctx, chatID, locale.T(lang, "upgrade_prompt"))
+		return
+	}
 	_, digestTime, _, err := b.dailyDigests.GetDailyDigest(ctx, chatID)
 	if err != nil {
 		b.send(ctx, chatID, locale.T(lang, "error_generic"))

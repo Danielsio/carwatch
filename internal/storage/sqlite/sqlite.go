@@ -280,6 +280,30 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	// Add tier columns to users table if they don't exist.
+	for _, col := range []struct {
+		name string
+		def  string
+	}{
+		{"tier", "TEXT NOT NULL DEFAULT 'free'"},
+		{"tier_expires_at", "TIMESTAMP NOT NULL DEFAULT '1970-01-01 00:00:00'"},
+		{"trial_used", "BOOLEAN NOT NULL DEFAULT false"},
+	} {
+		var tierCount int
+		err := db.QueryRow(
+			"SELECT COUNT(*) FROM pragma_table_info('users') WHERE name = ?", col.name,
+		).Scan(&tierCount)
+		if err != nil {
+			return fmt.Errorf("check column %s: %w", col.name, err)
+		}
+		if tierCount == 0 {
+			_, err = db.Exec(fmt.Sprintf("ALTER TABLE users ADD COLUMN %s %s", col.name, col.def))
+			if err != nil {
+				return fmt.Errorf("add column %s: %w", col.name, err)
+			}
+		}
+	}
+
 	// Add daily digest columns to users table if they don't exist.
 	for _, col := range []struct {
 		name string
@@ -319,11 +343,12 @@ func (s *Store) UpsertUser(ctx context.Context, chatID int64, username string) e
 
 func (s *Store) GetUser(ctx context.Context, chatID int64) (*storage.User, error) {
 	row := s.db.QueryRowContext(ctx,
-		"SELECT chat_id, username, state, state_data, created_at, active, language FROM users WHERE chat_id = ?",
+		"SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used FROM users WHERE chat_id = ?",
 		chatID)
 
 	var u storage.User
-	err := row.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language)
+	err := row.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language,
+		&u.Tier, &u.TierExpires, &u.TrialUsed)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -342,7 +367,7 @@ func (s *Store) UpdateUserState(ctx context.Context, chatID int64, state string,
 
 func (s *Store) ListActiveUsers(ctx context.Context) ([]storage.User, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT chat_id, username, state, state_data, created_at, active, language FROM users WHERE active = true")
+		"SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used FROM users WHERE active = true")
 	if err != nil {
 		return nil, err
 	}
@@ -374,7 +399,8 @@ func scanUsers(rows *sql.Rows) ([]storage.User, error) {
 	var users []storage.User
 	for rows.Next() {
 		var u storage.User
-		if err := rows.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language); err != nil {
+		if err := rows.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language,
+			&u.Tier, &u.TierExpires, &u.TrialUsed); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -1164,6 +1190,36 @@ func (s *Store) DailyStats(ctx context.Context, chatID int64) ([]storage.DailySe
 	}
 
 	return stats, nil
+}
+
+// --- TierStore ---
+
+func (s *Store) SetUserTier(ctx context.Context, chatID int64, tier string, expires time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE users SET tier = ?, tier_expires_at = ? WHERE chat_id = ?",
+		tier, expires, chatID)
+	return err
+}
+
+func (s *Store) GrantTrial(ctx context.Context, chatID int64, duration time.Duration) error {
+	expires := time.Now().Add(duration)
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE users SET tier = 'premium', tier_expires_at = ?, trial_used = true WHERE chat_id = ?",
+		expires, chatID)
+	return err
+}
+
+func (s *Store) ListExpiredPremium(ctx context.Context) ([]storage.User, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used
+		FROM users
+		WHERE tier = 'premium' AND tier_expires_at <= ? AND tier_expires_at > '1970-01-01 00:00:00'`,
+		time.Now())
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	return scanUsers(rows)
 }
 
 // --- Close ---

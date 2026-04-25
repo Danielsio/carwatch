@@ -60,6 +60,13 @@ func (m *errUserStore) ListActiveUsers(_ context.Context) ([]storage.User, error
 func (m *errUserStore) SetUserActive(_ context.Context, _ int64, _ bool) error    { return nil }
 func (m *errUserStore) SetUserLanguage(_ context.Context, _ int64, _ string) error { return nil }
 func (m *errUserStore) CountUsers(_ context.Context) (int64, error)               { return 0, nil }
+func (m *errUserStore) SetUserTier(_ context.Context, _ int64, _ string, _ time.Time) error {
+	return nil
+}
+func (m *errUserStore) GrantTrial(_ context.Context, _ int64, _ time.Duration) error { return nil }
+func (m *errUserStore) ListExpiredPremium(_ context.Context) ([]storage.User, error) {
+	return nil, nil
+}
 
 // errSearchStore implements SearchStore and returns errors.
 type errSearchStore struct {
@@ -550,7 +557,9 @@ func TestHandleResume_SetActiveError(t *testing.T) {
 
 func TestOnShareCopy_CreateSearchError(t *testing.T) {
 	msg := &mockMessenger{}
-	users := &errUserStore{user: &storage.User{ChatID: 200, State: StateIdle, StateData: "{}", Language: "en"}}
+	expires := time.Now().Add(30 * 24 * time.Hour)
+	users := &errUserStore{user: &storage.User{ChatID: 200, State: StateIdle, StateData: "{}", Language: "en",
+		Tier: TierPremium, TierExpires: expires}}
 	searches := &errSearchStore{
 		searches:  []storage.Search{{ID: 1, ChatID: 100, Manufacturer: 27, Model: 10332, Source: "yad2"}},
 		createErr: errors.New("db full"),

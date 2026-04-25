@@ -9,13 +9,16 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type User struct {
-	ChatID    int64
-	Username  string
-	State     string
-	StateData string
-	CreatedAt time.Time
-	Active    bool
-	Language  string
+	ChatID       int64
+	Username     string
+	State        string
+	StateData    string
+	CreatedAt    time.Time
+	Active       bool
+	Language     string
+	Tier         string
+	TierExpires  time.Time
+	TrialUsed    bool
 }
 
 type Search struct {
@@ -46,6 +49,9 @@ type UserStore interface {
 	SetUserActive(ctx context.Context, chatID int64, active bool) error
 	SetUserLanguage(ctx context.Context, chatID int64, lang string) error
 	CountUsers(ctx context.Context) (int64, error)
+	SetUserTier(ctx context.Context, chatID int64, tier string, expires time.Time) error
+	GrantTrial(ctx context.Context, chatID int64, duration time.Duration) error
+	ListExpiredPremium(ctx context.Context) ([]User, error)
 }
 
 type SearchStore interface {

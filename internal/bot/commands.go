@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
@@ -18,6 +19,10 @@ import (
 func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
 	chatID := update.Message.Chat.ID
 	username := update.Message.From.Username
+
+	existing, _ := b.users.GetUser(ctx, chatID)
+	isNewUser := existing == nil
+
 	b.ensureUser(ctx, chatID, username)
 
 	parts := strings.Fields(update.Message.Text)
@@ -27,6 +32,16 @@ func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	}
 
 	lang := b.getUserLang(ctx, chatID)
+
+	if isNewUser {
+		trialDays := 7
+		if err := b.users.GrantTrial(ctx, chatID, time.Duration(trialDays)*24*time.Hour); err != nil {
+			b.logger.Error("grant trial failed", "chat_id", chatID, "error", err)
+		} else {
+			expires := time.Now().AddDate(0, 0, trialDays)
+			b.sendMarkdown(ctx, chatID, locale.Tf(lang, "trial_welcome", expires.Format("2006-01-02")))
+		}
+	}
 
 	kb := &tgmodels.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
@@ -132,8 +147,13 @@ func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 		b.send(ctx, chatID, locale.T(lang, "watch_limit_error"))
 		return
 	}
-	if count >= int64(b.maxSearches) {
-		b.send(ctx, chatID, locale.Tf(lang, "watch_limit_reached", count, b.maxSearches))
+	limit := b.maxSearchesForUser(ctx, chatID)
+	if count >= int64(limit) {
+		if !b.isPremium(ctx, chatID) {
+			b.sendMarkdown(ctx, chatID, locale.Tf(lang, "upgrade_search_limit", count, limit))
+		} else {
+			b.send(ctx, chatID, locale.Tf(lang, "watch_limit_reached", count, limit))
+		}
 		return
 	}
 
@@ -300,7 +320,23 @@ func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	lang := b.getUserLang(ctx, chatID)
 
 	count, _ := b.searches.CountSearches(ctx, chatID)
-	b.sendMarkdown(ctx, chatID, locale.Tf(lang, "settings", count, b.maxSearches))
+	limit := b.maxSearchesForUser(ctx, chatID)
+	msg := locale.Tf(lang, "settings", count, limit)
+
+	user, err := b.users.GetUser(ctx, chatID)
+	if err == nil && user != nil {
+		if user.Tier == TierPremium && user.TrialUsed && !user.TierExpires.IsZero() && user.TierExpires.After(time.Now()) {
+			msg += locale.Tf(lang, "settings_tier_trial",
+				locale.T(lang, "tier_premium"), user.TierExpires.Format("2006-01-02"))
+		} else if user.Tier == TierPremium && !user.TierExpires.IsZero() {
+			msg += locale.Tf(lang, "settings_tier_premium",
+				locale.T(lang, "tier_premium"), user.TierExpires.Format("2006-01-02"))
+		} else {
+			msg += locale.Tf(lang, "settings_tier", locale.T(lang, "tier_free"))
+		}
+	}
+
+	b.sendMarkdown(ctx, chatID, msg)
 }
 
 func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
@@ -379,7 +415,7 @@ func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 		msgText = locale.T(lang, "digest_mode_instant")
 	}
 
-	if b.dailyDigests != nil {
+	if b.dailyDigests != nil && b.isPremium(ctx, chatID) {
 		enabled, digestTime, _, ddErr := b.dailyDigests.GetDailyDigest(ctx, chatID)
 		if ddErr == nil {
 			if enabled {
@@ -461,4 +497,77 @@ func (b *Bot) handleEdit(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 	b.sendWithKeyboard(ctx, chatID,
 		locale.T(lang, "wizard_source_prompt"),
 		sourceKeyboard(wd.Source, lang))
+}
+
+func (b *Bot) handleUpgrade(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	chatID := update.Message.Chat.ID
+	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	lang := b.getUserLang(ctx, chatID)
+	b.sendMarkdown(ctx, chatID, locale.T(lang, "upgrade_info"))
+}
+
+func (b *Bot) handleGrantPremium(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	chatID := update.Message.Chat.ID
+	if chatID != b.adminChatID {
+		lang := b.getUserLang(ctx, chatID)
+		b.send(ctx, chatID, locale.T(lang, "unknown_command"))
+		return
+	}
+
+	parts := strings.Fields(update.Message.Text)
+	if len(parts) < 3 {
+		b.sendMarkdown(ctx, chatID, locale.T(locale.English, "admin_grant_usage"))
+		return
+	}
+
+	targetChatID, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		b.sendMarkdown(ctx, chatID, locale.T(locale.English, "admin_grant_usage"))
+		return
+	}
+
+	days, err := strconv.Atoi(parts[2])
+	if err != nil || days <= 0 {
+		b.sendMarkdown(ctx, chatID, locale.T(locale.English, "admin_grant_usage"))
+		return
+	}
+
+	expires := time.Now().AddDate(0, 0, days)
+	if err := b.users.SetUserTier(ctx, targetChatID, TierPremium, expires); err != nil {
+		b.logger.Error("grant premium failed", "target", targetChatID, "error", err)
+		b.send(ctx, chatID, locale.T(locale.English, "admin_grant_failed"))
+		return
+	}
+
+	b.sendMarkdown(ctx, chatID, locale.Tf(locale.English, "admin_grant_success",
+		targetChatID, expires.Format("2006-01-02")))
+}
+
+func (b *Bot) handleRevokePremium(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	chatID := update.Message.Chat.ID
+	if chatID != b.adminChatID {
+		lang := b.getUserLang(ctx, chatID)
+		b.send(ctx, chatID, locale.T(lang, "unknown_command"))
+		return
+	}
+
+	parts := strings.Fields(update.Message.Text)
+	if len(parts) < 2 {
+		b.sendMarkdown(ctx, chatID, locale.T(locale.English, "admin_revoke_usage"))
+		return
+	}
+
+	targetChatID, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		b.sendMarkdown(ctx, chatID, locale.T(locale.English, "admin_revoke_usage"))
+		return
+	}
+
+	if err := b.users.SetUserTier(ctx, targetChatID, TierFree, time.Time{}); err != nil {
+		b.logger.Error("revoke premium failed", "target", targetChatID, "error", err)
+		b.send(ctx, chatID, locale.T(locale.English, "admin_revoke_failed"))
+		return
+	}
+
+	b.sendMarkdown(ctx, chatID, locale.Tf(locale.English, "admin_revoke_success", targetChatID))
 }
