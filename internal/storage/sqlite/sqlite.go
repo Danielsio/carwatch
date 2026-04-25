@@ -328,6 +328,17 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	if _, err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_listing_history_chat_first_seen
+			ON listing_history(chat_id, first_seen_at DESC);
+		CREATE INDEX IF NOT EXISTS idx_listing_history_token
+			ON listing_history(token);
+		CREATE INDEX IF NOT EXISTS idx_price_history_token_observed
+			ON price_history(token, observed_at DESC)
+	`); err != nil {
+		return fmt.Errorf("create performance indexes: %w", err)
+	}
+
 	return nil
 }
 
@@ -671,7 +682,7 @@ func (s *Store) PruneNotifications(ctx context.Context, olderThan time.Duration)
 
 func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error) {
 	row := s.db.QueryRowContext(ctx,
-		"SELECT price FROM price_history WHERE token = ? ORDER BY observed_at DESC LIMIT 1", token)
+		"SELECT price FROM price_history WHERE token = ? ORDER BY observed_at DESC, rowid DESC LIMIT 1", token)
 	var prev int
 	scanErr := row.Scan(&prev)
 
