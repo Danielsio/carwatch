@@ -58,7 +58,10 @@ func run(configPath string, logger *slog.Logger) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	logLevel, _ := config.ParseLogLevel(cfg.LogLevel)
+	logLevel, err := config.ParseLogLevel(cfg.LogLevel)
+	if err != nil {
+		return fmt.Errorf("parse log_level %q: %w", cfg.LogLevel, err)
+	}
 	logger = slog.New(newLogHandler(cfg.LogFormat, logLevel))
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
@@ -198,8 +201,9 @@ func run(configPath string, logger *slog.Logger) error {
 }
 
 func newLogHandler(format string, level slog.Level) slog.Handler {
+	fd := os.Stdout.Fd()
 	usePretty := format == "pretty" ||
-		(format == "auto" && isatty.IsTerminal(os.Stdout.Fd()))
+		(format == "auto" && (isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)))
 
 	if usePretty {
 		return tint.NewHandler(os.Stdout, &tint.Options{
