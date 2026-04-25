@@ -328,10 +328,8 @@ func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 
 	user, err := b.users.GetUser(ctx, chatID)
 	if err == nil && user != nil {
-		if user.Tier == TierPremium && user.TrialUsed && !user.TierExpires.IsZero() && user.TierExpires.After(time.Now()) {
-			msg += locale.Tf(lang, "settings_tier_trial",
-				locale.T(lang, "tier_premium"), user.TierExpires.Format("2006-01-02"))
-		} else if user.Tier == TierPremium && !user.TierExpires.IsZero() {
+		now := time.Now()
+		if user.Tier == TierPremium && (user.TierExpires.IsZero() || user.TierExpires.After(now)) {
 			msg += locale.Tf(lang, "settings_tier_premium",
 				locale.T(lang, "tier_premium"), user.TierExpires.Format("2006-01-02"))
 		} else {

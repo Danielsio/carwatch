@@ -863,13 +863,14 @@ func (s *Scheduler) processExpiredPremium(ctx context.Context) {
 			s.logger.Error("downgrade user failed", "chat_id", u.ChatID, "error", err)
 			continue
 		}
+		if s.dailyDigestStore != nil {
+			if err := s.dailyDigestStore.SetDailyDigest(ctx, u.ChatID, false, "09:00"); err != nil {
+				s.logger.Error("disable daily digest on downgrade failed", "chat_id", u.ChatID, "error", err)
+			}
+		}
 		lang := s.userLang(ctx, u.ChatID)
 		chatIDStr := fmt.Sprintf("%d", u.ChatID)
-		msgKey := "premium_expired"
-		if u.TrialUsed {
-			msgKey = "trial_expired"
-		}
-		if err := s.notifier.NotifyRaw(ctx, chatIDStr, locale.T(lang, msgKey)); err != nil {
+		if err := s.notifier.NotifyRaw(ctx, chatIDStr, locale.T(lang, "premium_expired")); err != nil {
 			s.logger.Error("send expiry notification failed", "chat_id", u.ChatID, "error", err)
 		}
 		s.logger.Info("premium expired, downgraded to free", "chat_id", u.ChatID)
