@@ -355,11 +355,19 @@ func (b *Bot) onDailyDigestOn(ctx context.Context, chatID int64) {
 		return
 	}
 	lang := b.getUserLang(ctx, chatID)
-	if err := b.dailyDigests.SetDailyDigest(ctx, chatID, true, "09:00"); err != nil {
+	_, digestTime, _, err := b.dailyDigests.GetDailyDigest(ctx, chatID)
+	if err != nil {
 		b.send(ctx, chatID, locale.T(lang, "error_generic"))
 		return
 	}
-	b.sendMarkdown(ctx, chatID, locale.Tf(lang, "daily_digest_enabled", "09:00"))
+	if digestTime == "" {
+		digestTime = "09:00"
+	}
+	if err := b.dailyDigests.SetDailyDigest(ctx, chatID, true, digestTime); err != nil {
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	b.sendMarkdown(ctx, chatID, locale.Tf(lang, "daily_digest_enabled", digestTime))
 }
 
 func (b *Bot) onDailyDigestOff(ctx context.Context, chatID int64) {
@@ -367,7 +375,15 @@ func (b *Bot) onDailyDigestOff(ctx context.Context, chatID int64) {
 		return
 	}
 	lang := b.getUserLang(ctx, chatID)
-	if err := b.dailyDigests.SetDailyDigest(ctx, chatID, false, "09:00"); err != nil {
+	_, digestTime, _, err := b.dailyDigests.GetDailyDigest(ctx, chatID)
+	if err != nil {
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	if digestTime == "" {
+		digestTime = "09:00"
+	}
+	if err := b.dailyDigests.SetDailyDigest(ctx, chatID, false, digestTime); err != nil {
 		b.send(ctx, chatID, locale.T(lang, "error_generic"))
 		return
 	}

@@ -3,6 +3,7 @@ package notifier
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
@@ -291,7 +292,7 @@ func TestFormatDailyDigest(t *testing.T) {
 		},
 	}
 
-	msg := FormatDailyDigest(stats, locale.English)
+	msg := FormatDailyDigest(stats, locale.English, time.Date(2026, 4, 24, 9, 0, 0, 0, time.UTC))
 
 	checks := []string{
 		"Daily Market Summary",

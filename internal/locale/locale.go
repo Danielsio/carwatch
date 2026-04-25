@@ -289,7 +289,7 @@ var he = map[string]string{
 	"fmt_market_digest_trend_flat": "  ➡️ מחירים יציבים\n",
 
 	// daily digest settings
-	"daily_digest_enabled":  "סיכום שוק יומי *מופעל* בשעה %s.",
+	"daily_digest_enabled":  "סיכום שוק יומי *מופעל* בשעה %s (שעון ישראל).",
 	"daily_digest_disabled": "סיכום שוק יומי *כבוי*.",
 	"btn_daily_digest_on":   "📈 הפעל סיכום יומי",
 	"btn_daily_digest_off":  "📈 כבה סיכום יומי",
@@ -560,7 +560,7 @@ var en = map[string]string{
 	"fmt_market_digest_trend_flat": "  ➡️ Prices stable\n",
 
 	// daily digest settings
-	"daily_digest_enabled":  "Daily market summary *enabled* at %s IST.",
+	"daily_digest_enabled":  "Daily market summary *enabled* at %s Israel time.",
 	"daily_digest_disabled": "Daily market summary *disabled*.",
 	"btn_daily_digest_on":   "📈 Enable Daily Summary",
 	"btn_daily_digest_off":  "📈 Disable Daily Summary",

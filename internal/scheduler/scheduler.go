@@ -771,7 +771,7 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 }
 
 func (s *Scheduler) processDailyDigests(ctx context.Context) {
-	if s.dailyDigestStore == nil || s.marketStore == nil {
+	if s.dailyDigestStore == nil {
 		return
 	}
 
@@ -790,6 +790,9 @@ func (s *Scheduler) processDailyDigests(ctx context.Context) {
 		diff := currentMinutes - targetMinutes
 		if diff < 0 {
 			diff = -diff
+		}
+		if diff > 12*60 {
+			diff = 24*60 - diff
 		}
 		if diff > 15 {
 			continue
@@ -818,7 +821,7 @@ func (s *Scheduler) sendDailyDigest(ctx context.Context, chatID int64) {
 	}
 
 	lang := s.userLang(ctx, chatID)
-	msg := notifier.FormatDailyDigest(stats, lang)
+	msg := notifier.FormatDailyDigest(stats, lang, time.Now().In(s.loc))
 
 	chatIDStr := fmt.Sprintf("%d", chatID)
 	if err := s.notifier.NotifyRaw(ctx, chatIDStr, msg); err != nil {

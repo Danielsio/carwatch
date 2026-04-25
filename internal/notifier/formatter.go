@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -128,9 +129,9 @@ func FormatBatch(listings []model.Listing, lang locale.Lang) string {
 
 func dealExplanation(lang locale.Lang, score *model.ScoreInfo, price int) string {
 	medianStr := format.Number(score.MedianPrice)
-	pctBelow := 100.0 * (1.0 - float64(price)/float64(score.MedianPrice))
+	pctBelow := int(math.Round(100.0 * (1.0 - float64(price)/float64(score.MedianPrice))))
 	if pctBelow > 5 {
-		return locale.Tf(lang, "fmt_deal_below_market", int(pctBelow), medianStr, score.CohortSize)
+		return locale.Tf(lang, "fmt_deal_below_market", pctBelow, medianStr, score.CohortSize)
 	}
 	if pctBelow >= -5 {
 		return locale.Tf(lang, "fmt_deal_near_market", medianStr, score.CohortSize)
@@ -138,10 +139,10 @@ func dealExplanation(lang locale.Lang, score *model.ScoreInfo, price int) string
 	return locale.Tf(lang, "fmt_deal_above_market", medianStr, score.CohortSize)
 }
 
-func FormatDailyDigest(stats []storage.DailySearchStats, lang locale.Lang) string {
+func FormatDailyDigest(stats []storage.DailySearchStats, lang locale.Lang, now time.Time) string {
 	var b strings.Builder
 
-	dateStr := time.Now().Format("02/01/2006")
+	dateStr := now.Format("02/01/2006")
 	b.WriteString(locale.Tf(lang, "fmt_market_digest_header", dateStr))
 
 	for _, s := range stats {

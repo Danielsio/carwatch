@@ -1030,7 +1030,7 @@ func (s *Store) ClearHidden(ctx context.Context, chatID int64) error {
 
 func (s *Store) MarketListings(ctx context.Context) ([]storage.MarketListing, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT manufacturer, model, year, price
+		SELECT MAX(manufacturer), MAX(model), MAX(year), MAX(price)
 		FROM listing_history
 		WHERE manufacturer IS NOT NULL AND manufacturer != ''
 		  AND model IS NOT NULL AND model != ''
@@ -1105,7 +1105,8 @@ func (s *Store) ListDailyDigestUsers(ctx context.Context) ([]storage.DailyDigest
 func (s *Store) DailyStats(ctx context.Context, chatID int64) ([]storage.DailySearchStats, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		WITH search_listings AS (
-			SELECT lh.search_name, lh.price, lh.page_link, lh.first_seen_at
+			SELECT s.id AS search_id, s.name AS search_name,
+			       lh.price, lh.page_link, lh.first_seen_at
 			FROM listing_history lh
 			JOIN searches s ON s.name = lh.search_name AND s.chat_id = lh.chat_id
 			WHERE lh.chat_id = ? AND s.active = true AND lh.price > 0
@@ -1116,10 +1117,10 @@ func (s *Store) DailyStats(ctx context.Context, chatID int64) ([]storage.DailySe
 			CAST(AVG(sl.price) AS INTEGER),
 			MIN(sl.price),
 			(SELECT sl2.page_link FROM search_listings sl2
-			 WHERE sl2.search_name = sl.search_name
+			 WHERE sl2.search_id = sl.search_id
 			 ORDER BY sl2.price ASC LIMIT 1)
 		FROM search_listings sl
-		GROUP BY sl.search_name
+		GROUP BY sl.search_id
 		HAVING COUNT(*) >= 5`, chatID)
 	if err != nil {
 		return nil, err
@@ -1128,31 +1129,34 @@ func (s *Store) DailyStats(ctx context.Context, chatID int64) ([]storage.DailySe
 
 	var stats []storage.DailySearchStats
 	for rows.Next() {
-		var s storage.DailySearchStats
-		if err := rows.Scan(&s.SearchName, &s.NewCount, &s.AvgPrice,
-			&s.BestPrice, &s.BestPriceLink); err != nil {
+		var ds storage.DailySearchStats
+		if err := rows.Scan(&ds.SearchName, &ds.NewCount, &ds.AvgPrice,
+			&ds.BestPrice, &ds.BestPriceLink); err != nil {
 			return nil, err
 		}
-		stats = append(stats, s)
+		stats = append(stats, ds)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	// Compute 7-day price trend for each search
 	for i, stat := range stats {
 		var recentAvg, olderAvg sql.NullFloat64
-		_ = s.db.QueryRowContext(ctx, `
+		if err := s.db.QueryRowContext(ctx, `
 			SELECT AVG(price) FROM listing_history
 			WHERE chat_id = ? AND search_name = ? AND price > 0
 			  AND first_seen_at >= datetime('now', '-1 day')`,
-			chatID, stat.SearchName).Scan(&recentAvg)
-		_ = s.db.QueryRowContext(ctx, `
+			chatID, stat.SearchName).Scan(&recentAvg); err != nil {
+			return nil, err
+		}
+		if err := s.db.QueryRowContext(ctx, `
 			SELECT AVG(price) FROM listing_history
 			WHERE chat_id = ? AND search_name = ? AND price > 0
 			  AND first_seen_at >= datetime('now', '-7 days')
 			  AND first_seen_at < datetime('now', '-1 day')`,
-			chatID, stat.SearchName).Scan(&olderAvg)
+			chatID, stat.SearchName).Scan(&olderAvg); err != nil {
+			return nil, err
+		}
 
 		if recentAvg.Valid && olderAvg.Valid && olderAvg.Float64 > 0 {
 			stats[i].PriceTrend = ((recentAvg.Float64 - olderAvg.Float64) / olderAvg.Float64) * 100
