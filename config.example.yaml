@@ -2,7 +2,8 @@
 # Users manage their searches via Telegram commands (/watch, /list, /stop)
 # No per-search config needed here — it's all in the database.
 
-log_level: info  # debug | info | warn | error
+log_level: info    # debug | info | warn | error
+log_format: auto   # auto | json | pretty (auto = pretty for terminals, json otherwise)
 
 # Telegram bot settings
 telegram:
