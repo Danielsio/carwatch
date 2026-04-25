@@ -212,8 +212,8 @@ var he = map[string]string{
 	// listing actions
 	"listing_saved":        "נשמר!",
 	"listing_hidden":       "הוסתר",
-	"saved_limit_reached":  "הגעת למגבלה של 500 רכבים שמורים.",
-	"hidden_limit_reached": "הגעת למגבלה של 1000 רכבים מוסתרים.",
+	"saved_limit_reached":  "הגעת למגבלה של %d רכבים שמורים.",
+	"hidden_limit_reached": "הגעת למגבלה של %d רכבים מוסתרים.",
 
 	// generic
 	"error_generic":           "משהו השתבש. אנא נסה שוב.",
@@ -523,8 +523,8 @@ var en = map[string]string{
 	// listing actions
 	"listing_saved":        "Saved!",
 	"listing_hidden":       "Hidden",
-	"saved_limit_reached":  "You've reached the limit of 500 saved listings.",
-	"hidden_limit_reached": "You've reached the limit of 1000 hidden listings.",
+	"saved_limit_reached":  "You've reached the limit of %d saved listings.",
+	"hidden_limit_reached": "You've reached the limit of %d hidden listings.",
 
 	// generic
 	"error_generic":           "Something went wrong. Please try again.",

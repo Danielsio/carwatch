@@ -100,12 +100,18 @@ func Load(path string) (*Config, error) {
 }
 
 func warnHardcodedSecrets(raw string) {
-	for _, line := range strings.Split(raw, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "token:") && !strings.Contains(trimmed, "${") {
-			slog.Warn("telegram.token appears hardcoded in config; use ${TELEGRAM_BOT_TOKEN} for production")
-			return
-		}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
+		return
+	}
+	tg, ok := doc["telegram"].(map[string]any)
+	if !ok {
+		return
+	}
+	token, _ := tg["token"].(string)
+	token = strings.TrimSpace(token)
+	if token != "" && !strings.Contains(token, "${") {
+		slog.Warn("telegram.token appears hardcoded in config; use ${TELEGRAM_BOT_TOKEN} for production")
 	}
 }
 

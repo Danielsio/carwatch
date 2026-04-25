@@ -359,7 +359,7 @@ func (b *Bot) onSaveListing(ctx context.Context, chatID int64, data string) {
 		return
 	}
 	if count >= maxSavedListings {
-		b.send(ctx, chatID, locale.T(lang, "saved_limit_reached"))
+		b.send(ctx, chatID, locale.Tf(lang, "saved_limit_reached", maxSavedListings))
 		return
 	}
 	if err := b.saved.SaveBookmark(ctx, chatID, token); err != nil {
@@ -388,7 +388,7 @@ func (b *Bot) onHideListing(ctx context.Context, chatID int64, data string) {
 		return
 	}
 	if count >= maxHiddenListings {
-		b.send(ctx, chatID, locale.T(lang, "hidden_limit_reached"))
+		b.send(ctx, chatID, locale.Tf(lang, "hidden_limit_reached", maxHiddenListings))
 		return
 	}
 	if err := b.hidden.HideListing(ctx, chatID, token); err != nil {

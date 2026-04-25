@@ -269,7 +269,9 @@ func (b *Bot) sweepStaleMaps() {
 
 	b.chatMu.Range(func(key, value any) bool {
 		entry := value.(*chatMuEntry)
+		entry.mu.Lock()
 		used := entry.lastUsed
+		entry.mu.Unlock()
 		if used > 0 && used < cutoff {
 			b.chatMu.Delete(key)
 		}

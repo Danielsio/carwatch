@@ -79,8 +79,8 @@ func TestOnSaveListing_LimitReached(t *testing.T) {
 
 	tb.bot.onSaveListing(ctx, chatID, cbPrefixSave+"newtoken12345")
 	last := tb.msg.last()
-	if last.Text != "You've reached the limit of 500 saved listings." {
-		t.Errorf("expected limit message, got %q", last.Text)
+	if !contains(last.Text, "500") {
+		t.Errorf("expected limit message with 500, got %q", last.Text)
 	}
 }
 
@@ -107,6 +107,26 @@ func TestOnHideListing_Success(t *testing.T) {
 	last := tb.msg.last()
 	if last.Text != "Hidden" {
 		t.Errorf("expected 'Hidden', got %q", last.Text)
+	}
+}
+
+func TestOnHideListing_LimitReached(t *testing.T) {
+	tb := newTestBotWithStores(t)
+	ctx := context.Background()
+	const chatID int64 = 705
+	tb.createUser(ctx, t, chatID, "frank")
+
+	for i := range maxHiddenListings {
+		token := "htoken" + padInt(i)
+		if err := tb.store.HideListing(ctx, chatID, token); err != nil {
+			t.Fatalf("hide listing %d: %v", i, err)
+		}
+	}
+
+	tb.bot.onHideListing(ctx, chatID, cbPrefixHide+"newtoken12345")
+	last := tb.msg.last()
+	if !contains(last.Text, "1000") {
+		t.Errorf("expected limit message, got %q", last.Text)
 	}
 }
 

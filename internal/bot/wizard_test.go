@@ -244,13 +244,18 @@ func TestHandleKeywordsInput(t *testing.T) {
 	tb.simulateText(ctx, chatID, "sunroof, leather")
 
 	// Should now be in StateAskExcludeKeys
-	user, _ := tb.store.GetUser(ctx, chatID)
+	user, err := tb.store.GetUser(ctx, chatID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
 	if user.State != StateAskExcludeKeys {
 		t.Errorf("state = %q, want %q", user.State, StateAskExcludeKeys)
 	}
 
 	var wd WizardData
-	_ = json.Unmarshal([]byte(user.StateData), &wd)
+	if err := json.Unmarshal([]byte(user.StateData), &wd); err != nil {
+		t.Fatalf("unmarshal wizard data: %v", err)
+	}
 	if wd.Keywords != "sunroof,leather" {
 		t.Errorf("Keywords = %q, want %q", wd.Keywords, "sunroof,leather")
 	}
@@ -277,13 +282,18 @@ func TestHandleKeywordsInput_Skip(t *testing.T) {
 	// Skip keywords
 	tb.simulateText(ctx, chatID, "skip")
 
-	user, _ := tb.store.GetUser(ctx, chatID)
+	user, err := tb.store.GetUser(ctx, chatID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
 	if user.State != StateAskExcludeKeys {
 		t.Errorf("state = %q, want %q", user.State, StateAskExcludeKeys)
 	}
 
 	var wd WizardData
-	_ = json.Unmarshal([]byte(user.StateData), &wd)
+	if err := json.Unmarshal([]byte(user.StateData), &wd); err != nil {
+		t.Fatalf("unmarshal wizard data: %v", err)
+	}
 	if wd.Keywords != "" {
 		t.Errorf("Keywords = %q, want empty after skip", wd.Keywords)
 	}
@@ -314,7 +324,10 @@ func TestWizardFlow_WithKeywords(t *testing.T) {
 	// Confirm
 	tb.simulateCallback(ctx, chatID, cbConfirm)
 
-	searches, _ := tb.store.ListSearches(ctx, chatID)
+	searches, err := tb.store.ListSearches(ctx, chatID)
+	if err != nil {
+		t.Fatalf("list searches: %v", err)
+	}
 	if len(searches) != 1 {
 		t.Fatalf("expected 1 search, got %d", len(searches))
 	}
@@ -403,13 +416,18 @@ func TestHandleEdit_ValidID(t *testing.T) {
 	tb.simulateCommand(ctx, chatID, "/edit "+itoa(id))
 
 	// Should be in StateAskSource with wizard data populated from the search.
-	user, _ := tb.store.GetUser(ctx, chatID)
+	user, err := tb.store.GetUser(ctx, chatID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
 	if user.State != StateAskSource {
 		t.Errorf("state = %q, want %q", user.State, StateAskSource)
 	}
 
 	var wd WizardData
-	_ = json.Unmarshal([]byte(user.StateData), &wd)
+	if err := json.Unmarshal([]byte(user.StateData), &wd); err != nil {
+		t.Fatalf("unmarshal wizard data: %v", err)
+	}
 	if wd.EditSearchID != id {
 		t.Errorf("EditSearchID = %d, want %d", wd.EditSearchID, id)
 	}
@@ -454,7 +472,10 @@ func TestHandleEdit_FullFlow(t *testing.T) {
 	tb.simulateCallback(ctx, chatID, cbConfirm)
 
 	// Verify the search was updated, not a new one created.
-	searches, _ := tb.store.ListSearches(ctx, chatID)
+	searches, err := tb.store.ListSearches(ctx, chatID)
+	if err != nil {
+		t.Fatalf("list searches: %v", err)
+	}
 	if len(searches) != 1 {
 		t.Fatalf("expected 1 search (updated), got %d", len(searches))
 	}
@@ -498,7 +519,10 @@ func TestHandleEdit_KeywordsRoundTrip(t *testing.T) {
 	// Confirm
 	tb.simulateCallback(ctx, chatID, cbConfirm)
 
-	s, _ := tb.store.GetSearch(ctx, id)
+	s, err := tb.store.GetSearch(ctx, id)
+	if err != nil {
+		t.Fatalf("get search: %v", err)
+	}
 	if s.Keywords != "hybrid,electric" {
 		t.Errorf("Keywords = %q, want %q", s.Keywords, "hybrid,electric")
 	}

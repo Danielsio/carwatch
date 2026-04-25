@@ -22,15 +22,22 @@ func NewClientPool(userAgents []string, logger *slog.Logger) *ClientPool {
 
 func (p *ClientPool) Get(proxy string) (HTTPDoer, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if c, ok := p.clients[proxy]; ok {
+		p.mu.Unlock()
 		return c, nil
 	}
+	p.mu.Unlock()
 
 	c, err := NewClient(p.userAgents, proxy)
 	if err != nil {
 		return nil, err
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if existing, ok := p.clients[proxy]; ok {
+		c.Close()
+		return existing, nil
 	}
 	p.clients[proxy] = c
 	return c, nil
@@ -38,18 +45,22 @@ func (p *ClientPool) Get(proxy string) (HTTPDoer, error) {
 
 func (p *ClientPool) Evict(proxy string) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	if c, ok := p.clients[proxy]; ok {
-		c.Close()
+	c, ok := p.clients[proxy]
+	if ok {
 		delete(p.clients, proxy)
+	}
+	p.mu.Unlock()
+	if ok {
+		c.Close()
 	}
 }
 
 func (p *ClientPool) Close() {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	for proxy, c := range p.clients {
+	clients := p.clients
+	p.clients = make(map[string]HTTPDoer)
+	p.mu.Unlock()
+	for _, c := range clients {
 		c.Close()
-		delete(p.clients, proxy)
 	}
 }

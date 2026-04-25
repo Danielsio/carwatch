@@ -66,6 +66,9 @@ func (f *Yad2Fetcher) Close() {
 	if f.clientPool != nil {
 		f.clientPool.Close()
 	}
+	if f.client != nil {
+		f.client.Close()
+	}
 }
 
 func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {

@@ -353,9 +353,11 @@ func migrate(db *sql.DB) error {
 	}
 
 	var cacheCount int
-	_ = db.QueryRow("SELECT COUNT(*) FROM market_cache").Scan(&cacheCount)
+	if err := db.QueryRow("SELECT COUNT(*) FROM market_cache").Scan(&cacheCount); err != nil {
+		return fmt.Errorf("count market_cache: %w", err)
+	}
 	if cacheCount == 0 {
-		_, _ = db.Exec(`
+		if _, err := db.Exec(`
 			INSERT OR IGNORE INTO market_cache (token, manufacturer, model, year, price)
 			SELECT token, MAX(manufacturer), MAX(model), MAX(year), MAX(price)
 			FROM listing_history
@@ -363,7 +365,9 @@ func migrate(db *sql.DB) error {
 			  AND model IS NOT NULL AND model != ''
 			  AND year > 0 AND price > 0
 			GROUP BY token
-		`)
+		`); err != nil {
+			return fmt.Errorf("backfill market_cache: %w", err)
+		}
 	}
 
 	return nil
@@ -766,7 +770,7 @@ func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error 
 		return err
 	}
 	if r.Manufacturer != "" && r.Model != "" && r.Year > 0 && r.Price > 0 {
-		_, _ = s.db.ExecContext(ctx, `
+		if _, err := s.db.ExecContext(ctx, `
 			INSERT INTO market_cache (token, manufacturer, model, year, price)
 			VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT(token) DO UPDATE SET
@@ -775,7 +779,9 @@ func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error 
 				year = excluded.year,
 				price = excluded.price,
 				updated_at = CURRENT_TIMESTAMP`,
-			r.Token, r.Manufacturer, r.Model, r.Year, r.Price)
+			r.Token, r.Manufacturer, r.Model, r.Year, r.Price); err != nil {
+			return fmt.Errorf("upsert market_cache: %w", err)
+		}
 	}
 	return nil
 }
