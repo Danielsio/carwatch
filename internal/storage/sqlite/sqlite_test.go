@@ -827,3 +827,135 @@ func TestListUserListings_Pagination(t *testing.T) {
 		t.Errorf("page 3: expected 1 item, got %d", len(page3))
 	}
 }
+
+// --- MarketStore Tests ---
+
+func TestMarketListings(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	// Insert listings for two users with same token (should deduplicate)
+	for _, chatID := range []int64{100, 200} {
+		_ = store.SaveListing(ctx, storage.ListingRecord{
+			Token: "tok1", ChatID: chatID, SearchName: "toyota-corolla",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2020,
+			Price: 100000, FirstSeenAt: time.Now(),
+		})
+	}
+	// Another listing
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok2", ChatID: 100, SearchName: "toyota-corolla",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
+		Price: 110000, FirstSeenAt: time.Now(),
+	})
+	// Listing with empty manufacturer (should be excluded)
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok3", ChatID: 100, SearchName: "test",
+		Manufacturer: "", Model: "X", Year: 2020,
+		Price: 50000, FirstSeenAt: time.Now(),
+	})
+
+	listings, err := store.MarketListings(ctx)
+	if err != nil {
+		t.Fatalf("MarketListings: %v", err)
+	}
+	// tok1 should appear once (deduplicated), tok2 once, tok3 excluded
+	if len(listings) != 2 {
+		t.Errorf("expected 2 deduplicated listings, got %d", len(listings))
+	}
+}
+
+// --- DailyDigestStore Tests ---
+
+func TestDailyDigest_SetAndGet(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	// Default state
+	enabled, digestTime, _, err := store.GetDailyDigest(ctx, 100)
+	if err != nil {
+		t.Fatalf("GetDailyDigest: %v", err)
+	}
+	if enabled {
+		t.Error("expected daily digest disabled by default")
+	}
+	if digestTime != "09:00" {
+		t.Errorf("expected default time 09:00, got %q", digestTime)
+	}
+
+	// Enable
+	if err := store.SetDailyDigest(ctx, 100, true, "08:30"); err != nil {
+		t.Fatalf("SetDailyDigest: %v", err)
+	}
+
+	enabled, digestTime, _, err = store.GetDailyDigest(ctx, 100)
+	if err != nil {
+		t.Fatalf("GetDailyDigest after set: %v", err)
+	}
+	if !enabled {
+		t.Error("expected daily digest enabled")
+	}
+	if digestTime != "08:30" {
+		t.Errorf("expected time 08:30, got %q", digestTime)
+	}
+}
+
+func TestDailyDigest_ListUsers(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	_ = store.SetDailyDigest(ctx, 100, true, "09:00")
+	// User 200 not enabled
+
+	users, err := store.ListDailyDigestUsers(ctx)
+	if err != nil {
+		t.Fatalf("ListDailyDigestUsers: %v", err)
+	}
+	if len(users) != 1 {
+		t.Errorf("expected 1 user, got %d", len(users))
+	}
+	if len(users) > 0 && users[0].ChatID != 100 {
+		t.Errorf("expected chatID 100, got %d", users[0].ChatID)
+	}
+}
+
+func TestDailyDigest_UpdateLastSent(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	_ = store.SetDailyDigest(ctx, 100, true, "09:00")
+
+	if err := store.UpdateDailyDigestLastSent(ctx, 100); err != nil {
+		t.Fatalf("UpdateDailyDigestLastSent: %v", err)
+	}
+
+	_, _, lastSent, err := store.GetDailyDigest(ctx, 100)
+	if err != nil {
+		t.Fatalf("GetDailyDigest: %v", err)
+	}
+	if time.Since(lastSent) > time.Minute {
+		t.Errorf("expected lastSent to be recent, got %v", lastSent)
+	}
+}
+
+func TestDailyDigest_NonexistentUser(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	enabled, digestTime, _, err := store.GetDailyDigest(ctx, 999)
+	if err != nil {
+		t.Fatalf("GetDailyDigest nonexistent: %v", err)
+	}
+	if enabled {
+		t.Error("expected disabled for nonexistent user")
+	}
+	if digestTime != "09:00" {
+		t.Errorf("expected default time, got %q", digestTime)
+	}
+}

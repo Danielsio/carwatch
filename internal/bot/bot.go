@@ -30,6 +30,7 @@ type Bot struct {
 	digests      storage.DigestStore
 	saved        storage.SavedListingStore
 	hidden       storage.HiddenListingStore
+	dailyDigests storage.DailyDigestStore
 	catalog      catalog.Catalog
 	adminChatID  int64
 	maxSearches  int
@@ -87,6 +88,7 @@ type Config struct {
 	Listings       storage.ListingStore
 	Saved          storage.SavedListingStore
 	Hidden         storage.HiddenListingStore
+	DailyDigests   storage.DailyDigestStore
 	Catalog        catalog.Catalog
 }
 
@@ -114,6 +116,7 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		digests:      cfg.Digests,
 		saved:        cfg.Saved,
 		hidden:       cfg.Hidden,
+		dailyDigests: cfg.DailyDigests,
 		catalog:      cat,
 		adminChatID:  cfg.AdminChatID,
 		maxSearches:  cfg.MaxSearches,

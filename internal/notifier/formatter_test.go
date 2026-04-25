@@ -6,6 +6,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 func TestFormatListing(t *testing.T) {
@@ -198,5 +199,114 @@ func TestFormatBatch_MultipleListing(t *testing.T) {
 	}
 	if !strings.Contains(msg, "[1/2]") || !strings.Contains(msg, "[2/2]") {
 		t.Error("batch should contain numbered entries")
+	}
+}
+
+func TestFormatListing_WithScore(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "s1", Manufacturer: "Toyota", Model: "Corolla",
+			Year: 2022, Price: 80000,
+		},
+		DealScore: &model.ScoreInfo{Score: 20, MedianPrice: 100000, CohortSize: 15},
+	}
+
+	msg := FormatListing(l, locale.English)
+
+	checks := []string{
+		"Deal Score: 20/100",
+		"below market",
+		"100,000",
+	}
+	for _, check := range checks {
+		if !strings.Contains(msg, check) {
+			t.Errorf("message missing %q:\n%s", check, msg)
+		}
+	}
+}
+
+func TestFormatListing_WithoutScore_NoChange(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "ns1", Manufacturer: "Mazda", Model: "3",
+			Year: 2021, Price: 95000,
+		},
+	}
+
+	msg := FormatListing(l, locale.English)
+	if strings.Contains(msg, "Deal Score") {
+		t.Errorf("should not show score when DealScore is nil:\n%s", msg)
+	}
+}
+
+func TestFormatListing_ScoreAtMedian(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "s2", Manufacturer: "Honda", Model: "Civic",
+			Year: 2020, Price: 100000,
+		},
+		DealScore: &model.ScoreInfo{Score: 0, MedianPrice: 100000, CohortSize: 12},
+	}
+
+	msg := FormatListing(l, locale.English)
+	if !strings.Contains(msg, "Deal Score: 0/100") {
+		t.Errorf("expected score 0:\n%s", msg)
+	}
+	if !strings.Contains(msg, "Near market price") {
+		t.Errorf("expected near market text:\n%s", msg)
+	}
+}
+
+func TestFormatListing_ScoreAboveMedian(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "s3", Manufacturer: "BMW", Model: "3",
+			Year: 2019, Price: 150000,
+		},
+		DealScore: &model.ScoreInfo{Score: 0, MedianPrice: 100000, CohortSize: 20},
+	}
+
+	msg := FormatListing(l, locale.English)
+	if !strings.Contains(msg, "Above market price") {
+		t.Errorf("expected above market text:\n%s", msg)
+	}
+}
+
+func TestFormatDailyDigest(t *testing.T) {
+	stats := []storage.DailySearchStats{
+		{
+			SearchName:    "toyota-corolla",
+			NewCount:      7,
+			AvgPrice:      165000,
+			BestPrice:     148000,
+			BestPriceLink: "https://www.yad2.co.il/item/abc",
+			PriceTrend:    -2.5,
+		},
+		{
+			SearchName: "honda-civic",
+			NewCount:   3,
+			AvgPrice:   120000,
+			BestPrice:  110000,
+			PriceTrend: 0.5,
+		},
+	}
+
+	msg := FormatDailyDigest(stats, locale.English)
+
+	checks := []string{
+		"Daily Market Summary",
+		"toyota-corolla",
+		"New (24h): 7",
+		"165,000",
+		"148,000",
+		"yad2.co.il",
+		"Trending down 2.5%",
+		"honda-civic",
+		"Prices stable",
+	}
+	for _, check := range checks {
+		if !strings.Contains(msg, check) {
+			t.Errorf("digest missing %q:\n%s", check, msg)
+		}
 	}
 }

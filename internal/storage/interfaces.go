@@ -132,6 +132,40 @@ type HiddenListingStore interface {
 	ClearHidden(ctx context.Context, chatID int64) error
 }
 
+type MarketListing struct {
+	Manufacturer string
+	Model        string
+	Year         int
+	Price        int
+}
+
+type MarketStore interface {
+	MarketListings(ctx context.Context) ([]MarketListing, error)
+}
+
+type DailyDigestUser struct {
+	ChatID     int64
+	DigestTime string
+	LastSent   time.Time
+}
+
+type DailySearchStats struct {
+	SearchName    string
+	NewCount      int
+	AvgPrice      int
+	BestPrice     int
+	BestPriceLink string
+	PriceTrend    float64
+}
+
+type DailyDigestStore interface {
+	SetDailyDigest(ctx context.Context, chatID int64, enabled bool, digestTime string) error
+	GetDailyDigest(ctx context.Context, chatID int64) (enabled bool, digestTime string, lastSent time.Time, err error)
+	UpdateDailyDigestLastSent(ctx context.Context, chatID int64) error
+	ListDailyDigestUsers(ctx context.Context) ([]DailyDigestUser, error)
+	DailyStats(ctx context.Context, chatID int64) ([]DailySearchStats, error)
+}
+
 type CatalogEntry struct {
 	ManufacturerID   int
 	ManufacturerName string
