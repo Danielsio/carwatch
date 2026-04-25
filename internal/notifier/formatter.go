@@ -2,11 +2,14 @@ package notifier
 
 import (
 	"fmt"
+	"math"
 	"strings"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/format"
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 func FormatListing(l model.Listing, lang locale.Lang) string {
@@ -19,6 +22,12 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 		title += " " + format.EscapeMarkdown(l.SubModel)
 	}
 	b.WriteString("*" + title + "*\n\n")
+
+	if l.DealScore != nil {
+		b.WriteString(locale.Tf(lang, "fmt_deal_score", l.DealScore.Score))
+		b.WriteString(dealExplanation(lang, l.DealScore, l.Price))
+		b.WriteString("\n")
+	}
 
 	if l.Year > 0 {
 		b.WriteString(locale.Tf(lang, "fmt_year", l.Year))
@@ -113,6 +122,48 @@ func FormatBatch(listings []model.Listing, lang locale.Lang) string {
 		b.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
 		b.WriteString(locale.Tf(lang, "fmt_batch_item", i+1, len(listings)))
 		b.WriteString(FormatListing(l, lang))
+	}
+
+	return b.String()
+}
+
+func dealExplanation(lang locale.Lang, score *model.ScoreInfo, price int) string {
+	medianStr := format.Number(score.MedianPrice)
+	pctBelow := int(math.Round(100.0 * (1.0 - float64(price)/float64(score.MedianPrice))))
+	if pctBelow > 5 {
+		return locale.Tf(lang, "fmt_deal_below_market", pctBelow, medianStr, score.CohortSize)
+	}
+	if pctBelow >= -5 {
+		return locale.Tf(lang, "fmt_deal_near_market", medianStr, score.CohortSize)
+	}
+	return locale.Tf(lang, "fmt_deal_above_market", medianStr, score.CohortSize)
+}
+
+func FormatDailyDigest(stats []storage.DailySearchStats, lang locale.Lang, now time.Time) string {
+	var b strings.Builder
+
+	dateStr := now.Format("02/01/2006")
+	b.WriteString(locale.Tf(lang, "fmt_market_digest_header", dateStr))
+
+	for _, s := range stats {
+		b.WriteString(locale.Tf(lang, "fmt_market_digest_search", format.EscapeMarkdown(s.SearchName)))
+		b.WriteString(locale.Tf(lang, "fmt_market_digest_new", s.NewCount))
+		b.WriteString(locale.Tf(lang, "fmt_market_digest_avg", format.Number(s.AvgPrice)))
+		b.WriteString(locale.Tf(lang, "fmt_market_digest_best", format.Number(s.BestPrice)))
+
+		if s.BestPriceLink != "" {
+			b.WriteString(locale.Tf(lang, "fmt_market_digest_best_link", format.EscapeMarkdown(s.BestPriceLink)))
+		}
+
+		if s.PriceTrend > 1.0 {
+			b.WriteString(locale.Tf(lang, "fmt_market_digest_trend_up", s.PriceTrend))
+		} else if s.PriceTrend < -1.0 {
+			b.WriteString(locale.Tf(lang, "fmt_market_digest_trend_down", -s.PriceTrend))
+		} else {
+			b.WriteString(locale.T(lang, "fmt_market_digest_trend_flat"))
+		}
+
+		b.WriteString("\n")
 	}
 
 	return b.String()

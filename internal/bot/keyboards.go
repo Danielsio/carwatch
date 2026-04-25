@@ -48,6 +48,8 @@ const (
 	cbHiddenPage      = "hidden_pg:"
 	cbSkipKeywords    = "skip_keywords"
 	cbSkipExcludeKeys = "skip_exclude_keys"
+	cbDailyDigestOn   = "daily_digest:on"
+	cbDailyDigestOff  = "daily_digest:off"
 
 	pageSize   = 15
 	colsPerRow = 3

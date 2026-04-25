@@ -19,6 +19,7 @@ import (
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
+	"github.com/dsionov/carwatch/internal/scoring"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -57,6 +58,8 @@ type Scheduler struct {
 	digestStore       storage.DigestStore
 	hiddenStore       storage.HiddenListingStore
 	catalogIngester   CatalogIngester
+	marketStore       storage.MarketStore
+	dailyDigestStore  storage.DailyDigestStore
 	triggerCh         chan struct{}
 }
 
@@ -70,8 +73,10 @@ type Options struct {
 	SearchStore     storage.SearchStore
 	UserStore       storage.UserStore
 	DigestStore     storage.DigestStore
-	HiddenStore     storage.HiddenListingStore
-	CatalogIngester CatalogIngester
+	HiddenStore      storage.HiddenListingStore
+	CatalogIngester  CatalogIngester
+	MarketStore      storage.MarketStore
+	DailyDigestStore storage.DailyDigestStore
 }
 
 func New(
@@ -120,6 +125,8 @@ func NewWithOptions(
 		digestStore:       opts.DigestStore,
 		hiddenStore:       opts.HiddenStore,
 		catalogIngester:   opts.CatalogIngester,
+		marketStore:       opts.MarketStore,
+		dailyDigestStore:  opts.DailyDigestStore,
 		triggerCh:         make(chan struct{}, 1),
 	}, nil
 }
@@ -387,6 +394,25 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		return nil
 	}
 
+	var marketCache *scoring.MarketCache
+	if s.marketStore != nil {
+		listings, err := s.marketStore.MarketListings(ctx)
+		if err != nil {
+			s.logger.Error("load market data failed", "error", err)
+		} else {
+			data := make([]scoring.ListingData, len(listings))
+			for i, l := range listings {
+				data[i] = scoring.ListingData{
+					Manufacturer: l.Manufacturer,
+					Model:        l.Model,
+					Year:         l.Year,
+					Price:        l.Price,
+				}
+			}
+			marketCache = scoring.NewMarketCache(data)
+		}
+	}
+
 	groups := GroupSearches(searches)
 	s.logger.Info("grouped searches", "groups", len(groups), "total_searches", len(searches))
 
@@ -419,7 +445,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			if err := s.processGroup(ctx, g); err != nil {
+			if err := s.processGroup(ctx, g, marketCache); err != nil {
 				s.logger.Error("group failed",
 					"manufacturer", g.Manufacturer,
 					"model", g.Model,
@@ -445,6 +471,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	}
 
 	s.processDigests(ctx)
+	s.processDailyDigests(ctx)
 
 	if allFailed && len(groups) > 0 {
 		s.observer.RecordError()
@@ -489,7 +516,7 @@ func (s *Scheduler) pruneIfDue(ctx context.Context) {
 	s.lastPruneTime = time.Now()
 }
 
-func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) error {
+func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, marketCache *scoring.MarketCache) error {
 	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 
@@ -588,6 +615,16 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup) erro
 			}
 
 			listing := model.Listing{RawListing: l, SearchName: search.Name}
+			if marketCache != nil && l.Price > 0 {
+				median, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
+				if ok {
+					listing.DealScore = &model.ScoreInfo{
+						Score:       scoring.Score(l.Price, median),
+						MedianPrice: median,
+						CohortSize:  cohort,
+					}
+				}
+			}
 			newListings = append(newListings, listing)
 
 			if s.listingStore != nil {
@@ -731,6 +768,72 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 		"items", len(payloads),
 	)
 	s.observer.RecordNotificationSent()
+}
+
+func (s *Scheduler) processDailyDigests(ctx context.Context) {
+	if s.dailyDigestStore == nil {
+		return
+	}
+
+	users, err := s.dailyDigestStore.ListDailyDigestUsers(ctx)
+	if err != nil {
+		s.logger.Error("list daily digest users failed", "error", err)
+		return
+	}
+
+	now := time.Now().In(s.loc)
+
+	for _, u := range users {
+		targetMinutes := parseTimeOfDayOrZero(u.DigestTime)
+		currentMinutes := now.Hour()*60 + now.Minute()
+
+		diff := currentMinutes - targetMinutes
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff > 12*60 {
+			diff = 24*60 - diff
+		}
+		if diff > 15 {
+			continue
+		}
+
+		lastSentLocal := u.LastSent.In(s.loc)
+		if lastSentLocal.Year() == now.Year() &&
+			lastSentLocal.Month() == now.Month() &&
+			lastSentLocal.Day() == now.Day() {
+			continue
+		}
+
+		s.sendDailyDigest(ctx, u.ChatID)
+	}
+}
+
+func (s *Scheduler) sendDailyDigest(ctx context.Context, chatID int64) {
+	stats, err := s.dailyDigestStore.DailyStats(ctx, chatID)
+	if err != nil {
+		s.logger.Error("compute daily stats failed", "chat_id", chatID, "error", err)
+		return
+	}
+
+	if len(stats) == 0 {
+		return
+	}
+
+	lang := s.userLang(ctx, chatID)
+	msg := notifier.FormatDailyDigest(stats, lang, time.Now().In(s.loc))
+
+	chatIDStr := fmt.Sprintf("%d", chatID)
+	if err := s.notifier.NotifyRaw(ctx, chatIDStr, msg); err != nil {
+		s.logger.Error("send daily digest failed", "chat_id", chatID, "error", err)
+		return
+	}
+
+	if err := s.dailyDigestStore.UpdateDailyDigestLastSent(ctx, chatID); err != nil {
+		s.logger.Error("update daily digest last sent failed", "chat_id", chatID, "error", err)
+	}
+
+	s.logger.Info("daily digest sent", "chat_id", chatID, "searches", len(stats))
 }
 
 func (s *Scheduler) userLang(ctx context.Context, chatID int64) locale.Lang {

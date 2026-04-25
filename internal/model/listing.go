@@ -27,7 +27,14 @@ type RawListing struct {
 	UpdatedAt    time.Time
 }
 
+type ScoreInfo struct {
+	Score       int
+	MedianPrice int
+	CohortSize  int
+}
+
 type Listing struct {
 	RawListing
 	SearchName string
+	DealScore  *ScoreInfo
 }

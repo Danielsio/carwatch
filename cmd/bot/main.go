@@ -118,9 +118,11 @@ func run(configPath string, logger *slog.Logger) error {
 		BotUsername:   cfg.Telegram.BotUsername,
 		PollInterval: cfg.Polling.Interval,
 		Health:       h,
+		Digests:      store,
 		Listings:     store,
 		Saved:        store,
 		Hidden:       store,
+		DailyDigests: store,
 		Catalog:      dynCatalog,
 	}, logger)
 
@@ -167,16 +169,19 @@ func run(configPath string, logger *slog.Logger) error {
 	}()
 
 	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, tgNotif, logger, scheduler.Options{
-		Observer:        h,
-		Queue:           store,
-		Prices:          store,
-		ConfigPath:      configPath,
-		FetcherFactory:  fetcherFactory,
-		ListingStore:    store,
-		SearchStore:     store,
-		UserStore:       store,
-		HiddenStore:     store,
-		CatalogIngester: dynCatalog,
+		Observer:         h,
+		Queue:            store,
+		Prices:           store,
+		ConfigPath:       configPath,
+		FetcherFactory:   fetcherFactory,
+		ListingStore:     store,
+		SearchStore:      store,
+		UserStore:        store,
+		DigestStore:      store,
+		HiddenStore:      store,
+		CatalogIngester:  dynCatalog,
+		MarketStore:      store,
+		DailyDigestStore: store,
 	})
 	if err != nil {
 		return fmt.Errorf("create scheduler: %w", err)

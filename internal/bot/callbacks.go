@@ -99,6 +99,10 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 		b.onHiddenPage(ctx, chatID, data)
 	case data == cbHiddenClear:
 		b.onClearHidden(ctx, chatID)
+	case data == cbDailyDigestOn:
+		b.onDailyDigestOn(ctx, chatID)
+	case data == cbDailyDigestOff:
+		b.onDailyDigestOff(ctx, chatID)
 	case data == "watch":
 		b.onWatchFromCallback(ctx, chatID)
 	case data == "noop":
@@ -344,4 +348,44 @@ func (b *Bot) onClearHidden(ctx context.Context, chatID int64) {
 		return
 	}
 	b.send(ctx, chatID, locale.T(lang, "hidden_cleared"))
+}
+
+func (b *Bot) onDailyDigestOn(ctx context.Context, chatID int64) {
+	if b.dailyDigests == nil {
+		return
+	}
+	lang := b.getUserLang(ctx, chatID)
+	_, digestTime, _, err := b.dailyDigests.GetDailyDigest(ctx, chatID)
+	if err != nil {
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	if digestTime == "" {
+		digestTime = "09:00"
+	}
+	if err := b.dailyDigests.SetDailyDigest(ctx, chatID, true, digestTime); err != nil {
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	b.sendMarkdown(ctx, chatID, locale.Tf(lang, "daily_digest_enabled", digestTime))
+}
+
+func (b *Bot) onDailyDigestOff(ctx context.Context, chatID int64) {
+	if b.dailyDigests == nil {
+		return
+	}
+	lang := b.getUserLang(ctx, chatID)
+	_, digestTime, _, err := b.dailyDigests.GetDailyDigest(ctx, chatID)
+	if err != nil {
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	if digestTime == "" {
+		digestTime = "09:00"
+	}
+	if err := b.dailyDigests.SetDailyDigest(ctx, chatID, false, digestTime); err != nil {
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	b.sendMarkdown(ctx, chatID, locale.T(lang, "daily_digest_disabled"))
 }

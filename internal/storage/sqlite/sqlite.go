@@ -280,6 +280,30 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	// Add daily digest columns to users table if they don't exist.
+	for _, col := range []struct {
+		name string
+		def  string
+	}{
+		{"daily_digest", "BOOLEAN NOT NULL DEFAULT false"},
+		{"daily_digest_time", "TEXT NOT NULL DEFAULT '09:00'"},
+		{"daily_digest_last_sent", "TIMESTAMP NOT NULL DEFAULT '1970-01-01 00:00:00'"},
+	} {
+		var ddCount int
+		err := db.QueryRow(
+			"SELECT COUNT(*) FROM pragma_table_info('users') WHERE name = ?", col.name,
+		).Scan(&ddCount)
+		if err != nil {
+			return fmt.Errorf("check column %s: %w", col.name, err)
+		}
+		if ddCount == 0 {
+			_, err = db.Exec(fmt.Sprintf("ALTER TABLE users ADD COLUMN %s %s", col.name, col.def))
+			if err != nil {
+				return fmt.Errorf("add column %s: %w", col.name, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -1000,6 +1024,146 @@ func (s *Store) ClearHidden(ctx context.Context, chatID int64) error {
 	_, err := s.db.ExecContext(ctx,
 		"DELETE FROM hidden_listings WHERE chat_id = ?", chatID)
 	return err
+}
+
+// --- MarketStore ---
+
+func (s *Store) MarketListings(ctx context.Context) ([]storage.MarketListing, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT MAX(manufacturer), MAX(model), MAX(year), MAX(price)
+		FROM listing_history
+		WHERE manufacturer IS NOT NULL AND manufacturer != ''
+		  AND model IS NOT NULL AND model != ''
+		  AND year > 0 AND price > 0
+		GROUP BY token`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var listings []storage.MarketListing
+	for rows.Next() {
+		var l storage.MarketListing
+		if err := rows.Scan(&l.Manufacturer, &l.Model, &l.Year, &l.Price); err != nil {
+			return nil, err
+		}
+		listings = append(listings, l)
+	}
+	return listings, rows.Err()
+}
+
+// --- DailyDigestStore ---
+
+func (s *Store) SetDailyDigest(ctx context.Context, chatID int64, enabled bool, digestTime string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE users SET daily_digest = ?, daily_digest_time = ? WHERE chat_id = ?",
+		enabled, digestTime, chatID)
+	return err
+}
+
+func (s *Store) GetDailyDigest(ctx context.Context, chatID int64) (bool, string, time.Time, error) {
+	var enabled bool
+	var digestTime string
+	var lastSent time.Time
+	err := s.db.QueryRowContext(ctx,
+		"SELECT daily_digest, daily_digest_time, daily_digest_last_sent FROM users WHERE chat_id = ?",
+		chatID).Scan(&enabled, &digestTime, &lastSent)
+	if err == sql.ErrNoRows {
+		return false, "09:00", time.Time{}, nil
+	}
+	return enabled, digestTime, lastSent, err
+}
+
+func (s *Store) UpdateDailyDigestLastSent(ctx context.Context, chatID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE users SET daily_digest_last_sent = ? WHERE chat_id = ?",
+		time.Now(), chatID)
+	return err
+}
+
+func (s *Store) ListDailyDigestUsers(ctx context.Context) ([]storage.DailyDigestUser, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT chat_id, daily_digest_time, daily_digest_last_sent
+		FROM users
+		WHERE daily_digest = true AND active = true`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var users []storage.DailyDigestUser
+	for rows.Next() {
+		var u storage.DailyDigestUser
+		if err := rows.Scan(&u.ChatID, &u.DigestTime, &u.LastSent); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+func (s *Store) DailyStats(ctx context.Context, chatID int64) ([]storage.DailySearchStats, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		WITH search_listings AS (
+			SELECT s.id AS search_id, s.name AS search_name,
+			       lh.price, lh.page_link, lh.first_seen_at
+			FROM listing_history lh
+			JOIN searches s ON s.name = lh.search_name AND s.chat_id = lh.chat_id
+			WHERE lh.chat_id = ? AND s.active = true AND lh.price > 0
+		)
+		SELECT
+			sl.search_name,
+			SUM(CASE WHEN sl.first_seen_at >= datetime('now', '-1 day') THEN 1 ELSE 0 END),
+			CAST(AVG(sl.price) AS INTEGER),
+			MIN(sl.price),
+			(SELECT sl2.page_link FROM search_listings sl2
+			 WHERE sl2.search_id = sl.search_id
+			 ORDER BY sl2.price ASC LIMIT 1)
+		FROM search_listings sl
+		GROUP BY sl.search_id
+		HAVING COUNT(*) >= 5`, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var stats []storage.DailySearchStats
+	for rows.Next() {
+		var ds storage.DailySearchStats
+		if err := rows.Scan(&ds.SearchName, &ds.NewCount, &ds.AvgPrice,
+			&ds.BestPrice, &ds.BestPriceLink); err != nil {
+			return nil, err
+		}
+		stats = append(stats, ds)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for i, stat := range stats {
+		var recentAvg, olderAvg sql.NullFloat64
+		if err := s.db.QueryRowContext(ctx, `
+			SELECT AVG(price) FROM listing_history
+			WHERE chat_id = ? AND search_name = ? AND price > 0
+			  AND first_seen_at >= datetime('now', '-1 day')`,
+			chatID, stat.SearchName).Scan(&recentAvg); err != nil {
+			return nil, err
+		}
+		if err := s.db.QueryRowContext(ctx, `
+			SELECT AVG(price) FROM listing_history
+			WHERE chat_id = ? AND search_name = ? AND price > 0
+			  AND first_seen_at >= datetime('now', '-7 days')
+			  AND first_seen_at < datetime('now', '-1 day')`,
+			chatID, stat.SearchName).Scan(&olderAvg); err != nil {
+			return nil, err
+		}
+
+		if recentAvg.Valid && olderAvg.Valid && olderAvg.Float64 > 0 {
+			stats[i].PriceTrend = ((recentAvg.Float64 - olderAvg.Float64) / olderAvg.Float64) * 100
+		}
+	}
+
+	return stats, nil
 }
 
 // --- Close ---
