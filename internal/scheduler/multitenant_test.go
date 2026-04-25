@@ -314,6 +314,20 @@ func (m *mockDigestStore) FlushDigest(_ context.Context, chatID int64) ([]string
 	return items, nil
 }
 
+func (m *mockDigestStore) PeekDigest(_ context.Context, chatID int64) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.items[chatID], nil
+}
+
+func (m *mockDigestStore) AckDigest(_ context.Context, chatID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.items, chatID)
+	m.flushed[chatID] = time.Now()
+	return nil
+}
+
 func (m *mockDigestStore) PendingDigestUsers(_ context.Context) ([]int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

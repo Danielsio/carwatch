@@ -863,6 +863,42 @@ func (s *Store) FlushDigest(ctx context.Context, chatID int64) ([]string, error)
 	return payloads, nil
 }
 
+func (s *Store) PeekDigest(ctx context.Context, chatID int64) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT listing_payload FROM pending_digest WHERE chat_id = ? ORDER BY created_at", chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var payloads []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		payloads = append(payloads, p)
+	}
+	return payloads, rows.Err()
+}
+
+func (s *Store) AckDigest(ctx context.Context, chatID int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM pending_digest WHERE chat_id = ?", chatID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE users SET digest_last_flushed = CURRENT_TIMESTAMP WHERE chat_id = ?", chatID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *Store) PendingDigestUsers(ctx context.Context) ([]int64, error) {
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT DISTINCT chat_id FROM pending_digest")

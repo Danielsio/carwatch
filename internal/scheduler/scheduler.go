@@ -742,9 +742,9 @@ func (s *Scheduler) processDigests(ctx context.Context) {
 }
 
 func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
-	payloads, err := s.digestStore.FlushDigest(ctx, chatID)
+	payloads, err := s.digestStore.PeekDigest(ctx, chatID)
 	if err != nil {
-		s.logger.Error("flush digest failed", "chat_id", chatID, "error", err)
+		s.logger.Error("peek digest failed", "chat_id", chatID, "error", err)
 		return
 	}
 	if len(payloads) == 0 {
@@ -757,12 +757,16 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 	combined := header + strings.Join(payloads, "\n\n━━━━━━━━━━━━━━━━━━━━\n\n")
 
 	if err := s.notifier.NotifyRaw(ctx, chatIDStr, combined); err != nil {
-		s.logger.Error("send digest failed",
+		s.logger.Error("send digest failed, items preserved for retry",
 			"chat_id", chatID,
 			"items", len(payloads),
 			"error", err,
 		)
 		return
+	}
+
+	if err := s.digestStore.AckDigest(ctx, chatID); err != nil {
+		s.logger.Error("ack digest failed", "chat_id", chatID, "error", err)
 	}
 
 	s.logger.Info("digest sent",

@@ -98,6 +98,8 @@ type DigestStore interface {
 	GetDigestMode(ctx context.Context, chatID int64) (mode string, interval string, err error)
 	AddDigestItem(ctx context.Context, chatID int64, payload string) error
 	FlushDigest(ctx context.Context, chatID int64) ([]string, error)
+	PeekDigest(ctx context.Context, chatID int64) ([]string, error)
+	AckDigest(ctx context.Context, chatID int64) error
 	PendingDigestUsers(ctx context.Context) ([]int64, error)
 	DigestLastFlushed(ctx context.Context, chatID int64) (time.Time, error)
 }

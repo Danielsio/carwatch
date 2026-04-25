@@ -114,6 +114,17 @@ func (m *errDigestStore) FlushDigest(ctx context.Context, chatID int64) ([]strin
 	return m.mockDigestStore.FlushDigest(ctx, chatID)
 }
 
+func (m *errDigestStore) PeekDigest(ctx context.Context, chatID int64) ([]string, error) {
+	if m.flushErr != nil {
+		return nil, m.flushErr
+	}
+	return m.mockDigestStore.PeekDigest(ctx, chatID)
+}
+
+func (m *errDigestStore) AckDigest(ctx context.Context, chatID int64) error {
+	return m.mockDigestStore.AckDigest(ctx, chatID)
+}
+
 func (m *errDigestStore) PendingDigestUsers(_ context.Context) ([]int64, error) {
 	if m.pendingErr != nil {
 		return nil, m.pendingErr
