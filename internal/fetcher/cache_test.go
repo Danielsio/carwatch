@@ -77,8 +77,22 @@ func TestCachingFetcher_EvictsOldest(t *testing.T) {
 	cf := NewCachingFetcher(inner, time.Hour)
 	ctx := context.Background()
 
-	// Fill cache well past maxCacheEntries with unique params.
-	for i := 0; i < maxCacheEntries+20; i++ {
+	// Fill cache to capacity.
+	for i := 0; i < maxCacheEntries; i++ {
+		params := config.SourceParams{Manufacturer: i, Model: 1}
+		if _, err := cf.Fetch(ctx, params); err != nil {
+			t.Fatalf("fetch %d: %v", i, err)
+		}
+	}
+
+	// Touch an early key to mark it recently used.
+	touchedParams := config.SourceParams{Manufacturer: 0, Model: 1}
+	if _, err := cf.Fetch(ctx, touchedParams); err != nil {
+		t.Fatalf("touch fetch: %v", err)
+	}
+
+	// Add entries past capacity to force eviction.
+	for i := maxCacheEntries; i < maxCacheEntries+20; i++ {
 		params := config.SourceParams{Manufacturer: i, Model: 1}
 		if _, err := cf.Fetch(ctx, params); err != nil {
 			t.Fatalf("fetch %d: %v", i, err)
@@ -87,9 +101,19 @@ func TestCachingFetcher_EvictsOldest(t *testing.T) {
 
 	cf.mu.RLock()
 	size := len(cf.cache)
+	touchedKey := cacheKey(touchedParams)
+	_, touchedExists := cf.cache[touchedKey]
+	untouchedKey := cacheKey(config.SourceParams{Manufacturer: 1, Model: 1})
+	_, untouchedExists := cf.cache[untouchedKey]
 	cf.mu.RUnlock()
 
 	if size > maxCacheEntries {
 		t.Errorf("cache size = %d, want <= %d", size, maxCacheEntries)
+	}
+	if !touchedExists {
+		t.Error("touched key should survive eviction (LRU)")
+	}
+	if untouchedExists {
+		t.Error("untouched early key should have been evicted (LRU)")
 	}
 }

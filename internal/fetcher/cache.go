@@ -41,12 +41,7 @@ func (c *CachingFetcher) Fetch(ctx context.Context, params config.SourceParams) 
 	c.mu.RUnlock()
 
 	if ok && time.Since(entry.fetchedAt) < c.ttl {
-		c.mu.Lock()
-		if cur, exists := c.cache[key]; exists {
-			cur.lastUsed = time.Now()
-			c.cache[key] = cur
-		}
-		c.mu.Unlock()
+		c.touch(key)
 		return entry.listings, nil
 	}
 
@@ -59,6 +54,7 @@ func (c *CachingFetcher) Fetch(ctx context.Context, params config.SourceParams) 
 			return listings, err
 		}
 		if ok {
+			c.touch(key)
 			return entry.listings, nil
 		}
 		return nil, err
@@ -105,6 +101,15 @@ func (c *CachingFetcher) evictOldest() {
 			break
 		}
 		delete(c.cache, item.key)
+	}
+}
+
+func (c *CachingFetcher) touch(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cur, exists := c.cache[key]; exists {
+		cur.lastUsed = time.Now()
+		c.cache[key] = cur
 	}
 }
 

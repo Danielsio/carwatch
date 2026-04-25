@@ -329,7 +329,10 @@ func TestE2E_DigestFlow(t *testing.T) {
 		t.Fatalf("ack: %v", err)
 	}
 
-	payloads, _, _ = store.PeekDigest(ctx, 100)
+	payloads, _, err = store.PeekDigest(ctx, 100)
+	if err != nil {
+		t.Fatalf("peek after ack: %v", err)
+	}
 	if len(payloads) != 0 {
 		t.Error("peek after ack should be empty")
 	}
