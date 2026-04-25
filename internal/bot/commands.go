@@ -354,39 +354,49 @@ func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 		return
 	}
 
-	var kb *tgmodels.InlineKeyboardMarkup
+	var rows [][]tgmodels.InlineKeyboardButton
+	var msgText string
 	if mode == "digest" {
-		kb = &tgmodels.InlineKeyboardMarkup{
-			InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
-				{
-					{Text: "2h", CallbackData: cbDigestInterval + "2h"},
-					{Text: "6h", CallbackData: cbDigestInterval + "6h"},
-					{Text: "12h", CallbackData: cbDigestInterval + "12h"},
-					{Text: "24h", CallbackData: cbDigestInterval + "24h"},
-				},
-				{
-					{Text: locale.T(lang, "btn_switch_instant"), CallbackData: cbDigestOff},
-				},
-			},
-		}
-		b.sendWithKeyboard(ctx, chatID,
-			locale.Tf(lang, "digest_mode_digest", interval), kb)
+		rows = append(rows, []tgmodels.InlineKeyboardButton{
+			{Text: "2h", CallbackData: cbDigestInterval + "2h"},
+			{Text: "6h", CallbackData: cbDigestInterval + "6h"},
+			{Text: "12h", CallbackData: cbDigestInterval + "12h"},
+			{Text: "24h", CallbackData: cbDigestInterval + "24h"},
+		})
+		rows = append(rows, []tgmodels.InlineKeyboardButton{
+			{Text: locale.T(lang, "btn_switch_instant"), CallbackData: cbDigestOff},
+		})
+		msgText = locale.Tf(lang, "digest_mode_digest", interval)
 	} else {
-		kb = &tgmodels.InlineKeyboardMarkup{
-			InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
-				{
-					{Text: "2h", CallbackData: cbDigestInterval + "2h"},
-					{Text: "6h", CallbackData: cbDigestInterval + "6h"},
-				},
-				{
-					{Text: "12h", CallbackData: cbDigestInterval + "12h"},
-					{Text: "24h", CallbackData: cbDigestInterval + "24h"},
-				},
-			},
-		}
-		b.sendWithKeyboard(ctx, chatID,
-			locale.T(lang, "digest_mode_instant"), kb)
+		rows = append(rows, []tgmodels.InlineKeyboardButton{
+			{Text: "2h", CallbackData: cbDigestInterval + "2h"},
+			{Text: "6h", CallbackData: cbDigestInterval + "6h"},
+		})
+		rows = append(rows, []tgmodels.InlineKeyboardButton{
+			{Text: "12h", CallbackData: cbDigestInterval + "12h"},
+			{Text: "24h", CallbackData: cbDigestInterval + "24h"},
+		})
+		msgText = locale.T(lang, "digest_mode_instant")
 	}
+
+	if b.dailyDigests != nil {
+		enabled, digestTime, _, ddErr := b.dailyDigests.GetDailyDigest(ctx, chatID)
+		if ddErr == nil {
+			if enabled {
+				rows = append(rows, []tgmodels.InlineKeyboardButton{
+					{Text: locale.T(lang, "btn_daily_digest_off"), CallbackData: cbDailyDigestOff},
+				})
+				msgText += "\n\n" + locale.Tf(lang, "daily_digest_enabled", digestTime)
+			} else {
+				rows = append(rows, []tgmodels.InlineKeyboardButton{
+					{Text: locale.T(lang, "btn_daily_digest_on"), CallbackData: cbDailyDigestOn},
+				})
+			}
+		}
+	}
+
+	kb := &tgmodels.InlineKeyboardMarkup{InlineKeyboard: rows}
+	b.sendWithKeyboard(ctx, chatID, msgText, kb)
 }
 
 func (b *Bot) handleLanguage(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {

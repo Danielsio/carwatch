@@ -49,7 +49,7 @@ var he = map[string]string{
 		"/share <מספר> — שתף חיפוש בקישור\n" +
 		"/saved — צפה ברכבים שמורים\n" +
 		"/hidden — צפה ברכבים מוסתרים\n" +
-		"/digest — החלף מצב התראות (מיידי/סיכום)\n" +
+		"/digest — התראות וסיכום שוק יומי\n" +
 		"/language — שנה שפה\n" +
 		"/settings — הצג הגדרות\n" +
 		"/cancel — בטל אשף נוכחי\n" +
@@ -270,6 +270,30 @@ var he = map[string]string{
 	"fmt_batch_item":       "*[%d/%d]*\n",
 	"fmt_digest_header":    "*סיכום יומי (%d פריטים):*\n",
 
+	// deal scoring
+	"fmt_deal_score":        "📊 ציון עסקה: %d/100\n",
+	"fmt_deal_below_market": "%d%% מתחת לשוק (חציון ₪%s · %d מודעות)\n",
+	"fmt_deal_near_market":  "קרוב למחיר השוק (חציון ₪%s · %d מודעות)\n",
+	"fmt_deal_above_market": "מעל מחיר השוק (חציון ₪%s · %d מודעות)\n",
+	"fmt_deal_no_data":      "📊 _אין מספיק נתוני שוק עדיין_\n",
+
+	// daily market digest
+	"fmt_market_digest_header":     "📈 *סיכום שוק יומי* — %s\n\n",
+	"fmt_market_digest_search":     "*%s:*\n",
+	"fmt_market_digest_new":        "  🆕 חדשות (24ש): %d\n",
+	"fmt_market_digest_avg":        "  💰 מחיר ממוצע: ₪%s\n",
+	"fmt_market_digest_best":       "  ⭐ הכי טוב: ₪%s\n",
+	"fmt_market_digest_best_link":  "    🔗 %s\n",
+	"fmt_market_digest_trend_up":   "  📈 מגמה עולה %.1f%%\n",
+	"fmt_market_digest_trend_down": "  📉 מגמה יורדת %.1f%%\n",
+	"fmt_market_digest_trend_flat": "  ➡️ מחירים יציבים\n",
+
+	// daily digest settings
+	"daily_digest_enabled":  "סיכום שוק יומי *מופעל* בשעה %s (שעון ישראל).",
+	"daily_digest_disabled": "סיכום שוק יומי *כבוי*.",
+	"btn_daily_digest_on":   "📈 הפעל סיכום יומי",
+	"btn_daily_digest_off":  "📈 כבה סיכום יומי",
+
 	// onboarding
 	"onboarding_welcome": "ברוכים הבאים ל-*CarWatch*! 🚗\n\n" +
 		"אני עוקב אחרי מודעות רכב ביד2 ו-WinWin ושולח לך התראות כשמופיעים רכבים חדשים.\n\n" +
@@ -296,7 +320,7 @@ var en = map[string]string{
 		"/share <id> — Share a search via link\n" +
 		"/saved — View saved listings\n" +
 		"/hidden — View hidden listings\n" +
-		"/digest — Toggle notification mode (instant/digest)\n" +
+		"/digest — Notifications & daily market summary\n" +
 		"/language — Change language\n" +
 		"/settings — View your settings\n" +
 		"/cancel — Cancel current wizard\n" +
@@ -516,6 +540,30 @@ var en = map[string]string{
 	"fmt_batch_header":     "🚗 *%d New Listings Found*\n",
 	"fmt_batch_item":       "*[%d/%d]*\n",
 	"fmt_digest_header":    "*Digest Summary (%d items):*\n",
+
+	// deal scoring
+	"fmt_deal_score":        "📊 Deal Score: %d/100\n",
+	"fmt_deal_below_market": "%d%% below market (₪%s median · %d listings)\n",
+	"fmt_deal_near_market":  "Near market price (₪%s median · %d listings)\n",
+	"fmt_deal_above_market": "Above market price (₪%s median · %d listings)\n",
+	"fmt_deal_no_data":      "📊 _Not enough market data yet_\n",
+
+	// daily market digest
+	"fmt_market_digest_header":     "📈 *Daily Market Summary* — %s\n\n",
+	"fmt_market_digest_search":     "*%s:*\n",
+	"fmt_market_digest_new":        "  🆕 New (24h): %d\n",
+	"fmt_market_digest_avg":        "  💰 Avg price: ₪%s\n",
+	"fmt_market_digest_best":       "  ⭐ Best: ₪%s\n",
+	"fmt_market_digest_best_link":  "    🔗 %s\n",
+	"fmt_market_digest_trend_up":   "  📈 Trending up %.1f%%\n",
+	"fmt_market_digest_trend_down": "  📉 Trending down %.1f%%\n",
+	"fmt_market_digest_trend_flat": "  ➡️ Prices stable\n",
+
+	// daily digest settings
+	"daily_digest_enabled":  "Daily market summary *enabled* at %s Israel time.",
+	"daily_digest_disabled": "Daily market summary *disabled*.",
+	"btn_daily_digest_on":   "📈 Enable Daily Summary",
+	"btn_daily_digest_off":  "📈 Disable Daily Summary",
 
 	// onboarding
 	"onboarding_welcome": "Welcome to *CarWatch*! 🚗\n\n" +
