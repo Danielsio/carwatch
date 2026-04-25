@@ -388,6 +388,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	}
 
 	s.pruneIfDue(ctx)
+	s.processExpiredPremium(ctx)
 
 	if len(searches) == 0 {
 		s.logger.Info("no active searches")
@@ -472,7 +473,6 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 
 	s.processDigests(ctx)
 	s.processDailyDigests(ctx)
-	s.processExpiredPremium(ctx)
 
 	if allFailed && len(groups) > 0 {
 		s.observer.RecordError()
@@ -574,6 +574,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 		filtered := filter.Apply(criteria, raw)
 
 		lang := s.userLang(ctx, search.ChatID)
+		isPremium := s.isUserPremium(ctx, search.ChatID)
 
 		var newListings []model.Listing
 		var priceDropMessages []string
@@ -599,7 +600,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 				oldPrice, changed, err := s.prices.RecordPrice(ctx, l.Token, l.Price)
 				if err != nil {
 					s.logger.Error("record price failed", "token", l.Token, "error", err)
-				} else if changed && l.Price < oldPrice && s.isUserPremium(ctx, search.ChatID) {
+				} else if changed && l.Price < oldPrice && isPremium {
 					s.logger.Info("price drop detected",
 						"token", l.Token,
 						"old_price", oldPrice,
@@ -616,7 +617,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 			}
 
 			listing := model.Listing{RawListing: l, SearchName: search.Name}
-			if marketCache != nil && l.Price > 0 && s.isUserPremium(ctx, search.ChatID) {
+			if marketCache != nil && l.Price > 0 && isPremium {
 				median, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
 				if ok {
 					listing.DealScore = &model.ScoreInfo{

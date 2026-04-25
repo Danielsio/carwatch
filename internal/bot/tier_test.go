@@ -203,18 +203,36 @@ func TestTrialGrantOnStart(t *testing.T) {
 func TestTrialNotGrantedOnSecondStart(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
-	tb.createUser(ctx, t, 100, "user1")
 
-	// /start on existing user
+	// First /start grants trial
 	tb.simulateCommand(ctx, 100, "/start")
 
 	user, err := tb.store.GetUser(ctx, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.Tier == TierPremium {
-		t.Fatal("should not grant trial on second /start")
+	if user.Tier != TierPremium {
+		t.Fatalf("expected premium after first /start, got: %s", user.Tier)
 	}
+	firstExpiry := user.TierExpires
+
+	// Downgrade to free (simulating expiry)
+	if err := tb.store.SetUserTier(ctx, 100, TierFree, time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Second /start should NOT re-grant trial (trial_used is already true)
+	tb.msg.reset()
+	tb.simulateCommand(ctx, 100, "/start")
+
+	user, err = tb.store.GetUser(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.Tier == TierPremium {
+		t.Fatal("should not re-grant trial on second /start")
+	}
+	_ = firstExpiry
 }
 
 func TestDailyDigestGatedBehindPremium(t *testing.T) {

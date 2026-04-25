@@ -20,8 +20,11 @@ func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	chatID := update.Message.Chat.ID
 	username := update.Message.From.Username
 
-	existing, _ := b.users.GetUser(ctx, chatID)
-	isNewUser := existing == nil
+	existing, err := b.users.GetUser(ctx, chatID)
+	if err != nil {
+		b.logger.Error("get user failed", "chat_id", chatID, "error", err)
+	}
+	isNewUser := err == nil && existing == nil
 
 	b.ensureUser(ctx, chatID, username)
 

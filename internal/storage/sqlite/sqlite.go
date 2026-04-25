@@ -1195,18 +1195,38 @@ func (s *Store) DailyStats(ctx context.Context, chatID int64) ([]storage.DailySe
 // --- TierStore ---
 
 func (s *Store) SetUserTier(ctx context.Context, chatID int64, tier string, expires time.Time) error {
-	_, err := s.db.ExecContext(ctx,
+	res, err := s.db.ExecContext(ctx,
 		"UPDATE users SET tier = ?, tier_expires_at = ? WHERE chat_id = ?",
 		tier, expires, chatID)
-	return err
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return storage.ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) GrantTrial(ctx context.Context, chatID int64, duration time.Duration) error {
 	expires := time.Now().Add(duration)
-	_, err := s.db.ExecContext(ctx,
-		"UPDATE users SET tier = 'premium', tier_expires_at = ?, trial_used = true WHERE chat_id = ?",
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE users SET tier = 'premium', tier_expires_at = ?, trial_used = true WHERE chat_id = ? AND trial_used = false",
 		expires, chatID)
-	return err
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return storage.ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) ListExpiredPremium(ctx context.Context) ([]storage.User, error) {

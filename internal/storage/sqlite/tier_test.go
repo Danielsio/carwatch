@@ -2,8 +2,11 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 func TestSetUserTier(t *testing.T) {
@@ -119,6 +122,63 @@ func TestListExpiredPremiumExcludesFree(t *testing.T) {
 	}
 	if len(expired) != 0 {
 		t.Fatalf("expected 0 expired, got %d", len(expired))
+	}
+}
+
+func TestSetUserTierNonexistentChatID(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	err := store.SetUserTier(ctx, 999, "premium", time.Now().Add(24*time.Hour))
+	if err == nil {
+		t.Fatal("expected error for nonexistent chat_id")
+	}
+	if !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got: %v", err)
+	}
+}
+
+func TestGrantTrialTwice(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if err := store.UpsertUser(ctx, 100, "user1"); err != nil {
+		t.Fatal(err)
+	}
+
+	// First grant should succeed
+	if err := store.GrantTrial(ctx, 100, 7*24*time.Hour); err != nil {
+		t.Fatal(err)
+	}
+
+	user, err := store.GetUser(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !user.TrialUsed {
+		t.Fatal("expected trial_used to be true after first grant")
+	}
+	firstExpiry := user.TierExpires
+
+	// Second grant should fail (trial already used)
+	err = store.GrantTrial(ctx, 100, 7*24*time.Hour)
+	if err == nil {
+		t.Fatal("expected error on second GrantTrial")
+	}
+	if !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got: %v", err)
+	}
+
+	// Verify state unchanged
+	user, err = store.GetUser(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.Tier != "premium" {
+		t.Fatalf("tier should remain premium, got: %s", user.Tier)
+	}
+	if !user.TierExpires.Equal(firstExpiry) {
+		t.Fatal("expiry should not have changed on second grant attempt")
 	}
 }
 
