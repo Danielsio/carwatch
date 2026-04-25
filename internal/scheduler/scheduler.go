@@ -838,12 +838,44 @@ func (s *Scheduler) sendDailyDigest(ctx context.Context, chatID int64) {
 	s.logger.Info("daily digest sent", "chat_id", chatID, "searches", len(stats))
 }
 
+func (s *Scheduler) deactivateExcessSearches(ctx context.Context, chatID int64, maxActive int) {
+	if s.searchStore == nil {
+		return
+	}
+	searches, err := s.searchStore.ListSearches(ctx, chatID)
+	if err != nil {
+		s.logger.Error("list searches for downgrade failed", "chat_id", chatID, "error", err)
+		return
+	}
+	var active []storage.Search
+	for _, sr := range searches {
+		if sr.Active {
+			active = append(active, sr)
+		}
+	}
+	if len(active) <= maxActive {
+		return
+	}
+	// Keep the oldest (last in the slice since ListSearches orders by created_at DESC), pause the rest.
+	for i := 0; i < len(active)-maxActive; i++ {
+		if err := s.searchStore.SetSearchActive(ctx, active[i].ID, false); err != nil {
+			s.logger.Error("deactivate excess search failed", "chat_id", chatID, "search_id", active[i].ID, "error", err)
+		}
+	}
+	s.logger.Info("deactivated excess searches on downgrade",
+		"chat_id", chatID, "paused", len(active)-maxActive, "kept", maxActive)
+}
+
 func (s *Scheduler) isUserPremium(ctx context.Context, chatID int64) bool {
 	if s.userStore == nil {
 		return false
 	}
 	user, err := s.userStore.GetUser(ctx, chatID)
-	if err != nil || user == nil {
+	if err != nil {
+		s.logger.Error("premium check failed, defaulting to free", "chat_id", chatID, "error", err)
+		return false
+	}
+	if user == nil {
 		return false
 	}
 	return user.Tier == "premium" && (user.TierExpires.IsZero() || user.TierExpires.After(time.Now()))
@@ -868,6 +900,7 @@ func (s *Scheduler) processExpiredPremium(ctx context.Context) {
 				s.logger.Error("disable daily digest on downgrade failed", "chat_id", u.ChatID, "error", err)
 			}
 		}
+		s.deactivateExcessSearches(ctx, u.ChatID, 1)
 		lang := s.userLang(ctx, u.ChatID)
 		chatIDStr := fmt.Sprintf("%d", u.ChatID)
 		if err := s.notifier.NotifyRaw(ctx, chatIDStr, locale.T(lang, "premium_expired")); err != nil {
