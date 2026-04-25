@@ -148,7 +148,7 @@ func run(configPath string, logger *slog.Logger) error {
 	mux.HandleFunc("/healthz", h.Handler())
 	mux.Handle("/dashboard", dash)
 	srv := &http.Server{
-		Addr:              ":8080",
+		Addr:              cfg.HTTP.Bind,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
