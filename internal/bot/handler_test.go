@@ -875,7 +875,7 @@ func TestHandleResume(t *testing.T) {
 
 	tb.createUser(ctx, t, chatID, "alice")
 	id, _ := tb.store.CreateSearch(ctx, newFakeSearch(chatID, 27))
-	_ = tb.store.SetSearchActive(ctx, id, false)
+	_ = tb.store.SetSearchActive(ctx, id, chatID, false)
 	tb.msg.reset()
 
 	update := fakeMessage(chatID, fmt.Sprintf("/resume %d", id))

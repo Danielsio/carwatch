@@ -107,7 +107,7 @@ func (m *errSearchStore) DeleteSearch(_ context.Context, _ int64, _ int64) error
 	return m.deleteErr
 }
 
-func (m *errSearchStore) SetSearchActive(_ context.Context, _ int64, _ bool) error {
+func (m *errSearchStore) SetSearchActive(_ context.Context, _, _ int64, _ bool) error {
 	return m.setActiveErr
 }
 

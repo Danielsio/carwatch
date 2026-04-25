@@ -31,7 +31,7 @@ func TestPauseSearch(t *testing.T) {
 	}
 
 	// Pause it
-	if err := store.SetSearchActive(ctx, id, false); err != nil {
+	if err := store.SetSearchActive(ctx, id, 200, false); err != nil {
 		t.Fatalf("pause search: %v", err)
 	}
 
@@ -73,10 +73,10 @@ func TestResumeSearch(t *testing.T) {
 	}
 
 	// Pause then resume
-	if err := store.SetSearchActive(ctx, id, false); err != nil {
+	if err := store.SetSearchActive(ctx, id, 300, false); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
-	if err := store.SetSearchActive(ctx, id, true); err != nil {
+	if err := store.SetSearchActive(ctx, id, 300, true); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 
@@ -138,12 +138,12 @@ func TestPauseAlreadyPausedSearch(t *testing.T) {
 	}
 
 	// Pause it
-	if err := store.SetSearchActive(ctx, id, false); err != nil {
+	if err := store.SetSearchActive(ctx, id, 500, false); err != nil {
 		t.Fatalf("first pause: %v", err)
 	}
 
 	// Pause again - should succeed (idempotent)
-	if err := store.SetSearchActive(ctx, id, false); err != nil {
+	if err := store.SetSearchActive(ctx, id, 500, false); err != nil {
 		t.Fatalf("second pause: %v", err)
 	}
 
@@ -167,7 +167,7 @@ func TestResumeAlreadyActiveSearch(t *testing.T) {
 	}
 
 	// Resume an already active search - should succeed (idempotent)
-	if err := store.SetSearchActive(ctx, id, true); err != nil {
+	if err := store.SetSearchActive(ctx, id, 600, true); err != nil {
 		t.Fatalf("resume active search: %v", err)
 	}
 
@@ -191,7 +191,7 @@ func TestListSearchesShowsPausedStatus(t *testing.T) {
 	})
 
 	// Pause the second search
-	_ = store.SetSearchActive(ctx, id2, false)
+	_ = store.SetSearchActive(ctx, id2, 700, false)
 
 	searches, err := store.ListSearches(ctx, 700)
 	if err != nil {

@@ -61,7 +61,7 @@ type SearchStore interface {
 	GetSearch(ctx context.Context, id int64) (*Search, error)
 	GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*Search, error)
 	DeleteSearch(ctx context.Context, id int64, chatID int64) error
-	SetSearchActive(ctx context.Context, id int64, active bool) error
+	SetSearchActive(ctx context.Context, id int64, chatID int64, active bool) error
 	ListAllActiveSearches(ctx context.Context) ([]Search, error)
 	CountSearches(ctx context.Context, chatID int64) (int64, error)
 	CountAllSearches(ctx context.Context) (int64, error)

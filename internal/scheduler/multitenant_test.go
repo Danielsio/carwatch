@@ -50,7 +50,7 @@ func (m *mockSearchStore) GetSearchBySeq(_ context.Context, chatID int64, seq in
 }
 
 func (m *mockSearchStore) DeleteSearch(_ context.Context, id int64, _ int64) error    { return nil }
-func (m *mockSearchStore) SetSearchActive(_ context.Context, _ int64, _ bool) error   { return nil }
+func (m *mockSearchStore) SetSearchActive(_ context.Context, _, _ int64, _ bool) error { return nil }
 func (m *mockSearchStore) CountSearches(_ context.Context, _ int64) (int64, error)    { return 0, nil }
 func (m *mockSearchStore) CountAllSearches(_ context.Context) (int64, error)          { return 0, nil }
 func (m *mockSearchStore) UpdateSearch(_ context.Context, _ storage.Search) error     { return nil }

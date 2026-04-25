@@ -557,9 +557,9 @@ func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error 
 	return nil
 }
 
-func (s *Store) SetSearchActive(ctx context.Context, id int64, active bool) error {
+func (s *Store) SetSearchActive(ctx context.Context, id int64, chatID int64, active bool) error {
 	_, err := s.db.ExecContext(ctx,
-		"UPDATE searches SET active = ? WHERE id = ?", active, id)
+		"UPDATE searches SET active = ? WHERE id = ? AND chat_id = ?", active, id, chatID)
 	return err
 }
 
