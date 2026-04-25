@@ -79,6 +79,7 @@ type errDigestStore struct {
 	getModeErr      error
 	addItemErr      error
 	flushErr        error
+	ackErr          error
 	pendingErr      error
 	lastFlushedErr  error
 }
@@ -114,15 +115,18 @@ func (m *errDigestStore) FlushDigest(ctx context.Context, chatID int64) ([]strin
 	return m.mockDigestStore.FlushDigest(ctx, chatID)
 }
 
-func (m *errDigestStore) PeekDigest(ctx context.Context, chatID int64) ([]string, error) {
+func (m *errDigestStore) PeekDigest(ctx context.Context, chatID int64) ([]string, time.Time, error) {
 	if m.flushErr != nil {
-		return nil, m.flushErr
+		return nil, time.Time{}, m.flushErr
 	}
 	return m.mockDigestStore.PeekDigest(ctx, chatID)
 }
 
-func (m *errDigestStore) AckDigest(ctx context.Context, chatID int64) error {
-	return m.mockDigestStore.AckDigest(ctx, chatID)
+func (m *errDigestStore) AckDigest(ctx context.Context, chatID int64, before time.Time) error {
+	if m.ackErr != nil {
+		return m.ackErr
+	}
+	return m.mockDigestStore.AckDigest(ctx, chatID, before)
 }
 
 func (m *errDigestStore) PendingDigestUsers(_ context.Context) ([]int64, error) {

@@ -191,7 +191,9 @@ func TestListSearchesShowsPausedStatus(t *testing.T) {
 	})
 
 	// Pause the second search
-	_ = store.SetSearchActive(ctx, id2, 700, false)
+	if err := store.SetSearchActive(ctx, id2, 700, false); err != nil {
+		t.Fatalf("pause second search: %v", err)
+	}
 
 	searches, err := store.ListSearches(ctx, 700)
 	if err != nil {

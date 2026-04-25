@@ -172,6 +172,13 @@ func (d *DynamicCatalog) persistEntries(ctx context.Context, entries []storage.C
 	d.saveMu.Lock()
 	defer d.saveMu.Unlock()
 
+	d.mu.RLock()
+	stale := gen != d.saveGen
+	d.mu.RUnlock()
+	if stale {
+		return
+	}
+
 	if err := d.store.SaveCatalogEntries(ctx, entries); err != nil {
 		d.logger.Error("catalog save failed", "error", err)
 		return

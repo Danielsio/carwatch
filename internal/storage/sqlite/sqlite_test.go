@@ -224,20 +224,26 @@ func TestSetSearchActive(t *testing.T) {
 		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
 	})
 
-	_ = store.SetSearchActive(ctx, id, 100, false)
+	if err := store.SetSearchActive(ctx, id, 100, false); err != nil {
+		t.Fatalf("set inactive: %v", err)
+	}
 	s, _ := store.GetSearch(ctx, id)
 	if s.Active {
 		t.Error("search should be inactive")
 	}
 
-	_ = store.SetSearchActive(ctx, id, 100, true)
+	if err := store.SetSearchActive(ctx, id, 100, true); err != nil {
+		t.Fatalf("set active: %v", err)
+	}
 	s, _ = store.GetSearch(ctx, id)
 	if !s.Active {
 		t.Error("search should be active again")
 	}
 
 	// Wrong owner should have no effect.
-	_ = store.SetSearchActive(ctx, id, 999, false)
+	if err := store.SetSearchActive(ctx, id, 999, false); err != nil {
+		t.Fatalf("set active with wrong owner: %v", err)
+	}
 	s, _ = store.GetSearch(ctx, id)
 	if !s.Active {
 		t.Error("wrong owner should not be able to deactivate search")
@@ -254,7 +260,9 @@ func TestListAllActiveSearches(t *testing.T) {
 	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "b", Manufacturer: 27, Model: 10332})
 
 	id3, _ := store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "c", Manufacturer: 1, Model: 1})
-	_ = store.SetSearchActive(ctx, id3, 200, false)
+	if err := store.SetSearchActive(ctx, id3, 200, false); err != nil {
+		t.Fatalf("deactivate search: %v", err)
+	}
 
 	searches, err := store.ListAllActiveSearches(ctx)
 	if err != nil {

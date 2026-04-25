@@ -863,33 +863,35 @@ func (s *Store) FlushDigest(ctx context.Context, chatID int64) ([]string, error)
 	return payloads, nil
 }
 
-func (s *Store) PeekDigest(ctx context.Context, chatID int64) ([]string, error) {
+func (s *Store) PeekDigest(ctx context.Context, chatID int64) ([]string, time.Time, error) {
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT listing_payload FROM pending_digest WHERE chat_id = ? ORDER BY created_at", chatID)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 	defer func() { _ = rows.Close() }()
 
+	cutoff := time.Now()
 	var payloads []string
 	for rows.Next() {
 		var p string
 		if err := rows.Scan(&p); err != nil {
-			return nil, err
+			return nil, time.Time{}, err
 		}
 		payloads = append(payloads, p)
 	}
-	return payloads, rows.Err()
+	return payloads, cutoff, rows.Err()
 }
 
-func (s *Store) AckDigest(ctx context.Context, chatID int64) error {
+func (s *Store) AckDigest(ctx context.Context, chatID int64, before time.Time) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, "DELETE FROM pending_digest WHERE chat_id = ?", chatID); err != nil {
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM pending_digest WHERE chat_id = ? AND created_at <= ?", chatID, before); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx,

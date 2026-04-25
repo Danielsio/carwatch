@@ -314,13 +314,13 @@ func (m *mockDigestStore) FlushDigest(_ context.Context, chatID int64) ([]string
 	return items, nil
 }
 
-func (m *mockDigestStore) PeekDigest(_ context.Context, chatID int64) ([]string, error) {
+func (m *mockDigestStore) PeekDigest(_ context.Context, chatID int64) ([]string, time.Time, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.items[chatID], nil
+	return m.items[chatID], time.Now(), nil
 }
 
-func (m *mockDigestStore) AckDigest(_ context.Context, chatID int64) error {
+func (m *mockDigestStore) AckDigest(_ context.Context, chatID int64, _ time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.items, chatID)

@@ -158,8 +158,10 @@ func (m *errDigestStore) GetDigestMode(_ context.Context, _ int64) (string, stri
 
 func (m *errDigestStore) AddDigestItem(_ context.Context, _ int64, _ string) error { return nil }
 func (m *errDigestStore) FlushDigest(_ context.Context, _ int64) ([]string, error) { return nil, nil }
-func (m *errDigestStore) PeekDigest(_ context.Context, _ int64) ([]string, error)  { return nil, nil }
-func (m *errDigestStore) AckDigest(_ context.Context, _ int64) error               { return nil }
+func (m *errDigestStore) PeekDigest(_ context.Context, _ int64) ([]string, time.Time, error) {
+	return nil, time.Time{}, nil
+}
+func (m *errDigestStore) AckDigest(_ context.Context, _ int64, _ time.Time) error { return nil }
 func (m *errDigestStore) PendingDigestUsers(_ context.Context) ([]int64, error)    { return nil, nil }
 
 func (m *errDigestStore) DigestLastFlushed(_ context.Context, _ int64) (time.Time, error) {

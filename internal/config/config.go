@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"time"
 
@@ -135,6 +136,9 @@ func validate(cfg *Config) error {
 		if _, err := parseTimeOfDay(ah.End); err != nil {
 			return fmt.Errorf("active_hours.end %q: must be HH:MM format", ah.End)
 		}
+	}
+	if _, err := net.ResolveTCPAddr("tcp", cfg.HTTP.Bind); err != nil {
+		return fmt.Errorf("http.bind %q: must be a valid host:port", cfg.HTTP.Bind)
 	}
 	if _, err := ParseLogLevel(cfg.LogLevel); err != nil {
 		return fmt.Errorf("log_level %q: must be debug, info, warn, or error", cfg.LogLevel)

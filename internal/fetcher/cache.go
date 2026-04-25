@@ -22,6 +22,7 @@ type CachingFetcher struct {
 type cacheEntry struct {
 	listings  []model.RawListing
 	fetchedAt time.Time
+	lastUsed  time.Time
 }
 
 func NewCachingFetcher(inner Fetcher, ttl time.Duration) *CachingFetcher {
@@ -40,6 +41,12 @@ func (c *CachingFetcher) Fetch(ctx context.Context, params config.SourceParams) 
 	c.mu.RUnlock()
 
 	if ok && time.Since(entry.fetchedAt) < c.ttl {
+		c.mu.Lock()
+		if cur, exists := c.cache[key]; exists {
+			cur.lastUsed = time.Now()
+			c.cache[key] = cur
+		}
+		c.mu.Unlock()
 		return entry.listings, nil
 	}
 
@@ -58,7 +65,8 @@ func (c *CachingFetcher) Fetch(ctx context.Context, params config.SourceParams) 
 	}
 
 	c.mu.Lock()
-	c.cache[key] = cacheEntry{listings: listings, fetchedAt: time.Now()}
+	now := time.Now()
+	c.cache[key] = cacheEntry{listings: listings, fetchedAt: now, lastUsed: now}
 	if len(c.cache) > maxCacheEntries {
 		c.evictExpired()
 	}
@@ -82,15 +90,15 @@ func (c *CachingFetcher) evictExpired() {
 
 func (c *CachingFetcher) evictOldest() {
 	type kv struct {
-		key       string
-		fetchedAt time.Time
+		key      string
+		lastUsed time.Time
 	}
 	items := make([]kv, 0, len(c.cache))
 	for k, v := range c.cache {
-		items = append(items, kv{k, v.fetchedAt})
+		items = append(items, kv{k, v.lastUsed})
 	}
 	sort.Slice(items, func(i, j int) bool {
-		return items[i].fetchedAt.Before(items[j].fetchedAt)
+		return items[i].lastUsed.Before(items[j].lastUsed)
 	})
 	for _, item := range items {
 		if len(c.cache) <= maxCacheEntries {

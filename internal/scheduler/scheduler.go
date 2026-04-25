@@ -62,8 +62,8 @@ type Scheduler struct {
 	dailyDigestStore  storage.DailyDigestStore
 	triggerCh         chan struct{}
 
-	langCache   map[int64]locale.Lang
-	digestCache map[int64]digestMeta
+	langCache   sync.Map
+	digestCache sync.Map
 }
 
 type digestMeta struct {
@@ -215,8 +215,8 @@ func (s *Scheduler) Run(ctx context.Context) error {
 func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.Lang) DeliveryStrategy {
 	if s.digestStore != nil {
 		var mode string
-		if dm, ok := s.digestCache[chatID]; ok {
-			mode = dm.mode
+		if v, ok := s.digestCache.Load(chatID); ok {
+			mode = v.(digestMeta).mode
 		} else {
 			m, interval, err := s.digestStore.GetDigestMode(ctx, chatID)
 			if err != nil {
@@ -225,9 +225,7 @@ func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.L
 				}
 			} else {
 				mode = m
-				if s.digestCache != nil {
-					s.digestCache[chatID] = digestMeta{mode: m, interval: interval}
-				}
+				s.digestCache.Store(chatID, digestMeta{mode: m, interval: interval})
 			}
 		}
 		if mode == "digest" {
@@ -401,8 +399,8 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.logger.Info("starting poll cycle")
 
-	s.langCache = make(map[int64]locale.Lang)
-	s.digestCache = make(map[int64]digestMeta)
+	s.langCache = sync.Map{}
+	s.digestCache = sync.Map{}
 
 	searches, err := s.searchStore.ListAllActiveSearches(ctx)
 	if err != nil {
@@ -766,7 +764,7 @@ func (s *Scheduler) processDigests(ctx context.Context) {
 }
 
 func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
-	payloads, err := s.digestStore.PeekDigest(ctx, chatID)
+	payloads, cutoff, err := s.digestStore.PeekDigest(ctx, chatID)
 	if err != nil {
 		s.logger.Error("peek digest failed", "chat_id", chatID, "error", err)
 		return
@@ -789,7 +787,7 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 		return
 	}
 
-	if err := s.digestStore.AckDigest(ctx, chatID); err != nil {
+	if err := s.digestStore.AckDigest(ctx, chatID, cutoff); err != nil {
 		s.logger.Error("ack digest failed", "chat_id", chatID, "error", err)
 	}
 
@@ -939,8 +937,8 @@ func (s *Scheduler) processExpiredPremium(ctx context.Context) {
 }
 
 func (s *Scheduler) userLang(ctx context.Context, chatID int64) locale.Lang {
-	if lang, ok := s.langCache[chatID]; ok {
-		return lang
+	if v, ok := s.langCache.Load(chatID); ok {
+		return v.(locale.Lang)
 	}
 	lang := locale.Hebrew
 	if s.userStore != nil {
@@ -949,9 +947,7 @@ func (s *Scheduler) userLang(ctx context.Context, chatID int64) locale.Lang {
 			lang = locale.Lang(user.Language)
 		}
 	}
-	if s.langCache != nil {
-		s.langCache[chatID] = lang
-	}
+	s.langCache.Store(chatID, lang)
 	return lang
 }
 

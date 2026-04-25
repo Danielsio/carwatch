@@ -191,8 +191,8 @@ func run(configPath string, logger *slog.Logger) error {
 
 	go tgNotif.Bot().Start(ctx)
 	logger.Info("bot started",
-		"health", ":8080/healthz",
-		"dashboard", ":8080/dashboard",
+		"health", "http://"+cfg.HTTP.Bind+"/healthz",
+		"dashboard", "http://"+cfg.HTTP.Bind+"/dashboard",
 	)
 
 	return sched.Run(ctx)
