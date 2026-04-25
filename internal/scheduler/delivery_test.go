@@ -63,7 +63,7 @@ func newFailDigestStore(err error) *failDigestStore {
 	return &failDigestStore{
 		mockDigestStore: mockDigestStore{
 			modes:   make(map[int64]struct{ mode, interval string }),
-			items:   make(map[int64][]string),
+			items:   make(map[int64][]digestItem),
 			flushed: make(map[int64]time.Time),
 		},
 		addErr: err,
@@ -193,8 +193,8 @@ func TestDigestDelivery_DeliverRaw(t *testing.T) {
 	if len(ds.items[100]) != 1 {
 		t.Errorf("expected 1 digest item, got %d", len(ds.items[100]))
 	}
-	if ds.items[100][0] != "price drop!" {
-		t.Errorf("item = %q, want 'price drop!'", ds.items[100][0])
+	if ds.items[100][0].payload != "price drop!" {
+		t.Errorf("item = %q, want 'price drop!'", ds.items[100][0].payload)
 	}
 }
 

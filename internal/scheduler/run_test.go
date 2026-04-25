@@ -190,7 +190,7 @@ func TestFlushAndSendDigest(t *testing.T) {
 	cfg := testConfig()
 
 	ds := newMockDigestStore()
-	ds.items[100] = []string{"item1", "item2", "item3"}
+	ds.items[100] = digestItems("item1", "item2", "item3")
 
 	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{DigestStore: ds})
 
@@ -229,7 +229,7 @@ func TestFlushAndSendDigest_WithHealth(t *testing.T) {
 	h := health.New()
 
 	ds := newMockDigestStore()
-	ds.items[100] = []string{"item1"}
+	ds.items[100] = digestItems("item1")
 
 	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{
 		DigestStore: ds,

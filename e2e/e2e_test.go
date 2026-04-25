@@ -317,17 +317,21 @@ func TestE2E_DigestFlow(t *testing.T) {
 		t.Errorf("pending users = %v, want [100]", users)
 	}
 
-	payloads, err := store.FlushDigest(ctx, 100)
+	payloads, cutoff, err := store.PeekDigest(ctx, 100)
 	if err != nil {
-		t.Fatalf("flush: %v", err)
+		t.Fatalf("peek: %v", err)
 	}
 	if len(payloads) != 2 {
 		t.Errorf("expected 2 payloads, got %d", len(payloads))
 	}
 
-	payloads, _ = store.FlushDigest(ctx, 100)
+	if err := store.AckDigest(ctx, 100, cutoff); err != nil {
+		t.Fatalf("ack: %v", err)
+	}
+
+	payloads, _, _ = store.PeekDigest(ctx, 100)
 	if len(payloads) != 0 {
-		t.Error("second flush should be empty")
+		t.Error("peek after ack should be empty")
 	}
 }
 

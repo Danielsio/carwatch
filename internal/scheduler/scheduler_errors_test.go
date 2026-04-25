@@ -88,7 +88,7 @@ func newErrDigestStore() *errDigestStore {
 	return &errDigestStore{
 		mockDigestStore: mockDigestStore{
 			modes:   make(map[int64]struct{ mode, interval string }),
-			items:   make(map[int64][]string),
+			items:   make(map[int64][]digestItem),
 			flushed: make(map[int64]time.Time),
 		},
 	}
@@ -108,12 +108,6 @@ func (m *errDigestStore) AddDigestItem(ctx context.Context, chatID int64, payloa
 	return m.mockDigestStore.AddDigestItem(ctx, chatID, payload)
 }
 
-func (m *errDigestStore) FlushDigest(ctx context.Context, chatID int64) ([]string, error) {
-	if m.flushErr != nil {
-		return nil, m.flushErr
-	}
-	return m.mockDigestStore.FlushDigest(ctx, chatID)
-}
 
 func (m *errDigestStore) PeekDigest(ctx context.Context, chatID int64) ([]string, time.Time, error) {
 	if m.flushErr != nil {
@@ -561,7 +555,7 @@ func TestProcessDigests_PendingUsersError(t *testing.T) {
 
 func TestProcessDigests_GetDigestModeError(t *testing.T) {
 	ds := newErrDigestStore()
-	ds.items[100] = []string{"item1"}
+	ds.items[100] = digestItems("item1")
 	ds.getModeErr = errors.New("mode error")
 
 	s, _ := NewWithOptions(testConfig(), nil, nil, &mockNotifier{}, testLogger(), Options{DigestStore: ds})
@@ -572,7 +566,7 @@ func TestProcessDigests_LastFlushedError(t *testing.T) {
 	n := &mockNotifier{}
 	ds := newErrDigestStore()
 	_ = ds.SetDigestMode(context.Background(), 100, "digest", "6h")
-	ds.items[100] = []string{"item1"}
+	ds.items[100] = digestItems("item1")
 	ds.lastFlushedErr = errors.New("flushed error")
 
 	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{DigestStore: ds})
@@ -589,7 +583,7 @@ func TestProcessDigests_InvalidIntervalDefaultsTo6h(t *testing.T) {
 	n := &mockNotifier{}
 	ds := newErrDigestStore()
 	_ = ds.SetDigestMode(context.Background(), 100, "digest", "not-a-duration")
-	ds.items[100] = []string{"item1"}
+	ds.items[100] = digestItems("item1")
 	ds.flushed[100] = time.Now().Add(-7 * time.Hour) // older than 6h default
 
 	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{DigestStore: ds})
@@ -605,7 +599,7 @@ func TestProcessDigests_InvalidIntervalDefaultsTo6h(t *testing.T) {
 func TestFlushAndSendDigest_FlushError(t *testing.T) {
 	n := &mockNotifier{}
 	ds := newErrDigestStore()
-	ds.items[100] = []string{"item1"}
+	ds.items[100] = digestItems("item1")
 	ds.flushErr = errors.New("flush failed")
 
 	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{DigestStore: ds})
@@ -621,7 +615,7 @@ func TestFlushAndSendDigest_FlushError(t *testing.T) {
 func TestFlushAndSendDigest_SendError(t *testing.T) {
 	n := &errNotifier{rawErr: errors.New("send failed")}
 	ds := newMockDigestStore()
-	ds.items[100] = []string{"item1"}
+	ds.items[100] = digestItems("item1")
 
 	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{DigestStore: ds})
 	s.flushAndSendDigest(context.Background(), 100)

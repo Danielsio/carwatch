@@ -884,7 +884,7 @@ func (s *Scheduler) deactivateExcessSearches(ctx context.Context, chatID int64, 
 	}
 	// Keep the oldest (last in the slice since ListSearches orders by created_at DESC), pause the rest.
 	for i := 0; i < len(active)-maxActive; i++ {
-		if err := s.searchStore.SetSearchActive(ctx, active[i].ID, false); err != nil {
+		if err := s.searchStore.SetSearchActive(ctx, active[i].ID, chatID, false); err != nil {
 			s.logger.Error("deactivate excess search failed", "chat_id", chatID, "search_id", active[i].ID, "error", err)
 		}
 	}
