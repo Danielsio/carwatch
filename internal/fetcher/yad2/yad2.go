@@ -28,6 +28,7 @@ type Yad2Fetcher struct {
 	logger     *slog.Logger
 	userAgents []string
 	proxyPool  *fetcher.ProxyPool
+	clientPool *ClientPool
 }
 
 func NewFetcher(userAgents []string, proxy string, logger *slog.Logger) (*Yad2Fetcher, error) {
@@ -47,25 +48,38 @@ func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logge
 	if err != nil {
 		return nil, err
 	}
+	var cp *ClientPool
+	if pool != nil {
+		cp = NewClientPool(userAgents, logger)
+	}
 	return &Yad2Fetcher{
 		client:     client,
 		baseURL:    defaultBaseURL,
 		logger:     logger,
 		userAgents: userAgents,
 		proxyPool:  pool,
+		clientPool: cp,
 	}, nil
+}
+
+func (f *Yad2Fetcher) Close() {
+	if f.clientPool != nil {
+		f.clientPool.Close()
+	}
 }
 
 func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
 	client := f.client
+	var usedProxy string
 	if f.proxyPool != nil {
-		proxy := f.proxyPool.Next()
-		c, err := NewClient(f.userAgents, proxy)
-		if err != nil {
-			f.logger.Warn("failed to create client with proxy, using fallback", "proxy", redactProxy(proxy), "error", err)
-		} else {
-			client = c
-			defer c.Close()
+		usedProxy = f.proxyPool.Next()
+		if f.clientPool != nil {
+			c, err := f.clientPool.Get(usedProxy)
+			if err != nil {
+				f.logger.Warn("failed to get pooled client, using fallback", "proxy", redactProxy(usedProxy), "error", err)
+			} else {
+				client = c
+			}
 		}
 	}
 
@@ -74,6 +88,9 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]
 
 	result, err := client.Get(ctx, reqURL)
 	if err != nil {
+		if f.clientPool != nil && usedProxy != "" {
+			f.clientPool.Evict(usedProxy)
+		}
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
 

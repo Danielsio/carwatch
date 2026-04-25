@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -79,7 +80,8 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 
-	data = []byte(os.ExpandEnv(string(data)))
+	raw := string(data)
+	data = []byte(os.ExpandEnv(raw))
 
 	cfg := &Config{}
 	if err := yaml.Unmarshal(data, cfg); err != nil {
@@ -92,7 +94,19 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("validate config: %w", err)
 	}
 
+	warnHardcodedSecrets(raw)
+
 	return cfg, nil
+}
+
+func warnHardcodedSecrets(raw string) {
+	for _, line := range strings.Split(raw, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "token:") && !strings.Contains(trimmed, "${") {
+			slog.Warn("telegram.token appears hardcoded in config; use ${TELEGRAM_BOT_TOKEN} for production")
+			return
+		}
+	}
 }
 
 func applyDefaults(cfg *Config) {

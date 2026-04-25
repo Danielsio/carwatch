@@ -339,6 +339,33 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("create performance indexes: %w", err)
 	}
 
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS market_cache (
+			token        TEXT PRIMARY KEY,
+			manufacturer TEXT NOT NULL,
+			model        TEXT NOT NULL,
+			year         INTEGER NOT NULL,
+			price        INTEGER NOT NULL,
+			updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)
+	`); err != nil {
+		return fmt.Errorf("create market_cache: %w", err)
+	}
+
+	var cacheCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM market_cache").Scan(&cacheCount)
+	if cacheCount == 0 {
+		_, _ = db.Exec(`
+			INSERT OR IGNORE INTO market_cache (token, manufacturer, model, year, price)
+			SELECT token, MAX(manufacturer), MAX(model), MAX(year), MAX(price)
+			FROM listing_history
+			WHERE manufacturer IS NOT NULL AND manufacturer != ''
+			  AND model IS NOT NULL AND model != ''
+			  AND year > 0 AND price > 0
+			GROUP BY token
+		`)
+	}
+
 	return nil
 }
 
@@ -735,7 +762,22 @@ func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error 
 			km = excluded.km`,
 		r.Token, r.ChatID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
 		r.Km, r.Hand, r.City, r.PageLink, r.FirstSeenAt)
-	return err
+	if err != nil {
+		return err
+	}
+	if r.Manufacturer != "" && r.Model != "" && r.Year > 0 && r.Price > 0 {
+		_, _ = s.db.ExecContext(ctx, `
+			INSERT INTO market_cache (token, manufacturer, model, year, price)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT(token) DO UPDATE SET
+				manufacturer = excluded.manufacturer,
+				model = excluded.model,
+				year = excluded.year,
+				price = excluded.price,
+				updated_at = CURRENT_TIMESTAMP`,
+			r.Token, r.Manufacturer, r.Model, r.Year, r.Price)
+	}
+	return nil
 }
 
 func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
@@ -1092,12 +1134,10 @@ func (s *Store) ListHiddenTokens(ctx context.Context, chatID int64) (map[string]
 
 func (s *Store) MarketListings(ctx context.Context) ([]storage.MarketListing, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT MAX(manufacturer), MAX(model), MAX(year), MAX(price)
-		FROM listing_history
-		WHERE manufacturer IS NOT NULL AND manufacturer != ''
-		  AND model IS NOT NULL AND model != ''
-		  AND year > 0 AND price > 0
-		GROUP BY token`)
+		SELECT manufacturer, model, year, price
+		FROM market_cache
+		WHERE manufacturer != '' AND model != ''
+		  AND year > 0 AND price > 0`)
 	if err != nil {
 		return nil, err
 	}
@@ -1180,7 +1220,10 @@ func (s *Store) DailyStats(ctx context.Context, chatID int64) ([]storage.DailySe
 			MIN(sl.price),
 			(SELECT sl2.page_link FROM search_listings sl2
 			 WHERE sl2.search_id = sl.search_id
-			 ORDER BY sl2.price ASC LIMIT 1)
+			 ORDER BY sl2.price ASC LIMIT 1),
+			AVG(CASE WHEN sl.first_seen_at >= datetime('now', '-1 day') THEN sl.price END),
+			AVG(CASE WHEN sl.first_seen_at >= datetime('now', '-7 days')
+			          AND sl.first_seen_at < datetime('now', '-1 day') THEN sl.price END)
 		FROM search_listings sl
 		GROUP BY sl.search_id
 		HAVING COUNT(*) >= 5`, chatID)
@@ -1192,40 +1235,17 @@ func (s *Store) DailyStats(ctx context.Context, chatID int64) ([]storage.DailySe
 	var stats []storage.DailySearchStats
 	for rows.Next() {
 		var ds storage.DailySearchStats
+		var recentAvg, olderAvg sql.NullFloat64
 		if err := rows.Scan(&ds.SearchName, &ds.NewCount, &ds.AvgPrice,
-			&ds.BestPrice, &ds.BestPriceLink); err != nil {
+			&ds.BestPrice, &ds.BestPriceLink, &recentAvg, &olderAvg); err != nil {
 			return nil, err
+		}
+		if recentAvg.Valid && olderAvg.Valid && olderAvg.Float64 > 0 {
+			ds.PriceTrend = ((recentAvg.Float64 - olderAvg.Float64) / olderAvg.Float64) * 100
 		}
 		stats = append(stats, ds)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	for i, stat := range stats {
-		var recentAvg, olderAvg sql.NullFloat64
-		if err := s.db.QueryRowContext(ctx, `
-			SELECT AVG(price) FROM listing_history
-			WHERE chat_id = ? AND search_name = ? AND price > 0
-			  AND first_seen_at >= datetime('now', '-1 day')`,
-			chatID, stat.SearchName).Scan(&recentAvg); err != nil {
-			return nil, err
-		}
-		if err := s.db.QueryRowContext(ctx, `
-			SELECT AVG(price) FROM listing_history
-			WHERE chat_id = ? AND search_name = ? AND price > 0
-			  AND first_seen_at >= datetime('now', '-7 days')
-			  AND first_seen_at < datetime('now', '-1 day')`,
-			chatID, stat.SearchName).Scan(&olderAvg); err != nil {
-			return nil, err
-		}
-
-		if recentAvg.Valid && olderAvg.Valid && olderAvg.Float64 > 0 {
-			stats[i].PriceTrend = ((recentAvg.Float64 - olderAvg.Float64) / olderAvg.Float64) * 100
-		}
-	}
-
-	return stats, nil
+	return stats, rows.Err()
 }
 
 // --- TierStore ---

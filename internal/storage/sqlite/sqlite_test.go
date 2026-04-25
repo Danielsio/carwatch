@@ -989,3 +989,336 @@ func TestDailyDigest_NonexistentUser(t *testing.T) {
 		t.Errorf("expected default time, got %q", digestTime)
 	}
 }
+
+// --- SavedListingStore Tests ---
+
+func TestSaveBookmark(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.SaveBookmark(ctx, 100, "tok1"); err != nil {
+		t.Fatalf("SaveBookmark: %v", err)
+	}
+	count, _ := store.CountSaved(ctx, 100)
+	if count != 1 {
+		t.Errorf("expected 1 saved, got %d", count)
+	}
+}
+
+func TestSaveBookmark_Duplicate(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	_ = store.SaveBookmark(ctx, 100, "tok1")
+	if err := store.SaveBookmark(ctx, 100, "tok1"); err != nil {
+		t.Fatalf("duplicate SaveBookmark should not error: %v", err)
+	}
+	count, _ := store.CountSaved(ctx, 100)
+	if count != 1 {
+		t.Errorf("duplicate should not increase count, got %d", count)
+	}
+}
+
+func TestRemoveBookmark(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	_ = store.SaveBookmark(ctx, 100, "tok1")
+	if err := store.RemoveBookmark(ctx, 100, "tok1"); err != nil {
+		t.Fatalf("RemoveBookmark: %v", err)
+	}
+	count, _ := store.CountSaved(ctx, 100)
+	if count != 0 {
+		t.Errorf("expected 0 after remove, got %d", count)
+	}
+}
+
+func TestRemoveBookmark_Nonexistent(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.RemoveBookmark(ctx, 100, "nonexistent"); err != nil {
+		t.Fatalf("RemoveBookmark nonexistent should not error: %v", err)
+	}
+}
+
+func TestListSaved_WithListingHistory(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 100, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 95000,
+		PageLink: "https://example.com",
+	})
+	_ = store.SaveBookmark(ctx, 100, "tok1")
+
+	listings, err := store.ListSaved(ctx, 100, 10, 0)
+	if err != nil {
+		t.Fatalf("ListSaved: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1, got %d", len(listings))
+	}
+	if listings[0].Manufacturer != "Mazda" {
+		t.Errorf("manufacturer = %q, want Mazda", listings[0].Manufacturer)
+	}
+}
+
+func TestCountSaved_CrossUserIsolation(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	_ = store.SaveBookmark(ctx, 100, "tok1")
+	_ = store.SaveBookmark(ctx, 100, "tok2")
+	_ = store.SaveBookmark(ctx, 200, "tok3")
+
+	count1, _ := store.CountSaved(ctx, 100)
+	count2, _ := store.CountSaved(ctx, 200)
+
+	if count1 != 2 {
+		t.Errorf("user 100 count = %d, want 2", count1)
+	}
+	if count2 != 1 {
+		t.Errorf("user 200 count = %d, want 1", count2)
+	}
+}
+
+// --- HiddenListingStore Tests ---
+
+func TestHideListing(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.HideListing(ctx, 100, "tok1"); err != nil {
+		t.Fatalf("HideListing: %v", err)
+	}
+	hidden, _ := store.IsHidden(ctx, 100, "tok1")
+	if !hidden {
+		t.Error("expected tok1 to be hidden")
+	}
+}
+
+func TestHideListing_Duplicate(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	_ = store.HideListing(ctx, 100, "tok1")
+	if err := store.HideListing(ctx, 100, "tok1"); err != nil {
+		t.Fatalf("duplicate HideListing should not error: %v", err)
+	}
+	count, _ := store.CountHidden(ctx, 100)
+	if count != 1 {
+		t.Errorf("duplicate should not increase count, got %d", count)
+	}
+}
+
+func TestIsHidden_Unknown(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	hidden, err := store.IsHidden(ctx, 100, "unknown")
+	if err != nil {
+		t.Fatalf("IsHidden: %v", err)
+	}
+	if hidden {
+		t.Error("unknown token should not be hidden")
+	}
+}
+
+func TestIsHidden_CrossUserIsolation(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	_ = store.HideListing(ctx, 100, "tok1")
+
+	hidden100, _ := store.IsHidden(ctx, 100, "tok1")
+	hidden200, _ := store.IsHidden(ctx, 200, "tok1")
+
+	if !hidden100 {
+		t.Error("user 100 should see tok1 as hidden")
+	}
+	if hidden200 {
+		t.Error("user 200 should NOT see tok1 as hidden")
+	}
+}
+
+func TestListHiddenTokens(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	_ = store.HideListing(ctx, 100, "tok1")
+	_ = store.HideListing(ctx, 100, "tok2")
+
+	tokens, err := store.ListHiddenTokens(ctx, 100)
+	if err != nil {
+		t.Fatalf("ListHiddenTokens: %v", err)
+	}
+	if len(tokens) != 2 {
+		t.Errorf("expected 2 tokens, got %d", len(tokens))
+	}
+	if !tokens["tok1"] || !tokens["tok2"] {
+		t.Errorf("tokens = %v", tokens)
+	}
+}
+
+func TestListHidden_Pagination(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	for i := range 5 {
+		_ = store.HideListing(ctx, 100, "tok"+string(rune('a'+i)))
+	}
+
+	page1, _ := store.ListHidden(ctx, 100, 2, 0)
+	if len(page1) != 2 {
+		t.Errorf("page 1: expected 2, got %d", len(page1))
+	}
+
+	page2, _ := store.ListHidden(ctx, 100, 2, 2)
+	if len(page2) != 2 {
+		t.Errorf("page 2: expected 2, got %d", len(page2))
+	}
+
+	page3, _ := store.ListHidden(ctx, 100, 2, 4)
+	if len(page3) != 1 {
+		t.Errorf("page 3: expected 1, got %d", len(page3))
+	}
+}
+
+func TestCountHidden_CrossUserIsolation(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	_ = store.HideListing(ctx, 100, "tok1")
+	_ = store.HideListing(ctx, 100, "tok2")
+	_ = store.HideListing(ctx, 200, "tok3")
+
+	c1, _ := store.CountHidden(ctx, 100)
+	c2, _ := store.CountHidden(ctx, 200)
+
+	if c1 != 2 {
+		t.Errorf("user 100 hidden count = %d, want 2", c1)
+	}
+	if c2 != 1 {
+		t.Errorf("user 200 hidden count = %d, want 1", c2)
+	}
+}
+
+// --- DailyStats Tests ---
+
+func TestDailyStats_WithListings(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	_, _ = store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "mazda-3", Source: "yad2",
+		Manufacturer: 27, Model: 10332, YearMin: 2018, YearMax: 2024,
+	})
+
+	// Insert enough listings to pass the HAVING COUNT(*) >= 5 threshold.
+	for i := range 6 {
+		_ = store.SaveListing(ctx, storage.ListingRecord{
+			Token: "tok" + string(rune('a'+i)), ChatID: 100, SearchName: "mazda-3",
+			Manufacturer: "Mazda", Model: "3", Year: 2021,
+			Price: 90000 + i*5000, PageLink: "https://example.com/" + string(rune('a'+i)),
+		})
+	}
+
+	stats, err := store.DailyStats(ctx, 100)
+	if err != nil {
+		t.Fatalf("DailyStats: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 stat, got %d", len(stats))
+	}
+	if stats[0].SearchName != "mazda-3" {
+		t.Errorf("SearchName = %q", stats[0].SearchName)
+	}
+	if stats[0].BestPrice != 90000 {
+		t.Errorf("BestPrice = %d, want 90000", stats[0].BestPrice)
+	}
+}
+
+func TestDailyStats_Empty(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	stats, err := store.DailyStats(ctx, 100)
+	if err != nil {
+		t.Fatalf("DailyStats: %v", err)
+	}
+	if len(stats) != 0 {
+		t.Errorf("expected 0 stats for user with no listings, got %d", len(stats))
+	}
+}
+
+func TestDailyStats_BelowThreshold(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	_, _ = store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Source: "yad2",
+		Manufacturer: 1, Model: 1,
+	})
+
+	// Only 3 listings -- below the HAVING COUNT(*) >= 5 threshold
+	for i := range 3 {
+		_ = store.SaveListing(ctx, storage.ListingRecord{
+			Token: "tok" + string(rune('a'+i)), ChatID: 100, SearchName: "test",
+			Manufacturer: "Test", Model: "Car", Year: 2021, Price: 100000,
+		})
+	}
+
+	stats, err := store.DailyStats(ctx, 100)
+	if err != nil {
+		t.Fatalf("DailyStats: %v", err)
+	}
+	if len(stats) != 0 {
+		t.Errorf("expected 0 stats (below threshold), got %d", len(stats))
+	}
+}
+
+func TestClearHidden(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	_ = store.HideListing(ctx, 100, "tok1")
+	_ = store.HideListing(ctx, 100, "tok2")
+	_ = store.HideListing(ctx, 200, "tok3")
+
+	if err := store.ClearHidden(ctx, 100); err != nil {
+		t.Fatalf("ClearHidden: %v", err)
+	}
+
+	c1, _ := store.CountHidden(ctx, 100)
+	c2, _ := store.CountHidden(ctx, 200)
+
+	if c1 != 0 {
+		t.Errorf("user 100 should have 0 hidden after clear, got %d", c1)
+	}
+	if c2 != 1 {
+		t.Errorf("user 200 should still have 1, got %d", c2)
+	}
+}

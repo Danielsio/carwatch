@@ -91,6 +91,29 @@ log_level: verbose
 	expectLoadError(t, yaml, "log_level")
 }
 
+func TestLoad_WarnHardcodedToken(t *testing.T) {
+	// Hardcoded token: warning should be emitted (no ${...})
+	yaml := `
+telegram:
+  token: "123456:ABCdef"
+`
+	// Just verify it loads successfully (warning is logged but not an error)
+	_ = loadFromString(t, yaml)
+}
+
+func TestLoad_EnvVarTokenNoWarning(t *testing.T) {
+	t.Setenv("TELEGRAM_BOT_TOKEN", "test-token")
+
+	yaml := `
+telegram:
+  token: "${TELEGRAM_BOT_TOKEN}"
+`
+	cfg := loadFromString(t, yaml)
+	if cfg.Telegram.Token != "test-token" {
+		t.Errorf("token = %q, want test-token", cfg.Telegram.Token)
+	}
+}
+
 func TestLoad_EnvVarInterpolation(t *testing.T) {
 	t.Setenv("TEST_PROXY_URL", "socks5://proxy:1080")
 

@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -562,6 +563,190 @@ func TestProcessDigests_FlushesImmediatelyWhenSwitchedToInstant(t *testing.T) {
 	}
 	if !strings.Contains(n.rawMessages[0].message, "leftover listing") {
 		t.Errorf("flushed digest should contain pending items")
+	}
+}
+
+// --- mockHiddenStore ---
+
+type mockHiddenStore struct {
+	mu     sync.Mutex
+	hidden map[int64]map[string]bool
+	err    error
+}
+
+func newMockHiddenStore() *mockHiddenStore {
+	return &mockHiddenStore{hidden: make(map[int64]map[string]bool)}
+}
+
+func (m *mockHiddenStore) HideListing(_ context.Context, chatID int64, token string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.hidden[chatID] == nil {
+		m.hidden[chatID] = make(map[string]bool)
+	}
+	m.hidden[chatID][token] = true
+	return nil
+}
+
+func (m *mockHiddenStore) IsHidden(_ context.Context, chatID int64, token string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.hidden[chatID][token], m.err
+}
+
+func (m *mockHiddenStore) ListHiddenTokens(_ context.Context, chatID int64) (map[string]bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.err != nil {
+		return nil, m.err
+	}
+	result := make(map[string]bool)
+	for k, v := range m.hidden[chatID] {
+		result[k] = v
+	}
+	return result, nil
+}
+
+func (m *mockHiddenStore) ListHidden(_ context.Context, _ int64, _, _ int) ([]string, error) {
+	return nil, nil
+}
+
+func (m *mockHiddenStore) CountHidden(_ context.Context, chatID int64) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return int64(len(m.hidden[chatID])), nil
+}
+
+func (m *mockHiddenStore) ClearHidden(_ context.Context, chatID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.hidden, chatID)
+	return nil
+}
+
+// --- Hidden listing filtering tests (#213) ---
+
+func TestRunMultiTenantCycle_HiddenListingFiltered(t *testing.T) {
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "visible", Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "hidden1", Price: 80000, Year: 2020, EngineVolume: 2000},
+		},
+	}
+	d := newMockDedup()
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, Active: true},
+		},
+	}
+
+	hs := newMockHiddenStore()
+	_ = hs.HideListing(context.Background(), 100, "hidden1")
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore: ss,
+		HiddenStore: hs,
+	})
+	ctx := context.Background()
+
+	if err := s.runMultiTenantCycle(ctx); err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.messages) != 1 {
+		t.Fatalf("expected 1 notification, got %d", len(n.messages))
+	}
+	if n.messages[0].count != 1 {
+		t.Errorf("expected 1 listing (hidden1 filtered), got %d", n.messages[0].count)
+	}
+}
+
+func TestRunMultiTenantCycle_HiddenCrossUserIsolation(t *testing.T) {
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "tokA", Price: 90000, Year: 2020, EngineVolume: 2000},
+		},
+	}
+	d := newMockDedup()
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "user1", Source: "yad2", Manufacturer: 27, Model: 10332,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, Active: true},
+			{ID: 2, ChatID: 200, Name: "user2", Source: "yad2", Manufacturer: 27, Model: 10332,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, Active: true},
+		},
+	}
+
+	hs := newMockHiddenStore()
+	_ = hs.HideListing(context.Background(), 100, "tokA")
+	// User 200 has NOT hidden tokA
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore: ss,
+		HiddenStore: hs,
+	})
+	ctx := context.Background()
+
+	if err := s.runMultiTenantCycle(ctx); err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	// User 100 should get 0 listings (tokA hidden), user 200 should get 1
+	if len(n.messages) != 1 {
+		t.Fatalf("expected 1 notification (only user 200), got %d", len(n.messages))
+	}
+	if n.messages[0].recipient != "200" {
+		t.Errorf("expected notification for user 200, got %q", n.messages[0].recipient)
+	}
+}
+
+func TestRunMultiTenantCycle_HiddenStoreError(t *testing.T) {
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "tokA", Price: 90000, Year: 2020, EngineVolume: 2000},
+		},
+	}
+	d := newMockDedup()
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, Active: true},
+		},
+	}
+
+	hs := newMockHiddenStore()
+	hs.err = errors.New("db error")
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore: ss,
+		HiddenStore: hs,
+	})
+	ctx := context.Background()
+
+	if err := s.runMultiTenantCycle(ctx); err != nil {
+		t.Fatalf("cycle should succeed despite hidden store error: %v", err)
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	// Listing should still be delivered since hidden store error is non-fatal
+	if len(n.messages) != 1 {
+		t.Fatalf("expected 1 notification (hidden check failed gracefully), got %d", len(n.messages))
 	}
 }
 
