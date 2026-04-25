@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -61,6 +62,9 @@ func (c *CachingFetcher) Fetch(ctx context.Context, params config.SourceParams) 
 	if len(c.cache) > maxCacheEntries {
 		c.evictExpired()
 	}
+	if len(c.cache) > maxCacheEntries {
+		c.evictOldest()
+	}
 	c.mu.Unlock()
 
 	return listings, nil
@@ -73,6 +77,26 @@ func (c *CachingFetcher) evictExpired() {
 		if time.Since(entry.fetchedAt) > 2*c.ttl {
 			delete(c.cache, key)
 		}
+	}
+}
+
+func (c *CachingFetcher) evictOldest() {
+	type kv struct {
+		key       string
+		fetchedAt time.Time
+	}
+	items := make([]kv, 0, len(c.cache))
+	for k, v := range c.cache {
+		items = append(items, kv{k, v.fetchedAt})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].fetchedAt.Before(items[j].fetchedAt)
+	})
+	for _, item := range items {
+		if len(c.cache) <= maxCacheEntries {
+			break
+		}
+		delete(c.cache, item.key)
 	}
 }
 

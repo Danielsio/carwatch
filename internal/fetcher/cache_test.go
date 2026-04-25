@@ -69,3 +69,27 @@ func TestCachingFetcher_FallsBackOnError(t *testing.T) {
 		t.Errorf("expected stale cached result, got %v", result)
 	}
 }
+
+func TestCachingFetcher_EvictsOldest(t *testing.T) {
+	inner := &countingFetcher{
+		listings: []model.RawListing{{Token: "x"}},
+	}
+	cf := NewCachingFetcher(inner, time.Hour)
+	ctx := context.Background()
+
+	// Fill cache well past maxCacheEntries with unique params.
+	for i := 0; i < maxCacheEntries+20; i++ {
+		params := config.SourceParams{Manufacturer: i, Model: 1}
+		if _, err := cf.Fetch(ctx, params); err != nil {
+			t.Fatalf("fetch %d: %v", i, err)
+		}
+	}
+
+	cf.mu.RLock()
+	size := len(cf.cache)
+	cf.mu.RUnlock()
+
+	if size > maxCacheEntries {
+		t.Errorf("cache size = %d, want <= %d", size, maxCacheEntries)
+	}
+}
