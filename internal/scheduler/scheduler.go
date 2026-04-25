@@ -576,18 +576,20 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 		lang := s.userLang(ctx, search.ChatID)
 		isPremium := s.isUserPremium(ctx, search.ChatID)
 
+		var hiddenTokens map[string]bool
+		if s.hiddenStore != nil {
+			var err error
+			hiddenTokens, err = s.hiddenStore.ListHiddenTokens(ctx, search.ChatID)
+			if err != nil {
+				s.logger.Error("load hidden tokens failed", "chat_id", search.ChatID, "error", err)
+			}
+		}
+
 		var newListings []model.Listing
 		var priceDropMessages []string
 		for _, l := range filtered {
-			if s.hiddenStore != nil {
-				hidden, err := s.hiddenStore.IsHidden(ctx, search.ChatID, l.Token)
-				if err != nil {
-					s.logger.Error("hidden check failed", "token", l.Token, "error", err)
-					continue
-				}
-				if hidden {
-					continue
-				}
+			if hiddenTokens[l.Token] {
+				continue
 			}
 
 			isNew, err := s.dedup.ClaimNew(ctx, l.Token, search.ChatID, search.ID)

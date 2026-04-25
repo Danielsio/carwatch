@@ -1108,6 +1108,25 @@ func (s *Store) ClearHidden(ctx context.Context, chatID int64) error {
 	return err
 }
 
+func (s *Store) ListHiddenTokens(ctx context.Context, chatID int64) (map[string]bool, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT token FROM hidden_listings WHERE chat_id = ?", chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	tokens := make(map[string]bool)
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		tokens[t] = true
+	}
+	return tokens, rows.Err()
+}
+
 // --- MarketStore ---
 
 func (s *Store) MarketListings(ctx context.Context) ([]storage.MarketListing, error) {
