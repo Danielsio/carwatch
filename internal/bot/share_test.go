@@ -11,17 +11,17 @@ import (
 func TestShareLink(t *testing.T) {
 	tests := []struct {
 		botUsername string
-		searchID   int64
+		shareToken string
 		want       string
 	}{
-		{"CarWatchBot", 1, "https://t.me/CarWatchBot?start=share_1"},
-		{"CarWatchBot", 42, "https://t.me/CarWatchBot?start=share_42"},
-		{"my_test_bot", 999, "https://t.me/my_test_bot?start=share_999"},
+		{"CarWatchBot", "abc123def456", "https://t.me/CarWatchBot?start=share_abc123def456"},
+		{"CarWatchBot", "deadbeef01234567", "https://t.me/CarWatchBot?start=share_deadbeef01234567"},
+		{"my_test_bot", "aabbccdd11223344", "https://t.me/my_test_bot?start=share_aabbccdd11223344"},
 	}
 	for _, tt := range tests {
-		got := ShareLink(tt.botUsername, tt.searchID)
+		got := ShareLink(tt.botUsername, tt.shareToken)
 		if got != tt.want {
-			t.Errorf("ShareLink(%q, %d) = %q, want %q", tt.botUsername, tt.searchID, got, tt.want)
+			t.Errorf("ShareLink(%q, %q) = %q, want %q", tt.botUsername, tt.shareToken, got, tt.want)
 		}
 	}
 }
@@ -188,17 +188,17 @@ func TestCloneSearchFromDeletedSource(t *testing.T) {
 
 func TestShareCallbackDataParsing(t *testing.T) {
 	tests := []struct {
-		data string
-		id   string
+		data  string
+		token string
 	}{
-		{"share_copy:1", "1"},
-		{"share_copy:42", "42"},
-		{"share_copy:999", "999"},
+		{"share_copy:abc123", "abc123"},
+		{"share_copy:deadbeef01234567", "deadbeef01234567"},
+		{"share_copy:aabbccdd11223344", "aabbccdd11223344"},
 	}
 	for _, tt := range tests {
 		trimmed := tt.data[len(cbPrefixShareCopy):]
-		if trimmed != tt.id {
-			t.Errorf("parse %q after removing prefix: got %q, want %q", tt.data, trimmed, tt.id)
+		if trimmed != tt.token {
+			t.Errorf("parse %q after removing prefix: got %q, want %q", tt.data, trimmed, tt.token)
 		}
 	}
 }
@@ -206,16 +206,93 @@ func TestShareCallbackDataParsing(t *testing.T) {
 func TestShareStartParamParsing(t *testing.T) {
 	tests := []struct {
 		param string
-		id    string
+		token string
 	}{
-		{"share_1", "1"},
-		{"share_42", "42"},
-		{"share_999", "999"},
+		{"share_abc123", "abc123"},
+		{"share_deadbeef01234567", "deadbeef01234567"},
+		{"share_aabbccdd11223344", "aabbccdd11223344"},
 	}
 	for _, tt := range tests {
 		trimmed := tt.param[len("share_"):]
-		if trimmed != tt.id {
-			t.Errorf("parse %q: got %q, want %q", tt.param, trimmed, tt.id)
+		if trimmed != tt.token {
+			t.Errorf("parse %q: got %q, want %q", tt.param, trimmed, tt.token)
 		}
+	}
+}
+
+func TestCreateSearch_GeneratesShareToken(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	_ = store.UpsertUser(ctx, 100, "alice")
+
+	id, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
+	})
+	if err != nil {
+		t.Fatalf("create search: %v", err)
+	}
+
+	s, err := store.GetSearch(ctx, id)
+	if err != nil || s == nil {
+		t.Fatalf("get search: %v", err)
+	}
+
+	if len(s.ShareToken) != 32 {
+		t.Errorf("ShareToken length = %d, want 32 (hex of 16 bytes), token=%q", len(s.ShareToken), s.ShareToken)
+	}
+}
+
+func TestGetSearchByShareToken(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	_ = store.UpsertUser(ctx, 100, "alice")
+
+	id, _ := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
+	})
+
+	original, _ := store.GetSearch(ctx, id)
+	if original == nil {
+		t.Fatal("original search not found")
+	}
+
+	found, err := store.GetSearchByShareToken(ctx, original.ShareToken)
+	if err != nil {
+		t.Fatalf("GetSearchByShareToken: %v", err)
+	}
+	if found == nil {
+		t.Fatal("search not found by share token")
+	}
+	if found.ID != original.ID {
+		t.Errorf("ID = %d, want %d", found.ID, original.ID)
+	}
+
+	// Nonexistent token should return nil.
+	notFound, err := store.GetSearchByShareToken(ctx, "nonexistent_token_value")
+	if err != nil {
+		t.Fatalf("GetSearchByShareToken nonexistent: %v", err)
+	}
+	if notFound != nil {
+		t.Error("expected nil for nonexistent share token")
+	}
+}
+
+func TestShareTokensAreUnique(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	_ = store.UpsertUser(ctx, 100, "alice")
+
+	id1, _ := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "first", Manufacturer: 1, Model: 1,
+	})
+	id2, _ := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "second", Manufacturer: 2, Model: 2,
+	})
+
+	s1, _ := store.GetSearch(ctx, id1)
+	s2, _ := store.GetSearch(ctx, id2)
+
+	if s1.ShareToken == s2.ShareToken {
+		t.Error("two searches should have different share tokens")
 	}
 }

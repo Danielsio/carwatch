@@ -143,6 +143,18 @@ func (m *errSearchStore) GetSearchBySeq(_ context.Context, chatID int64, seq int
 	return nil, nil
 }
 
+func (m *errSearchStore) GetSearchByShareToken(_ context.Context, token string) (*storage.Search, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
+	for i := range m.searches {
+		if m.searches[i].ShareToken == token {
+			return &m.searches[i], nil
+		}
+	}
+	return nil, nil
+}
+
 // errDigestStore implements DigestStore and returns errors.
 type errDigestStore struct {
 	getModeErr error
@@ -570,12 +582,12 @@ func TestOnShareCopy_CreateSearchError(t *testing.T) {
 	users := &errUserStore{user: &storage.User{ChatID: 200, State: StateIdle, StateData: "{}", Language: "en",
 		Tier: TierPremium, TierExpires: expires}}
 	searches := &errSearchStore{
-		searches:  []storage.Search{{ID: 1, ChatID: 100, Manufacturer: 27, Model: 10332, Source: "yad2"}},
+		searches:  []storage.Search{{ID: 1, ChatID: 100, Manufacturer: 27, Model: 10332, Source: "yad2", ShareToken: "abc123"}},
 		createErr: errors.New("db full"),
 	}
 	b := newErrBot(t, msg, users, searches)
 
-	b.onShareCopy(context.Background(), 200, cbPrefixShareCopy+"1")
+	b.onShareCopy(context.Background(), 200, cbPrefixShareCopy+"abc123")
 
 	last := msg.last()
 	if !strings.Contains(last.Text, "Failed to copy") {
@@ -609,36 +621,36 @@ func TestDefaultHandler_ReturnsFunction(t *testing.T) {
 // --- ShareLink function test ---
 
 func TestShareLink_Format(t *testing.T) {
-	link := ShareLink("mybot", 42)
-	expected := "https://t.me/mybot?start=share_42"
+	link := ShareLink("mybot", "abc123def456")
+	expected := "https://t.me/mybot?start=share_abc123def456"
 	if link != expected {
 		t.Errorf("ShareLink = %q, want %q", link, expected)
 	}
 }
 
-// --- handleShareStart invalid ID ---
+// --- handleShareStart invalid/unknown token ---
 
-func TestHandleShareStart_InvalidID(t *testing.T) {
+func TestHandleShareStart_UnknownToken(t *testing.T) {
 	msg := &mockMessenger{}
 	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
 
-	b.handleShareStart(context.Background(), 100, "share_notanumber")
+	b.handleShareStart(context.Background(), 100, "share_nonexistenttoken")
 
 	last := msg.last()
-	if !strings.Contains(last.Text, "Invalid") {
-		t.Errorf("expected invalid message, got %q", last.Text)
+	if !strings.Contains(last.Text, "not found") {
+		t.Errorf("expected 'not found' message, got %q", last.Text)
 	}
 }
 
-func TestHandleShareStart_NotFoundSearch(t *testing.T) {
+func TestHandleShareStart_ErrorFetchingSearch(t *testing.T) {
 	msg := &mockMessenger{}
 	users := &errUserStore{user: &storage.User{ChatID: 100, State: StateIdle, StateData: "{}", Language: "en"}}
-	searches := &errSearchStore{getErr: errors.New("not found")}
+	searches := &errSearchStore{getErr: errors.New("db error")}
 	b := newErrBot(t, msg, users, searches)
 
-	b.handleShareStart(context.Background(), 100, "share_999")
+	b.handleShareStart(context.Background(), 100, "share_sometoken123")
 
 	last := msg.last()
 	if !strings.Contains(last.Text, "not found") {
@@ -653,11 +665,12 @@ func TestHandleShareStart_WithEngine(t *testing.T) {
 		searches: []storage.Search{{
 			ID: 1, ChatID: 200, Manufacturer: 27, Model: 10332,
 			YearMin: 2020, YearMax: 2024, PriceMax: 100000, EngineMinCC: 2000,
+			ShareToken: "testtoken123",
 		}},
 	}
 	b := newErrBot(t, msg, users, searches)
 
-	b.handleShareStart(context.Background(), 100, "share_1")
+	b.handleShareStart(context.Background(), 100, "share_testtoken123")
 
 	last := msg.last()
 	if !strings.Contains(last.Text, "2.0L+") {
@@ -675,11 +688,12 @@ func TestHandleShareStart_WithoutEngine(t *testing.T) {
 		searches: []storage.Search{{
 			ID: 1, ChatID: 200, Manufacturer: 27, Model: 10332,
 			YearMin: 2020, YearMax: 2024, PriceMax: 100000, EngineMinCC: 0,
+			ShareToken: "testtoken456",
 		}},
 	}
 	b := newErrBot(t, msg, users, searches)
 
-	b.handleShareStart(context.Background(), 100, "share_1")
+	b.handleShareStart(context.Background(), 100, "share_testtoken456")
 
 	last := msg.last()
 	if !strings.Contains(last.Text, "Any") {
