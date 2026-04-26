@@ -67,6 +67,9 @@ func (m *errUserStore) GrantTrial(_ context.Context, _ int64, _ time.Duration) e
 func (m *errUserStore) ListExpiredPremium(_ context.Context) ([]storage.User, error) {
 	return nil, nil
 }
+func (m *errUserStore) GetUserByChannelID(_ context.Context, _, _ string) (*storage.User, error) {
+	return nil, nil
+}
 
 // errSearchStore implements SearchStore and returns errors.
 type errSearchStore struct {

@@ -267,6 +267,9 @@ func (m *mockUserStore) GrantTrial(_ context.Context, _ int64, _ time.Duration) 
 func (m *mockUserStore) ListExpiredPremium(_ context.Context) ([]storage.User, error) {
 	return nil, nil
 }
+func (m *mockUserStore) GetUserByChannelID(_ context.Context, _, _ string) (*storage.User, error) {
+	return nil, nil
+}
 
 type digestItem struct {
 	payload   string

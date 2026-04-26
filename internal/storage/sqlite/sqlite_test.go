@@ -55,6 +55,105 @@ func TestUpsertUser(t *testing.T) {
 	}
 }
 
+func TestGetUser_ChannelFields(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	u, err := store.GetUser(ctx, 100)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if u.Channel != "telegram" {
+		t.Errorf("Channel = %q, want telegram", u.Channel)
+	}
+	if u.ChannelID != "" {
+		t.Errorf("ChannelID = %q, want empty", u.ChannelID)
+	}
+}
+
+func TestUpsertWhatsAppUser(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	id1, err := store.UpsertWhatsAppUser(ctx, "+972501234567")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if id1 < 1_000_000_000_000 {
+		t.Errorf("WhatsApp ID = %d, want >= 1T", id1)
+	}
+
+	id2, err := store.UpsertWhatsAppUser(ctx, "+972501234567")
+	if err != nil {
+		t.Fatalf("idempotent: %v", err)
+	}
+	if id2 != id1 {
+		t.Errorf("idempotent call returned different ID: %d vs %d", id2, id1)
+	}
+
+	id3, err := store.UpsertWhatsAppUser(ctx, "+972509876543")
+	if err != nil {
+		t.Fatalf("second user: %v", err)
+	}
+	if id3 == id1 {
+		t.Error("different phone numbers should get different IDs")
+	}
+
+	u, err := store.GetUser(ctx, id1)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if u.Channel != "whatsapp" || u.ChannelID != "+972501234567" {
+		t.Errorf("user = channel:%q channelID:%q", u.Channel, u.ChannelID)
+	}
+}
+
+func TestGetUserByChannelID(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	id, _ := store.UpsertWhatsAppUser(ctx, "+972501234567")
+
+	u, err := store.GetUserByChannelID(ctx, "whatsapp", "+972501234567")
+	if err != nil {
+		t.Fatalf("get by channel: %v", err)
+	}
+	if u == nil || u.ChatID != id {
+		t.Errorf("expected chatID %d, got %+v", id, u)
+	}
+
+	u, err = store.GetUserByChannelID(ctx, "whatsapp", "+000000000")
+	if err != nil {
+		t.Fatalf("get nonexistent: %v", err)
+	}
+	if u != nil {
+		t.Error("expected nil for unknown phone number")
+	}
+}
+
+func TestWhatsAppUserIsolation(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	waID, _ := store.UpsertWhatsAppUser(ctx, "+972501234567")
+
+	if waID == 100 {
+		t.Error("WhatsApp ID should not collide with Telegram chat ID")
+	}
+
+	tgUser, _ := store.GetUser(ctx, 100)
+	waUser, _ := store.GetUser(ctx, waID)
+
+	if tgUser.Channel != "telegram" {
+		t.Errorf("Telegram user channel = %q", tgUser.Channel)
+	}
+	if waUser.Channel != "whatsapp" {
+		t.Errorf("WhatsApp user channel = %q", waUser.Channel)
+	}
+}
+
 func TestGetUser_NotFound(t *testing.T) {
 	store := newTestStore(t)
 	u, err := store.GetUser(context.Background(), 999)
