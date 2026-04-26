@@ -62,8 +62,9 @@ type Scheduler struct {
 	dailyDigestStore  storage.DailyDigestStore
 	triggerCh         chan struct{}
 
-	langCache   sync.Map
-	digestCache sync.Map
+	langCache    sync.Map
+	digestCache  sync.Map
+	premiumCache sync.Map
 }
 
 type digestMeta struct {
@@ -401,6 +402,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 
 	s.langCache = sync.Map{}
 	s.digestCache = sync.Map{}
+	s.premiumCache = sync.Map{}
 
 	searches, err := s.searchStore.ListAllActiveSearches(ctx)
 	if err != nil {
@@ -906,18 +908,20 @@ func (s *Scheduler) deactivateExcessSearches(ctx context.Context, chatID int64, 
 }
 
 func (s *Scheduler) isUserPremium(ctx context.Context, chatID int64) bool {
-	if s.userStore == nil {
-		return false
+	if v, ok := s.premiumCache.Load(chatID); ok {
+		return v.(bool)
 	}
-	user, err := s.userStore.GetUser(ctx, chatID)
-	if err != nil {
-		s.logger.Error("premium check failed, defaulting to free", "chat_id", chatID, "error", err)
-		return false
+	premium := false
+	if s.userStore != nil {
+		user, err := s.userStore.GetUser(ctx, chatID)
+		if err != nil {
+			s.logger.Error("premium check failed, defaulting to free", "chat_id", chatID, "error", err)
+		} else if user != nil {
+			premium = user.Tier == "premium" && (user.TierExpires.IsZero() || user.TierExpires.After(time.Now()))
+		}
 	}
-	if user == nil {
-		return false
-	}
-	return user.Tier == "premium" && (user.TierExpires.IsZero() || user.TierExpires.After(time.Now()))
+	s.premiumCache.Store(chatID, premium)
+	return premium
 }
 
 func (s *Scheduler) processExpiredPremium(ctx context.Context) {
