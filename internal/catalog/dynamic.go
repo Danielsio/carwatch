@@ -132,7 +132,11 @@ func (d *DynamicCatalog) rebuildSlices() {
 		mfrs = append(mfrs, Entry{ID: id, Name: name})
 	}
 	sort.Slice(mfrs, func(i, j int) bool {
-		return strings.ToLower(mfrs[i].Name) < strings.ToLower(mfrs[j].Name)
+		li, lj := strings.ToLower(mfrs[i].Name), strings.ToLower(mfrs[j].Name)
+		if li == lj {
+			return mfrs[i].ID < mfrs[j].ID
+		}
+		return li < lj
 	})
 	d.mfrs = mfrs
 
@@ -143,7 +147,11 @@ func (d *DynamicCatalog) rebuildSlices() {
 			list = append(list, Entry{ID: id, Name: name})
 		}
 		sort.Slice(list, func(i, j int) bool {
-			return strings.ToLower(list[i].Name) < strings.ToLower(list[j].Name)
+			li, lj := strings.ToLower(list[i].Name), strings.ToLower(list[j].Name)
+			if li == lj {
+				return list[i].ID < list[j].ID
+			}
+			return li < lj
 		})
 		models[mfrID] = list
 	}
