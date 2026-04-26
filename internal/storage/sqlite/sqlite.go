@@ -457,17 +457,26 @@ func (s *Store) UpsertWhatsAppUser(ctx context.Context, phoneNumber string) (int
 		return existing.ChatID, nil
 	}
 
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	var maxID int64
-	_ = s.db.QueryRowContext(ctx,
+	_ = tx.QueryRowContext(ctx,
 		"SELECT COALESCE(MAX(chat_id), ?) FROM users WHERE chat_id >= ?",
 		whatsappIDOffset-1, whatsappIDOffset).Scan(&maxID)
 	newID := maxID + 1
 
-	_, err = s.db.ExecContext(ctx,
+	_, err = tx.ExecContext(ctx,
 		"INSERT INTO users (chat_id, username, channel, channel_id) VALUES (?, ?, 'whatsapp', ?)",
 		newID, phoneNumber, phoneNumber)
 	if err != nil {
 		return 0, fmt.Errorf("create whatsapp user: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
 	}
 	return newID, nil
 }

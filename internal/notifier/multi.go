@@ -49,25 +49,38 @@ func (m *MultiNotifier) Disconnect() error {
 	return nil
 }
 
+var errNoNotifier = fmt.Errorf("no notifiers registered")
+
 func (m *MultiNotifier) Notify(ctx context.Context, recipient string, listings []model.Listing, lang locale.Lang) error {
-	n := m.resolve(ctx, recipient)
+	n, err := m.resolve(ctx, recipient)
+	if err != nil {
+		return err
+	}
 	return n.Notify(ctx, recipient, listings, lang)
 }
 
 func (m *MultiNotifier) NotifyRaw(ctx context.Context, recipient string, message string) error {
-	n := m.resolve(ctx, recipient)
+	n, err := m.resolve(ctx, recipient)
+	if err != nil {
+		return err
+	}
 	return n.NotifyRaw(ctx, recipient, message)
 }
 
-func (m *MultiNotifier) resolve(ctx context.Context, recipient string) Notifier {
+func (m *MultiNotifier) resolve(ctx context.Context, recipient string) (Notifier, error) {
 	chatID, err := strconv.ParseInt(recipient, 10, 64)
 	if err == nil {
-		user, err := m.userStore.GetUser(ctx, chatID)
-		if err == nil && user != nil && user.Channel != "" {
+		user, uErr := m.userStore.GetUser(ctx, chatID)
+		if uErr != nil {
+			m.logger.Warn("resolve user failed, using fallback", "recipient", recipient, "error", uErr)
+		} else if user != nil && user.Channel != "" {
 			if n, ok := m.notifiers[user.Channel]; ok {
-				return n
+				return n, nil
 			}
 		}
 	}
-	return m.notifiers[m.fallback]
+	if n := m.notifiers[m.fallback]; n != nil {
+		return n, nil
+	}
+	return nil, errNoNotifier
 }

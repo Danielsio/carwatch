@@ -38,13 +38,19 @@ func ToggleSource(current, toggle string) string {
 	sources := make(map[string]bool)
 	if current != "" {
 		for _, s := range strings.Split(current, ",") {
-			sources[s] = true
+			s = strings.TrimSpace(s)
+			if s != "" {
+				sources[s] = true
+			}
 		}
 	}
-	if sources[toggle] {
-		delete(sources, toggle)
-	} else {
-		sources[toggle] = true
+	toggle = strings.TrimSpace(toggle)
+	if toggle != "" {
+		if sources[toggle] {
+			delete(sources, toggle)
+		} else {
+			sources[toggle] = true
+		}
 	}
 	var result []string
 	for _, s := range []string{"yad2", "winwin"} {
