@@ -10,6 +10,7 @@ import (
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
 
+	"github.com/dsionov/carwatch/internal/botcore"
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/storage"
 )
@@ -62,24 +63,7 @@ func (b *Bot) onSourceDone(ctx context.Context, chatID int64) {
 }
 
 func toggleSource(current, toggle string) string {
-	sources := make(map[string]bool)
-	if current != "" {
-		for _, s := range strings.Split(current, ",") {
-			sources[s] = true
-		}
-	}
-	if sources[toggle] {
-		delete(sources, toggle)
-	} else {
-		sources[toggle] = true
-	}
-	var result []string
-	for _, s := range []string{"yad2", "winwin"} {
-		if sources[s] {
-			result = append(result, s)
-		}
-	}
-	return strings.Join(result, ",")
+	return botcore.ToggleSource(current, toggle)
 }
 
 func (b *Bot) onMfrPage(ctx context.Context, chatID int64, data string) {
@@ -464,15 +448,7 @@ func (b *Bot) handleExcludeKeysInput(ctx context.Context, chatID int64, text str
 }
 
 func normalizeKeywords(input string) string {
-	parts := strings.Split(input, ",")
-	var trimmed []string
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			trimmed = append(trimmed, p)
-		}
-	}
-	return strings.Join(trimmed, ",")
+	return botcore.NormalizeKeywords(input)
 }
 
 func (b *Bot) handleManufacturerSearch(ctx context.Context, chatID int64, query string) {
