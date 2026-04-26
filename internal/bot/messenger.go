@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"os"
+	"path/filepath"
 
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
@@ -42,7 +43,7 @@ func (t *telegramMessenger) SendPhoto(ctx context.Context, chatID int64, photoPa
 
 	params := &tgbot.SendPhotoParams{
 		ChatID:  chatID,
-		Photo:   &tgmodels.InputFileUpload{Filename: "carwatch-logo.png", Data: f},
+		Photo:   &tgmodels.InputFileUpload{Filename: filepath.Base(photoPath), Data: f},
 		Caption: caption,
 	}
 	if parseMode != "" {
