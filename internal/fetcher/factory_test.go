@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -12,7 +11,7 @@ type stubFetcher struct {
 	name string
 }
 
-func (s *stubFetcher) Fetch(_ context.Context, _ config.SourceParams) ([]model.RawListing, error) {
+func (s *stubFetcher) Fetch(_ context.Context, _ model.SourceParams) ([]model.RawListing, error) {
 	return nil, nil
 }
 

@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -53,7 +52,7 @@ func NewCircuitBreaker(inner Fetcher, threshold int, cooldown time.Duration) *Ci
 	}
 }
 
-func (cb *CircuitBreaker) Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
+func (cb *CircuitBreaker) Fetch(ctx context.Context, params model.SourceParams) ([]model.RawListing, error) {
 	cb.mu.Lock()
 	switch cb.state {
 	case StateOpen:

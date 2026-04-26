@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -15,7 +14,7 @@ type pageMockFetcher struct {
 	calls []int
 }
 
-func (m *pageMockFetcher) Fetch(_ context.Context, params config.SourceParams) ([]model.RawListing, error) {
+func (m *pageMockFetcher) Fetch(_ context.Context, params model.SourceParams) ([]model.RawListing, error) {
 	m.calls = append(m.calls, params.Page)
 	if m.err != nil {
 		return nil, m.err
@@ -31,7 +30,7 @@ func TestPaginatingFetcher_SinglePage(t *testing.T) {
 	}
 	pf := NewPaginatingFetcher(inner, 5)
 
-	listings, err := pf.Fetch(context.Background(), config.SourceParams{})
+	listings, err := pf.Fetch(context.Background(), model.SourceParams{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -50,7 +49,7 @@ func TestPaginatingFetcher_MultiplePages(t *testing.T) {
 	}
 	pf := NewPaginatingFetcher(inner, 5)
 
-	listings, err := pf.Fetch(context.Background(), config.SourceParams{})
+	listings, err := pf.Fetch(context.Background(), model.SourceParams{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -68,7 +67,7 @@ func TestPaginatingFetcher_StopsAtEmptyPage(t *testing.T) {
 	}
 	pf := NewPaginatingFetcher(inner, 5)
 
-	listings, err := pf.Fetch(context.Background(), config.SourceParams{})
+	listings, err := pf.Fetch(context.Background(), model.SourceParams{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -92,7 +91,7 @@ func TestPaginatingFetcher_RespectsMaxPages(t *testing.T) {
 	}
 	pf := NewPaginatingFetcher(inner, 3)
 
-	listings, err := pf.Fetch(context.Background(), config.SourceParams{})
+	listings, err := pf.Fetch(context.Background(), model.SourceParams{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -114,7 +113,7 @@ func TestPaginatingFetcher_DeduplicatesAcrossPages(t *testing.T) {
 	}
 	pf := NewPaginatingFetcher(inner, 5)
 
-	listings, err := pf.Fetch(context.Background(), config.SourceParams{})
+	listings, err := pf.Fetch(context.Background(), model.SourceParams{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -132,7 +131,7 @@ func TestPaginatingFetcher_StopsWhenAllDuplicates(t *testing.T) {
 	}
 	pf := NewPaginatingFetcher(inner, 5)
 
-	listings, err := pf.Fetch(context.Background(), config.SourceParams{})
+	listings, err := pf.Fetch(context.Background(), model.SourceParams{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -148,7 +147,7 @@ func TestPaginatingFetcher_FirstPageError_Propagates(t *testing.T) {
 	inner := &pageMockFetcher{err: errors.New("network error")}
 	pf := NewPaginatingFetcher(inner, 5)
 
-	_, err := pf.Fetch(context.Background(), config.SourceParams{})
+	_, err := pf.Fetch(context.Background(), model.SourceParams{})
 	if err == nil {
 		t.Fatal("expected error for first page failure")
 	}
@@ -163,7 +162,7 @@ type laterErrorFetcher struct {
 	calls   []int
 }
 
-func (m *laterErrorFetcher) Fetch(_ context.Context, params config.SourceParams) ([]model.RawListing, error) {
+func (m *laterErrorFetcher) Fetch(_ context.Context, params model.SourceParams) ([]model.RawListing, error) {
 	m.calls = append(m.calls, params.Page)
 	if params.Page == m.errPage {
 		return nil, errors.New("page error")
@@ -180,7 +179,7 @@ func TestPaginatingFetcher_LaterPageError_ReturnsPartialWithError(t *testing.T) 
 	}
 	pf := NewPaginatingFetcher(inner, 5)
 
-	listings, err := pf.Fetch(context.Background(), config.SourceParams{})
+	listings, err := pf.Fetch(context.Background(), model.SourceParams{})
 	if !errors.Is(err, ErrPartialResults) {
 		t.Fatalf("expected ErrPartialResults, got: %v", err)
 	}
@@ -200,7 +199,7 @@ func TestPaginatingFetcher_PassesParams(t *testing.T) {
 	}
 	pf := NewPaginatingFetcher(inner, 5)
 
-	_, _ = pf.Fetch(context.Background(), config.SourceParams{Manufacturer: 27, Model: 10332})
+	_, _ = pf.Fetch(context.Background(), model.SourceParams{Manufacturer: 27, Model: 10332})
 	if len(inner.calls) < 1 {
 		t.Fatal("expected at least 1 call")
 	}
