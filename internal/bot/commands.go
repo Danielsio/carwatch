@@ -144,19 +144,7 @@ func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
 
-	count, err := b.searches.CountSearches(ctx, chatID)
-	if err != nil {
-		b.logger.Error("count searches failed", "chat_id", chatID, "error", err)
-		b.send(ctx, chatID, locale.T(lang, "watch_limit_error"))
-		return
-	}
-	limit := b.maxSearchesForUser(ctx, chatID)
-	if count >= int64(limit) {
-		if !b.isPremium(ctx, chatID) {
-			b.sendMarkdown(ctx, chatID, locale.Tf(lang, "upgrade_search_limit", count, limit))
-		} else {
-			b.send(ctx, chatID, locale.Tf(lang, "watch_limit_reached", count, limit))
-		}
+	if b.checkSearchLimit(ctx, chatID, lang, "watch_limit") {
 		return
 	}
 
