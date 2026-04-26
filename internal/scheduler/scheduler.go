@@ -916,6 +916,7 @@ func (s *Scheduler) isUserPremium(ctx context.Context, chatID int64) bool {
 		user, err := s.userStore.GetUser(ctx, chatID)
 		if err != nil {
 			s.logger.Error("premium check failed, defaulting to free", "chat_id", chatID, "error", err)
+			return false
 		} else if user != nil {
 			premium = user.Tier == "premium" && (user.TierExpires.IsZero() || user.TierExpires.After(time.Now()))
 		}
