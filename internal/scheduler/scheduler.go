@@ -801,7 +801,12 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 	}
 
 	if err := s.digestStore.AckDigest(ctx, chatID, cutoff); err != nil {
-		s.logger.Error("ack digest failed", "chat_id", chatID, "error", err)
+		s.logger.Error("digest ack failed after successful send, items may be resent",
+			"chat_id", chatID,
+			"cutoff", cutoff,
+			"items", len(payloads),
+			"error", err,
+		)
 	}
 
 	s.logger.Info("digest sent",
@@ -871,7 +876,10 @@ func (s *Scheduler) sendDailyDigest(ctx context.Context, chatID int64) {
 	}
 
 	if err := s.dailyDigestStore.UpdateDailyDigestLastSent(ctx, chatID); err != nil {
-		s.logger.Error("update daily digest last sent failed", "chat_id", chatID, "error", err)
+		s.logger.Error("daily digest last-sent update failed after successful send, digest may be resent",
+			"chat_id", chatID,
+			"error", err,
+		)
 	}
 
 	s.logger.Info("daily digest sent", "chat_id", chatID, "searches", len(stats))

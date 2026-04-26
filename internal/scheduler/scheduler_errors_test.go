@@ -1,8 +1,11 @@
 package scheduler
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -797,4 +800,96 @@ func TestProcessGroup_YearMaxZero_NoUpperBound(t *testing.T) {
 	if len(n.messages) != 1 {
 		t.Errorf("YearMax=0 should not filter, got %d notifications", len(n.messages))
 	}
+}
+
+func TestFlushAndSendDigest_AckFails_LogsDistinctiveError(t *testing.T) {
+	n := &mockNotifier{}
+	ds := newErrDigestStore()
+	ds.items[100] = digestItems("item1", "item2")
+	ds.ackErr = errors.New("ack failed")
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	h := health.New()
+	s, _ := NewWithOptions(testConfig(), nil, nil, n, logger, Options{
+		DigestStore: ds,
+		Observer:    h,
+	})
+
+	s.flushAndSendDigest(context.Background(), 100)
+
+	// Notification should still have been sent despite ack failure.
+	n.mu.Lock()
+	sentCount := len(n.rawMessages)
+	n.mu.Unlock()
+	if sentCount != 1 {
+		t.Errorf("expected 1 message sent, got %d", sentCount)
+	}
+
+	// The distinctive error message should appear in the log.
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "digest ack failed after successful send, items may be resent") {
+		t.Errorf("expected distinctive ack-failure log message, got: %s", logOutput)
+	}
+}
+
+func TestSendDailyDigest_LastSentUpdateFails_LogsDistinctiveError(t *testing.T) {
+	n := &mockNotifier{}
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	dds := &errDailyDigestStore{
+		stats: []storage.DailySearchStats{
+			{SearchName: "test", NewCount: 5, AvgPrice: 100000, BestPrice: 90000},
+		},
+		updateLastSentErr: errors.New("db write failed"),
+	}
+
+	s, _ := NewWithOptions(testConfig(), nil, nil, n, logger, Options{
+		DailyDigestStore: dds,
+	})
+
+	s.sendDailyDigest(context.Background(), 100)
+
+	// Notification should still have been sent despite last-sent update failure.
+	n.mu.Lock()
+	sentCount := len(n.rawMessages)
+	n.mu.Unlock()
+	if sentCount != 1 {
+		t.Errorf("expected 1 message sent, got %d", sentCount)
+	}
+
+	// The distinctive error message should appear in the log.
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "daily digest last-sent update failed after successful send, digest may be resent") {
+		t.Errorf("expected distinctive last-sent-failure log message, got: %s", logOutput)
+	}
+}
+
+// errDailyDigestStore is a mock DailyDigestStore that can inject errors.
+type errDailyDigestStore struct {
+	stats             []storage.DailySearchStats
+	updateLastSentErr error
+}
+
+func (m *errDailyDigestStore) SetDailyDigest(_ context.Context, _ int64, _ bool, _ string) error {
+	return nil
+}
+
+func (m *errDailyDigestStore) GetDailyDigest(_ context.Context, _ int64) (bool, string, time.Time, error) {
+	return true, "08:00", time.Time{}, nil
+}
+
+func (m *errDailyDigestStore) UpdateDailyDigestLastSent(_ context.Context, _ int64) error {
+	return m.updateLastSentErr
+}
+
+func (m *errDailyDigestStore) ListDailyDigestUsers(_ context.Context) ([]storage.DailyDigestUser, error) {
+	return nil, nil
+}
+
+func (m *errDailyDigestStore) DailyStats(_ context.Context, _ int64) ([]storage.DailySearchStats, error) {
+	return m.stats, nil
 }
