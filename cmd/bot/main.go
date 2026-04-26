@@ -23,6 +23,7 @@ import (
 	"github.com/dsionov/carwatch/internal/fetcher/winwin"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
+	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/notifier/telegram"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
@@ -137,11 +138,14 @@ func run(configPath string, logger *slog.Logger) error {
 	botHandler.SetBot(tgNotif.Bot())
 	botHandler.RegisterHandlers()
 
+	multi := notifier.NewMultiNotifier(store, logger)
+	multi.Register("telegram", tgNotif)
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	if err := tgNotif.Connect(ctx); err != nil {
-		return fmt.Errorf("connect telegram: %w", err)
+	if err := multi.Connect(ctx); err != nil {
+		return fmt.Errorf("connect notifiers: %w", err)
 	}
 
 	dash := dashboard.NewHandler(store)
@@ -169,7 +173,7 @@ func run(configPath string, logger *slog.Logger) error {
 		}
 	}()
 
-	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, tgNotif, logger, scheduler.Options{
+	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, multi, logger, scheduler.Options{
 		Observer:         h,
 		Queue:            store,
 		Prices:           store,
