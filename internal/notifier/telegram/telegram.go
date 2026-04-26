@@ -90,7 +90,7 @@ func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, list
 		ChatID:    id,
 		Photo:     &tgmodels.InputFileString{Data: listing.ImageURL},
 		Caption:   caption,
-		ParseMode: tgmodels.ParseModeMarkdown,
+		ParseMode: tgmodels.ParseModeMarkdownV1,
 	})
 	if err != nil {
 		n.logger.Warn("sendPhoto failed, falling back to text", "chat_id", chatID, "error", err)
@@ -102,7 +102,7 @@ func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, list
 }
 
 func (n *Notifier) sendMessageMarkdown(ctx context.Context, chatID string, text string) error {
-	return n.sendMessageWithParseMode(ctx, chatID, text, tgmodels.ParseModeMarkdown)
+	return n.sendMessageWithParseMode(ctx, chatID, text, tgmodels.ParseModeMarkdownV1)
 }
 
 func (n *Notifier) sendMessage(ctx context.Context, chatID string, text string) error {
