@@ -926,7 +926,7 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT token, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at
 		FROM listing_history
-		GROUP BY token
+		WHERE rowid IN (SELECT MAX(rowid) FROM listing_history GROUP BY token)
 		ORDER BY first_seen_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
