@@ -35,6 +35,7 @@ type ScoreInfo struct {
 
 type Listing struct {
 	RawListing
-	SearchName string
-	DealScore  *ScoreInfo
+	SearchName   string
+	DealScore    *ScoreInfo
+	FitnessScore float64
 }

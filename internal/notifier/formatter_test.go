@@ -203,6 +203,36 @@ func TestFormatBatch_MultipleListing(t *testing.T) {
 	}
 }
 
+func TestFormatListing_WithFitnessScore(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "fs1", Manufacturer: "Toyota", Model: "Corolla",
+			Year: 2022, Price: 80000,
+		},
+		FitnessScore: 7.3,
+	}
+
+	msg := FormatListing(l, locale.English)
+	if !strings.Contains(msg, "Fitness: 7.3/10") {
+		t.Errorf("message missing fitness score:\n%s", msg)
+	}
+}
+
+func TestFormatListing_NoFitnessScoreWhenZero(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "fs2", Manufacturer: "Toyota", Model: "Corolla",
+			Year: 2022, Price: 80000,
+		},
+		FitnessScore: 0,
+	}
+
+	msg := FormatListing(l, locale.English)
+	if strings.Contains(msg, "Fitness") {
+		t.Errorf("should not show fitness score when zero:\n%s", msg)
+	}
+}
+
 func TestFormatListing_WithScore(t *testing.T) {
 	l := model.Listing{
 		RawListing: model.RawListing{

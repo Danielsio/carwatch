@@ -158,3 +158,152 @@ func TestMarketCache_MedianEven(t *testing.T) {
 		t.Errorf("expected median=55000, got %d", median)
 	}
 }
+
+func TestFitnessScore(t *testing.T) {
+	tests := []struct {
+		name string
+		p    FitnessParams
+		min  float64
+		max  float64
+	}{
+		{
+			name: "perfect listing",
+			p: FitnessParams{
+				Price: 50000, Km: 0, Hand: 1, Year: 2024, EngineVolume: 3000,
+				PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+			},
+			min: 9.0, max: 10.0,
+		},
+		{
+			name: "worst listing within filters",
+			p: FitnessParams{
+				Price: 200000, Km: 150000, Hand: 4, Year: 2018, EngineVolume: 1500,
+				PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+			},
+			min: 0.0, max: 1.5,
+		},
+		{
+			name: "middle of the road",
+			p: FitnessParams{
+				Price: 100000, Km: 75000, Hand: 2, Year: 2021, EngineVolume: 2000,
+				PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+			},
+			min: 4.5, max: 6.5,
+		},
+		{
+			name: "PriceMax=0 excludes price dimension",
+			p: FitnessParams{
+				Price: 999999, Km: 10000, Hand: 1, Year: 2024, EngineVolume: 2000,
+				PriceMax: 0, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+			},
+			min: 8.0, max: 10.0,
+		},
+		{
+			name: "Price=0 excludes price dimension",
+			p: FitnessParams{
+				Price: 0, Km: 10000, Hand: 1, Year: 2024, EngineVolume: 2000,
+				PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+			},
+			min: 8.0, max: 10.0,
+		},
+		{
+			name: "MaxKm=0 uses absolute 200k scale",
+			p: FitnessParams{
+				Price: 100000, Km: 100000, Hand: 2, Year: 2021, EngineVolume: 2000,
+				PriceMax: 200000, MaxKm: 0, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+			},
+			min: 4.0, max: 6.5,
+		},
+		{
+			name: "MaxHand=0 uses absolute scale",
+			p: FitnessParams{
+				Price: 100000, Km: 50000, Hand: 1, Year: 2022, EngineVolume: 2000,
+				PriceMax: 200000, MaxKm: 150000, MaxHand: 0, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+			},
+			min: 6.0, max: 8.5,
+		},
+		{
+			name: "single year range gives full year score",
+			p: FitnessParams{
+				Price: 100000, Km: 50000, Hand: 2, Year: 2022, EngineVolume: 2000,
+				PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2022, YearMax: 2022, EngineMinCC: 1500,
+			},
+			min: 5.5, max: 7.5,
+		},
+		{
+			name: "EngineMinCC=0 gives full engine score",
+			p: FitnessParams{
+				Price: 100000, Km: 50000, Hand: 2, Year: 2022, EngineVolume: 1200,
+				PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 0,
+			},
+			min: 5.0, max: 7.0,
+		},
+		{
+			name: "all criteria are any",
+			p: FitnessParams{
+				Price: 0, Km: 50000, Hand: 2, Year: 2022, EngineVolume: 2000,
+				PriceMax: 0, MaxKm: 0, MaxHand: 0, YearMin: 0, YearMax: 0, EngineMinCC: 0,
+			},
+			min: 6.0, max: 9.0,
+		},
+		{
+			name: "brand new car with zero km",
+			p: FitnessParams{
+				Price: 150000, Km: 0, Hand: 1, Year: 2024, EngineVolume: 2000,
+				PriceMax: 200000, MaxKm: 100000, MaxHand: 3, YearMin: 2020, YearMax: 2024, EngineMinCC: 1500,
+			},
+			min: 6.5, max: 9.5,
+		},
+		{
+			name: "price exactly at max",
+			p: FitnessParams{
+				Price: 200000, Km: 0, Hand: 1, Year: 2024, EngineVolume: 2000,
+				PriceMax: 200000, MaxKm: 100000, MaxHand: 3, YearMin: 2020, YearMax: 2024, EngineMinCC: 1500,
+			},
+			min: 5.5, max: 7.5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FitnessScore(tt.p)
+			if got < tt.min || got > tt.max {
+				t.Errorf("FitnessScore() = %.1f, want [%.1f, %.1f]", got, tt.min, tt.max)
+			}
+		})
+	}
+}
+
+func TestFitnessScore_Monotonic(t *testing.T) {
+	base := FitnessParams{
+		Price: 100000, Km: 80000, Hand: 2, Year: 2021, EngineVolume: 2000,
+		PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+	}
+
+	better := base
+	better.Price = 80000
+	better.Km = 40000
+	better.Hand = 1
+	better.Year = 2023
+
+	baseScore := FitnessScore(base)
+	betterScore := FitnessScore(better)
+
+	if betterScore <= baseScore {
+		t.Errorf("better listing (%.1f) should score higher than base (%.1f)", betterScore, baseScore)
+	}
+}
+
+func TestFitnessScore_Range(t *testing.T) {
+	params := []FitnessParams{
+		{Price: 1, Km: 999999, Hand: 10, Year: 2000, PriceMax: 1, MaxKm: 1, MaxHand: 1, YearMin: 2020, YearMax: 2024},
+		{Price: 0, Km: 0, Hand: 0, Year: 2024, PriceMax: 0, MaxKm: 0, MaxHand: 0, YearMin: 0, YearMax: 0},
+		{Price: 50000, Km: 50000, Hand: 2, Year: 2022, PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024},
+	}
+	for _, p := range params {
+		s := FitnessScore(p)
+		if s < 0 || s > 10 {
+			t.Errorf("FitnessScore out of range [0,10]: %.1f for %+v", s, p)
+		}
+	}
+}

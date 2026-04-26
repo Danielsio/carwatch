@@ -639,6 +639,19 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 			}
 
 			listing := model.Listing{RawListing: l, SearchName: search.Name}
+			listing.FitnessScore = scoring.FitnessScore(scoring.FitnessParams{
+				Price:        l.Price,
+				Km:           l.Km,
+				Hand:         l.Hand,
+				Year:         l.Year,
+				EngineVolume: l.EngineVolume,
+				PriceMax:     search.PriceMax,
+				MaxKm:        search.MaxKm,
+				MaxHand:      search.MaxHand,
+				YearMin:      search.YearMin,
+				YearMax:      search.YearMax,
+				EngineMinCC:  search.EngineMinCC,
+			})
 			if marketCache != nil && l.Price > 0 && isPremium {
 				median, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
 				if ok {

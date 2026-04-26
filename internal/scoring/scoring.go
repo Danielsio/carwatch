@@ -78,3 +78,131 @@ func abs(x int) int {
 	}
 	return x
 }
+
+const (
+	weightPrice  = 0.35
+	weightKm     = 0.25
+	weightHand   = 0.20
+	weightYear   = 0.15
+	weightEngine = 0.05
+
+	defaultMaxKm = 200000
+)
+
+type FitnessParams struct {
+	Price        int
+	Km           int
+	Hand         int
+	Year         int
+	EngineVolume float64
+
+	PriceMax    int
+	MaxKm       int
+	MaxHand     int
+	YearMin     int
+	YearMax     int
+	EngineMinCC int
+}
+
+func FitnessScore(p FitnessParams) float64 {
+	type dim struct {
+		weight float64
+		score  float64
+	}
+
+	var dims []dim
+
+	if p.PriceMax > 0 && p.Price > 0 {
+		dims = append(dims, dim{weightPrice, priceScore(p.Price, p.PriceMax)})
+	}
+
+	dims = append(dims, dim{weightKm, kmScore(p.Km, p.MaxKm)})
+	dims = append(dims, dim{weightHand, handScore(p.Hand, p.MaxHand)})
+	dims = append(dims, dim{weightYear, yearScore(p.Year, p.YearMin, p.YearMax)})
+	dims = append(dims, dim{weightEngine, engineScore(p.EngineVolume, p.EngineMinCC)})
+
+	var totalWeight float64
+	for _, d := range dims {
+		totalWeight += d.weight
+	}
+	if totalWeight <= 0 {
+		return 5.0
+	}
+
+	var weighted float64
+	for _, d := range dims {
+		weighted += (d.weight / totalWeight) * d.score
+	}
+
+	raw := weighted * 10.0
+	return math.Round(raw*10) / 10
+}
+
+func priceScore(price, priceMax int) float64 {
+	if priceMax <= 0 {
+		return 0.5
+	}
+	s := 1.0 - float64(price)/float64(priceMax)
+	return clamp01(s)
+}
+
+func kmScore(km, maxKm int) float64 {
+	if km <= 0 {
+		return 1.0
+	}
+	ref := maxKm
+	if ref <= 0 {
+		ref = defaultMaxKm
+	}
+	s := 1.0 - float64(km)/float64(ref)
+	return clamp01(s)
+}
+
+func handScore(hand, maxHand int) float64 {
+	if hand <= 0 {
+		return 1.0
+	}
+	if maxHand > 0 {
+		s := 1.0 - float64(hand-1)/float64(maxHand)
+		return clamp01(s)
+	}
+	switch hand {
+	case 1:
+		return 1.0
+	case 2:
+		return 0.7
+	case 3:
+		return 0.4
+	default:
+		return 0.1
+	}
+}
+
+func yearScore(year, yearMin, yearMax int) float64 {
+	if yearMin <= 0 || yearMax <= 0 || yearMax <= yearMin {
+		return 1.0
+	}
+	s := float64(year-yearMin) / float64(yearMax-yearMin)
+	return clamp01(s)
+}
+
+func engineScore(engineVolume float64, engineMinCC int) float64 {
+	if engineMinCC <= 0 {
+		return 1.0
+	}
+	if engineVolume <= 0 {
+		return 0.5
+	}
+	s := (engineVolume - float64(engineMinCC)) / float64(engineMinCC)
+	return clamp01(math.Min(s, 1.0))
+}
+
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
+}
