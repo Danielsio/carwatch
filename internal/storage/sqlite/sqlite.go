@@ -1397,6 +1397,12 @@ func (s *Store) ListExpiredPremium(ctx context.Context) ([]storage.User, error) 
 
 // --- Close ---
 
+func (s *Store) Checkpoint() error {
+	_, err := s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+	return err
+}
+
 func (s *Store) Close() error {
+	_ = s.Checkpoint()
 	return s.db.Close()
 }
