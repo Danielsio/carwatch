@@ -139,7 +139,9 @@ func run(configPath string, logger *slog.Logger) error {
 	botHandler.RegisterHandlers()
 
 	multi := notifier.NewMultiNotifier(store, logger)
-	multi.Register("telegram", tgNotif)
+	if err := multi.Register("telegram", tgNotif); err != nil {
+		return fmt.Errorf("register telegram notifier: %w", err)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -147,6 +149,7 @@ func run(configPath string, logger *slog.Logger) error {
 	if err := multi.Connect(ctx); err != nil {
 		return fmt.Errorf("connect notifiers: %w", err)
 	}
+	defer func() { _ = multi.Disconnect() }()
 
 	dash := dashboard.NewHandler(store)
 	mux := http.NewServeMux()

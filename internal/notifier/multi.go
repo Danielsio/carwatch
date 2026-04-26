@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -12,10 +13,10 @@ import (
 )
 
 type MultiNotifier struct {
-	notifiers  map[string]Notifier
-	fallback   string
-	userStore  storage.UserStore
-	logger     *slog.Logger
+	notifiers map[string]Notifier
+	fallback  string
+	userStore storage.UserStore
+	logger    *slog.Logger
 }
 
 func NewMultiNotifier(userStore storage.UserStore, logger *slog.Logger) *MultiNotifier {
@@ -26,11 +27,18 @@ func NewMultiNotifier(userStore storage.UserStore, logger *slog.Logger) *MultiNo
 	}
 }
 
-func (m *MultiNotifier) Register(channel string, n Notifier) {
+func (m *MultiNotifier) Register(channel string, n Notifier) error {
+	if channel == "" {
+		return fmt.Errorf("channel must not be empty")
+	}
+	if n == nil {
+		return fmt.Errorf("notifier must not be nil")
+	}
 	if m.fallback == "" {
 		m.fallback = channel
 	}
 	m.notifiers[channel] = n
+	return nil
 }
 
 func (m *MultiNotifier) Connect(ctx context.Context) error {
@@ -43,10 +51,13 @@ func (m *MultiNotifier) Connect(ctx context.Context) error {
 }
 
 func (m *MultiNotifier) Disconnect() error {
-	for _, n := range m.notifiers {
-		_ = n.Disconnect()
+	var errs []error
+	for ch, n := range m.notifiers {
+		if err := n.Disconnect(); err != nil {
+			errs = append(errs, fmt.Errorf("disconnect %s: %w", ch, err))
+		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 var errNoNotifier = fmt.Errorf("no notifiers registered")

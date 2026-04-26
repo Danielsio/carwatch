@@ -9,8 +9,8 @@ type Choice struct {
 
 type Presenter interface {
 	SendText(ctx context.Context, chatID int64, text string) error
-	SendChoices(ctx context.Context, chatID int64, prompt string, choices [][]Choice) error
-	SendConfirmation(ctx context.Context, chatID int64, summary string, choices [][]Choice) error
+	SendChoices(ctx context.Context, chatID int64, prompt string, choices []Choice) error
+	SendConfirmation(ctx context.Context, chatID int64, summary string) error
 }
 
 type MarkdownSender interface {

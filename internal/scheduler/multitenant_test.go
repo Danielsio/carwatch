@@ -270,6 +270,9 @@ func (m *mockUserStore) ListExpiredPremium(_ context.Context) ([]storage.User, e
 func (m *mockUserStore) GetUserByChannelID(_ context.Context, _, _ string) (*storage.User, error) {
 	return nil, nil
 }
+func (m *mockUserStore) UpsertWhatsAppUser(_ context.Context, _ string) (int64, error) {
+	return 0, nil
+}
 
 type digestItem struct {
 	payload   string

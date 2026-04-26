@@ -47,6 +47,7 @@ type UserStore interface {
 	UpsertUser(ctx context.Context, chatID int64, username string) error
 	GetUser(ctx context.Context, chatID int64) (*User, error)
 	GetUserByChannelID(ctx context.Context, channel, channelID string) (*User, error)
+	UpsertWhatsAppUser(ctx context.Context, phoneNumber string) (int64, error)
 	UpdateUserState(ctx context.Context, chatID int64, state string, stateData string) error
 	ListActiveUsers(ctx context.Context) ([]User, error)
 	SetUserActive(ctx context.Context, chatID int64, active bool) error

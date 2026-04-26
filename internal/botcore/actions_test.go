@@ -30,6 +30,10 @@ func TestToggleSource(t *testing.T) {
 		{"yad2,winwin", "yad2", "winwin"},
 		{"yad2,winwin", "winwin", "yad2"},
 		{"winwin", "winwin", ""},
+		{"yad2, winwin", "winwin", "yad2"},
+		{" yad2 ", "yad2", ""},
+		{"", " ", ""},
+		{"yad2", "discord", "yad2"},
 	}
 	for _, tt := range tests {
 		got := ToggleSource(tt.current, tt.toggle)

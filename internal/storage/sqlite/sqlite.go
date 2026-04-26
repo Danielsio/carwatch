@@ -399,6 +399,13 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("create channel_id index: %w", err)
 	}
 
+	if _, err := db.Exec(`
+		UPDATE users SET channel_id = CAST(chat_id AS TEXT)
+		WHERE channel = 'telegram' AND channel_id = ''
+	`); err != nil {
+		return fmt.Errorf("backfill telegram channel_id: %w", err)
+	}
+
 	return nil
 }
 
@@ -407,10 +414,13 @@ const whatsappIDOffset int64 = 1_000_000_000_000
 // --- UserStore ---
 
 func (s *Store) UpsertUser(ctx context.Context, chatID int64, username string) error {
+	channelID := fmt.Sprintf("%d", chatID)
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO users (chat_id, username) VALUES (?, ?)
-		ON CONFLICT(chat_id) DO UPDATE SET username = excluded.username`,
-		chatID, username)
+		INSERT INTO users (chat_id, username, channel_id) VALUES (?, ?, ?)
+		ON CONFLICT(chat_id) DO UPDATE SET
+			username = excluded.username,
+			channel_id = CASE WHEN users.channel_id = '' THEN excluded.channel_id ELSE users.channel_id END`,
+		chatID, username, channelID)
 	return err
 }
 

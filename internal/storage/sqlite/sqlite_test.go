@@ -67,8 +67,8 @@ func TestGetUser_ChannelFields(t *testing.T) {
 	if u.Channel != "telegram" {
 		t.Errorf("Channel = %q, want telegram", u.Channel)
 	}
-	if u.ChannelID != "" {
-		t.Errorf("ChannelID = %q, want empty", u.ChannelID)
+	if u.ChannelID != "100" {
+		t.Errorf("ChannelID = %q, want '100' (backfilled from chat_id)", u.ChannelID)
 	}
 }
 
@@ -137,14 +137,23 @@ func TestWhatsAppUserIsolation(t *testing.T) {
 	ctx := context.Background()
 	seedUser(t, store, 100)
 
-	waID, _ := store.UpsertWhatsAppUser(ctx, "+972501234567")
+	waID, err := store.UpsertWhatsAppUser(ctx, "+972501234567")
+	if err != nil {
+		t.Fatalf("upsert whatsapp user: %v", err)
+	}
 
 	if waID == 100 {
 		t.Error("WhatsApp ID should not collide with Telegram chat ID")
 	}
 
-	tgUser, _ := store.GetUser(ctx, 100)
-	waUser, _ := store.GetUser(ctx, waID)
+	tgUser, err := store.GetUser(ctx, 100)
+	if err != nil {
+		t.Fatalf("get telegram user: %v", err)
+	}
+	waUser, err := store.GetUser(ctx, waID)
+	if err != nil {
+		t.Fatalf("get whatsapp user: %v", err)
+	}
 
 	if tgUser.Channel != "telegram" {
 		t.Errorf("Telegram user channel = %q", tgUser.Channel)
