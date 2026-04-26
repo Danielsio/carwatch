@@ -72,6 +72,12 @@ func (cb *CircuitBreaker) Fetch(ctx context.Context, params config.SourceParams)
 	cb.probing = cb.state == StateHalfOpen
 	cb.mu.Unlock()
 
+	defer func() {
+		cb.mu.Lock()
+		cb.probing = false
+		cb.mu.Unlock()
+	}()
+
 	listings, err := cb.inner.Fetch(ctx, params)
 
 	cb.mu.Lock()
@@ -83,13 +89,11 @@ func (cb *CircuitBreaker) Fetch(ctx context.Context, params config.SourceParams)
 			cb.state = StateOpen
 			cb.openedAt = time.Now()
 		}
-		cb.probing = false
 		return nil, err
 	}
 
 	cb.failures = 0
 	cb.state = StateClosed
-	cb.probing = false
 	return listings, nil
 }
 
