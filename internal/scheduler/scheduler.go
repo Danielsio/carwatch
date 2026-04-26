@@ -465,6 +465,16 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		go func(g CanonicalGroup) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("panic in processGroup",
+						"manufacturer", g.Manufacturer,
+						"model", g.Model,
+						"panic", r,
+					)
+					s.observer.RecordError()
+				}
+			}()
 
 			if err := s.processGroup(ctx, g, marketCache); err != nil {
 				s.logger.Error("group failed",
@@ -665,12 +675,14 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 			newListings = append(newListings, listing)
 
 			if s.listingStore != nil {
-				_ = s.listingStore.SaveListing(ctx, storage.ListingRecord{
+				if err := s.listingStore.SaveListing(ctx, storage.ListingRecord{
 					Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
 					Manufacturer: l.Manufacturer, Model: l.Model,
 					Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 					City: l.City, PageLink: l.PageLink, FirstSeenAt: time.Now(),
-				})
+				}); err != nil {
+					s.logger.Warn("save listing failed", "token", l.Token, "error", err)
+				}
 			}
 		}
 
