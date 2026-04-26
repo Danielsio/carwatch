@@ -273,6 +273,9 @@ var he = map[string]string{
 	"fmt_batch_item":       "*[%d/%d]*\n",
 	"fmt_digest_header":    "*סיכום יומי (%d פריטים):*\n",
 
+	// fitness scoring
+	"fmt_fitness_score":     "🎯 התאמה: %.1f/10\n",
+
 	// deal scoring
 	"fmt_deal_score":        "📊 ציון עסקה: %d/100\n",
 	"fmt_deal_below_market": "%d%% מתחת לשוק (חציון ₪%s · %d מודעות)\n",
@@ -583,6 +586,9 @@ var en = map[string]string{
 	"fmt_batch_header":     "🚗 *%d New Listings Found*\n",
 	"fmt_batch_item":       "*[%d/%d]*\n",
 	"fmt_digest_header":    "*Digest Summary (%d items):*\n",
+
+	// fitness scoring
+	"fmt_fitness_score":     "🎯 Fitness: %.1f/10\n",
 
 	// deal scoring
 	"fmt_deal_score":        "📊 Deal Score: %d/100\n",

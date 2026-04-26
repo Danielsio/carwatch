@@ -23,6 +23,10 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 	}
 	b.WriteString("*" + title + "*\n\n")
 
+	if l.FitnessScore > 0 {
+		b.WriteString(locale.Tf(lang, "fmt_fitness_score", l.FitnessScore))
+	}
+
 	if l.DealScore != nil {
 		b.WriteString(locale.Tf(lang, "fmt_deal_score", l.DealScore.Score))
 		b.WriteString(dealExplanation(lang, l.DealScore, l.Price))
