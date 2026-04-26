@@ -46,6 +46,7 @@ type Scheduler struct {
 	notifier          notifier.Notifier
 	logger            *slog.Logger
 	loc               *time.Location
+	boMu              sync.RWMutex
 	backoffMultiplier float64
 	lastPruneTime     time.Time
 	observer          CycleObserver
@@ -285,7 +286,10 @@ func (s *Scheduler) nextDelay() time.Duration {
 	interval := s.cfg.Polling.Interval
 	jitterCfg := s.cfg.Polling.Jitter
 	s.cfgMu.RUnlock()
-	base := time.Duration(float64(interval) * s.backoffMultiplier)
+	s.boMu.RLock()
+	mult := s.backoffMultiplier
+	s.boMu.RUnlock()
+	base := time.Duration(float64(interval) * mult)
 	jitter := jitterCfg
 	if jitter > 0 {
 		offset := time.Duration(rand.Int64N(int64(2*jitter))) - jitter
@@ -400,9 +404,9 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.logger.Info("starting poll cycle")
 
-	s.langCache = sync.Map{}
-	s.digestCache = sync.Map{}
-	s.premiumCache = sync.Map{}
+	s.langCache.Range(func(k, _ any) bool { s.langCache.Delete(k); return true })
+	s.digestCache.Range(func(k, _ any) bool { s.digestCache.Delete(k); return true })
+	s.premiumCache.Range(func(k, _ any) bool { s.premiumCache.Delete(k); return true })
 
 	searches, err := s.searchStore.ListAllActiveSearches(ctx)
 	if err != nil {
@@ -485,16 +489,18 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 					"error", err,
 				)
 				if errors.Is(err, fetcher.ErrChallenge) {
-					mu.Lock()
+					s.boMu.Lock()
 					s.backoffMultiplier = min(s.backoffMultiplier*2, maxBackoff)
-					mu.Unlock()
+					s.boMu.Unlock()
 				}
 				return
 			}
 			mu.Lock()
 			allFailed = false
-			s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
 			mu.Unlock()
+			s.boMu.Lock()
+			s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
+			s.boMu.Unlock()
 		}(group)
 	}
 	wg.Wait()
@@ -642,6 +648,14 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 					)
 					listing := model.Listing{RawListing: l, SearchName: search.Name}
 					priceDropMessages = append(priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice, lang))
+					if s.listingStore != nil {
+						_ = s.listingStore.SaveListing(ctx, storage.ListingRecord{
+							Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
+							Manufacturer: l.Manufacturer, Model: l.Model,
+							Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
+							City: l.City, PageLink: l.PageLink, FirstSeenAt: time.Now(),
+						})
+					}
 					continue
 				}
 			}
