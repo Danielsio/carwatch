@@ -147,6 +147,18 @@ func migrate(db *sql.DB) error {
 
 		CREATE INDEX IF NOT EXISTS idx_seen_listings_chatid_firstseen
 			ON seen_listings(chat_id, first_seen_at DESC);
+
+		CREATE INDEX IF NOT EXISTS idx_pending_digest_chat_created
+			ON pending_digest(chat_id, created_at);
+
+		CREATE INDEX IF NOT EXISTS idx_searches_active
+			ON searches(active, chat_id);
+
+		CREATE INDEX IF NOT EXISTS idx_pending_notifications_created
+			ON pending_notifications(created_at);
+
+		CREATE INDEX IF NOT EXISTS idx_listing_history_chat_search
+			ON listing_history(chat_id, search_name);
 	`)
 	if err != nil {
 		return err
