@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -80,6 +81,86 @@ func TestDashboard_LimitParam(t *testing.T) {
 
 	if !strings.Contains(w.Body.String(), "Showing 2 listings") {
 		t.Error("limit=2 should show 2 listings")
+	}
+}
+
+func TestDashboard_InvalidLimit(t *testing.T) {
+	store := newTestStore(t)
+	h := NewHandler(store)
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard?limit=abc", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestDashboard_NegativeLimit(t *testing.T) {
+	store := newTestStore(t)
+	h := NewHandler(store)
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard?limit=-5", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestDashboard_LimitTooHigh(t *testing.T) {
+	store := newTestStore(t)
+	h := NewHandler(store)
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard?limit=1000", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+type errorStore struct{}
+
+func (e *errorStore) ListListings(_ context.Context, _ int) ([]storage.ListingRecord, error) {
+	return nil, errors.New("db error")
+}
+
+func TestDashboard_StoreError(t *testing.T) {
+	h := NewHandler(&errorStore{})
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestDashboard_SecurityHeaders(t *testing.T) {
+	store := newTestStore(t)
+	h := NewHandler(store)
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	headers := map[string]string{
+		"X-Frame-Options":        "DENY",
+		"X-Content-Type-Options": "nosniff",
+		"Referrer-Policy":        "no-referrer",
+	}
+	for k, v := range headers {
+		if got := w.Header().Get(k); got != v {
+			t.Errorf("header %s = %q, want %q", k, got, v)
+		}
+	}
+	if csp := w.Header().Get("Content-Security-Policy"); csp == "" {
+		t.Error("Content-Security-Policy header not set")
 	}
 }
 

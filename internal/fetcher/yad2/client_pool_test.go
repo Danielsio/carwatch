@@ -93,3 +93,37 @@ func TestClientPool_CloseAll(t *testing.T) {
 	}
 	pool.mu.Unlock()
 }
+
+func TestRedactProxy_Valid(t *testing.T) {
+	got := redactProxy("http://user:pass@proxy.example.com:8080")
+	if got != "http://proxy.example.com:8080" {
+		t.Errorf("redactProxy() = %q, want credentials stripped", got)
+	}
+}
+
+func TestRedactProxy_NoCredentials(t *testing.T) {
+	got := redactProxy("http://proxy.example.com:8080")
+	if got != "http://proxy.example.com:8080" {
+		t.Errorf("redactProxy() = %q", got)
+	}
+}
+
+func TestRedactProxy_Invalid(t *testing.T) {
+	got := redactProxy("://invalid")
+	if got != "<invalid>" {
+		t.Errorf("redactProxy() = %q, want '<invalid>'", got)
+	}
+}
+
+func TestClientPool_GetCreatesNew(t *testing.T) {
+	pool := NewClientPool([]string{"ua1"}, slog.Default())
+	defer pool.Close()
+
+	c, err := pool.Get("")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if c == nil {
+		t.Error("expected non-nil client for empty proxy")
+	}
+}

@@ -256,6 +256,14 @@ func TestPlainClient_Get_SetsHeaders(t *testing.T) {
 	}
 }
 
+func TestYad2Fetcher_Close(t *testing.T) {
+	f, err := NewFetcher([]string{"TestAgent/1.0"}, "", discardLogger)
+	if err != nil {
+		t.Fatalf("NewFetcher: %v", err)
+	}
+	f.Close()
+}
+
 func defaultParams() config.SourceParams {
 	return config.SourceParams{Manufacturer: 27, Model: 10332}
 }
