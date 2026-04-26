@@ -34,13 +34,14 @@ func (s CircuitState) String() string {
 var ErrCircuitOpen = fmt.Errorf("circuit breaker is open")
 
 type CircuitBreaker struct {
-	inner           Fetcher
-	mu              sync.Mutex
-	state           CircuitState
-	failures        int
+	inner            Fetcher
+	mu               sync.Mutex
+	state            CircuitState
+	failures         int
 	failureThreshold int
-	cooldown        time.Duration
-	openedAt        time.Time
+	cooldown         time.Duration
+	openedAt         time.Time
+	probing          bool
 }
 
 func NewCircuitBreaker(inner Fetcher, threshold int, cooldown time.Duration) *CircuitBreaker {
@@ -63,8 +64,12 @@ func (cb *CircuitBreaker) Fetch(ctx context.Context, params config.SourceParams)
 			return nil, ErrCircuitOpen
 		}
 	case StateHalfOpen:
-		// Only one probe at a time — already in half-open, let it through.
+		if cb.probing {
+			cb.mu.Unlock()
+			return nil, ErrCircuitOpen
+		}
 	}
+	cb.probing = cb.state == StateHalfOpen
 	cb.mu.Unlock()
 
 	listings, err := cb.inner.Fetch(ctx, params)
@@ -78,11 +83,13 @@ func (cb *CircuitBreaker) Fetch(ctx context.Context, params config.SourceParams)
 			cb.state = StateOpen
 			cb.openedAt = time.Now()
 		}
+		cb.probing = false
 		return nil, err
 	}
 
 	cb.failures = 0
 	cb.state = StateClosed
+	cb.probing = false
 	return listings, nil
 }
 
