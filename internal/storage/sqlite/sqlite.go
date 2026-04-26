@@ -370,27 +370,68 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	for _, col := range []struct {
+		name string
+		def  string
+	}{
+		{"channel", "TEXT NOT NULL DEFAULT 'telegram'"},
+		{"channel_id", "TEXT NOT NULL DEFAULT ''"},
+	} {
+		var chanCount int
+		err := db.QueryRow(
+			"SELECT COUNT(*) FROM pragma_table_info('users') WHERE name = ?", col.name,
+		).Scan(&chanCount)
+		if err != nil {
+			return fmt.Errorf("check column %s: %w", col.name, err)
+		}
+		if chanCount == 0 {
+			_, err = db.Exec(fmt.Sprintf("ALTER TABLE users ADD COLUMN %s %s", col.name, col.def))
+			if err != nil {
+				return fmt.Errorf("add column %s: %w", col.name, err)
+			}
+		}
+	}
+
+	if _, err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_users_channel_id
+			ON users(channel, channel_id) WHERE channel_id != ''
+	`); err != nil {
+		return fmt.Errorf("create channel_id index: %w", err)
+	}
+
+	if _, err := db.Exec(`
+		UPDATE users SET channel_id = CAST(chat_id AS TEXT)
+		WHERE channel = 'telegram' AND channel_id = ''
+	`); err != nil {
+		return fmt.Errorf("backfill telegram channel_id: %w", err)
+	}
+
 	return nil
 }
+
+const whatsappIDOffset int64 = 1_000_000_000_000
 
 // --- UserStore ---
 
 func (s *Store) UpsertUser(ctx context.Context, chatID int64, username string) error {
+	channelID := fmt.Sprintf("%d", chatID)
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO users (chat_id, username) VALUES (?, ?)
-		ON CONFLICT(chat_id) DO UPDATE SET username = excluded.username`,
-		chatID, username)
+		INSERT INTO users (chat_id, username, channel_id) VALUES (?, ?, ?)
+		ON CONFLICT(chat_id) DO UPDATE SET
+			username = excluded.username,
+			channel_id = CASE WHEN users.channel_id = '' THEN excluded.channel_id ELSE users.channel_id END`,
+		chatID, username, channelID)
 	return err
 }
 
 func (s *Store) GetUser(ctx context.Context, chatID int64) (*storage.User, error) {
 	row := s.db.QueryRowContext(ctx,
-		"SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used FROM users WHERE chat_id = ?",
+		"SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used, channel, channel_id FROM users WHERE chat_id = ?",
 		chatID)
 
 	var u storage.User
 	err := row.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language,
-		&u.Tier, &u.TierExpires, &u.TrialUsed)
+		&u.Tier, &u.TierExpires, &u.TrialUsed, &u.Channel, &u.ChannelID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -398,6 +439,56 @@ func (s *Store) GetUser(ctx context.Context, chatID int64) (*storage.User, error
 		return nil, err
 	}
 	return &u, nil
+}
+
+func (s *Store) GetUserByChannelID(ctx context.Context, channel, channelID string) (*storage.User, error) {
+	row := s.db.QueryRowContext(ctx,
+		"SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used, channel, channel_id FROM users WHERE channel = ? AND channel_id = ?",
+		channel, channelID)
+
+	var u storage.User
+	err := row.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language,
+		&u.Tier, &u.TierExpires, &u.TrialUsed, &u.Channel, &u.ChannelID)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (s *Store) UpsertWhatsAppUser(ctx context.Context, phoneNumber string) (int64, error) {
+	existing, err := s.GetUserByChannelID(ctx, "whatsapp", phoneNumber)
+	if err != nil {
+		return 0, err
+	}
+	if existing != nil {
+		return existing.ChatID, nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var maxID int64
+	_ = tx.QueryRowContext(ctx,
+		"SELECT COALESCE(MAX(chat_id), ?) FROM users WHERE chat_id >= ?",
+		whatsappIDOffset-1, whatsappIDOffset).Scan(&maxID)
+	newID := maxID + 1
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO users (chat_id, username, channel, channel_id) VALUES (?, ?, 'whatsapp', ?)",
+		newID, phoneNumber, phoneNumber)
+	if err != nil {
+		return 0, fmt.Errorf("create whatsapp user: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+	return newID, nil
 }
 
 func (s *Store) UpdateUserState(ctx context.Context, chatID int64, state string, stateData string) error {
