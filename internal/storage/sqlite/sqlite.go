@@ -889,6 +889,59 @@ func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error 
 	return nil
 }
 
+func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecord) error {
+	if len(records) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	listingStmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO listing_history
+		(token, chat_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(token, chat_id) DO UPDATE SET
+			price = excluded.price,
+			km = excluded.km`)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = listingStmt.Close() }()
+
+	marketStmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO market_cache (token, manufacturer, model, year, price)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(token) DO UPDATE SET
+			manufacturer = excluded.manufacturer,
+			model = excluded.model,
+			year = excluded.year,
+			price = excluded.price,
+			updated_at = CURRENT_TIMESTAMP`)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = marketStmt.Close() }()
+
+	for _, r := range records {
+		if _, err := listingStmt.ExecContext(ctx,
+			r.Token, r.ChatID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
+			r.Km, r.Hand, r.City, r.PageLink, r.FirstSeenAt); err != nil {
+			return err
+		}
+		if r.Manufacturer != "" && r.Model != "" && r.Year > 0 && r.Price > 0 {
+			if _, err := marketStmt.ExecContext(ctx,
+				r.Token, r.Manufacturer, r.Model, r.Year, r.Price); err != nil {
+				return fmt.Errorf("upsert market_cache: %w", err)
+			}
+		}
+	}
+	return tx.Commit()
+}
+
 func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT token, search_name, manufacturer, model, year, price,
