@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -130,7 +131,9 @@ func (d *DynamicCatalog) rebuildSlices() {
 	for id, name := range d.mfrMap {
 		mfrs = append(mfrs, Entry{ID: id, Name: name})
 	}
-	sort.Slice(mfrs, func(i, j int) bool { return mfrs[i].Name < mfrs[j].Name })
+	sort.Slice(mfrs, func(i, j int) bool {
+		return strings.ToLower(mfrs[i].Name) < strings.ToLower(mfrs[j].Name)
+	})
 	d.mfrs = mfrs
 
 	models := make(map[int][]Entry, len(d.modelMap))
@@ -139,7 +142,9 @@ func (d *DynamicCatalog) rebuildSlices() {
 		for id, name := range mdls {
 			list = append(list, Entry{ID: id, Name: name})
 		}
-		sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name })
+		sort.Slice(list, func(i, j int) bool {
+			return strings.ToLower(list[i].Name) < strings.ToLower(list[j].Name)
+		})
 		models[mfrID] = list
 	}
 	d.models = models
