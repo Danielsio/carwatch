@@ -587,7 +587,6 @@ var en = map[string]string{
 	"fmt_batch_item":       "*[%d/%d]*\n",
 	"fmt_digest_header":    "*Digest Summary (%d items):*\n",
 
-	// deal scoring
 	// fitness scoring
 	"fmt_fitness_score":     "🎯 Fitness: %.1f/10\n",
 
