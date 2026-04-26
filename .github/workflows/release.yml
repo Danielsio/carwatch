@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      bump_type:
+        description: "Version bump type (overrides commit message detection)"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
@@ -19,11 +28,20 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine version bump from merge commit
+      - name: Determine version bump
         id: bump
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Manual dispatch: use the explicit bump_type input
+          if [ -n "${{ inputs.bump_type }}" ]; then
+            BUMP="${{ inputs.bump_type }}"
+            echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+            echo "Bump type (manual): $BUMP"
+            exit 0
+          fi
+
+          # Push trigger: parse from commit message
           COMMIT_MSG=$(git log -1 --pretty=%s)
           COMMIT_BODY=$(git log -1 --pretty=%b)
           echo "Commit message: $COMMIT_MSG"
