@@ -667,7 +667,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 			}
 
 			listing := model.Listing{RawListing: l, SearchName: search.Name}
-			listing.FitnessScore = scoring.FitnessScore(scoring.FitnessParams{
+			result := scoring.FitnessScoreDetailed(scoring.FitnessParams{
 				Price:        l.Price,
 				Km:           l.Km,
 				Hand:         l.Hand,
@@ -680,6 +680,13 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 				YearMax:      search.YearMax,
 				EngineMinCC:  search.EngineMinCC,
 			})
+			listing.FitnessScore = result.Total
+			listing.FitnessBreakdown = make([]model.FitnessDim, len(result.Dims))
+			for i, d := range result.Dims {
+				listing.FitnessBreakdown[i] = model.FitnessDim{
+					Name: d.Name, Score: d.Score, Weight: d.Weight,
+				}
+			}
 			if marketCache != nil && l.Price > 0 && isPremium {
 				median, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
 				if ok {

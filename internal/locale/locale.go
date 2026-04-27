@@ -265,6 +265,8 @@ var he = map[string]string{
 	"fmt_engine":           "⚙️ מנוע: %.1fL",
 	"fmt_power":            "🐴 כ\"ס: %d\n",
 	"fmt_mileage":          "🛣️ ק\"מ: %s\n",
+	"fmt_mileage_unknown":        "🛣️ ק\"מ: לא צוין\n",
+	"fmt_mileage_unknown_inline": "🛣️ לא צוין",
 	"fmt_hand":             "✋ יד: %d\n",
 	"fmt_location":         "📍 מיקום: %s\n",
 	"fmt_price":            "💰 מחיר: ₪%s\n",
@@ -275,6 +277,14 @@ var he = map[string]string{
 
 	// fitness scoring
 	"fmt_fitness_score":     "🎯 התאמה: %.1f/10\n",
+	"fmt_fitness_up_down":   "   ↑ %s  ↓ %s\n",
+	"fmt_fitness_up_only":   "   ↑ %s\n",
+	"fmt_fitness_down_only": "   ↓ %s\n",
+	"dim_price":             "מחיר",
+	"dim_km":                "ק\"מ",
+	"dim_hand":              "יד",
+	"dim_year":              "שנה",
+	"dim_engine":            "מנוע",
 
 	// deal scoring
 	"fmt_deal_score":        "📊 ציון עסקה: %d/100\n",
@@ -579,6 +589,8 @@ var en = map[string]string{
 	"fmt_engine":           "⚙️ Engine: %.1fL",
 	"fmt_power":            "🐴 Power: %d HP\n",
 	"fmt_mileage":          "🛣️ Mileage: %s km\n",
+	"fmt_mileage_unknown":        "🛣️ Mileage: Not specified\n",
+	"fmt_mileage_unknown_inline": "🛣️ N/A",
 	"fmt_hand":             "✋ Hand: %d\n",
 	"fmt_location":         "📍 Location: %s\n",
 	"fmt_price":            "💰 Price: ₪%s\n",
@@ -589,6 +601,14 @@ var en = map[string]string{
 
 	// fitness scoring
 	"fmt_fitness_score":     "🎯 Fitness: %.1f/10\n",
+	"fmt_fitness_up_down":   "   ↑ %s  ↓ %s\n",
+	"fmt_fitness_up_only":   "   ↑ %s\n",
+	"fmt_fitness_down_only": "   ↓ %s\n",
+	"dim_price":             "price",
+	"dim_km":                "mileage",
+	"dim_hand":              "hand",
+	"dim_year":              "year",
+	"dim_engine":            "engine",
 
 	// deal scoring
 	"fmt_deal_score":        "📊 Deal Score: %d/100\n",

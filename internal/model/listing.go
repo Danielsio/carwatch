@@ -33,9 +33,16 @@ type ScoreInfo struct {
 	CohortSize  int
 }
 
+type FitnessDim struct {
+	Name   string
+	Score  float64
+	Weight float64
+}
+
 type Listing struct {
 	RawListing
-	SearchName   string
-	DealScore    *ScoreInfo
-	FitnessScore float64
+	SearchName       string
+	DealScore        *ScoreInfo
+	FitnessScore     float64
+	FitnessBreakdown []FitnessDim
 }
