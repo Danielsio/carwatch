@@ -50,10 +50,14 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 	return srv, store
 }
 
-func doRequest(srv *Server, method, path string, body any) *httptest.ResponseRecorder {
+func doRequest(t *testing.T, srv *Server, method, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
 	var reqBody *bytes.Buffer
 	if body != nil {
-		b, _ := json.Marshal(body)
+		b, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal request body: %v", err)
+		}
 		reqBody = bytes.NewBuffer(b)
 	} else {
 		reqBody = &bytes.Buffer{}
@@ -70,7 +74,7 @@ func doRequest(srv *Server, method, path string, body any) *httptest.ResponseRec
 func TestListManufacturers(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
-	w := doRequest(srv, "GET", "/api/v1/catalog/manufacturers", nil)
+	w := doRequest(t, srv, "GET", "/api/v1/catalog/manufacturers", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
@@ -87,7 +91,7 @@ func TestListManufacturers(t *testing.T) {
 func TestListManufacturers_Search(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
-	w := doRequest(srv, "GET", "/api/v1/catalog/manufacturers?q=Toy", nil)
+	w := doRequest(t, srv, "GET", "/api/v1/catalog/manufacturers?q=Toy", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
@@ -102,7 +106,7 @@ func TestListManufacturers_Search(t *testing.T) {
 func TestListModels(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
-	w := doRequest(srv, "GET", "/api/v1/catalog/manufacturers/19/models", nil)
+	w := doRequest(t, srv, "GET", "/api/v1/catalog/manufacturers/19/models", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
@@ -133,7 +137,7 @@ func TestSearchCRUD(t *testing.T) {
 		YearMax:      2024,
 		PriceMax:     200000,
 	}
-	w := doRequest(srv, "POST", "/api/v1/searches", req)
+	w := doRequest(t, srv, "POST", "/api/v1/searches", req)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("create: expected 201, got %d: %s", w.Code, w.Body.String())
 	}
@@ -148,7 +152,7 @@ func TestSearchCRUD(t *testing.T) {
 	}
 
 	// List searches
-	w = doRequest(srv, "GET", "/api/v1/searches", nil)
+	w = doRequest(t, srv, "GET", "/api/v1/searches", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("list: expected 200, got %d", w.Code)
 	}
@@ -160,7 +164,7 @@ func TestSearchCRUD(t *testing.T) {
 	}
 
 	// Get search
-	w = doRequest(srv, "GET", "/api/v1/searches/"+itoa(created.ID), nil)
+	w = doRequest(t, srv, "GET", "/api/v1/searches/"+itoa(created.ID), nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("get: expected 200, got %d", w.Code)
 	}
@@ -172,7 +176,7 @@ func TestSearchCRUD(t *testing.T) {
 		PriceMax: 300000,
 		MaxKm:    100000,
 	}
-	w = doRequest(srv, "PUT", "/api/v1/searches/"+itoa(created.ID), updateReq)
+	w = doRequest(t, srv, "PUT", "/api/v1/searches/"+itoa(created.ID), updateReq)
 	if w.Code != http.StatusOK {
 		t.Fatalf("update: expected 200, got %d: %s", w.Code, w.Body.String())
 	}
@@ -184,25 +188,28 @@ func TestSearchCRUD(t *testing.T) {
 	}
 
 	// Pause search
-	w = doRequest(srv, "POST", "/api/v1/searches/"+itoa(created.ID)+"/pause", nil)
+	w = doRequest(t, srv, "POST", "/api/v1/searches/"+itoa(created.ID)+"/pause", nil)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("pause: expected 204, got %d", w.Code)
 	}
 
 	// Resume search
-	w = doRequest(srv, "POST", "/api/v1/searches/"+itoa(created.ID)+"/resume", nil)
+	w = doRequest(t, srv, "POST", "/api/v1/searches/"+itoa(created.ID)+"/resume", nil)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("resume: expected 204, got %d", w.Code)
 	}
 
 	// Delete search
-	w = doRequest(srv, "DELETE", "/api/v1/searches/"+itoa(created.ID), nil)
+	w = doRequest(t, srv, "DELETE", "/api/v1/searches/"+itoa(created.ID), nil)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("delete: expected 204, got %d", w.Code)
 	}
 
 	// Verify deleted
-	w = doRequest(srv, "GET", "/api/v1/searches", nil)
+	w = doRequest(t, srv, "GET", "/api/v1/searches", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("verify delete: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
 	mustUnmarshal(t, w.Body.Bytes(), &searches)
 	if len(searches) != 0 {
 		t.Fatalf("expected 0 searches after delete, got %d", len(searches))
@@ -221,7 +228,10 @@ func TestListListings(t *testing.T) {
 		YearMax:      2024,
 		PriceMax:     200000,
 	}
-	w := doRequest(srv, "POST", "/api/v1/searches", req)
+	w := doRequest(t, srv, "POST", "/api/v1/searches", req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
 	var created searchResponse
 	mustUnmarshal(t, w.Body.Bytes(), &created)
 
@@ -262,7 +272,7 @@ func TestListListings(t *testing.T) {
 	}
 
 	// List listings
-	w = doRequest(srv, "GET", "/api/v1/searches/"+itoa(created.ID)+"/listings", nil)
+	w = doRequest(t, srv, "GET", "/api/v1/searches/"+itoa(created.ID)+"/listings", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
@@ -277,14 +287,20 @@ func TestListListings(t *testing.T) {
 	}
 
 	// Test sort by price_asc
-	w = doRequest(srv, "GET", "/api/v1/searches/"+itoa(created.ID)+"/listings?sort=price_asc", nil)
+	w = doRequest(t, srv, "GET", "/api/v1/searches/"+itoa(created.ID)+"/listings?sort=price_asc", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("sort: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
 	mustUnmarshal(t, w.Body.Bytes(), &resp)
 	if resp.Items[0].Price != 120000 {
 		t.Fatalf("expected cheapest first, got %d", resp.Items[0].Price)
 	}
 
 	// Test pagination
-	w = doRequest(srv, "GET", "/api/v1/searches/"+itoa(created.ID)+"/listings?limit=1&offset=0", nil)
+	w = doRequest(t, srv, "GET", "/api/v1/searches/"+itoa(created.ID)+"/listings?limit=1&offset=0", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("pagination: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
 	mustUnmarshal(t, w.Body.Bytes(), &resp)
 	if len(resp.Items) != 1 || resp.Total != 2 {
 		t.Fatalf("expected 1 item, total 2, got %d items, total %d", len(resp.Items), resp.Total)
@@ -294,7 +310,7 @@ func TestListListings(t *testing.T) {
 func TestSearchNotFound(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
-	w := doRequest(srv, "GET", "/api/v1/searches/99999", nil)
+	w := doRequest(t, srv, "GET", "/api/v1/searches/99999", nil)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", w.Code)
 	}
@@ -324,7 +340,7 @@ func TestAuthMiddleware(t *testing.T) {
 	})
 
 	// No token — should fail
-	w := doRequest(srv, "GET", "/api/v1/searches", nil)
+	w := doRequest(t, srv, "GET", "/api/v1/searches", nil)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 without token, got %d", w.Code)
 	}
