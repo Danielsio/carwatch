@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	tgbot "github.com/go-telegram/bot"
 
@@ -66,6 +68,8 @@ func newTestNotifier(t *testing.T, handler http.Handler) *Notifier {
 	if err != nil {
 		t.Fatalf("create notifier: %v", err)
 	}
+	// Disable send delay in tests to avoid sleeping.
+	n.sendDelay = 0
 	return n
 }
 
@@ -255,11 +259,12 @@ func TestSendMessage_PartialFailure(t *testing.T) {
 	var sendCalls atomic.Int32
 	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
 		c := sendCalls.Add(1)
-		if c == 2 {
-			w.WriteHeader(http.StatusTooManyRequests)
+		// Fail on every call from chunk 2 onward (non-retryable error).
+		if c >= 2 {
+			w.WriteHeader(http.StatusInternalServerError)
 			resp, _ := json.Marshal(map[string]any{
 				"ok":          false,
-				"description": "Too Many Requests",
+				"description": "Internal Server Error",
 			})
 			_, _ = w.Write(resp)
 			return
@@ -271,6 +276,101 @@ func TestSendMessage_PartialFailure(t *testing.T) {
 	err := n.NotifyRaw(context.Background(), "123", text)
 	if err == nil {
 		t.Fatal("expected error on second chunk failure")
+	}
+}
+
+// --- Rate limit retry tests ---
+
+func TestSendMessage_429_RetriesAndSucceeds(t *testing.T) {
+	var sendCalls atomic.Int32
+	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
+		c := sendCalls.Add(1)
+		if c == 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			resp, _ := json.Marshal(map[string]any{
+				"ok":          false,
+				"description": "Too Many Requests: retry after 1",
+			})
+			_, _ = w.Write(resp)
+			return
+		}
+		_, _ = w.Write(sendMessageOK)
+	}))
+
+	err := n.NotifyRaw(context.Background(), "123", "hello")
+	if err != nil {
+		t.Fatalf("expected retry to succeed, got: %v", err)
+	}
+	if sendCalls.Load() != 2 {
+		t.Errorf("expected 2 calls (1 fail + 1 retry), got %d", sendCalls.Load())
+	}
+}
+
+func TestSendMessage_429_RetryAlsoFails(t *testing.T) {
+	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		resp, _ := json.Marshal(map[string]any{
+			"ok":          false,
+			"description": "Too Many Requests: retry after 1",
+		})
+		_, _ = w.Write(resp)
+	}))
+
+	err := n.NotifyRaw(context.Background(), "123", "hello")
+	if err == nil {
+		t.Fatal("expected error when retry also fails")
+	}
+	if !strings.Contains(err.Error(), "telegram sendMessage") {
+		t.Errorf("expected 'telegram sendMessage' error, got: %v", err)
+	}
+}
+
+// --- isRateLimited tests ---
+
+func TestIsRateLimited(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil error", nil, false},
+		{"unrelated error", errors.New("connection refused"), false},
+		{"too many requests", errors.New("Too Many Requests: retry after 5"), true},
+		{"retry_after in json", errors.New(`"retry_after":10`), true},
+		{"blocked user", errors.New("Forbidden: bot was blocked by the user"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isRateLimited(tt.err)
+			if got != tt.want {
+				t.Errorf("isRateLimited(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
+// --- parseRetryAfter tests ---
+
+func TestParseRetryAfter(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want time.Duration
+	}{
+		{"nil error", nil, retryAfterDefault},
+		{"retry after 10", fmt.Errorf("Too Many Requests: retry after 10"), 10 * time.Second},
+		{"retry after 1", fmt.Errorf("retry after 1"), 1 * time.Second},
+		{"retry_after json", fmt.Errorf(`"retry_after":30`), 30 * time.Second},
+		{"no number", fmt.Errorf("retry after abc"), retryAfterDefault},
+		{"unrelated error", fmt.Errorf("connection refused"), retryAfterDefault},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseRetryAfter(tt.err)
+			if got != tt.want {
+				t.Errorf("parseRetryAfter(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
 	}
 }
 

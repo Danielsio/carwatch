@@ -398,6 +398,7 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 		if err := s.queue.AckNotification(ctx, p.ID); err != nil {
 			s.logger.Error("ack notification failed", "id", p.ID, "error", err)
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
