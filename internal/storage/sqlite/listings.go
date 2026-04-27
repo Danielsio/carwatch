@@ -15,6 +15,7 @@ func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error 
 		ON CONFLICT(token, chat_id) DO UPDATE SET
 			price = excluded.price,
 			km = excluded.km,
+			hand = excluded.hand,
 			fitness_score = excluded.fitness_score`,
 		r.Token, r.ChatID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
 		r.Km, r.Hand, r.City, r.PageLink, r.FitnessScore, r.FirstSeenAt)
@@ -56,6 +57,7 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 		ON CONFLICT(token, chat_id) DO UPDATE SET
 			price = excluded.price,
 			km = excluded.km,
+			hand = excluded.hand,
 			fitness_score = excluded.fitness_score`)
 	if err != nil {
 		return err

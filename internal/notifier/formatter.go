@@ -108,7 +108,7 @@ func FormatPriceDrop(l model.Listing, oldPrice int, lang locale.Lang) string {
 		b.WriteString(locale.T(lang, "fmt_mileage_unknown_inline"))
 	}
 	if l.Hand > 0 {
-		b.WriteString(fmt.Sprintf(" · ✋ Hand %d", l.Hand))
+		b.WriteString(" · " + locale.Tf(lang, "fmt_hand_inline", l.Hand))
 	}
 	if l.FitnessScore > 0 {
 		b.WriteString(fmt.Sprintf(" · 🎯 %.1f", l.FitnessScore))
@@ -150,7 +150,11 @@ var dimKeys = map[string]string{
 func formatBreakdown(dims []model.FitnessDim, lang locale.Lang) string {
 	var good, bad []string
 	for _, d := range dims {
-		name := locale.T(lang, dimKeys[d.Name])
+		key, ok := dimKeys[d.Name]
+		if !ok {
+			key = d.Name
+		}
+		name := locale.T(lang, key)
 		if d.Score >= 0.7 {
 			good = append(good, name)
 		} else if d.Score < 0.4 {
