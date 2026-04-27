@@ -2,7 +2,9 @@ package sqlite
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +15,15 @@ import (
 
 	"github.com/dsionov/carwatch/internal/storage"
 )
+
+// generateShareToken returns a 32-character hex string from 16 random bytes.
+func generateShareToken() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate random bytes: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
 
 type Store struct {
 	db *sql.DB
@@ -418,6 +429,48 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("backfill telegram channel_id: %w", err)
 	}
 
+	// Add share_token column to searches table if it doesn't exist.
+	var hasShareToken int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('searches') WHERE name = 'share_token'",
+	).Scan(&hasShareToken); err != nil {
+		return fmt.Errorf("check searches share_token: %w", err)
+	}
+	if hasShareToken == 0 {
+		if _, err := db.Exec("ALTER TABLE searches ADD COLUMN share_token TEXT"); err != nil {
+			return fmt.Errorf("add share_token column: %w", err)
+		}
+		if _, err := db.Exec(
+			"CREATE UNIQUE INDEX IF NOT EXISTS idx_searches_share_token ON searches(share_token) WHERE share_token IS NOT NULL",
+		); err != nil {
+			return fmt.Errorf("create share_token index: %w", err)
+		}
+		// Backfill existing rows with random tokens.
+		rows, err := db.Query("SELECT id FROM searches WHERE share_token IS NULL")
+		if err != nil {
+			return fmt.Errorf("query searches for backfill: %w", err)
+		}
+		var ids []int64
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return fmt.Errorf("scan search id: %w", err)
+			}
+			ids = append(ids, id)
+		}
+		_ = rows.Close()
+		for _, id := range ids {
+			token, err := generateShareToken()
+			if err != nil {
+				return fmt.Errorf("generate share token: %w", err)
+			}
+			if _, err := db.Exec("UPDATE searches SET share_token = ? WHERE id = ?", token, id); err != nil {
+				return fmt.Errorf("backfill share_token for id %d: %w", id, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -575,13 +628,18 @@ func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64,
 		return 0, fmt.Errorf("next user_seq: %w", err)
 	}
 
+	shareToken, err := generateShareToken()
+	if err != nil {
+		return 0, fmt.Errorf("generate share token: %w", err)
+	}
+
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO searches (chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, user_seq)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO searches (chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, user_seq, share_token)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		search.ChatID, search.Name, source, search.Manufacturer, search.Model,
 		search.YearMin, search.YearMax, search.PriceMax,
 		search.EngineMinCC, search.MaxKm, search.MaxHand,
-		search.Keywords, search.ExcludeKeys, nextSeq)
+		search.Keywords, search.ExcludeKeys, nextSeq, shareToken)
 	if err != nil {
 		return 0, err
 	}
@@ -599,7 +657,7 @@ func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64,
 
 func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Search, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at, COALESCE(share_token, '')
 		FROM searches WHERE chat_id = ? ORDER BY created_at DESC`, chatID)
 	if err != nil {
 		return nil, err
@@ -610,7 +668,7 @@ func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Searc
 
 func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at, COALESCE(share_token, '')
 		FROM searches WHERE id = ?`, id)
 
 	var search storage.Search
@@ -618,7 +676,7 @@ func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error
 		&search.YearMin, &search.YearMax, &search.PriceMax,
 		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
 		&search.Keywords, &search.ExcludeKeys,
-		&search.Active, &search.CreatedAt)
+		&search.Active, &search.CreatedAt, &search.ShareToken)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -630,7 +688,7 @@ func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error
 
 func (s *Store) GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*storage.Search, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at, COALESCE(share_token, '')
 		FROM searches WHERE chat_id = ? AND user_seq = ?`, chatID, seq)
 
 	var search storage.Search
@@ -638,7 +696,27 @@ func (s *Store) GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*sto
 		&search.YearMin, &search.YearMax, &search.PriceMax,
 		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
 		&search.Keywords, &search.ExcludeKeys,
-		&search.Active, &search.CreatedAt)
+		&search.Active, &search.CreatedAt, &search.ShareToken)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &search, nil
+}
+
+func (s *Store) GetSearchByShareToken(ctx context.Context, token string) (*storage.Search, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at, COALESCE(share_token, '')
+		FROM searches WHERE share_token = ?`, token)
+
+	var search storage.Search
+	err := row.Scan(&search.ID, &search.ChatID, &search.UserSeq, &search.Name, &search.Source, &search.Manufacturer, &search.Model,
+		&search.YearMin, &search.YearMax, &search.PriceMax,
+		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
+		&search.Keywords, &search.ExcludeKeys,
+		&search.Active, &search.CreatedAt, &search.ShareToken)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -699,7 +777,7 @@ func (s *Store) SetSearchActive(ctx context.Context, id int64, chatID int64, act
 
 func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT s.id, s.chat_id, s.user_seq, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max, s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.keywords, s.exclude_keys, s.active, s.created_at
+		SELECT s.id, s.chat_id, s.user_seq, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max, s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.keywords, s.exclude_keys, s.active, s.created_at, COALESCE(s.share_token, '')
 		FROM searches s
 		JOIN users u ON s.chat_id = u.chat_id
 		WHERE s.active = true AND u.active = true
@@ -734,7 +812,7 @@ func scanSearches(rows *sql.Rows) ([]storage.Search, error) {
 			&s.YearMin, &s.YearMax, &s.PriceMax,
 			&s.EngineMinCC, &s.MaxKm, &s.MaxHand,
 			&s.Keywords, &s.ExcludeKeys,
-			&s.Active, &s.CreatedAt); err != nil {
+			&s.Active, &s.CreatedAt, &s.ShareToken); err != nil {
 			return nil, err
 		}
 		searches = append(searches, s)
