@@ -110,6 +110,9 @@ func FormatPriceDrop(l model.Listing, oldPrice int, lang locale.Lang) string {
 	if l.Hand > 0 {
 		b.WriteString(fmt.Sprintf(" · ✋ Hand %d", l.Hand))
 	}
+	if l.FitnessScore > 0 {
+		b.WriteString(fmt.Sprintf(" · 🎯 %.1f", l.FitnessScore))
+	}
 	b.WriteString("\n")
 
 	if l.PageLink != "" {

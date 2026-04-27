@@ -74,6 +74,9 @@ func (b *Bot) sendHistoryPage(ctx context.Context, chatID int64, page int) {
 		if l.Hand > 0 {
 			sb.WriteString(fmt.Sprintf(" · ✋ %d", l.Hand))
 		}
+		if l.FitnessScore > 0 {
+			sb.WriteString(fmt.Sprintf(" · 🎯 %.1f", l.FitnessScore))
+		}
 		sb.WriteString("\n")
 		if l.City != "" {
 			sb.WriteString(fmt.Sprintf("📍 %s\n", format.EscapeMarkdown(l.City)))
@@ -174,6 +177,9 @@ func (b *Bot) sendSavedPage(ctx context.Context, chatID int64, page int) {
 		}
 		if l.Km > 0 {
 			sb.WriteString(fmt.Sprintf(" · 🛣️ %s km", format.Number(l.Km)))
+		}
+		if l.FitnessScore > 0 {
+			sb.WriteString(fmt.Sprintf(" · 🎯 %.1f", l.FitnessScore))
 		}
 		sb.WriteString("\n")
 		if l.PageLink != "" {

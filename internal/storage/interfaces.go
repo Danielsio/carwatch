@@ -121,6 +121,7 @@ type ListingRecord struct {
 	Hand         int
 	City         string
 	PageLink     string
+	FitnessScore float64
 	FirstSeenAt  time.Time
 }
 

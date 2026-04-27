@@ -431,5 +431,18 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	// Add fitness_score column to listing_history if it doesn't exist.
+	var hasFitness int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('listing_history') WHERE name = 'fitness_score'",
+	).Scan(&hasFitness); err != nil {
+		return fmt.Errorf("check listing_history fitness_score: %w", err)
+	}
+	if hasFitness == 0 {
+		if _, err := db.Exec("ALTER TABLE listing_history ADD COLUMN fitness_score REAL NOT NULL DEFAULT 0"); err != nil {
+			return fmt.Errorf("add fitness_score column: %w", err)
+		}
+	}
+
 	return nil
 }

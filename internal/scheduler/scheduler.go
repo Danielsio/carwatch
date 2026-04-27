@@ -649,13 +649,21 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 						"new_price", l.Price,
 					)
 					listing := model.Listing{RawListing: l, SearchName: search.Name}
+					listing.FitnessScore = scoring.FitnessScore(scoring.FitnessParams{
+						Price: l.Price, Km: l.Km, Hand: l.Hand, Year: l.Year,
+						EngineVolume: l.EngineVolume, PriceMax: search.PriceMax,
+						MaxKm: search.MaxKm, MaxHand: search.MaxHand,
+						YearMin: search.YearMin, YearMax: search.YearMax,
+						EngineMinCC: search.EngineMinCC,
+					})
 					priceDropMessages = append(priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice, lang))
 					if s.listingStore != nil {
 						_ = s.listingStore.SaveListing(ctx, storage.ListingRecord{
 							Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
 							Manufacturer: l.Manufacturer, Model: l.Model,
 							Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
-							City: l.City, PageLink: l.PageLink, FirstSeenAt: time.Now(),
+							City: l.City, PageLink: l.PageLink,
+							FitnessScore: listing.FitnessScore, FirstSeenAt: time.Now(),
 						})
 					}
 					continue
@@ -703,7 +711,8 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 				Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
 				Manufacturer: l.Manufacturer, Model: l.Model,
 				Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
-				City: l.City, PageLink: l.PageLink, FirstSeenAt: time.Now(),
+				City: l.City, PageLink: l.PageLink,
+				FitnessScore: listing.FitnessScore, FirstSeenAt: time.Now(),
 			})
 		}
 
