@@ -56,6 +56,15 @@ func (m *mockSearchStore) CountSearches(_ context.Context, _ int64) (int64, erro
 func (m *mockSearchStore) CountAllSearches(_ context.Context) (int64, error)          { return 0, nil }
 func (m *mockSearchStore) UpdateSearch(_ context.Context, _ storage.Search) error     { return nil }
 
+func (m *mockSearchStore) GetSearchByShareToken(_ context.Context, token string) (*storage.Search, error) {
+	for i := range m.searches {
+		if m.searches[i].ShareToken == token {
+			return &m.searches[i], nil
+		}
+	}
+	return nil, nil
+}
+
 func (m *mockSearchStore) ListAllActiveSearches(_ context.Context) ([]storage.Search, error) {
 	var active []storage.Search
 	for _, s := range m.searches {

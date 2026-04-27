@@ -134,14 +134,13 @@ func (b *Bot) onDeleteSearch(ctx context.Context, chatID int64, data string) {
 
 func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 	lang := b.getUserLang(ctx, chatID)
-	idStr := strings.TrimPrefix(data, cbPrefixShareCopy)
-	srcID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
+	token := strings.TrimPrefix(data, cbPrefixShareCopy)
+	if len(token) == 0 || len(token) > 64 {
 		b.send(ctx, chatID, locale.T(lang, "share_invalid_link"))
 		return
 	}
 
-	src, err := b.searches.GetSearch(ctx, srcID)
+	src, err := b.searches.GetSearchByShareToken(ctx, token)
 	if err != nil || src == nil {
 		b.send(ctx, chatID, locale.T(lang, "share_search_deleted"))
 		return

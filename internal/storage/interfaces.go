@@ -41,6 +41,7 @@ type Search struct {
 	ExcludeKeys  string
 	Active       bool
 	CreatedAt    time.Time
+	ShareToken   string
 }
 
 type UserStore interface {
@@ -64,6 +65,7 @@ type SearchStore interface {
 	ListSearches(ctx context.Context, chatID int64) ([]Search, error)
 	GetSearch(ctx context.Context, id int64) (*Search, error)
 	GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*Search, error)
+	GetSearchByShareToken(ctx context.Context, token string) (*Search, error)
 	DeleteSearch(ctx context.Context, id int64, chatID int64) error
 	SetSearchActive(ctx context.Context, id int64, chatID int64, active bool) error
 	ListAllActiveSearches(ctx context.Context) ([]Search, error)

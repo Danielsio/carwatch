@@ -90,28 +90,27 @@ func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 		return
 	}
 
-	link := ShareLink(b.botUsername, search.ID)
+	link := ShareLink(b.botUsername, search.ShareToken)
 	mfr := b.catalog.ManufacturerName(search.Manufacturer)
 	mdl := b.modelDisplayName(search.Manufacturer, search.Model)
 
 	b.sendMarkdown(ctx, chatID, locale.Tf(lang, "share_link", mfr, mdl, link))
 }
 
-func ShareLink(botUsername string, searchID int64) string {
-	return fmt.Sprintf("https://t.me/%s?start=share_%d", botUsername, searchID)
+func ShareLink(botUsername string, shareToken string) string {
+	return fmt.Sprintf("https://t.me/%s?start=share_%s", botUsername, shareToken)
 }
 
 func (b *Bot) handleShareStart(ctx context.Context, chatID int64, param string) {
 	lang := b.getUserLang(ctx, chatID)
 
-	idStr := strings.TrimPrefix(param, "share_")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
+	token := strings.TrimPrefix(param, "share_")
+	if len(token) == 0 || len(token) > 64 {
 		b.send(ctx, chatID, locale.T(lang, "share_invalid_link"))
 		return
 	}
 
-	search, err := b.searches.GetSearch(ctx, id)
+	search, err := b.searches.GetSearchByShareToken(ctx, token)
 	if err != nil || search == nil {
 		b.send(ctx, chatID, locale.T(lang, "share_search_deleted"))
 		return
@@ -131,7 +130,7 @@ func (b *Bot) handleShareStart(ctx context.Context, chatID int64, param string) 
 
 	kb := &tgmodels.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{{
-			{Text: locale.T(lang, "share_copy_btn"), CallbackData: cbPrefixShareCopy + strconv.FormatInt(id, 10)},
+			{Text: locale.T(lang, "share_copy_btn"), CallbackData: cbPrefixShareCopy + search.ShareToken},
 		}},
 	}
 

@@ -121,9 +121,10 @@ func TestHandleShareStart_ValidLink(t *testing.T) {
 		ChatID: 100, Name: "mazda-3", Manufacturer: 27, Model: 10332,
 		YearMin: 2020, YearMax: 2024, PriceMax: 100000, EngineMinCC: 2000,
 	})
+	search, _ := tb.store.GetSearch(ctx, id)
 	tb.msg.reset()
 
-	tb.simulateCommand(ctx, 200, fmt.Sprintf("/start share_%d", id))
+	tb.simulateCommand(ctx, 200, fmt.Sprintf("/start share_%s", search.ShareToken))
 
 	msg := tb.msg.last()
 	if !strings.Contains(msg.Text, "Shared search") {
@@ -144,10 +145,12 @@ func TestHandleShareStart_DeletedSearch(t *testing.T) {
 	id, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "temp", Manufacturer: 27, Model: 10332,
 	})
+	search, _ := tb.store.GetSearch(ctx, id)
+	shareToken := search.ShareToken
 	_ = tb.store.DeleteSearch(ctx, id, 100)
 	tb.msg.reset()
 
-	tb.simulateCommand(ctx, 200, fmt.Sprintf("/start share_%d", id))
+	tb.simulateCommand(ctx, 200, fmt.Sprintf("/start share_%s", shareToken))
 
 	msg := tb.msg.last()
 	if !strings.Contains(msg.Text, "not found") {
@@ -161,11 +164,13 @@ func TestHandleShareStart_InvalidParam(t *testing.T) {
 	const chatID int64 = 100
 
 	tb.createUser(ctx, t, chatID, "alice")
-	tb.simulateCommand(ctx, chatID, "/start share_abc")
+	// Empty token after share_ prefix
+	tb.simulateCommand(ctx, chatID, "/start share_")
 
 	msg := tb.msg.last()
-	if !strings.Contains(msg.Text, "Invalid") {
-		t.Errorf("expected invalid share link message, got %q", msg.Text)
+	// With opaque tokens, an unknown token gets the "not found" response
+	if !strings.Contains(msg.Text, "not found") && !strings.Contains(msg.Text, "Invalid") {
+		t.Errorf("expected 'not found' or 'Invalid' message, got %q", msg.Text)
 	}
 }
 
@@ -180,9 +185,10 @@ func TestOnShareCopy_Success(t *testing.T) {
 		ChatID: 100, Name: "mazda-3", Source: "yad2", Manufacturer: 27, Model: 10332,
 		YearMin: 2020, YearMax: 2024, PriceMax: 100000, EngineMinCC: 2000,
 	})
+	search, _ := tb.store.GetSearch(ctx, srcID)
 	tb.msg.reset()
 
-	tb.simulateCallback(ctx, 200, cbPrefixShareCopy+fmt.Sprintf("%d", srcID))
+	tb.simulateCallback(ctx, 200, cbPrefixShareCopy+search.ShareToken)
 
 	msg := tb.msg.last()
 	if !strings.Contains(msg.Text, "saved") {
@@ -208,6 +214,7 @@ func TestOnShareCopy_AtMaxSearches(t *testing.T) {
 	srcID, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "shared", Manufacturer: 27, Model: 10332,
 	})
+	search, _ := tb.store.GetSearch(ctx, srcID)
 
 	for i := range 3 {
 		_, _ = tb.store.CreateSearch(ctx, storage.Search{
@@ -216,7 +223,7 @@ func TestOnShareCopy_AtMaxSearches(t *testing.T) {
 	}
 	tb.msg.reset()
 
-	tb.simulateCallback(ctx, 200, cbPrefixShareCopy+fmt.Sprintf("%d", srcID))
+	tb.simulateCallback(ctx, 200, cbPrefixShareCopy+search.ShareToken)
 
 	msg := tb.msg.last()
 	if !strings.Contains(msg.Text, "max") {
@@ -234,10 +241,12 @@ func TestOnShareCopy_DeletedSource(t *testing.T) {
 	srcID, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "temp", Manufacturer: 27, Model: 10332,
 	})
+	search, _ := tb.store.GetSearch(ctx, srcID)
+	shareToken := search.ShareToken
 	_ = tb.store.DeleteSearch(ctx, srcID, 100)
 	tb.msg.reset()
 
-	tb.simulateCallback(ctx, 200, cbPrefixShareCopy+fmt.Sprintf("%d", srcID))
+	tb.simulateCallback(ctx, 200, cbPrefixShareCopy+shareToken)
 
 	msg := tb.msg.last()
 	if !strings.Contains(msg.Text, "not found") {
@@ -245,16 +254,16 @@ func TestOnShareCopy_DeletedSource(t *testing.T) {
 	}
 }
 
-func TestOnShareCopy_InvalidID(t *testing.T) {
+func TestOnShareCopy_InvalidToken(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 	const chatID int64 = 100
 
 	tb.createUser(ctx, t, chatID, "alice")
-	tb.simulateCallback(ctx, chatID, cbPrefixShareCopy+"notanumber")
+	tb.simulateCallback(ctx, chatID, cbPrefixShareCopy+"nonexistent_token")
 
 	msg := tb.msg.last()
-	if !strings.Contains(msg.Text, "Invalid") {
-		t.Errorf("expected invalid share link message, got %q", msg.Text)
+	if !strings.Contains(msg.Text, "not found") {
+		t.Errorf("expected 'not found' message for nonexistent token, got %q", msg.Text)
 	}
 }
