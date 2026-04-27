@@ -1504,11 +1504,14 @@ func TestUpdateSearch_WrongOwner(t *testing.T) {
 	seedUser(t, store, 100)
 	seedUser(t, store, 200)
 
-	id, _ := store.CreateSearch(ctx, storage.Search{
+	id, err := store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
 	})
+	if err != nil {
+		t.Fatalf("CreateSearch: %v", err)
+	}
 
-	err := store.UpdateSearch(ctx, storage.Search{
+	err = store.UpdateSearch(ctx, storage.Search{
 		ID: id, ChatID: 200, Name: "hijack",
 	})
 	if err != storage.ErrNotFound {

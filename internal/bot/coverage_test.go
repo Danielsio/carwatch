@@ -14,7 +14,7 @@ import (
 
 func newTestBotFull(t *testing.T) *testBot {
 	t.Helper()
-	store, err := sqlite.New(":memory:")
+	store, err := sqlite.New("file::memory:?cache=shared")
 	if err != nil {
 		t.Fatalf("create store: %v", err)
 	}
@@ -64,7 +64,10 @@ func TestLanguageSwitch_Hebrew(t *testing.T) {
 
 	tb.simulateCallback(ctx, 100, "lang:he")
 
-	user, _ := tb.store.GetUser(ctx, 100)
+	user, err := tb.store.GetUser(ctx, 100)
+	if err != nil {
+		t.Fatalf("GetUser: %v", err)
+	}
 	if user.Language != "he" {
 		t.Errorf("language = %q, want 'he'", user.Language)
 	}
@@ -78,7 +81,10 @@ func TestLanguageSwitch_English(t *testing.T) {
 
 	tb.simulateCallback(ctx, 100, "lang:en")
 
-	user, _ := tb.store.GetUser(ctx, 100)
+	user, err := tb.store.GetUser(ctx, 100)
+	if err != nil {
+		t.Fatalf("GetUser: %v", err)
+	}
 	if user.Language != "en" {
 		t.Errorf("language = %q, want 'en'", user.Language)
 	}
@@ -122,7 +128,10 @@ func TestOnClearHidden(t *testing.T) {
 
 	tb.simulateCallback(ctx, 100, "hidden_clear")
 
-	count, _ := tb.store.CountHidden(ctx, 100)
+	count, err := tb.store.CountHidden(ctx, 100)
+	if err != nil {
+		t.Fatalf("CountHidden: %v", err)
+	}
 	if count != 0 {
 		t.Errorf("expected 0 hidden after clear, got %d", count)
 	}
@@ -137,7 +146,10 @@ func TestOnQuickStart_Success(t *testing.T) {
 
 	tb.simulateCallback(ctx, 100, "quick_start")
 
-	searches, _ := tb.store.ListSearches(ctx, 100)
+	searches, err := tb.store.ListSearches(ctx, 100)
+	if err != nil {
+		t.Fatalf("ListSearches: %v", err)
+	}
 	if len(searches) != 1 {
 		t.Fatalf("expected 1 search, got %d", len(searches))
 	}
@@ -162,7 +174,10 @@ func TestOnQuickStart_AtLimit(t *testing.T) {
 
 	tb.simulateCallback(ctx, 100, "quick_start")
 
-	searches, _ := tb.store.ListSearches(ctx, 100)
+	searches, err := tb.store.ListSearches(ctx, 100)
+	if err != nil {
+		t.Fatalf("ListSearches: %v", err)
+	}
 	if len(searches) != 3 {
 		t.Errorf("should not create beyond limit, got %d searches", len(searches))
 	}
@@ -287,7 +302,10 @@ func TestOnDailyDigestOff(t *testing.T) {
 
 	tb.simulateCallback(ctx, 100, "daily_digest:off")
 
-	enabled, _, _, _ := tb.store.GetDailyDigest(ctx, 100)
+	enabled, _, _, err := tb.store.GetDailyDigest(ctx, 100)
+	if err != nil {
+		t.Fatalf("GetDailyDigest: %v", err)
+	}
 	if enabled {
 		t.Error("expected daily digest to be disabled")
 	}

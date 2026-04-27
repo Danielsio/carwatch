@@ -84,42 +84,27 @@ func TestDashboard_LimitParam(t *testing.T) {
 	}
 }
 
-func TestDashboard_InvalidLimit(t *testing.T) {
+func TestDashboard_InvalidLimitFallsBackToDefault(t *testing.T) {
 	store := newTestStore(t)
-	h := NewHandler(store)
-
-	req := httptest.NewRequest(http.MethodGet, "/dashboard?limit=abc", nil)
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200", w.Code)
+	ctx := context.Background()
+	for i := range 3 {
+		_ = store.SaveListing(ctx, storage.ListingRecord{
+			Token: string(rune('a' + i)), ChatID: int64(100 + i), SearchName: "test",
+			Manufacturer: "Test", Model: "Car", Year: 2021, Price: 100000,
+		})
 	}
-}
-
-func TestDashboard_NegativeLimit(t *testing.T) {
-	store := newTestStore(t)
 	h := NewHandler(store)
 
-	req := httptest.NewRequest(http.MethodGet, "/dashboard?limit=-5", nil)
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
+	for _, q := range []string{"?limit=abc", "?limit=-5", "?limit=1000"} {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/dashboard"+q, nil))
 
-	if w.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200", w.Code)
-	}
-}
-
-func TestDashboard_LimitTooHigh(t *testing.T) {
-	store := newTestStore(t)
-	h := NewHandler(store)
-
-	req := httptest.NewRequest(http.MethodGet, "/dashboard?limit=1000", nil)
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200", w.Code)
+		if w.Code != http.StatusOK {
+			t.Errorf("%s: status = %d, want 200", q, w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "Showing 3 listings") {
+			t.Errorf("%s: invalid limit should fall back to default and show all 3 listings", q)
+		}
 	}
 }
 

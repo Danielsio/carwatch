@@ -256,11 +256,12 @@ func TestPlainClient_Get_SetsHeaders(t *testing.T) {
 	}
 }
 
-func TestYad2Fetcher_Close(t *testing.T) {
+func TestYad2Fetcher_Close_Idempotent(t *testing.T) {
 	f, err := NewFetcher([]string{"TestAgent/1.0"}, "", discardLogger)
 	if err != nil {
 		t.Fatalf("NewFetcher: %v", err)
 	}
+	f.Close()
 	f.Close()
 }
 

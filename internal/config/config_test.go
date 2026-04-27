@@ -211,6 +211,9 @@ polling:
 	if cfg.Polling.ActiveHours.Start != "08:00" {
 		t.Errorf("start = %q, want '08:00'", cfg.Polling.ActiveHours.Start)
 	}
+	if cfg.Polling.ActiveHours.End != "22:00" {
+		t.Errorf("end = %q, want '22:00'", cfg.Polling.ActiveHours.End)
+	}
 }
 
 func loadFromString(t *testing.T, yaml string) *Config {
