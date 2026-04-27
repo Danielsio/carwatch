@@ -50,7 +50,7 @@ type stubFetcher struct {
 	listings []model.RawListing
 }
 
-func (f *stubFetcher) Fetch(_ context.Context, _ config.SourceParams) ([]model.RawListing, error) {
+func (f *stubFetcher) Fetch(_ context.Context, _ model.SourceParams) ([]model.RawListing, error) {
 	return f.listings, nil
 }
 

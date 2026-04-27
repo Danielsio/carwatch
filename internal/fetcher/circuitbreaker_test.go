@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -16,7 +15,7 @@ type mockFetcherCB struct {
 	calls    int
 }
 
-func (m *mockFetcherCB) Fetch(_ context.Context, _ config.SourceParams) ([]model.RawListing, error) {
+func (m *mockFetcherCB) Fetch(_ context.Context, _ model.SourceParams) ([]model.RawListing, error) {
 	m.calls++
 	return m.listings, m.err
 }
@@ -25,7 +24,7 @@ func TestCircuitBreaker_ClosedState_PassesThrough(t *testing.T) {
 	inner := &mockFetcherCB{listings: []model.RawListing{{Token: "a"}}}
 	cb := NewCircuitBreaker(inner, 3, 30*time.Second)
 
-	listings, err := cb.Fetch(context.Background(), config.SourceParams{})
+	listings, err := cb.Fetch(context.Background(), model.SourceParams{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -42,7 +41,7 @@ func TestCircuitBreaker_OpensAfterThreshold(t *testing.T) {
 	cb := NewCircuitBreaker(inner, 3, 30*time.Second)
 
 	for i := 0; i < 3; i++ {
-		_, _ = cb.Fetch(context.Background(), config.SourceParams{})
+		_, _ = cb.Fetch(context.Background(), model.SourceParams{})
 	}
 
 	if cb.State() != StateOpen {
@@ -55,11 +54,11 @@ func TestCircuitBreaker_OpenState_RejectsCalls(t *testing.T) {
 	cb := NewCircuitBreaker(inner, 3, 30*time.Second)
 
 	for i := 0; i < 3; i++ {
-		_, _ = cb.Fetch(context.Background(), config.SourceParams{})
+		_, _ = cb.Fetch(context.Background(), model.SourceParams{})
 	}
 	inner.calls = 0
 
-	_, err := cb.Fetch(context.Background(), config.SourceParams{})
+	_, err := cb.Fetch(context.Background(), model.SourceParams{})
 	if !errors.Is(err, ErrCircuitOpen) {
 		t.Errorf("expected ErrCircuitOpen, got: %v", err)
 	}
@@ -73,7 +72,7 @@ func TestCircuitBreaker_TransitionsToHalfOpen(t *testing.T) {
 	cb := NewCircuitBreaker(inner, 3, 10*time.Millisecond)
 
 	for i := 0; i < 3; i++ {
-		_, _ = cb.Fetch(context.Background(), config.SourceParams{})
+		_, _ = cb.Fetch(context.Background(), model.SourceParams{})
 	}
 
 	time.Sleep(15 * time.Millisecond)
@@ -81,7 +80,7 @@ func TestCircuitBreaker_TransitionsToHalfOpen(t *testing.T) {
 	inner.err = nil
 	inner.listings = []model.RawListing{{Token: "recovered"}}
 
-	listings, err := cb.Fetch(context.Background(), config.SourceParams{})
+	listings, err := cb.Fetch(context.Background(), model.SourceParams{})
 	if err != nil {
 		t.Fatalf("half-open probe should succeed: %v", err)
 	}
@@ -98,12 +97,12 @@ func TestCircuitBreaker_HalfOpenFailure_ReOpens(t *testing.T) {
 	cb := NewCircuitBreaker(inner, 3, 10*time.Millisecond)
 
 	for i := 0; i < 3; i++ {
-		_, _ = cb.Fetch(context.Background(), config.SourceParams{})
+		_, _ = cb.Fetch(context.Background(), model.SourceParams{})
 	}
 
 	time.Sleep(15 * time.Millisecond)
 
-	_, err := cb.Fetch(context.Background(), config.SourceParams{})
+	_, err := cb.Fetch(context.Background(), model.SourceParams{})
 	if err == nil {
 		t.Fatal("expected error from failing probe")
 	}
@@ -116,12 +115,12 @@ func TestCircuitBreaker_ResetsCounterOnSuccess(t *testing.T) {
 	inner := &mockFetcherCB{err: errors.New("flaky")}
 	cb := NewCircuitBreaker(inner, 3, 30*time.Second)
 
-	_, _ = cb.Fetch(context.Background(), config.SourceParams{})
-	_, _ = cb.Fetch(context.Background(), config.SourceParams{})
+	_, _ = cb.Fetch(context.Background(), model.SourceParams{})
+	_, _ = cb.Fetch(context.Background(), model.SourceParams{})
 
 	inner.err = nil
 	inner.listings = []model.RawListing{{Token: "ok"}}
-	_, _ = cb.Fetch(context.Background(), config.SourceParams{})
+	_, _ = cb.Fetch(context.Background(), model.SourceParams{})
 
 	if cb.Failures() != 0 {
 		t.Errorf("failures = %d, want 0 after success", cb.Failures())
@@ -136,7 +135,7 @@ func TestCircuitBreaker_DoesNotOpenBelowThreshold(t *testing.T) {
 	cb := NewCircuitBreaker(inner, 5, 30*time.Second)
 
 	for i := 0; i < 4; i++ {
-		_, _ = cb.Fetch(context.Background(), config.SourceParams{})
+		_, _ = cb.Fetch(context.Background(), model.SourceParams{})
 	}
 
 	if cb.State() != StateClosed {
@@ -165,8 +164,8 @@ func TestCircuitBreaker_ChallengeError_CountsAsFailure(t *testing.T) {
 	inner := &mockFetcherCB{err: ErrChallenge}
 	cb := NewCircuitBreaker(inner, 2, 30*time.Second)
 
-	_, _ = cb.Fetch(context.Background(), config.SourceParams{})
-	_, _ = cb.Fetch(context.Background(), config.SourceParams{})
+	_, _ = cb.Fetch(context.Background(), model.SourceParams{})
+	_, _ = cb.Fetch(context.Background(), model.SourceParams{})
 
 	if cb.State() != StateOpen {
 		t.Errorf("challenge errors should count toward circuit opening, state = %v", cb.State())

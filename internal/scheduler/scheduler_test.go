@@ -23,7 +23,7 @@ type mockFetcher struct {
 	mu       sync.Mutex
 }
 
-func (m *mockFetcher) Fetch(_ context.Context, _ config.SourceParams) ([]model.RawListing, error) {
+func (m *mockFetcher) Fetch(_ context.Context, _ model.SourceParams) ([]model.RawListing, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.calls++
@@ -36,7 +36,7 @@ type partialFetcher struct {
 	calls    int
 }
 
-func (m *partialFetcher) Fetch(_ context.Context, _ config.SourceParams) ([]model.RawListing, error) {
+func (m *partialFetcher) Fetch(_ context.Context, _ model.SourceParams) ([]model.RawListing, error) {
 	m.calls++
 	return m.listings, m.err
 }
@@ -170,7 +170,7 @@ func TestFetchWithRetryUsing_Success(t *testing.T) {
 	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), nil)
 
 	ctx := context.Background()
-	listings, err := s.fetchWithRetryUsing(ctx, f, config.SourceParams{})
+	listings, err := s.fetchWithRetryUsing(ctx, f, model.SourceParams{})
 	if err != nil {
 		t.Fatalf("fetchWithRetryUsing: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestFetchWithRetryUsing_ChallengeNoRetry(t *testing.T) {
 	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), nil)
 
 	ctx := context.Background()
-	_, err := s.fetchWithRetryUsing(ctx, f, config.SourceParams{})
+	_, err := s.fetchWithRetryUsing(ctx, f, model.SourceParams{})
 	if !errors.Is(err, fetcher.ErrChallenge) {
 		t.Errorf("expected ErrChallenge, got: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestFetchWithRetryUsing_PartialResults_ReturnsListings(t *testing.T) {
 	s, _ := New(cfg, partial, newMockDedup(), &mockNotifier{}, testLogger(), nil)
 
 	ctx := context.Background()
-	listings, err := s.fetchWithRetryUsing(ctx, partial, config.SourceParams{})
+	listings, err := s.fetchWithRetryUsing(ctx, partial, model.SourceParams{})
 	if err != nil {
 		t.Errorf("partial results should be returned as success, got: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestFetchWithRetryUsing_CircuitOpenNoRetry(t *testing.T) {
 	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), nil)
 
 	ctx := context.Background()
-	_, err := s.fetchWithRetryUsing(ctx, f, config.SourceParams{})
+	_, err := s.fetchWithRetryUsing(ctx, f, model.SourceParams{})
 	if !errors.Is(err, fetcher.ErrCircuitOpen) {
 		t.Errorf("expected ErrCircuitOpen, got: %v", err)
 	}
@@ -236,7 +236,7 @@ func TestFetchWithRetryUsing_RetriesOnError(t *testing.T) {
 	s, _ := New(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), nil)
 
 	ctx := context.Background()
-	_, err := s.fetchWithRetryUsing(ctx, f, config.SourceParams{})
+	_, err := s.fetchWithRetryUsing(ctx, f, model.SourceParams{})
 	if err == nil {
 		t.Fatal("expected error after all retries")
 	}

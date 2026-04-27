@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -14,7 +13,7 @@ var (
 )
 
 type Fetcher interface {
-	Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error)
+	Fetch(ctx context.Context, params model.SourceParams) ([]model.RawListing, error)
 }
 
 type Factory struct {

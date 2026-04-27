@@ -3,11 +3,10 @@ package filter
 import (
 	"strings"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
-func Apply(criteria config.FilterCriteria, listings []model.RawListing) []model.RawListing {
+func Apply(criteria model.FilterCriteria, listings []model.RawListing) []model.RawListing {
 	keywords := make([]string, len(criteria.Keywords))
 	for i, kw := range criteria.Keywords {
 		keywords[i] = strings.ToLower(kw)
@@ -27,7 +26,7 @@ func Apply(criteria config.FilterCriteria, listings []model.RawListing) []model.
 	return result
 }
 
-func matches(c config.FilterCriteria, l model.RawListing) bool {
+func matches(c model.FilterCriteria, l model.RawListing) bool {
 	if c.PriceMax > 0 && l.Price > c.PriceMax {
 		return false
 	}

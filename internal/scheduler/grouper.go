@@ -3,7 +3,7 @@ package scheduler
 import (
 	"strings"
 
-	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -11,7 +11,7 @@ type CanonicalGroup struct {
 	Source       string
 	Manufacturer int
 	Model        int
-	Params       config.SourceParams
+	Params       model.SourceParams
 	Searches     []storage.Search
 }
 
@@ -33,7 +33,7 @@ func GroupSearches(searches []storage.Search) []CanonicalGroup {
 					Source:       source,
 					Manufacturer: s.Manufacturer,
 					Model:        s.Model,
-					Params: config.SourceParams{
+					Params: model.SourceParams{
 						Manufacturer: s.Manufacturer,
 						Model:        s.Model,
 						YearMin:      s.YearMin,

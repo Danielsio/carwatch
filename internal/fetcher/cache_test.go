@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -17,7 +16,7 @@ type countingFetcher struct {
 	err      error
 }
 
-func (f *countingFetcher) Fetch(_ context.Context, _ config.SourceParams) ([]model.RawListing, error) {
+func (f *countingFetcher) Fetch(_ context.Context, _ model.SourceParams) ([]model.RawListing, error) {
 	f.calls.Add(1)
 	return f.listings, f.err
 }
@@ -28,7 +27,7 @@ func TestCachingFetcher_CachesWithinTTL(t *testing.T) {
 	}
 	cf := NewCachingFetcher(inner, time.Hour)
 
-	params := config.SourceParams{Manufacturer: 1}
+	params := model.SourceParams{Manufacturer: 1}
 	ctx := context.Background()
 
 	r1, err := cf.Fetch(ctx, params)
@@ -53,7 +52,7 @@ func TestCachingFetcher_FallsBackOnError(t *testing.T) {
 	cf := NewCachingFetcher(inner, time.Nanosecond)
 
 	ctx := context.Background()
-	params := config.SourceParams{Manufacturer: 1}
+	params := model.SourceParams{Manufacturer: 1}
 
 	_, _ = cf.Fetch(ctx, params)
 	time.Sleep(time.Millisecond)
@@ -81,7 +80,7 @@ func TestCachingFetcher_EvictsOldest(t *testing.T) {
 	// eviction order is deterministic regardless of clock resolution.
 	base := time.Now().Add(-time.Hour)
 	for i := 0; i < maxCacheEntries; i++ {
-		params := config.SourceParams{Manufacturer: i, Model: 1}
+		params := model.SourceParams{Manufacturer: i, Model: 1}
 		if _, err := cf.Fetch(ctx, params); err != nil {
 			t.Fatalf("fetch %d: %v", i, err)
 		}
@@ -92,14 +91,14 @@ func TestCachingFetcher_EvictsOldest(t *testing.T) {
 	}
 
 	// Touch key 0 to give it the newest lastUsed.
-	touchedParams := config.SourceParams{Manufacturer: 0, Model: 1}
+	touchedParams := model.SourceParams{Manufacturer: 0, Model: 1}
 	if _, err := cf.Fetch(ctx, touchedParams); err != nil {
 		t.Fatalf("touch fetch: %v", err)
 	}
 
 	// Add entries past capacity to force eviction.
 	for i := maxCacheEntries; i < maxCacheEntries+20; i++ {
-		params := config.SourceParams{Manufacturer: i, Model: 1}
+		params := model.SourceParams{Manufacturer: i, Model: 1}
 		if _, err := cf.Fetch(ctx, params); err != nil {
 			t.Fatalf("fetch %d: %v", i, err)
 		}
@@ -109,7 +108,7 @@ func TestCachingFetcher_EvictsOldest(t *testing.T) {
 	size := len(cf.cache)
 	touchedKey := cacheKey(touchedParams)
 	_, touchedExists := cf.cache[touchedKey]
-	untouchedKey := cacheKey(config.SourceParams{Manufacturer: 1, Model: 1})
+	untouchedKey := cacheKey(model.SourceParams{Manufacturer: 1, Model: 1})
 	_, untouchedExists := cf.cache[untouchedKey]
 	cf.mu.RUnlock()
 

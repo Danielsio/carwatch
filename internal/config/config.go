@@ -33,28 +33,6 @@ type ActiveHours struct {
 	End   string `yaml:"end"`
 }
 
-type SourceParams struct {
-	Manufacturer int `yaml:"manufacturer"`
-	Model        int `yaml:"model"`
-	YearMin      int `yaml:"year_min"`
-	YearMax      int `yaml:"year_max"`
-	PriceMin     int `yaml:"price_min"`
-	PriceMax     int `yaml:"price_max"`
-	Page         int `yaml:"-"`
-}
-
-type FilterCriteria struct {
-	YearMin     int      `yaml:"year_min"`
-	YearMax     int      `yaml:"year_max"`
-	PriceMax    int      `yaml:"price_max"`
-	EngineMinCC float64  `yaml:"engine_min_cc"`
-	EngineMaxCC float64  `yaml:"engine_max_cc"`
-	MaxKm       int      `yaml:"max_km"`
-	MaxHand     int      `yaml:"max_hand"`
-	Keywords    []string `yaml:"keywords"`
-	ExcludeKeys []string `yaml:"exclude_keys"`
-}
-
 type TelegramConfig struct {
 	Token       string `yaml:"token"`
 	AdminChatID int64  `yaml:"admin_chat_id"`

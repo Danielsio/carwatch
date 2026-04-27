@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/model"
 )
 
 var discardLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -265,6 +265,6 @@ func TestYad2Fetcher_Close_Idempotent(t *testing.T) {
 	f.Close()
 }
 
-func defaultParams() config.SourceParams {
-	return config.SourceParams{Manufacturer: 27, Model: 10332}
+func defaultParams() model.SourceParams {
+	return model.SourceParams{Manufacturer: 27, Model: 10332}
 }
