@@ -1430,3 +1430,109 @@ func TestClearHidden(t *testing.T) {
 		t.Errorf("user 200 should still have 1, got %d", c2)
 	}
 }
+
+// --- SetUserLanguage ---
+
+func TestSetUserLanguage(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.SetUserLanguage(ctx, 100, "en"); err != nil {
+		t.Fatalf("SetUserLanguage: %v", err)
+	}
+
+	user, err := store.GetUser(ctx, 100)
+	if err != nil {
+		t.Fatalf("GetUser: %v", err)
+	}
+	if user.Language != "en" {
+		t.Errorf("language = %q, want %q", user.Language, "en")
+	}
+}
+
+// --- UpdateSearch ---
+
+func TestUpdateSearch(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	id, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "original", Source: "yad2",
+		Manufacturer: 27, Model: 10332, YearMin: 2018, YearMax: 2024, PriceMax: 100000,
+	})
+	if err != nil {
+		t.Fatalf("CreateSearch: %v", err)
+	}
+
+	err = store.UpdateSearch(ctx, storage.Search{
+		ID: id, ChatID: 100, Name: "updated", Source: "yad2",
+		Manufacturer: 27, Model: 10332, YearMin: 2020, YearMax: 2025, PriceMax: 150000,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSearch: %v", err)
+	}
+
+	s, err := store.GetSearch(ctx, id)
+	if err != nil {
+		t.Fatalf("GetSearch: %v", err)
+	}
+	if s.Name != "updated" {
+		t.Errorf("name = %q, want %q", s.Name, "updated")
+	}
+	if s.PriceMax != 150000 {
+		t.Errorf("price_max = %d, want 150000", s.PriceMax)
+	}
+}
+
+func TestUpdateSearch_NotFound(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	err := store.UpdateSearch(ctx, storage.Search{
+		ID: 999, ChatID: 100, Name: "test", Source: "yad2",
+	})
+	if err != storage.ErrNotFound {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestUpdateSearch_WrongOwner(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	id, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
+	})
+	if err != nil {
+		t.Fatalf("CreateSearch: %v", err)
+	}
+
+	err = store.UpdateSearch(ctx, storage.Search{
+		ID: id, ChatID: 200, Name: "hijack",
+	})
+	if err != storage.ErrNotFound {
+		t.Errorf("expected ErrNotFound for wrong owner, got %v", err)
+	}
+}
+
+// --- New() edge cases ---
+
+func TestNew_CreatesDirectory(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := dir + "/subdir/test.db"
+
+	store, err := New(dbPath)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	if err := store.UpsertUser(context.Background(), 1, "test"); err != nil {
+		t.Fatalf("store should be usable: %v", err)
+	}
+}
+
