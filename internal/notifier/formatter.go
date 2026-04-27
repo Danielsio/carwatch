@@ -23,8 +23,19 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 	}
 	b.WriteString("*" + title + "*\n\n")
 
+	if l.Price > 0 {
+		b.WriteString(locale.Tf(lang, "fmt_price", format.Number(l.Price)))
+	}
+
+	if l.Km > 0 {
+		b.WriteString(locale.Tf(lang, "fmt_mileage", format.Number(l.Km)))
+	} else {
+		b.WriteString(locale.T(lang, "fmt_mileage_unknown"))
+	}
+
 	if l.FitnessScore > 0 {
 		b.WriteString(locale.Tf(lang, "fmt_fitness_score", l.FitnessScore))
+		b.WriteString(formatBreakdown(l.FitnessBreakdown, lang))
 	}
 
 	if l.DealScore != nil {
@@ -53,10 +64,6 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 		b.WriteString(locale.Tf(lang, "fmt_power", l.HorsePower))
 	}
 
-	if l.Km > 0 {
-		b.WriteString(locale.Tf(lang, "fmt_mileage", format.Number(l.Km)))
-	}
-
 	if l.Hand > 0 {
 		b.WriteString(locale.Tf(lang, "fmt_hand", l.Hand))
 	}
@@ -67,10 +74,6 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 			location += ", " + format.EscapeMarkdown(l.Area)
 		}
 		b.WriteString(locale.Tf(lang, "fmt_location", location))
-	}
-
-	if l.Price > 0 {
-		b.WriteString(locale.Tf(lang, "fmt_price", format.Number(l.Price)))
 	}
 
 	if l.PageLink != "" {
@@ -101,11 +104,16 @@ func FormatPriceDrop(l model.Listing, oldPrice int, lang locale.Lang) string {
 
 	if l.Km > 0 {
 		b.WriteString(fmt.Sprintf("🛣️ %s km", format.Number(l.Km)))
-		if l.Hand > 0 {
-			b.WriteString(fmt.Sprintf(" · ✋ Hand %d", l.Hand))
-		}
-		b.WriteString("\n")
+	} else {
+		b.WriteString(locale.T(lang, "fmt_mileage_unknown_inline"))
 	}
+	if l.Hand > 0 {
+		b.WriteString(" · " + locale.Tf(lang, "fmt_hand_inline", l.Hand))
+	}
+	if l.FitnessScore > 0 {
+		b.WriteString(fmt.Sprintf(" · 🎯 %.1f", l.FitnessScore))
+	}
+	b.WriteString("\n")
 
 	if l.PageLink != "" {
 		b.WriteString(fmt.Sprintf("🔗 %s", format.EscapeMarkdown(l.PageLink)))
@@ -129,6 +137,40 @@ func FormatBatch(listings []model.Listing, lang locale.Lang) string {
 	}
 
 	return b.String()
+}
+
+var dimKeys = map[string]string{
+	"price":  "dim_price",
+	"km":     "dim_km",
+	"hand":   "dim_hand",
+	"year":   "dim_year",
+	"engine": "dim_engine",
+}
+
+func formatBreakdown(dims []model.FitnessDim, lang locale.Lang) string {
+	var good, bad []string
+	for _, d := range dims {
+		key, ok := dimKeys[d.Name]
+		if !ok {
+			key = d.Name
+		}
+		name := locale.T(lang, key)
+		if d.Score >= 0.7 {
+			good = append(good, name)
+		} else if d.Score < 0.4 {
+			bad = append(bad, name)
+		}
+	}
+	if len(good) > 0 && len(bad) > 0 {
+		return locale.Tf(lang, "fmt_fitness_up_down", strings.Join(good, ", "), strings.Join(bad, ", "))
+	}
+	if len(good) > 0 {
+		return locale.Tf(lang, "fmt_fitness_up_only", strings.Join(good, ", "))
+	}
+	if len(bad) > 0 {
+		return locale.Tf(lang, "fmt_fitness_down_only", strings.Join(bad, ", "))
+	}
+	return ""
 }
 
 func dealExplanation(lang locale.Lang, score *model.ScoreInfo, price int) string {

@@ -101,8 +101,8 @@ func TestFormatPriceDrop_MinimalFields(t *testing.T) {
 	if !strings.Contains(msg, "-₪10,000") {
 		t.Errorf("should show correct drop amount:\n%s", msg)
 	}
-	if strings.Contains(msg, "km") {
-		t.Errorf("should not show mileage when zero:\n%s", msg)
+	if !strings.Contains(msg, "N/A") {
+		t.Errorf("should show N/A for mileage when zero:\n%s", msg)
 	}
 }
 
@@ -300,6 +300,84 @@ func TestFormatListing_ScoreAboveMedian(t *testing.T) {
 	msg := FormatListing(l, locale.English)
 	if !strings.Contains(msg, "Above market price") {
 		t.Errorf("expected above market text:\n%s", msg)
+	}
+}
+
+func TestFormatListing_ZeroKm(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "zk1", Manufacturer: "Toyota", Model: "Corolla",
+			Year: 2022, Price: 80000, Km: 0,
+		},
+	}
+
+	msg := FormatListing(l, locale.English)
+	if !strings.Contains(msg, "Not specified") {
+		t.Errorf("should show 'Not specified' when Km=0:\n%s", msg)
+	}
+}
+
+func TestFormatListing_FieldOrder(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "fo1", Manufacturer: "Mazda", Model: "3",
+			Year: 2021, Price: 95000, Km: 85000,
+		},
+		FitnessScore: 7.0,
+		FitnessBreakdown: []model.FitnessDim{
+			{Name: "price", Score: 0.8, Weight: 0.35},
+			{Name: "km", Score: 0.3, Weight: 0.25},
+		},
+	}
+
+	msg := FormatListing(l, locale.English)
+	priceIdx := strings.Index(msg, "Price:")
+	mileageIdx := strings.Index(msg, "Mileage:")
+	fitnessIdx := strings.Index(msg, "Fitness:")
+	yearIdx := strings.Index(msg, "Year:")
+
+	if priceIdx < 0 || mileageIdx < 0 || fitnessIdx < 0 || yearIdx < 0 {
+		t.Fatalf("missing expected fields:\n%s", msg)
+	}
+	if priceIdx > mileageIdx {
+		t.Errorf("price should appear before mileage:\n%s", msg)
+	}
+	if mileageIdx > fitnessIdx {
+		t.Errorf("mileage should appear before fitness:\n%s", msg)
+	}
+	if fitnessIdx > yearIdx {
+		t.Errorf("fitness should appear before year:\n%s", msg)
+	}
+}
+
+func TestFormatListing_WithFitnessBreakdown(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "fb1", Manufacturer: "Toyota", Model: "Corolla",
+			Year: 2022, Price: 80000,
+		},
+		FitnessScore: 6.5,
+		FitnessBreakdown: []model.FitnessDim{
+			{Name: "price", Score: 0.85, Weight: 0.35},
+			{Name: "km", Score: 0.3, Weight: 0.25},
+			{Name: "hand", Score: 0.5, Weight: 0.20},
+			{Name: "year", Score: 0.9, Weight: 0.15},
+			{Name: "engine", Score: 0.6, Weight: 0.05},
+		},
+	}
+
+	msg := FormatListing(l, locale.English)
+	if !strings.Contains(msg, "↑") {
+		t.Errorf("should show up-arrow for good dimensions:\n%s", msg)
+	}
+	if !strings.Contains(msg, "↓") {
+		t.Errorf("should show down-arrow for bad dimensions:\n%s", msg)
+	}
+	if !strings.Contains(msg, "price") {
+		t.Errorf("should mention 'price' as good dimension:\n%s", msg)
+	}
+	if !strings.Contains(msg, "mileage") {
+		t.Errorf("should mention 'mileage' as bad dimension:\n%s", msg)
 	}
 }
 

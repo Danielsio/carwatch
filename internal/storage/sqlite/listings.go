@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -10,13 +11,15 @@ import (
 func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO listing_history
-		(token, chat_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		(token, chat_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, fitness_score, first_seen_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(token, chat_id) DO UPDATE SET
 			price = excluded.price,
-			km = excluded.km`,
+			km = excluded.km,
+			hand = excluded.hand,
+			fitness_score = excluded.fitness_score`,
 		r.Token, r.ChatID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
-		r.Km, r.Hand, r.City, r.PageLink, r.FirstSeenAt)
+		r.Km, r.Hand, r.City, r.PageLink, r.FitnessScore, r.FirstSeenAt)
 	if err != nil {
 		return err
 	}
@@ -50,11 +53,13 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 
 	listingStmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO listing_history
-		(token, chat_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		(token, chat_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, fitness_score, first_seen_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(token, chat_id) DO UPDATE SET
 			price = excluded.price,
-			km = excluded.km`)
+			km = excluded.km,
+			hand = excluded.hand,
+			fitness_score = excluded.fitness_score`)
 	if err != nil {
 		return err
 	}
@@ -77,7 +82,7 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 	for _, r := range records {
 		if _, err := listingStmt.ExecContext(ctx,
 			r.Token, r.ChatID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
-			r.Km, r.Hand, r.City, r.PageLink, r.FirstSeenAt); err != nil {
+			r.Km, r.Hand, r.City, r.PageLink, r.FitnessScore, r.FirstSeenAt); err != nil {
 			return err
 		}
 		if r.Manufacturer != "" && r.Model != "" && r.Year > 0 && r.Price > 0 {
@@ -93,7 +98,7 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT token, search_name, manufacturer, model, year, price,
-			km, hand, city, page_link, first_seen_at
+			km, hand, city, page_link, fitness_score, first_seen_at
 		FROM listing_history
 		WHERE chat_id = ?
 		ORDER BY first_seen_at DESC, token DESC
@@ -106,9 +111,13 @@ func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offse
 	var listings []storage.ListingRecord
 	for rows.Next() {
 		var l storage.ListingRecord
+		var fs sql.NullFloat64
 		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FirstSeenAt); err != nil {
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &fs, &l.FirstSeenAt); err != nil {
 			return nil, err
+		}
+		if fs.Valid {
+			l.FitnessScore = &fs.Float64
 		}
 		listings = append(listings, l)
 	}
@@ -125,7 +134,7 @@ func (s *Store) CountUserListings(ctx context.Context, chatID int64) (int64, err
 
 func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT token, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at
+		SELECT token, search_name, manufacturer, model, year, price, km, hand, city, page_link, fitness_score, first_seen_at
 		FROM listing_history
 		WHERE rowid IN (SELECT MAX(rowid) FROM listing_history GROUP BY token)
 		ORDER BY first_seen_at DESC LIMIT ?`, limit)
@@ -137,9 +146,13 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 	var listings []storage.ListingRecord
 	for rows.Next() {
 		var l storage.ListingRecord
+		var fs sql.NullFloat64
 		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FirstSeenAt); err != nil {
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &fs, &l.FirstSeenAt); err != nil {
 			return nil, err
+		}
+		if fs.Valid {
+			l.FitnessScore = &fs.Float64
 		}
 		listings = append(listings, l)
 	}
@@ -163,7 +176,7 @@ func (s *Store) RemoveBookmark(ctx context.Context, chatID int64, token string) 
 func (s *Store) ListSaved(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.year, lh.price,
-			lh.km, lh.hand, lh.city, lh.page_link, lh.first_seen_at
+			lh.km, lh.hand, lh.city, lh.page_link, lh.fitness_score, lh.first_seen_at
 		FROM saved_listings sl
 		JOIN listing_history lh ON sl.token = lh.token AND sl.chat_id = lh.chat_id
 		WHERE sl.chat_id = ?
@@ -177,9 +190,13 @@ func (s *Store) ListSaved(ctx context.Context, chatID int64, limit, offset int) 
 	var listings []storage.ListingRecord
 	for rows.Next() {
 		var l storage.ListingRecord
+		var fs sql.NullFloat64
 		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FirstSeenAt); err != nil {
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &fs, &l.FirstSeenAt); err != nil {
 			return nil, err
+		}
+		if fs.Valid {
+			l.FitnessScore = &fs.Float64
 		}
 		listings = append(listings, l)
 	}

@@ -87,6 +87,10 @@ const (
 	weightEngine = 0.05
 
 	defaultMaxKm = 200000
+
+	curveKm    = 1.5
+	curvePrice = 1.5
+	curveHand  = 0.6
 )
 
 type FitnessParams struct {
@@ -104,45 +108,58 @@ type FitnessParams struct {
 	EngineMinCC int
 }
 
-func FitnessScore(p FitnessParams) float64 {
-	type dim struct {
-		weight float64
-		score  float64
-	}
+type DimScore struct {
+	Name   string
+	Score  float64
+	Weight float64
+}
 
-	dims := make([]dim, 0, 5)
+type FitnessResult struct {
+	Total float64
+	Dims  []DimScore
+}
+
+func FitnessScore(p FitnessParams) float64 {
+	return FitnessScoreDetailed(p).Total
+}
+
+func FitnessScoreDetailed(p FitnessParams) FitnessResult {
+	dims := make([]DimScore, 0, 5)
 
 	if p.PriceMax > 0 && p.Price > 0 {
-		dims = append(dims, dim{weightPrice, priceScore(p.Price, p.PriceMax)})
+		dims = append(dims, DimScore{"price", priceScore(p.Price, p.PriceMax), weightPrice})
 	}
 
-	dims = append(dims, dim{weightKm, kmScore(p.Km, p.MaxKm)})
-	dims = append(dims, dim{weightHand, handScore(p.Hand, p.MaxHand)})
-	dims = append(dims, dim{weightYear, yearScore(p.Year, p.YearMin, p.YearMax)})
-	dims = append(dims, dim{weightEngine, engineScore(p.EngineVolume, p.EngineMinCC)})
+	dims = append(dims, DimScore{"km", kmScore(p.Km, p.MaxKm), weightKm})
+	dims = append(dims, DimScore{"hand", handScore(p.Hand, p.MaxHand), weightHand})
+	dims = append(dims, DimScore{"year", yearScore(p.Year, p.YearMin, p.YearMax), weightYear})
+	dims = append(dims, DimScore{"engine", engineScore(p.EngineVolume, p.EngineMinCC), weightEngine})
 
 	var totalWeight float64
 	for _, d := range dims {
-		totalWeight += d.weight
+		totalWeight += d.Weight
 	}
 	if totalWeight <= 0 {
-		return 5.0
+		return FitnessResult{Total: 5.0, Dims: dims}
 	}
 
 	var weighted float64
 	for _, d := range dims {
-		weighted += (d.weight / totalWeight) * d.score
+		weighted += (d.Weight / totalWeight) * d.Score
 	}
 
 	raw := weighted * 10.0
-	return math.Round(raw*10) / 10
+	total := math.Round(raw*10) / 10
+
+	return FitnessResult{Total: total, Dims: dims}
 }
 
 func priceScore(price, priceMax int) float64 {
 	if priceMax <= 0 {
 		return 0.5
 	}
-	s := 1.0 - float64(price)/float64(priceMax)
+	ratio := float64(price) / float64(priceMax)
+	s := 1.0 - math.Pow(clamp01(ratio), curvePrice)
 	return clamp01(s)
 }
 
@@ -154,7 +171,8 @@ func kmScore(km, maxKm int) float64 {
 	if ref <= 0 {
 		ref = defaultMaxKm
 	}
-	s := 1.0 - float64(km)/float64(ref)
+	ratio := float64(km) / float64(ref)
+	s := 1.0 - math.Pow(clamp01(ratio), curveKm)
 	return clamp01(s)
 }
 
@@ -163,7 +181,8 @@ func handScore(hand, maxHand int) float64 {
 		return 0.5
 	}
 	if maxHand > 0 {
-		s := 1.0 - float64(hand-1)/float64(maxHand)
+		ratio := float64(hand-1) / float64(maxHand)
+		s := 1.0 - math.Pow(clamp01(ratio), curveHand)
 		return clamp01(s)
 	}
 	switch hand {

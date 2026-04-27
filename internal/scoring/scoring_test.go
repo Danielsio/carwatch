@@ -294,6 +294,76 @@ func TestFitnessScore_Monotonic(t *testing.T) {
 	}
 }
 
+func TestFitnessScoreDetailed_MatchesTotal(t *testing.T) {
+	p := FitnessParams{
+		Price: 100000, Km: 75000, Hand: 2, Year: 2021, EngineVolume: 2000,
+		PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+	}
+
+	simple := FitnessScore(p)
+	detailed := FitnessScoreDetailed(p)
+
+	if simple != detailed.Total {
+		t.Errorf("FitnessScore()=%.1f != FitnessScoreDetailed().Total=%.1f", simple, detailed.Total)
+	}
+	if len(detailed.Dims) != 5 {
+		t.Errorf("expected 5 dimensions, got %d", len(detailed.Dims))
+	}
+	for _, d := range detailed.Dims {
+		if d.Score < 0 || d.Score > 1 {
+			t.Errorf("dim %q score %.3f out of [0,1]", d.Name, d.Score)
+		}
+	}
+}
+
+func TestFitnessScoreDetailed_NoPriceDim(t *testing.T) {
+	p := FitnessParams{
+		Price: 0, Km: 50000, Hand: 1, Year: 2024, EngineVolume: 2000,
+		PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+	}
+	result := FitnessScoreDetailed(p)
+	for _, d := range result.Dims {
+		if d.Name == "price" {
+			t.Error("price dimension should be excluded when Price=0")
+		}
+	}
+	if len(result.Dims) != 4 {
+		t.Errorf("expected 4 dimensions without price, got %d", len(result.Dims))
+	}
+}
+
+func TestFitnessScore_NonLinearKm(t *testing.T) {
+	base := FitnessParams{
+		Price: 100000, Hand: 2, Year: 2021, EngineVolume: 2000,
+		PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+	}
+
+	low := base
+	low.Km = 20000
+	mid := base
+	mid.Km = 60000
+
+	lowScore := FitnessScoreDetailed(low)
+	midScore := FitnessScoreDetailed(mid)
+
+	var lowKm, midKm float64
+	for _, d := range lowScore.Dims {
+		if d.Name == "km" {
+			lowKm = d.Score
+		}
+	}
+	for _, d := range midScore.Dims {
+		if d.Name == "km" {
+			midKm = d.Score
+		}
+	}
+
+	gap := lowKm - midKm
+	if gap < 0.20 {
+		t.Errorf("non-linear km: 20k vs 60k gap=%.3f, want >= 0.20 (low km should be strongly rewarded)", gap)
+	}
+}
+
 func TestFitnessScore_Range(t *testing.T) {
 	params := []FitnessParams{
 		{Price: 1, Km: 999999, Hand: 10, Year: 2000, PriceMax: 1, MaxKm: 1, MaxHand: 1, YearMin: 2020, YearMax: 2024},
