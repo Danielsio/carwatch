@@ -812,10 +812,13 @@ func TestFlushAndSendDigest_AckFails_LogsDistinctiveError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	h := health.New()
-	s, _ := NewWithOptions(testConfig(), nil, nil, n, logger, Options{
+	s, err := NewWithOptions(testConfig(), nil, nil, n, logger, Options{
 		DigestStore: ds,
 		Observer:    h,
 	})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
 
 	s.flushAndSendDigest(context.Background(), 100)
 
@@ -850,9 +853,12 @@ func TestSendDailyDigest_LastSentUpdateFails_LogsDistinctiveError(t *testing.T) 
 		updateLastSentErr: errors.New("db write failed"),
 	}
 
-	s, _ := NewWithOptions(testConfig(), nil, nil, n, logger, Options{
+	s, err := NewWithOptions(testConfig(), nil, nil, n, logger, Options{
 		DailyDigestStore: dds,
 	})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
 
 	s.sendDailyDigest(context.Background(), 100)
 
