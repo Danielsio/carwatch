@@ -439,7 +439,7 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("check listing_history fitness_score: %w", err)
 	}
 	if hasFitness == 0 {
-		if _, err := db.Exec("ALTER TABLE listing_history ADD COLUMN fitness_score REAL NOT NULL DEFAULT 0"); err != nil {
+		if _, err := db.Exec("ALTER TABLE listing_history ADD COLUMN fitness_score REAL"); err != nil {
 			return fmt.Errorf("add fitness_score column: %w", err)
 		}
 	}

@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -110,9 +111,13 @@ func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offse
 	var listings []storage.ListingRecord
 	for rows.Next() {
 		var l storage.ListingRecord
+		var fs sql.NullFloat64
 		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FitnessScore, &l.FirstSeenAt); err != nil {
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &fs, &l.FirstSeenAt); err != nil {
 			return nil, err
+		}
+		if fs.Valid {
+			l.FitnessScore = &fs.Float64
 		}
 		listings = append(listings, l)
 	}
@@ -141,9 +146,13 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 	var listings []storage.ListingRecord
 	for rows.Next() {
 		var l storage.ListingRecord
+		var fs sql.NullFloat64
 		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FitnessScore, &l.FirstSeenAt); err != nil {
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &fs, &l.FirstSeenAt); err != nil {
 			return nil, err
+		}
+		if fs.Valid {
+			l.FitnessScore = &fs.Float64
 		}
 		listings = append(listings, l)
 	}
@@ -181,9 +190,13 @@ func (s *Store) ListSaved(ctx context.Context, chatID int64, limit, offset int) 
 	var listings []storage.ListingRecord
 	for rows.Next() {
 		var l storage.ListingRecord
+		var fs sql.NullFloat64
 		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FitnessScore, &l.FirstSeenAt); err != nil {
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &fs, &l.FirstSeenAt); err != nil {
 			return nil, err
+		}
+		if fs.Valid {
+			l.FitnessScore = &fs.Float64
 		}
 		listings = append(listings, l)
 	}

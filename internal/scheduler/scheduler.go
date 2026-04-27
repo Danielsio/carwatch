@@ -663,7 +663,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 							Manufacturer: l.Manufacturer, Model: l.Model,
 							Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 							City: l.City, PageLink: l.PageLink,
-							FitnessScore: listing.FitnessScore, FirstSeenAt: time.Now(),
+							FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
 						}); err != nil {
 							s.logger.Error("save price-drop listing failed",
 								"token", l.Token,
@@ -718,7 +718,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 				Manufacturer: l.Manufacturer, Model: l.Model,
 				Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 				City: l.City, PageLink: l.PageLink,
-				FitnessScore: listing.FitnessScore, FirstSeenAt: time.Now(),
+				FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
 			})
 		}
 
