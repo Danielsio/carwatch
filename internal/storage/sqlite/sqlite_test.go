@@ -968,7 +968,10 @@ func TestSaveListings_UpsertConflict(t *testing.T) {
 		t.Fatalf("upsert batch save: %v", err)
 	}
 
-	listings, _ := store.ListUserListings(ctx, 100, 10, 0)
+	listings, err := store.ListUserListings(ctx, 100, 10, 0)
+	if err != nil {
+		t.Fatalf("list user listings: %v", err)
+	}
 	if len(listings) != 1 {
 		t.Fatalf("expected 1 listing after upsert, got %d", len(listings))
 	}
