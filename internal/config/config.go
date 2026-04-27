@@ -72,7 +72,8 @@ type HTTPConfig struct {
 	UserAgents []string `yaml:"user_agents"`
 	Proxy      string   `yaml:"proxy"`
 	Proxies    []string `yaml:"proxies"`
-	MaxPages   int      `yaml:"max_pages"`
+	MaxPages       int      `yaml:"max_pages"`
+	DashboardToken string   `yaml:"dashboard_token"`
 }
 
 func Load(path string) (*Config, error) {

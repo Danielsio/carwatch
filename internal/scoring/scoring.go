@@ -110,7 +110,7 @@ func FitnessScore(p FitnessParams) float64 {
 		score  float64
 	}
 
-	var dims []dim
+	dims := make([]dim, 0, 5)
 
 	if p.PriceMax > 0 && p.Price > 0 {
 		dims = append(dims, dim{weightPrice, priceScore(p.Price, p.PriceMax)})
@@ -160,7 +160,7 @@ func kmScore(km, maxKm int) float64 {
 
 func handScore(hand, maxHand int) float64 {
 	if hand <= 0 {
-		return 1.0
+		return 0.5
 	}
 	if maxHand > 0 {
 		s := 1.0 - float64(hand-1)/float64(maxHand)

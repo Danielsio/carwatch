@@ -8,6 +8,16 @@ import (
 )
 
 func Apply(criteria config.FilterCriteria, listings []model.RawListing) []model.RawListing {
+	keywords := make([]string, len(criteria.Keywords))
+	for i, kw := range criteria.Keywords {
+		keywords[i] = strings.ToLower(kw)
+	}
+	excludeKeys := make([]string, len(criteria.ExcludeKeys))
+	for i, ex := range criteria.ExcludeKeys {
+		excludeKeys[i] = strings.ToLower(ex)
+	}
+	criteria.Keywords = keywords
+	criteria.ExcludeKeys = excludeKeys
 	result := make([]model.RawListing, 0, len(listings))
 	for _, l := range listings {
 		if matches(criteria, l) {
@@ -43,12 +53,12 @@ func matches(c config.FilterCriteria, l model.RawListing) bool {
 	desc := strings.ToLower(l.Description)
 
 	for _, kw := range c.Keywords {
-		if !strings.Contains(desc, strings.ToLower(kw)) {
+		if !strings.Contains(desc, kw) {
 			return false
 		}
 	}
 	for _, ex := range c.ExcludeKeys {
-		if strings.Contains(desc, strings.ToLower(ex)) {
+		if strings.Contains(desc, ex) {
 			return false
 		}
 	}

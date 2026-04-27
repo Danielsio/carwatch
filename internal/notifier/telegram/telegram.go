@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
@@ -15,9 +16,23 @@ import (
 	"github.com/dsionov/carwatch/internal/notifier"
 )
 
+const (
+	maxMessageLen = 4096
+	maxCaptionLen = 1024
+
+	// defaultSendDelay is the minimum pause between consecutive Telegram
+	// API calls to avoid hitting rate limits.
+	defaultSendDelay = 50 * time.Millisecond
+
+	// retryAfterDefault is the fallback sleep duration when the API returns
+	// a 429 Too Many Requests error without a parseable retry-after value.
+	retryAfterDefault = 5 * time.Second
+)
+
 type Notifier struct {
-	bot    *tgbot.Bot
-	logger *slog.Logger
+	bot       *tgbot.Bot
+	logger    *slog.Logger
+	sendDelay time.Duration
 }
 
 func New(token string, logger *slog.Logger, opts ...tgbot.Option) (*Notifier, error) {
@@ -29,7 +44,7 @@ func New(token string, logger *slog.Logger, opts ...tgbot.Option) (*Notifier, er
 	if err != nil {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
-	return &Notifier{bot: b, logger: logger}, nil
+	return &Notifier{bot: b, logger: logger, sendDelay: defaultSendDelay}, nil
 }
 
 func (n *Notifier) Bot() *tgbot.Bot {
@@ -60,11 +75,6 @@ func (n *Notifier) NotifyRaw(ctx context.Context, chatID string, message string)
 func (n *Notifier) Disconnect() error {
 	return nil
 }
-
-const (
-	maxMessageLen = 4096
-	maxCaptionLen = 1024
-)
 
 func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, listing model.Listing, lang locale.Lang) error {
 	id, err := strconv.ParseInt(chatID, 10, 64)
@@ -116,7 +126,10 @@ func (n *Notifier) sendMessageWithParseMode(ctx context.Context, chatID string, 
 	}
 
 	chunks := splitMessage(text, maxMessageLen)
-	for _, chunk := range chunks {
+	for i, chunk := range chunks {
+		if i > 0 {
+			time.Sleep(n.sendDelay)
+		}
 		params := &tgbot.SendMessageParams{
 			ChatID: id,
 			Text:   chunk,
@@ -126,12 +139,21 @@ func (n *Notifier) sendMessageWithParseMode(ctx context.Context, chatID string, 
 		}
 		_, err = n.bot.SendMessage(ctx, params)
 		if err != nil {
-			errMsg := strings.ToLower(err.Error())
-			if strings.Contains(errMsg, "bot was blocked by the user") ||
-				strings.Contains(errMsg, "user is deactivated") {
-				return fmt.Errorf("%w: %v", notifier.ErrRecipientBlocked, err)
+			if isRateLimited(err) {
+				wait := parseRetryAfter(err)
+				n.logger.Warn("rate limited by telegram, retrying",
+					"chat_id", chatID, "wait", wait)
+				time.Sleep(wait)
+				_, err = n.bot.SendMessage(ctx, params)
 			}
-			return fmt.Errorf("telegram sendMessage: %w", err)
+			if err != nil {
+				errMsg := strings.ToLower(err.Error())
+				if strings.Contains(errMsg, "bot was blocked by the user") ||
+					strings.Contains(errMsg, "user is deactivated") {
+					return fmt.Errorf("%w: %v", notifier.ErrRecipientBlocked, err)
+				}
+				return fmt.Errorf("telegram sendMessage: %w", err)
+			}
 		}
 	}
 
@@ -171,4 +193,45 @@ func lastRuneNewlineBefore(s []rune, pos int) int {
 		}
 	}
 	return -1
+}
+
+// isRateLimited checks whether a Telegram API error indicates a 429
+// Too Many Requests response.
+func isRateLimited(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "too many requests") ||
+		strings.Contains(msg, "retry_after")
+}
+
+// parseRetryAfter attempts to extract the retry-after duration from a
+// Telegram error message. The go-telegram/bot library embeds the value
+// in the error string (e.g. "...retry after 5"). If parsing fails the
+// default of 5 seconds is returned.
+func parseRetryAfter(err error) time.Duration {
+	if err == nil {
+		return retryAfterDefault
+	}
+	msg := strings.ToLower(err.Error())
+	for _, prefix := range []string{"retry after ", "retry_after\":"} {
+		idx := strings.Index(msg, prefix)
+		if idx < 0 {
+			continue
+		}
+		numStr := msg[idx+len(prefix):]
+		numStr = strings.TrimLeft(numStr, " ")
+		end := 0
+		for end < len(numStr) && numStr[end] >= '0' && numStr[end] <= '9' {
+			end++
+		}
+		if end > 0 {
+			secs, convErr := strconv.Atoi(numStr[:end])
+			if convErr == nil && secs > 0 {
+				return time.Duration(secs) * time.Second
+			}
+		}
+	}
+	return retryAfterDefault
 }

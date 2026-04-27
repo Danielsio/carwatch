@@ -152,9 +152,13 @@ func run(configPath string, logger *slog.Logger) error {
 	defer func() { _ = multi.Disconnect() }()
 
 	dash := dashboard.NewHandler(store)
+	var dashHandler http.Handler = dash
+	if tok := cfg.HTTP.DashboardToken; tok != "" {
+		dashHandler = requireBearerToken(tok, dash)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.Handler())
-	mux.Handle("/dashboard", dash)
+	mux.Handle("/dashboard", dashHandler)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Bind,
 		Handler:           mux,
@@ -221,4 +225,15 @@ func newLogHandler(format string, level slog.Level) slog.Handler {
 	return slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: level,
 	})
+}
+
+func requireBearerToken(token string, next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if auth != "Bearer "+token {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
 }
