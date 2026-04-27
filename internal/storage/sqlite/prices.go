@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error) {
@@ -38,6 +40,25 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 		return prev, true, nil
 	}
 	return prev, false, nil
+}
+
+func (s *Store) GetPriceHistory(ctx context.Context, token string) ([]storage.PricePoint, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT price, observed_at FROM price_history WHERE token = ? ORDER BY observed_at DESC", token)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var points []storage.PricePoint
+	for rows.Next() {
+		var p storage.PricePoint
+		if err := rows.Scan(&p.Price, &p.ObservedAt); err != nil {
+			return nil, err
+		}
+		points = append(points, p)
+	}
+	return points, rows.Err()
 }
 
 func (s *Store) PrunePrices(ctx context.Context, olderThan time.Duration) (int64, error) {

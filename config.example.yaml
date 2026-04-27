@@ -36,3 +36,10 @@ http:
   # proxies:
   #   - "socks5://user:pass@host1:port"
   #   - "socks5://user:pass@host2:port"
+
+# REST API settings (for web frontend)
+api:
+  cors_origins:
+    - "http://localhost:5173"
+  # dev_chat_id: 0       # chat_id to use in dev mode (no auth)
+  # auth_token: ""       # bearer token for API auth (optional)

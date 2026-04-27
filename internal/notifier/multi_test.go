@@ -49,6 +49,7 @@ func (f *fakeUserStore) GetUserByChannelID(_ context.Context, _, _ string) (*sto
 	return nil, nil
 }
 func (f *fakeUserStore) UpsertWhatsAppUser(_ context.Context, _ string) (int64, error) { return 0, nil }
+func (f *fakeUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error             { return nil }
 
 func (f *fakeUserStore) GetUser(_ context.Context, chatID int64) (*storage.User, error) {
 	u, ok := f.users[chatID]

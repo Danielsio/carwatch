@@ -1,5 +1,6 @@
 .PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
-       vm-check-env vm-ssh vm-logs vm-restart vm-stop vm-start vm-status vm-deploy
+       vm-check-env vm-ssh vm-logs vm-restart vm-stop vm-start vm-status vm-deploy \
+       web-install web-dev web-build
 
 all: build
 
@@ -46,6 +47,15 @@ ci: lint test
 clean:
 	rm -f bot
 	rm -rf $(COVER_DIR)
+
+web-install:
+	cd web && npm install
+
+web-dev:
+	cd web && npm run dev
+
+web-build:
+	cd web && npm run build
 
 docker-build:
 	docker build -t carwatch .

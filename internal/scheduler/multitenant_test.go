@@ -282,6 +282,7 @@ func (m *mockUserStore) GetUserByChannelID(_ context.Context, _, _ string) (*sto
 func (m *mockUserStore) UpsertWhatsAppUser(_ context.Context, _ string) (int64, error) {
 	return 0, nil
 }
+func (m *mockUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error { return nil }
 
 type digestItem struct {
 	payload   string

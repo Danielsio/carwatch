@@ -16,8 +16,15 @@ type Config struct {
 	Telegram TelegramConfig `yaml:"telegram"`
 	Storage  StorageConfig  `yaml:"storage"`
 	HTTP     HTTPConfig     `yaml:"http"`
+	API      APIConfig      `yaml:"api"`
 	LogLevel  string         `yaml:"log_level"`
 	LogFormat string         `yaml:"log_format"`
+}
+
+type APIConfig struct {
+	CORSOrigins []string `yaml:"cors_origins"`
+	DevChatID   int64    `yaml:"dev_chat_id"`
+	AuthToken   string   `yaml:"auth_token"`
 }
 
 type PollingConfig struct {
@@ -128,6 +135,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.LogFormat == "" {
 		cfg.LogFormat = "auto"
+	}
+	if len(cfg.API.CORSOrigins) == 0 {
+		cfg.API.CORSOrigins = []string{"http://localhost:5173"}
 	}
 }
 

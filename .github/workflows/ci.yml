@@ -11,6 +11,7 @@ on:
       - 'Dockerfile'
       - '.github/workflows/**'
       - 'docker-compose*.yaml'
+      - 'web/**'
 
 permissions:
   contents: read
@@ -50,6 +51,24 @@ jobs:
         with:
           name: coverage
           path: .coverage/
+
+  web:
+    name: Web Build
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: cd web && npm ci
+      - name: Type check
+        run: cd web && npx tsc -b
+      - name: Build
+        run: cd web && npm run build
 
   build:
     name: Build
