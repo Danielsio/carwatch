@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/model"
 )
 
 func TestBuildURL_Basic(t *testing.T) {
-	params := config.SourceParams{}
+	params := model.SourceParams{}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if !strings.Contains(u, "Order=1") {
 		t.Errorf("URL should contain Order=1, got %q", u)
@@ -16,7 +16,7 @@ func TestBuildURL_Basic(t *testing.T) {
 }
 
 func TestBuildURL_WithManufacturer(t *testing.T) {
-	params := config.SourceParams{Manufacturer: 19}
+	params := model.SourceParams{Manufacturer: 19}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if !strings.Contains(u, "manufacturer=19") {
 		t.Errorf("URL should contain manufacturer=19, got %q", u)
@@ -24,7 +24,7 @@ func TestBuildURL_WithManufacturer(t *testing.T) {
 }
 
 func TestBuildURL_WithModel(t *testing.T) {
-	params := config.SourceParams{Manufacturer: 19, Model: 10226}
+	params := model.SourceParams{Manufacturer: 19, Model: 10226}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if !strings.Contains(u, "model=10226") {
 		t.Errorf("URL should contain model=10226, got %q", u)
@@ -32,7 +32,7 @@ func TestBuildURL_WithModel(t *testing.T) {
 }
 
 func TestBuildURL_WithYearRange(t *testing.T) {
-	params := config.SourceParams{YearMin: 2018, YearMax: 2024}
+	params := model.SourceParams{YearMin: 2018, YearMax: 2024}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if !strings.Contains(u, "year=2018-2024") {
 		t.Errorf("URL should contain year=2018-2024, got %q", u)
@@ -40,7 +40,7 @@ func TestBuildURL_WithYearRange(t *testing.T) {
 }
 
 func TestBuildURL_WithYearMinOnly(t *testing.T) {
-	params := config.SourceParams{YearMin: 2020}
+	params := model.SourceParams{YearMin: 2020}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if !strings.Contains(u, "year=2020-2030") {
 		t.Errorf("URL should default YearMax to 2030, got %q", u)
@@ -48,7 +48,7 @@ func TestBuildURL_WithYearMinOnly(t *testing.T) {
 }
 
 func TestBuildURL_WithYearMaxOnly(t *testing.T) {
-	params := config.SourceParams{YearMax: 2024}
+	params := model.SourceParams{YearMax: 2024}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if !strings.Contains(u, "year=2000-2024") {
 		t.Errorf("URL should default YearMin to 2000, got %q", u)
@@ -56,7 +56,7 @@ func TestBuildURL_WithYearMaxOnly(t *testing.T) {
 }
 
 func TestBuildURL_WithPriceRange(t *testing.T) {
-	params := config.SourceParams{PriceMin: 50000, PriceMax: 200000}
+	params := model.SourceParams{PriceMin: 50000, PriceMax: 200000}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if !strings.Contains(u, "price=50000-200000") {
 		t.Errorf("URL should contain price=50000-200000, got %q", u)
@@ -64,7 +64,7 @@ func TestBuildURL_WithPriceRange(t *testing.T) {
 }
 
 func TestBuildURL_WithPriceMaxOnly(t *testing.T) {
-	params := config.SourceParams{PriceMax: 150000}
+	params := model.SourceParams{PriceMax: 150000}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if !strings.Contains(u, "price=0-150000") {
 		t.Errorf("URL should default PriceMin to 0, got %q", u)
@@ -72,7 +72,7 @@ func TestBuildURL_WithPriceMaxOnly(t *testing.T) {
 }
 
 func TestBuildURL_WithPriceMinOnly(t *testing.T) {
-	params := config.SourceParams{PriceMin: 50000}
+	params := model.SourceParams{PriceMin: 50000}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if !strings.Contains(u, "price=50000-9999999") {
 		t.Errorf("URL should default PriceMax to 9999999, got %q", u)
@@ -80,7 +80,7 @@ func TestBuildURL_WithPriceMinOnly(t *testing.T) {
 }
 
 func TestBuildURL_WithPage(t *testing.T) {
-	params := config.SourceParams{Page: 3}
+	params := model.SourceParams{Page: 3}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if !strings.Contains(u, "page=3") {
 		t.Errorf("URL should contain page=3, got %q", u)
@@ -88,7 +88,7 @@ func TestBuildURL_WithPage(t *testing.T) {
 }
 
 func TestBuildURL_NoPageWhenZero(t *testing.T) {
-	params := config.SourceParams{}
+	params := model.SourceParams{}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if strings.Contains(u, "page=") {
 		t.Errorf("URL should not contain page= when Page is 0, got %q", u)
@@ -96,7 +96,7 @@ func TestBuildURL_NoPageWhenZero(t *testing.T) {
 }
 
 func TestBuildURL_FullParams(t *testing.T) {
-	params := config.SourceParams{
+	params := model.SourceParams{
 		Manufacturer: 19,
 		Model:        10226,
 		YearMin:      2018,
@@ -122,7 +122,7 @@ func TestBuildURL_FullParams(t *testing.T) {
 }
 
 func TestBuildURL_NoManufacturerOrModel(t *testing.T) {
-	params := config.SourceParams{}
+	params := model.SourceParams{}
 	u := buildURL("https://www.yad2.co.il/vehicles/cars", params)
 	if strings.Contains(u, "manufacturer=") {
 		t.Errorf("URL should not have manufacturer when 0, got %q", u)

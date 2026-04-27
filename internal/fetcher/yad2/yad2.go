@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
 )
@@ -71,7 +70,7 @@ func (f *Yad2Fetcher) Close() {
 	}
 }
 
-func (f *Yad2Fetcher) Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
+func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]model.RawListing, error) {
 	client := f.client
 	var usedProxy string
 	if f.proxyPool != nil {
@@ -123,7 +122,7 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 	return io.ReadAll(reader)
 }
 
-func buildURL(base string, params config.SourceParams) string {
+func buildURL(base string, params model.SourceParams) string {
 	u, _ := url.Parse(base)
 	v := url.Values{}
 

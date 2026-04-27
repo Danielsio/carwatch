@@ -4,7 +4,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/model"
 )
 
 const defaultBaseURL = "https://www.winwin.co.il/vehicles/cars"
@@ -12,7 +12,7 @@ const defaultBaseURL = "https://www.winwin.co.il/vehicles/cars"
 // buildURL constructs a WinWin search URL from the given parameters.
 // TODO: Reverse-engineer the actual WinWin URL structure and query parameters.
 // The parameters below are placeholders based on common patterns.
-func buildURL(base string, params config.SourceParams) string {
+func buildURL(base string, params model.SourceParams) string {
 	u, _ := url.Parse(base)
 	v := url.Values{}
 

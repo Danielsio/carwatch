@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -24,7 +23,7 @@ func NewPaginatingFetcher(inner Fetcher, maxPages int) *PaginatingFetcher {
 	return &PaginatingFetcher{inner: inner, maxPages: maxPages}
 }
 
-func (f *PaginatingFetcher) Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
+func (f *PaginatingFetcher) Fetch(ctx context.Context, params model.SourceParams) ([]model.RawListing, error) {
 	seen := make(map[string]bool)
 	var all []model.RawListing
 

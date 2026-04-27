@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/model"
 )
 
 func TestWinWinFetcher_StubReturnsEmpty(t *testing.T) {
@@ -16,7 +16,7 @@ func TestWinWinFetcher_StubReturnsEmpty(t *testing.T) {
 		t.Fatalf("NewFetcher: %v", err)
 	}
 
-	listings, err := f.Fetch(context.Background(), config.SourceParams{
+	listings, err := f.Fetch(context.Background(), model.SourceParams{
 		Manufacturer: 27,
 		Model:        10332,
 		YearMin:      2020,
@@ -33,17 +33,17 @@ func TestWinWinFetcher_StubReturnsEmpty(t *testing.T) {
 func TestBuildURL(t *testing.T) {
 	tests := []struct {
 		name   string
-		params config.SourceParams
+		params model.SourceParams
 		want   string
 	}{
 		{
 			name:   "empty params",
-			params: config.SourceParams{},
+			params: model.SourceParams{},
 			want:   "https://www.winwin.co.il/vehicles/cars",
 		},
 		{
 			name: "full params",
-			params: config.SourceParams{
+			params: model.SourceParams{
 				Manufacturer: 27,
 				Model:        10332,
 				YearMin:      2020,
@@ -54,7 +54,7 @@ func TestBuildURL(t *testing.T) {
 		},
 		{
 			name: "with page",
-			params: config.SourceParams{
+			params: model.SourceParams{
 				Manufacturer: 35,
 				Page:         2,
 			},

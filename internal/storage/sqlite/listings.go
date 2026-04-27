@@ -1,0 +1,261 @@
+package sqlite
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/dsionov/carwatch/internal/storage"
+)
+
+func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO listing_history
+		(token, chat_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(token, chat_id) DO UPDATE SET
+			price = excluded.price,
+			km = excluded.km`,
+		r.Token, r.ChatID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
+		r.Km, r.Hand, r.City, r.PageLink, r.FirstSeenAt)
+	if err != nil {
+		return err
+	}
+	if r.Manufacturer != "" && r.Model != "" && r.Year > 0 && r.Price > 0 {
+		if _, err := s.db.ExecContext(ctx, `
+			INSERT INTO market_cache (token, manufacturer, model, year, price)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT(token) DO UPDATE SET
+				manufacturer = excluded.manufacturer,
+				model = excluded.model,
+				year = excluded.year,
+				price = excluded.price,
+				updated_at = CURRENT_TIMESTAMP`,
+			r.Token, r.Manufacturer, r.Model, r.Year, r.Price); err != nil {
+			return fmt.Errorf("upsert market_cache: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecord) error {
+	if len(records) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	listingStmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO listing_history
+		(token, chat_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(token, chat_id) DO UPDATE SET
+			price = excluded.price,
+			km = excluded.km`)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = listingStmt.Close() }()
+
+	marketStmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO market_cache (token, manufacturer, model, year, price)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(token) DO UPDATE SET
+			manufacturer = excluded.manufacturer,
+			model = excluded.model,
+			year = excluded.year,
+			price = excluded.price,
+			updated_at = CURRENT_TIMESTAMP`)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = marketStmt.Close() }()
+
+	for _, r := range records {
+		if _, err := listingStmt.ExecContext(ctx,
+			r.Token, r.ChatID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
+			r.Km, r.Hand, r.City, r.PageLink, r.FirstSeenAt); err != nil {
+			return err
+		}
+		if r.Manufacturer != "" && r.Model != "" && r.Year > 0 && r.Price > 0 {
+			if _, err := marketStmt.ExecContext(ctx,
+				r.Token, r.Manufacturer, r.Model, r.Year, r.Price); err != nil {
+				return fmt.Errorf("upsert market_cache: %w", err)
+			}
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT token, search_name, manufacturer, model, year, price,
+			km, hand, city, page_link, first_seen_at
+		FROM listing_history
+		WHERE chat_id = ?
+		ORDER BY first_seen_at DESC, token DESC
+		LIMIT ? OFFSET ?`, chatID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var listings []storage.ListingRecord
+	for rows.Next() {
+		var l storage.ListingRecord
+		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FirstSeenAt); err != nil {
+			return nil, err
+		}
+		listings = append(listings, l)
+	}
+	return listings, rows.Err()
+}
+
+func (s *Store) CountUserListings(ctx context.Context, chatID int64) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM listing_history
+		WHERE chat_id = ?`, chatID).Scan(&count)
+	return count, err
+}
+
+func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT token, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at
+		FROM listing_history
+		WHERE rowid IN (SELECT MAX(rowid) FROM listing_history GROUP BY token)
+		ORDER BY first_seen_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var listings []storage.ListingRecord
+	for rows.Next() {
+		var l storage.ListingRecord
+		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FirstSeenAt); err != nil {
+			return nil, err
+		}
+		listings = append(listings, l)
+	}
+	return listings, rows.Err()
+}
+
+func (s *Store) SaveBookmark(ctx context.Context, chatID int64, token string) error {
+	_, err := s.db.ExecContext(ctx,
+		"INSERT OR IGNORE INTO saved_listings (chat_id, token) VALUES (?, ?)",
+		chatID, token)
+	return err
+}
+
+func (s *Store) RemoveBookmark(ctx context.Context, chatID int64, token string) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM saved_listings WHERE chat_id = ? AND token = ?",
+		chatID, token)
+	return err
+}
+
+func (s *Store) ListSaved(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.year, lh.price,
+			lh.km, lh.hand, lh.city, lh.page_link, lh.first_seen_at
+		FROM saved_listings sl
+		JOIN listing_history lh ON sl.token = lh.token AND sl.chat_id = lh.chat_id
+		WHERE sl.chat_id = ?
+		ORDER BY sl.saved_at DESC
+		LIMIT ? OFFSET ?`, chatID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var listings []storage.ListingRecord
+	for rows.Next() {
+		var l storage.ListingRecord
+		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.FirstSeenAt); err != nil {
+			return nil, err
+		}
+		listings = append(listings, l)
+	}
+	return listings, rows.Err()
+}
+
+func (s *Store) CountSaved(ctx context.Context, chatID int64) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM saved_listings WHERE chat_id = ?", chatID).Scan(&count)
+	return count, err
+}
+
+func (s *Store) HideListing(ctx context.Context, chatID int64, token string) error {
+	_, err := s.db.ExecContext(ctx,
+		"INSERT OR IGNORE INTO hidden_listings (chat_id, token) VALUES (?, ?)",
+		chatID, token)
+	return err
+}
+
+func (s *Store) IsHidden(ctx context.Context, chatID int64, token string) (bool, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM hidden_listings WHERE chat_id = ? AND token = ?",
+		chatID, token).Scan(&count)
+	return count > 0, err
+}
+
+func (s *Store) ListHidden(ctx context.Context, chatID int64, limit, offset int) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT token FROM hidden_listings WHERE chat_id = ? ORDER BY hidden_at DESC LIMIT ? OFFSET ?",
+		chatID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var tokens []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, t)
+	}
+	return tokens, rows.Err()
+}
+
+func (s *Store) CountHidden(ctx context.Context, chatID int64) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM hidden_listings WHERE chat_id = ?", chatID).Scan(&count)
+	return count, err
+}
+
+func (s *Store) ClearHidden(ctx context.Context, chatID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM hidden_listings WHERE chat_id = ?", chatID)
+	return err
+}
+
+func (s *Store) ListHiddenTokens(ctx context.Context, chatID int64) (map[string]bool, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT token FROM hidden_listings WHERE chat_id = ?", chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	tokens := make(map[string]bool)
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		tokens[t] = true
+	}
+	return tokens, rows.Err()
+}

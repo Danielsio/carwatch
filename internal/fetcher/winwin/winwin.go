@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
 )
@@ -52,7 +51,7 @@ func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logge
 // TODO: Implement actual scraping logic once the WinWin API/page structure
 // is reverse-engineered. For now this returns empty results so the fetcher
 // can be registered and tested end-to-end without hitting a real server.
-func (f *WinWinFetcher) Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error) {
+func (f *WinWinFetcher) Fetch(ctx context.Context, params model.SourceParams) ([]model.RawListing, error) {
 	reqURL := buildURL(f.baseURL, params)
 	f.logger.Info("winwin fetch stub", "url", reqURL)
 

@@ -246,7 +246,7 @@ func (s *Scheduler) fetcherForSource(source string) fetcher.Fetcher {
 	return s.fetcher
 }
 
-func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, params config.SourceParams) ([]model.RawListing, error) {
+func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, params model.SourceParams) ([]model.RawListing, error) {
 	var lastErr error
 	for attempt := range maxRetries {
 		listings, err := f.Fetch(ctx, params)
@@ -586,7 +586,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 	)
 
 	for _, search := range group.Searches {
-		criteria := config.FilterCriteria{
+		criteria := model.FilterCriteria{
 			YearMin:     search.YearMin,
 			YearMax:     search.YearMax,
 			PriceMax:    search.PriceMax,

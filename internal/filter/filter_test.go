@@ -3,20 +3,19 @@ package filter
 import (
 	"testing"
 
-	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
 func TestApply(t *testing.T) {
 	tests := []struct {
 		name     string
-		criteria config.FilterCriteria
+		criteria model.FilterCriteria
 		listings []model.RawListing
 		want     []string // expected tokens
 	}{
 		{
 			name:     "engine min filter",
-			criteria: config.FilterCriteria{EngineMinCC: 1800},
+			criteria: model.FilterCriteria{EngineMinCC: 1800},
 			listings: []model.RawListing{
 				{Token: "a", EngineVolume: 1600},
 				{Token: "b", EngineVolume: 1998},
@@ -25,7 +24,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "engine max filter",
-			criteria: config.FilterCriteria{EngineMaxCC: 2100},
+			criteria: model.FilterCriteria{EngineMaxCC: 2100},
 			listings: []model.RawListing{
 				{Token: "a", EngineVolume: 1998},
 				{Token: "b", EngineVolume: 2500},
@@ -34,7 +33,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "engine range filter",
-			criteria: config.FilterCriteria{EngineMinCC: 1800, EngineMaxCC: 2100},
+			criteria: model.FilterCriteria{EngineMinCC: 1800, EngineMaxCC: 2100},
 			listings: []model.RawListing{
 				{Token: "a", EngineVolume: 1600},
 				{Token: "b", EngineVolume: 1998},
@@ -44,7 +43,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "max km filter",
-			criteria: config.FilterCriteria{MaxKm: 150000},
+			criteria: model.FilterCriteria{MaxKm: 150000},
 			listings: []model.RawListing{
 				{Token: "a", Km: 50000},
 				{Token: "b", Km: 200000},
@@ -53,7 +52,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "max hand filter",
-			criteria: config.FilterCriteria{MaxHand: 3},
+			criteria: model.FilterCriteria{MaxHand: 3},
 			listings: []model.RawListing{
 				{Token: "a", Hand: 2},
 				{Token: "b", Hand: 5},
@@ -62,7 +61,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "keyword inclusion",
-			criteria: config.FilterCriteria{Keywords: []string{"sunroof"}},
+			criteria: model.FilterCriteria{Keywords: []string{"sunroof"}},
 			listings: []model.RawListing{
 				{Token: "a", Description: "Great car with sunroof"},
 				{Token: "b", Description: "Basic model"},
@@ -71,7 +70,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "keyword exclusion",
-			criteria: config.FilterCriteria{ExcludeKeys: []string{"accident damage"}},
+			criteria: model.FilterCriteria{ExcludeKeys: []string{"accident damage"}},
 			listings: []model.RawListing{
 				{Token: "a", Description: "Accident free car"},
 				{Token: "b", Description: "Minor accident damage"},
@@ -80,7 +79,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "keyword case insensitive",
-			criteria: config.FilterCriteria{Keywords: []string{"SUNROOF"}},
+			criteria: model.FilterCriteria{Keywords: []string{"SUNROOF"}},
 			listings: []model.RawListing{
 				{Token: "a", Description: "has a sunroof"},
 			},
@@ -88,7 +87,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "year min filter",
-			criteria: config.FilterCriteria{YearMin: 2018},
+			criteria: model.FilterCriteria{YearMin: 2018},
 			listings: []model.RawListing{
 				{Token: "a", Year: 2017},
 				{Token: "b", Year: 2020},
@@ -97,7 +96,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "year max filter",
-			criteria: config.FilterCriteria{YearMax: 2022},
+			criteria: model.FilterCriteria{YearMax: 2022},
 			listings: []model.RawListing{
 				{Token: "a", Year: 2020},
 				{Token: "b", Year: 2025},
@@ -106,7 +105,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "price max filter",
-			criteria: config.FilterCriteria{PriceMax: 150000},
+			criteria: model.FilterCriteria{PriceMax: 150000},
 			listings: []model.RawListing{
 				{Token: "a", Price: 120000},
 				{Token: "b", Price: 200000},
@@ -115,7 +114,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "zero values disable all filters",
-			criteria: config.FilterCriteria{},
+			criteria: model.FilterCriteria{},
 			listings: []model.RawListing{
 				{Token: "a", EngineVolume: 1600, Km: 200000, Hand: 5},
 			},
@@ -123,7 +122,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name: "combined filters",
-			criteria: config.FilterCriteria{
+			criteria: model.FilterCriteria{
 				EngineMinCC: 1800,
 				EngineMaxCC: 2100,
 				MaxKm:       150000,
@@ -139,13 +138,13 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:     "empty listings",
-			criteria: config.FilterCriteria{MaxKm: 100000},
+			criteria: model.FilterCriteria{MaxKm: 100000},
 			listings: []model.RawListing{},
 			want:     []string{},
 		},
 		{
 			name: "multiple keywords all required",
-			criteria: config.FilterCriteria{Keywords: []string{"sunroof", "leather"}},
+			criteria: model.FilterCriteria{Keywords: []string{"sunroof", "leather"}},
 			listings: []model.RawListing{
 				{Token: "a", Description: "sunroof and leather seats"},
 				{Token: "b", Description: "has sunroof only"},
