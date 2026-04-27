@@ -44,7 +44,7 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 
 func (s *Store) GetPriceHistory(ctx context.Context, token string) ([]storage.PricePoint, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT price, observed_at FROM price_history WHERE token = ? ORDER BY observed_at DESC", token)
+		"SELECT price, observed_at FROM price_history WHERE token = ? ORDER BY observed_at DESC, rowid DESC", token)
 	if err != nil {
 		return nil, err
 	}

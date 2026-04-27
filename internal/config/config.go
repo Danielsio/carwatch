@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -163,6 +164,11 @@ func validate(cfg *Config) error {
 	}
 	if cfg.Telegram.Token == "" {
 		return fmt.Errorf("telegram.token is required")
+	}
+	for _, origin := range cfg.API.CORSOrigins {
+		if _, err := url.Parse(origin); err != nil {
+			return fmt.Errorf("api.cors_origins: invalid URL %q", origin)
+		}
 	}
 	return nil
 }

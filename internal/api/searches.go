@@ -61,7 +61,7 @@ func (s *Server) toSearchResponse(sr storage.Search) searchResponse {
 		Keywords:         sr.Keywords,
 		ExcludeKeys:      sr.ExcludeKeys,
 		Active:           sr.Active,
-		CreatedAt:        sr.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:        sr.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 	}
 }
 

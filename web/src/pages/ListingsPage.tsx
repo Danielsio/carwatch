@@ -22,7 +22,28 @@ export function ListingsPage() {
   const [sort, setSort] = useState("newest");
   const [offset, setOffset] = useState(0);
 
-  const { data, isLoading } = useListings(searchId, sort, PAGE_SIZE, offset);
+  const { data, isLoading, isError } = useListings(searchId, sort, PAGE_SIZE, offset);
+
+  if (isError) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowRight className="h-4 w-4" />
+            חזרה
+          </Link>
+          <h1 className="text-2xl font-bold">תוצאות</h1>
+        </div>
+        <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-6 text-center">
+          <p className="text-destructive font-medium">שגיאה בטעינת התוצאות</p>
+          <p className="text-sm text-muted-foreground mt-1">נסה לרענן את הדף</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

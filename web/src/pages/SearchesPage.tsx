@@ -11,10 +11,11 @@ import { useState } from "react";
 import type { Search } from "@/lib/api";
 
 export function SearchesPage() {
-  const { data: searches, isLoading } = useSearches();
+  const { data: searches, isLoading, isError } = useSearches();
   const deleteSearch = useDeleteSearch();
   const pauseSearch = usePauseSearch();
   const resumeSearch = useResumeSearch();
+  const isMutating = deleteSearch.isPending || pauseSearch.isPending || resumeSearch.isPending;
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   if (isLoading) {
@@ -28,6 +29,18 @@ export function SearchesPage() {
               className="h-48 animate-pulse rounded-xl bg-muted"
             />
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold">החיפושים שלי</h1>
+        <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-6 text-center">
+          <p className="text-destructive font-medium">שגיאה בטעינת החיפושים</p>
+          <p className="text-sm text-muted-foreground mt-1">נסה לרענן את הדף</p>
         </div>
       </div>
     );
@@ -65,6 +78,7 @@ export function SearchesPage() {
             <SearchCard
               key={search.id}
               search={search}
+              disabled={isMutating}
               onPause={() => pauseSearch.mutate(search.id)}
               onResume={() => resumeSearch.mutate(search.id)}
               onDelete={() => {
@@ -87,6 +101,7 @@ export function SearchesPage() {
 
 function SearchCard({
   search,
+  disabled,
   onPause,
   onResume,
   onDelete,
@@ -94,6 +109,7 @@ function SearchCard({
   onCancelDelete,
 }: {
   search: Search;
+  disabled: boolean;
   onPause: () => void;
   onResume: () => void;
   onDelete: () => void;
@@ -143,7 +159,8 @@ function SearchCard({
         {search.active ? (
           <button
             onClick={onPause}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
+            disabled={disabled}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
           >
             <Pause className="h-3.5 w-3.5" />
             השהה
@@ -151,7 +168,8 @@ function SearchCard({
         ) : (
           <button
             onClick={onResume}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
+            disabled={disabled}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
           >
             <Play className="h-3.5 w-3.5" />
             חדש

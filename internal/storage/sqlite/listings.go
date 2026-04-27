@@ -164,6 +164,8 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchName string, limit, offset int, sort string) ([]storage.ListingRecord, error) {
 	orderBy := "first_seen_at DESC, token DESC"
 	switch sort {
+	case "newest":
+		orderBy = "first_seen_at DESC, token DESC"
 	case "price_asc":
 		orderBy = "price ASC, token DESC"
 	case "price_desc":

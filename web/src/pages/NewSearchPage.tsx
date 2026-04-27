@@ -88,7 +88,10 @@ export function NewSearchPage() {
     }
   }
 
-  async function handleSubmit() {
+  const [error, setError] = useState<string | null>(null);
+
+  function handleSubmit() {
+    setError(null);
     createSearch.mutate(
       {
         source: "yad2",
@@ -102,7 +105,10 @@ export function NewSearchPage() {
         keywords: form.keywords || undefined,
         exclude_keys: form.excludeKeys || undefined,
       },
-      { onSuccess: () => navigate("/") },
+      {
+        onSuccess: () => navigate("/"),
+        onError: () => setError("שגיאה ביצירת החיפוש, נסה שוב"),
+      },
     );
   }
 
@@ -234,6 +240,11 @@ export function NewSearchPage() {
                 className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
+            {form.yearMin > form.yearMax && (
+              <p className="text-sm text-destructive">
+                שנה מינימלית חייבת להיות קטנה או שווה לשנה מקסימלית
+              </p>
+            )}
           </div>
         )}
 
@@ -337,6 +348,11 @@ export function NewSearchPage() {
 
         {step === "confirm" && (
           <div className="space-y-4">
+            {error && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="text-lg font-semibold mb-3">סיכום חיפוש</h3>
               <dl className="grid grid-cols-2 gap-2 text-sm">
@@ -399,7 +415,7 @@ export function NewSearchPage() {
         {step === "confirm" ? (
           <button
             onClick={handleSubmit}
-            disabled={createSearch.isPending}
+            disabled={createSearch.isPending || form.manufacturer === 0 || form.model === 0}
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {createSearch.isPending ? (

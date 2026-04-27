@@ -80,7 +80,7 @@ func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 			PageLink:     l.PageLink,
 			ImageURL:     l.ImageURL,
 			FitnessScore: l.FitnessScore,
-			FirstSeenAt:  l.FirstSeenAt.Format("2006-01-02T15:04:05Z"),
+			FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
 		})
 	}
 
