@@ -902,6 +902,95 @@ func TestListUserListings(t *testing.T) {
 	}
 }
 
+func TestSaveListings_Batch(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	records := []storage.ListingRecord{
+		{Token: "batch-1", ChatID: 100, SearchName: "test", Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000},
+		{Token: "batch-2", ChatID: 100, SearchName: "test", Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 85000},
+		{Token: "batch-3", ChatID: 200, SearchName: "test2", Manufacturer: "Honda", Model: "Civic", Year: 2022, Price: 95000},
+	}
+
+	if err := store.SaveListings(ctx, records); err != nil {
+		t.Fatalf("batch save: %v", err)
+	}
+
+	// Verify all records were inserted.
+	listings, err := store.ListListings(ctx, 10)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(listings) != 3 {
+		t.Errorf("expected 3 listings, got %d", len(listings))
+	}
+
+	// Verify market_cache was populated.
+	marketListings, err := store.MarketListings(ctx)
+	if err != nil {
+		t.Fatalf("market listings: %v", err)
+	}
+	if len(marketListings) != 3 {
+		t.Errorf("expected 3 market listings, got %d", len(marketListings))
+	}
+}
+
+func TestSaveListings_Empty(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.SaveListings(ctx, nil); err != nil {
+		t.Fatalf("empty batch save: %v", err)
+	}
+	if err := store.SaveListings(ctx, []storage.ListingRecord{}); err != nil {
+		t.Fatalf("empty slice batch save: %v", err)
+	}
+
+	listings, err := store.ListUserListings(ctx, 100, 10, 0)
+	if err != nil {
+		t.Fatalf("ListUserListings: %v", err)
+	}
+	if len(listings) != 0 {
+		t.Errorf("expected 0 listings after empty batch, got %d", len(listings))
+	}
+}
+
+func TestSaveListings_UpsertConflict(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	// Save initial record.
+	err := store.SaveListings(ctx, []storage.ListingRecord{
+		{Token: "upsert-1", ChatID: 100, SearchName: "test", Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000, Km: 50000},
+	})
+	if err != nil {
+		t.Fatalf("first batch save: %v", err)
+	}
+
+	// Save again with updated price and km -- should upsert.
+	err = store.SaveListings(ctx, []storage.ListingRecord{
+		{Token: "upsert-1", ChatID: 100, SearchName: "test", Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 85000, Km: 55000},
+	})
+	if err != nil {
+		t.Fatalf("upsert batch save: %v", err)
+	}
+
+	listings, err := store.ListUserListings(ctx, 100, 10, 0)
+	if err != nil {
+		t.Fatalf("list user listings: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing after upsert, got %d", len(listings))
+	}
+	if listings[0].Price != 85000 {
+		t.Errorf("price = %d, want 85000", listings[0].Price)
+	}
+	if listings[0].Km != 55000 {
+		t.Errorf("km = %d, want 55000", listings[0].Km)
+	}
+}
+
 func TestCountUserListings(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

@@ -626,6 +626,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 
 		var newListings []model.Listing
 		var priceDropMessages []string
+		var listingRecords []storage.ListingRecord
 		for _, l := range filtered {
 			if hiddenTokens[l.Token] {
 				continue
@@ -691,15 +692,25 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 			}
 			newListings = append(newListings, listing)
 
-			if s.listingStore != nil {
-				if err := s.listingStore.SaveListing(ctx, storage.ListingRecord{
-					Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
-					Manufacturer: l.Manufacturer, Model: l.Model,
-					Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
-					City: l.City, PageLink: l.PageLink, FirstSeenAt: time.Now(),
-				}); err != nil {
-					s.logger.Warn("save listing failed", "token", l.Token, "error", err)
+			listingRecords = append(listingRecords, storage.ListingRecord{
+				Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
+				Manufacturer: l.Manufacturer, Model: l.Model,
+				Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
+				City: l.City, PageLink: l.PageLink, FirstSeenAt: time.Now(),
+			})
+		}
+
+		if s.listingStore != nil && len(listingRecords) > 0 {
+			if err := s.listingStore.SaveListings(ctx, listingRecords); err != nil {
+				s.logger.Error("batch save listings failed", "error", err)
+				cleanupCtx := context.Background()
+				for _, rec := range listingRecords {
+					if relErr := s.dedup.ReleaseClaim(cleanupCtx, rec.Token, rec.ChatID); relErr != nil {
+						s.logger.Error("release claim after batch save failure",
+							"token", rec.Token, "chat_id", rec.ChatID, "error", relErr)
+					}
 				}
+				continue
 			}
 		}
 
