@@ -310,6 +310,53 @@ func TestListListings(t *testing.T) {
 	}
 }
 
+func TestCreateSearch_InvalidRanges(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{
+		Manufacturer: 19,
+		Model:        10226,
+		YearMin:      2025,
+		YearMax:      2020,
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for year_min > year_max, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{
+		Manufacturer: 19,
+		Model:        10226,
+		PriceMax:     -1,
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for negative price_max, got %d", w.Code)
+	}
+}
+
+func TestUpdateSearch_InvalidRanges(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{
+		Manufacturer: 19,
+		Model:        10226,
+		YearMin:      2018,
+		YearMax:      2024,
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d", w.Code)
+	}
+	var created searchResponse
+	mustUnmarshal(t, w.Body.Bytes(), &created)
+
+	w = doRequest(t, srv, "PUT", "/api/v1/searches/"+itoa(created.ID), updateSearchRequest{
+		YearMin: 2025,
+		YearMax: 2020,
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for year_min > year_max on update, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestSearchNotFound(t *testing.T) {
 	srv, _ := setupTestServer(t)
 

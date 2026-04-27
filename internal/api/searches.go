@@ -54,6 +54,25 @@ type searchResponse struct {
 	CreatedAt        string `json:"created_at"`
 }
 
+func validateSearchRanges(yearMin, yearMax, priceMax, maxKm, maxHand, engineMinCC int) string {
+	if yearMin > 0 && yearMax > 0 && yearMin > yearMax {
+		return "year_min must not exceed year_max"
+	}
+	if priceMax < 0 {
+		return "price_max must not be negative"
+	}
+	if maxKm < 0 {
+		return "max_km must not be negative"
+	}
+	if maxHand < 0 {
+		return "max_hand must not be negative"
+	}
+	if engineMinCC < 0 {
+		return "engine_min_cc must not be negative"
+	}
+	return ""
+}
+
 func (s *Server) toSearchResponse(sr storage.Search) searchResponse {
 	return searchResponse{
 		ID:               sr.ID,
@@ -108,6 +127,11 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 
 	if req.Source == "" {
 		req.Source = "yad2"
+	}
+
+	if msg := validateSearchRanges(req.YearMin, req.YearMax, req.PriceMax, req.MaxKm, req.MaxHand, req.EngineMinCC); msg != "" {
+		writeError(w, http.StatusBadRequest, msg)
+		return
 	}
 
 	mfrName := s.catalog.ManufacturerName(req.Manufacturer)
@@ -200,6 +224,11 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 	var req updateSearchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if msg := validateSearchRanges(req.YearMin, req.YearMax, req.PriceMax, req.MaxKm, req.MaxHand, req.EngineMinCC); msg != "" {
+		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
 
