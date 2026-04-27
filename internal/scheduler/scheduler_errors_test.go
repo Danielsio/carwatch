@@ -827,10 +827,13 @@ func TestFlushAndSendDigest_AckFails_LogsDistinctiveError(t *testing.T) {
 		t.Errorf("expected 1 message sent, got %d", sentCount)
 	}
 
-	// The distinctive error message should appear in the log.
+	// The distinctive error message should appear in the log with structured context.
 	logOutput := logBuf.String()
 	if !strings.Contains(logOutput, "digest ack failed after successful send, items may be resent") {
 		t.Errorf("expected distinctive ack-failure log message, got: %s", logOutput)
+	}
+	if !strings.Contains(logOutput, "chat_id=100") {
+		t.Errorf("expected chat_id in log context, got: %s", logOutput)
 	}
 }
 
@@ -861,10 +864,13 @@ func TestSendDailyDigest_LastSentUpdateFails_LogsDistinctiveError(t *testing.T) 
 		t.Errorf("expected 1 message sent, got %d", sentCount)
 	}
 
-	// The distinctive error message should appear in the log.
+	// The distinctive error message should appear in the log with structured context.
 	logOutput := logBuf.String()
 	if !strings.Contains(logOutput, "daily digest last-sent update failed after successful send, digest may be resent") {
 		t.Errorf("expected distinctive last-sent-failure log message, got: %s", logOutput)
+	}
+	if !strings.Contains(logOutput, "chat_id=100") {
+		t.Errorf("expected chat_id in log context, got: %s", logOutput)
 	}
 }
 
