@@ -147,19 +147,7 @@ func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 		return
 	}
 
-	count, err := b.searches.CountSearches(ctx, chatID)
-	if err != nil {
-		b.logger.Error("count searches failed", "chat_id", chatID, "error", err)
-		b.send(ctx, chatID, locale.T(lang, "share_limit_error"))
-		return
-	}
-	limit := b.maxSearchesForUser(ctx, chatID)
-	if count >= int64(limit) {
-		if !b.isPremium(ctx, chatID) {
-			b.sendMarkdown(ctx, chatID, locale.Tf(lang, "upgrade_search_limit", count, limit))
-		} else {
-			b.send(ctx, chatID, locale.Tf(lang, "share_limit_reached", count, limit))
-		}
+	if b.checkSearchLimit(ctx, chatID, lang, "share_limit") {
 		return
 	}
 
@@ -261,18 +249,7 @@ func (b *Bot) onLanguageSwitch(ctx context.Context, chatID int64, lang locale.La
 func (b *Bot) onQuickStart(ctx context.Context, chatID int64) {
 	lang := b.getUserLang(ctx, chatID)
 
-	count, err := b.searches.CountSearches(ctx, chatID)
-	if err != nil {
-		b.send(ctx, chatID, locale.T(lang, "watch_limit_error"))
-		return
-	}
-	limit := b.maxSearchesForUser(ctx, chatID)
-	if count >= int64(limit) {
-		if !b.isPremium(ctx, chatID) {
-			b.sendMarkdown(ctx, chatID, locale.Tf(lang, "upgrade_search_limit", count, limit))
-		} else {
-			b.send(ctx, chatID, locale.Tf(lang, "watch_limit_reached", count, limit))
-		}
+	if b.checkSearchLimit(ctx, chatID, lang, "watch_limit") {
 		return
 	}
 
@@ -303,18 +280,7 @@ func (b *Bot) onQuickStart(ctx context.Context, chatID int64) {
 func (b *Bot) onWatchFromCallback(ctx context.Context, chatID int64) {
 	lang := b.getUserLang(ctx, chatID)
 
-	count, err := b.searches.CountSearches(ctx, chatID)
-	if err != nil {
-		b.send(ctx, chatID, locale.T(lang, "watch_limit_error"))
-		return
-	}
-	limit := b.maxSearchesForUser(ctx, chatID)
-	if count >= int64(limit) {
-		if !b.isPremium(ctx, chatID) {
-			b.sendMarkdown(ctx, chatID, locale.Tf(lang, "upgrade_search_limit", count, limit))
-		} else {
-			b.send(ctx, chatID, locale.Tf(lang, "watch_limit_reached", count, limit))
-		}
+	if b.checkSearchLimit(ctx, chatID, lang, "watch_limit") {
 		return
 	}
 

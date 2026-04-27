@@ -51,8 +51,8 @@ const (
 	cbDailyDigestOn   = "daily_digest:on"
 	cbDailyDigestOff  = "daily_digest:off"
 
-	pageSize   = 15
-	colsPerRow = 3
+	pageSize   = 10
+	colsPerRow = 2
 )
 
 func sourceKeyboard(selected string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {

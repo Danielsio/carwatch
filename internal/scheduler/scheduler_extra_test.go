@@ -2,6 +2,9 @@ package scheduler
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -209,4 +212,441 @@ func (m *mockNotificationQueue) AckNotification(_ context.Context, id int64) err
 
 func (m *mockNotificationQueue) PruneNotifications(_ context.Context, _ time.Duration) (int64, error) {
 	return 0, nil
+}
+
+// --- mockDailyDigestStore ---
+
+type mockDailyDigestStore struct {
+	mu       sync.Mutex
+	digests  map[int64]struct{ enabled bool; digestTime string; lastSent time.Time }
+	stats    map[int64][]storage.DailySearchStats
+	updated  map[int64]bool
+	listErr  error
+	statsErr error
+}
+
+func newMockDailyDigestStore() *mockDailyDigestStore {
+	return &mockDailyDigestStore{
+		digests: make(map[int64]struct{ enabled bool; digestTime string; lastSent time.Time }),
+		stats:   make(map[int64][]storage.DailySearchStats),
+		updated: make(map[int64]bool),
+	}
+}
+
+func (m *mockDailyDigestStore) SetDailyDigest(_ context.Context, chatID int64, enabled bool, digestTime string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.digests[chatID] = struct{ enabled bool; digestTime string; lastSent time.Time }{enabled, digestTime, m.digests[chatID].lastSent}
+	return nil
+}
+
+func (m *mockDailyDigestStore) GetDailyDigest(_ context.Context, chatID int64) (bool, string, time.Time, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	d, ok := m.digests[chatID]
+	if !ok {
+		return false, "09:00", time.Time{}, nil
+	}
+	return d.enabled, d.digestTime, d.lastSent, nil
+}
+
+func (m *mockDailyDigestStore) UpdateDailyDigestLastSent(_ context.Context, chatID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.updated[chatID] = true
+	return nil
+}
+
+func (m *mockDailyDigestStore) ListDailyDigestUsers(_ context.Context) ([]storage.DailyDigestUser, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
+	var users []storage.DailyDigestUser
+	for chatID, d := range m.digests {
+		if d.enabled {
+			users = append(users, storage.DailyDigestUser{ChatID: chatID, DigestTime: d.digestTime, LastSent: d.lastSent})
+		}
+	}
+	return users, nil
+}
+
+func (m *mockDailyDigestStore) DailyStats(_ context.Context, chatID int64) ([]storage.DailySearchStats, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.statsErr != nil {
+		return nil, m.statsErr
+	}
+	return m.stats[chatID], nil
+}
+
+// --- TriggerPoll tests ---
+
+func TestTriggerPoll_SendsOnChannel(t *testing.T) {
+	cfg := testConfig()
+	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
+
+	s.TriggerPoll()
+
+	select {
+	case <-s.triggerCh:
+	default:
+		t.Error("expected value on trigger channel")
+	}
+}
+
+func TestTriggerPoll_DoesNotBlock(t *testing.T) {
+	cfg := testConfig()
+	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
+
+	s.TriggerPoll()
+	s.TriggerPoll()
+
+	select {
+	case <-s.triggerCh:
+	default:
+		t.Error("expected value on trigger channel")
+	}
+}
+
+// --- processExpiredPremium tests ---
+
+func TestProcessExpiredPremium_NilUserStore(t *testing.T) {
+	cfg := testConfig()
+	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
+	s.processExpiredPremium(context.Background())
+}
+
+func TestProcessExpiredPremium_NoExpired(t *testing.T) {
+	cfg := testConfig()
+	us := newMockUserStore()
+	n := &mockNotifier{}
+	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{UserStore: us})
+
+	s.processExpiredPremium(context.Background())
+
+	if len(n.rawMessages) != 0 {
+		t.Error("expected no notifications for no expired users")
+	}
+}
+
+func TestProcessExpiredPremium_DowngradesUser(t *testing.T) {
+	cfg := testConfig()
+	us := &mockUserStoreWithExpired{
+		mockUserStore: newMockUserStore(),
+		expired:       []storage.User{{ChatID: 100, Tier: "premium", Language: "he"}},
+	}
+	us.users[100] = &storage.User{ChatID: 100, Tier: "premium", Language: "he"}
+	n := &mockNotifier{}
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Active: true},
+		},
+	}
+	dds := newMockDailyDigestStore()
+
+	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{
+		UserStore:        us,
+		SearchStore:      ss,
+		DailyDigestStore: dds,
+	})
+
+	s.processExpiredPremium(context.Background())
+
+	if us.users[100].Tier != "free" {
+		t.Errorf("expected tier 'free', got %q", us.users[100].Tier)
+	}
+	if len(n.rawMessages) != 1 {
+		t.Errorf("expected 1 expiry notification, got %d", len(n.rawMessages))
+	}
+}
+
+type mockUserStoreWithExpired struct {
+	*mockUserStore
+	expired []storage.User
+}
+
+func (m *mockUserStoreWithExpired) ListExpiredPremium(_ context.Context) ([]storage.User, error) {
+	return m.expired, nil
+}
+
+// --- deactivateExcessSearches tests ---
+
+func TestDeactivateExcessSearches_NilSearchStore(t *testing.T) {
+	cfg := testConfig()
+	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
+	s.deactivateExcessSearches(context.Background(), 100, 1)
+}
+
+func TestDeactivateExcessSearches_NoExcess(t *testing.T) {
+	cfg := testConfig()
+	ss := &mockSearchStoreWithTracking{
+		mockSearchStore: &mockSearchStore{
+			searches: []storage.Search{
+				{ID: 1, ChatID: 100, Active: true},
+			},
+		},
+	}
+	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{SearchStore: ss})
+
+	s.deactivateExcessSearches(context.Background(), 100, 1)
+
+	if len(ss.deactivated) != 0 {
+		t.Error("should not deactivate when at or below limit")
+	}
+}
+
+func TestDeactivateExcessSearches_DeactivatesExcess(t *testing.T) {
+	cfg := testConfig()
+	ss := &mockSearchStoreWithTracking{
+		mockSearchStore: &mockSearchStore{
+			searches: []storage.Search{
+				{ID: 1, ChatID: 100, Active: true},
+				{ID: 2, ChatID: 100, Active: true},
+				{ID: 3, ChatID: 100, Active: true},
+			},
+		},
+	}
+	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{SearchStore: ss})
+
+	s.deactivateExcessSearches(context.Background(), 100, 1)
+
+	if len(ss.deactivated) != 2 {
+		t.Errorf("expected 2 deactivated, got %d", len(ss.deactivated))
+	}
+}
+
+type mockSearchStoreWithTracking struct {
+	*mockSearchStore
+	deactivated []int64
+}
+
+func (m *mockSearchStoreWithTracking) SetSearchActive(_ context.Context, id int64, _ int64, active bool) error {
+	if !active {
+		m.deactivated = append(m.deactivated, id)
+	}
+	return nil
+}
+
+// --- processDailyDigests tests ---
+
+func TestProcessDailyDigests_NilStore(t *testing.T) {
+	cfg := testConfig()
+	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
+	s.processDailyDigests(context.Background())
+}
+
+func TestProcessDailyDigests_ListError(t *testing.T) {
+	cfg := testConfig()
+	dds := newMockDailyDigestStore()
+	dds.listErr = errors.New("db error")
+	n := &mockNotifier{}
+
+	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{DailyDigestStore: dds})
+	s.processDailyDigests(context.Background())
+
+	if len(n.rawMessages) != 0 {
+		t.Error("should not send anything on list error")
+	}
+}
+
+func TestProcessDailyDigests_SendsWhenTimeMatches(t *testing.T) {
+	cfg := testConfig()
+	n := &mockNotifier{}
+	dds := newMockDailyDigestStore()
+
+	now := time.Now().In(time.UTC)
+	digestTime := fmt.Sprintf("%02d:%02d", now.Hour(), now.Minute())
+
+	dds.digests[100] = struct{ enabled bool; digestTime string; lastSent time.Time }{
+		true, digestTime, time.Time{},
+	}
+	dds.stats[100] = []storage.DailySearchStats{
+		{SearchName: "test", NewCount: 5, AvgPrice: 100000, BestPrice: 80000},
+	}
+
+	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{DailyDigestStore: dds})
+	s.processDailyDigests(context.Background())
+
+	if len(n.rawMessages) != 1 {
+		t.Errorf("expected 1 digest sent, got %d", len(n.rawMessages))
+	}
+	if !dds.updated[100] {
+		t.Error("expected last sent to be updated")
+	}
+}
+
+func TestProcessDailyDigests_SkipsOutsideWindow(t *testing.T) {
+	cfg := testConfig()
+	n := &mockNotifier{}
+	dds := newMockDailyDigestStore()
+
+	now := time.Now().In(time.UTC)
+	farHour := (now.Hour() + 6) % 24
+	digestTime := fmt.Sprintf("%02d:%02d", farHour, now.Minute())
+
+	dds.digests[100] = struct{ enabled bool; digestTime string; lastSent time.Time }{
+		true, digestTime, time.Time{},
+	}
+
+	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{DailyDigestStore: dds})
+	s.processDailyDigests(context.Background())
+
+	if len(n.rawMessages) != 0 {
+		t.Error("should not send digest outside time window")
+	}
+}
+
+func TestProcessDailyDigests_SkipsAlreadySentToday(t *testing.T) {
+	cfg := testConfig()
+	n := &mockNotifier{}
+	dds := newMockDailyDigestStore()
+
+	now := time.Now().In(time.UTC)
+	digestTime := fmt.Sprintf("%02d:%02d", now.Hour(), now.Minute())
+
+	dds.digests[100] = struct{ enabled bool; digestTime string; lastSent time.Time }{
+		true, digestTime, now,
+	}
+
+	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{DailyDigestStore: dds})
+	s.processDailyDigests(context.Background())
+
+	if len(n.rawMessages) != 0 {
+		t.Error("should not send digest if already sent today")
+	}
+}
+
+// --- sendDailyDigest tests ---
+
+func TestSendDailyDigest_Success(t *testing.T) {
+	cfg := testConfig()
+	n := &mockNotifier{}
+	dds := newMockDailyDigestStore()
+	dds.stats[100] = []storage.DailySearchStats{
+		{SearchName: "mazda", NewCount: 3, AvgPrice: 90000, BestPrice: 80000},
+		{SearchName: "toyota", NewCount: 1, AvgPrice: 70000, BestPrice: 65000},
+	}
+
+	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{DailyDigestStore: dds})
+	s.sendDailyDigest(context.Background(), 100)
+
+	if len(n.rawMessages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(n.rawMessages))
+	}
+	if n.rawMessages[0].recipient != "100" {
+		t.Errorf("expected recipient '100', got %q", n.rawMessages[0].recipient)
+	}
+	if !dds.updated[100] {
+		t.Error("expected last sent to be updated")
+	}
+}
+
+func TestSendDailyDigest_EmptyStats(t *testing.T) {
+	cfg := testConfig()
+	n := &mockNotifier{}
+	dds := newMockDailyDigestStore()
+
+	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{DailyDigestStore: dds})
+	s.sendDailyDigest(context.Background(), 100)
+
+	if len(n.rawMessages) != 0 {
+		t.Error("should not send for empty stats")
+	}
+}
+
+func TestSendDailyDigest_StatsError(t *testing.T) {
+	cfg := testConfig()
+	n := &mockNotifier{}
+	dds := newMockDailyDigestStore()
+	dds.statsErr = errors.New("db error")
+
+	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{DailyDigestStore: dds})
+	s.sendDailyDigest(context.Background(), 100)
+
+	if len(n.rawMessages) != 0 {
+		t.Error("should not send on stats error")
+	}
+}
+
+func TestSendDailyDigest_NotifyFails(t *testing.T) {
+	cfg := testConfig()
+	n := &mockNotifierWithRawErr{err: errors.New("notify failed")}
+	dds := newMockDailyDigestStore()
+	dds.stats[100] = []storage.DailySearchStats{
+		{SearchName: "test", NewCount: 1, AvgPrice: 100000, BestPrice: 90000},
+	}
+
+	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{DailyDigestStore: dds})
+	s.sendDailyDigest(context.Background(), 100)
+
+	if dds.updated[100] {
+		t.Error("should not update last sent when notify fails")
+	}
+}
+
+type mockNotifierWithRawErr struct {
+	mockNotifier
+	err error
+}
+
+func (m *mockNotifierWithRawErr) NotifyRaw(_ context.Context, _ string, _ string) error {
+	return m.err
+}
+
+// --- isUserPremium tests ---
+
+func TestIsUserPremium_NilUserStore(t *testing.T) {
+	cfg := testConfig()
+	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
+
+	if s.isUserPremium(context.Background(), 100) {
+		t.Error("expected false when no user store")
+	}
+}
+
+func TestIsUserPremium_PremiumUser(t *testing.T) {
+	cfg := testConfig()
+	us := newMockUserStore()
+	us.users[100] = &storage.User{ChatID: 100, Tier: "premium"}
+	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{UserStore: us})
+
+	if !s.isUserPremium(context.Background(), 100) {
+		t.Error("expected true for premium user with no expiry")
+	}
+}
+
+func TestIsUserPremium_ExpiredPremium(t *testing.T) {
+	cfg := testConfig()
+	us := newMockUserStore()
+	us.users[100] = &storage.User{ChatID: 100, Tier: "premium", TierExpires: time.Now().Add(-1 * time.Hour)}
+	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{UserStore: us})
+
+	if s.isUserPremium(context.Background(), 100) {
+		t.Error("expected false for expired premium")
+	}
+}
+
+func TestIsUserPremium_CachesResult(t *testing.T) {
+	cfg := testConfig()
+	us := newMockUserStore()
+	us.users[100] = &storage.User{ChatID: 100, Tier: "premium"}
+	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{UserStore: us})
+
+	s.isUserPremium(context.Background(), 100)
+	delete(us.users, 100)
+	if !s.isUserPremium(context.Background(), 100) {
+		t.Error("second call should use cache even after user deleted from store")
+	}
+}
+
+func TestIsUserPremium_UnknownUser(t *testing.T) {
+	cfg := testConfig()
+	us := newMockUserStore()
+	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{UserStore: us})
+
+	if s.isUserPremium(context.Background(), 999) {
+		t.Error("expected false for unknown user")
+	}
 }

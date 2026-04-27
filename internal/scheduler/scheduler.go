@@ -46,6 +46,7 @@ type Scheduler struct {
 	notifier          notifier.Notifier
 	logger            *slog.Logger
 	loc               *time.Location
+	boMu              sync.RWMutex
 	backoffMultiplier float64
 	lastPruneTime     time.Time
 	observer          CycleObserver
@@ -62,8 +63,9 @@ type Scheduler struct {
 	dailyDigestStore  storage.DailyDigestStore
 	triggerCh         chan struct{}
 
-	langCache   sync.Map
-	digestCache sync.Map
+	langCache    sync.Map
+	digestCache  sync.Map
+	premiumCache sync.Map
 }
 
 type digestMeta struct {
@@ -284,7 +286,10 @@ func (s *Scheduler) nextDelay() time.Duration {
 	interval := s.cfg.Polling.Interval
 	jitterCfg := s.cfg.Polling.Jitter
 	s.cfgMu.RUnlock()
-	base := time.Duration(float64(interval) * s.backoffMultiplier)
+	s.boMu.RLock()
+	mult := s.backoffMultiplier
+	s.boMu.RUnlock()
+	base := time.Duration(float64(interval) * mult)
 	jitter := jitterCfg
 	if jitter > 0 {
 		offset := time.Duration(rand.Int64N(int64(2*jitter))) - jitter
@@ -399,8 +404,9 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.logger.Info("starting poll cycle")
 
-	s.langCache = sync.Map{}
-	s.digestCache = sync.Map{}
+	s.langCache.Range(func(k, _ any) bool { s.langCache.Delete(k); return true })
+	s.digestCache.Range(func(k, _ any) bool { s.digestCache.Delete(k); return true })
+	s.premiumCache.Range(func(k, _ any) bool { s.premiumCache.Delete(k); return true })
 
 	searches, err := s.searchStore.ListAllActiveSearches(ctx)
 	if err != nil {
@@ -465,6 +471,16 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		go func(g CanonicalGroup) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("panic in processGroup",
+						"manufacturer", g.Manufacturer,
+						"model", g.Model,
+						"panic", r,
+					)
+					s.observer.RecordError()
+				}
+			}()
 
 			if err := s.processGroup(ctx, g, marketCache); err != nil {
 				s.logger.Error("group failed",
@@ -473,16 +489,18 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 					"error", err,
 				)
 				if errors.Is(err, fetcher.ErrChallenge) {
-					mu.Lock()
+					s.boMu.Lock()
 					s.backoffMultiplier = min(s.backoffMultiplier*2, maxBackoff)
-					mu.Unlock()
+					s.boMu.Unlock()
 				}
 				return
 			}
 			mu.Lock()
 			allFailed = false
-			s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
 			mu.Unlock()
+			s.boMu.Lock()
+			s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
+			s.boMu.Unlock()
 		}(group)
 	}
 	wg.Wait()
@@ -630,6 +648,14 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 					)
 					listing := model.Listing{RawListing: l, SearchName: search.Name}
 					priceDropMessages = append(priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice, lang))
+					if s.listingStore != nil {
+						_ = s.listingStore.SaveListing(ctx, storage.ListingRecord{
+							Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
+							Manufacturer: l.Manufacturer, Model: l.Model,
+							Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
+							City: l.City, PageLink: l.PageLink, FirstSeenAt: time.Now(),
+						})
+					}
 					continue
 				}
 			}
@@ -665,12 +691,14 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 			newListings = append(newListings, listing)
 
 			if s.listingStore != nil {
-				_ = s.listingStore.SaveListing(ctx, storage.ListingRecord{
+				if err := s.listingStore.SaveListing(ctx, storage.ListingRecord{
 					Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
 					Manufacturer: l.Manufacturer, Model: l.Model,
 					Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 					City: l.City, PageLink: l.PageLink, FirstSeenAt: time.Now(),
-				})
+				}); err != nil {
+					s.logger.Warn("save listing failed", "token", l.Token, "error", err)
+				}
 			}
 		}
 
@@ -801,7 +829,12 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 	}
 
 	if err := s.digestStore.AckDigest(ctx, chatID, cutoff); err != nil {
-		s.logger.Error("ack digest failed", "chat_id", chatID, "error", err)
+		s.logger.Error("digest ack failed after successful send, items may be resent",
+			"chat_id", chatID,
+			"cutoff", cutoff,
+			"items", len(payloads),
+			"error", err,
+		)
 	}
 
 	s.logger.Info("digest sent",
@@ -871,7 +904,10 @@ func (s *Scheduler) sendDailyDigest(ctx context.Context, chatID int64) {
 	}
 
 	if err := s.dailyDigestStore.UpdateDailyDigestLastSent(ctx, chatID); err != nil {
-		s.logger.Error("update daily digest last sent failed", "chat_id", chatID, "error", err)
+		s.logger.Error("daily digest last-sent update failed after successful send, digest may be resent",
+			"chat_id", chatID,
+			"error", err,
+		)
 	}
 
 	s.logger.Info("daily digest sent", "chat_id", chatID, "searches", len(stats))
@@ -906,18 +942,21 @@ func (s *Scheduler) deactivateExcessSearches(ctx context.Context, chatID int64, 
 }
 
 func (s *Scheduler) isUserPremium(ctx context.Context, chatID int64) bool {
-	if s.userStore == nil {
-		return false
+	if v, ok := s.premiumCache.Load(chatID); ok {
+		return v.(bool)
 	}
-	user, err := s.userStore.GetUser(ctx, chatID)
-	if err != nil {
-		s.logger.Error("premium check failed, defaulting to free", "chat_id", chatID, "error", err)
-		return false
+	premium := false
+	if s.userStore != nil {
+		user, err := s.userStore.GetUser(ctx, chatID)
+		if err != nil {
+			s.logger.Error("premium check failed, defaulting to free", "chat_id", chatID, "error", err)
+			return false
+		} else if user != nil {
+			premium = user.Tier == "premium" && (user.TierExpires.IsZero() || user.TierExpires.After(time.Now()))
+		}
 	}
-	if user == nil {
-		return false
-	}
-	return user.Tier == "premium" && (user.TierExpires.IsZero() || user.TierExpires.After(time.Now()))
+	s.premiumCache.Store(chatID, premium)
+	return premium
 }
 
 func (s *Scheduler) processExpiredPremium(ctx context.Context) {
