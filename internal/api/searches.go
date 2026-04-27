@@ -9,7 +9,7 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
-type searchRequest struct {
+type createSearchRequest struct {
 	Source       string `json:"source"`
 	Manufacturer int    `json:"manufacturer"`
 	Model        int    `json:"model"`
@@ -21,6 +21,17 @@ type searchRequest struct {
 	MaxHand      int    `json:"max_hand"`
 	Keywords     string `json:"keywords"`
 	ExcludeKeys  string `json:"exclude_keys"`
+}
+
+type updateSearchRequest struct {
+	YearMin     int    `json:"year_min"`
+	YearMax     int    `json:"year_max"`
+	PriceMax    int    `json:"price_max"`
+	EngineMinCC int    `json:"engine_min_cc"`
+	MaxKm       int    `json:"max_km"`
+	MaxHand     int    `json:"max_hand"`
+	Keywords    string `json:"keywords"`
+	ExcludeKeys string `json:"exclude_keys"`
 }
 
 type searchResponse struct {
@@ -84,7 +95,7 @@ func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
 func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 	chatID := chatIDFromContext(r.Context())
 
-	var req searchRequest
+	var req createSearchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
@@ -100,7 +111,15 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mfrName := s.catalog.ManufacturerName(req.Manufacturer)
+	if mfrName == "" {
+		writeError(w, http.StatusBadRequest, "unknown manufacturer id")
+		return
+	}
 	modelName := s.catalog.ModelName(req.Manufacturer, req.Model)
+	if modelName == "" {
+		writeError(w, http.StatusBadRequest, "unknown model id")
+		return
+	}
 	name := strings.ToLower(fmt.Sprintf("%s-%s", mfrName, modelName))
 
 	search := storage.Search{
@@ -128,7 +147,7 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	created, err := s.searches.GetSearch(r.Context(), id)
-	if err != nil {
+	if err != nil || created == nil {
 		s.logger.Error("get created search", "error", err)
 		writeError(w, http.StatusInternalServerError, "search created but failed to retrieve")
 		return
@@ -178,7 +197,7 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req searchRequest
+	var req updateSearchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return

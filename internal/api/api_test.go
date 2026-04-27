@@ -129,7 +129,7 @@ func TestSearchCRUD(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
 	// Create search
-	req := searchRequest{
+	req := createSearchRequest{
 		Source:       "yad2",
 		Manufacturer: 19,
 		Model:        10226,
@@ -170,7 +170,7 @@ func TestSearchCRUD(t *testing.T) {
 	}
 
 	// Update search
-	updateReq := searchRequest{
+	updateReq := updateSearchRequest{
 		YearMin:  2020,
 		YearMax:  2026,
 		PriceMax: 300000,
@@ -220,7 +220,7 @@ func TestListListings(t *testing.T) {
 	srv, store := setupTestServer(t)
 
 	// Create a search
-	req := searchRequest{
+	req := createSearchRequest{
 		Source:       "yad2",
 		Manufacturer: 19,
 		Model:        10226,
@@ -292,6 +292,9 @@ func TestListListings(t *testing.T) {
 		t.Fatalf("sort: expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if len(resp.Items) == 0 {
+		t.Fatal("sort: expected items, got none")
+	}
 	if resp.Items[0].Price != 120000 {
 		t.Fatalf("expected cheapest first, got %d", resp.Items[0].Price)
 	}
@@ -380,6 +383,19 @@ func TestCORS(t *testing.T) {
 	}
 	if w.Header().Get("Access-Control-Allow-Origin") != "http://localhost:5173" {
 		t.Fatalf("expected CORS origin header, got %q", w.Header().Get("Access-Control-Allow-Origin"))
+	}
+}
+
+func TestCORS_DisallowedOrigin(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	req := httptest.NewRequest("OPTIONS", "/api/v1/searches", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
+	w := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(w, req)
+
+	if origin := w.Header().Get("Access-Control-Allow-Origin"); origin != "" {
+		t.Fatalf("expected no CORS origin header for disallowed origin, got %q", origin)
 	}
 }
 

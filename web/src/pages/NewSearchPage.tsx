@@ -343,6 +343,23 @@ export function NewSearchPage() {
                 className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                מילות מפתח לסינון (אופציונלי)
+              </label>
+              <input
+                type="text"
+                value={form.excludeKeys}
+                onChange={(e) =>
+                  setForm({ ...form, excludeKeys: e.target.value })
+                }
+                placeholder='לדוגמה: חירום, תאונה'
+                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                מודעות שמכילות מילים אלה לא יוצגו
+              </p>
+            </div>
           </div>
         )}
 

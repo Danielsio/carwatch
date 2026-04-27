@@ -24,6 +24,23 @@ export function ListingsPage() {
 
   const { data, isLoading, isError } = useListings(searchId, sort, PAGE_SIZE, offset);
 
+  if (!searchId || Number.isNaN(searchId)) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowRight className="h-4 w-4" />
+            חזרה
+          </Link>
+          <h1 className="text-2xl font-bold">חיפוש לא נמצא</h1>
+        </div>
+      </div>
+    );
+  }
+
   if (isError) {
     return (
       <div className="space-y-4">
