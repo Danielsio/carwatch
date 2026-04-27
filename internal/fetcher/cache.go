@@ -3,8 +3,8 @@ package fetcher
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -114,6 +114,8 @@ func (c *CachingFetcher) touch(key string) {
 }
 
 func cacheKey(p config.SourceParams) string {
-	return fmt.Sprintf("%d:%d:%d-%d:%d-%d:%d",
-		p.Manufacturer, p.Model, p.YearMin, p.YearMax, p.PriceMin, p.PriceMax, p.Page)
+	return strconv.Itoa(p.Manufacturer) + ":" + strconv.Itoa(p.Model) + ":" +
+		strconv.Itoa(p.YearMin) + "-" + strconv.Itoa(p.YearMax) + ":" +
+		strconv.Itoa(p.PriceMin) + "-" + strconv.Itoa(p.PriceMax) + ":" +
+		strconv.Itoa(p.Page)
 }

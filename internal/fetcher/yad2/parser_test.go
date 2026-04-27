@@ -1,6 +1,7 @@
 package yad2
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -196,6 +197,28 @@ func TestParseNextData_FeedWithNullItems(t *testing.T) {
 	}
 	if len(listings) != 0 {
 		t.Errorf("expected 0 listings, got %d", len(listings))
+	}
+}
+
+func TestParseHand(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  json.RawMessage
+		want int
+	}{
+		{"nil", nil, 0},
+		{"integer", json.RawMessage(`3`), 3},
+		{"field object", json.RawMessage(`{"id":2,"text":"2"}`), 2},
+		{"invalid json", json.RawMessage(`{invalid}`), 0},
+		{"zero", json.RawMessage(`0`), 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseHand(tt.raw)
+			if got != tt.want {
+				t.Errorf("parseHand(%s) = %d, want %d", tt.raw, got, tt.want)
+			}
+		})
 	}
 }
 

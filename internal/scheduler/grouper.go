@@ -50,7 +50,9 @@ func GroupSearches(searches []storage.Search) []CanonicalGroup {
 			if g.Params.YearMax == 0 || s.YearMax > g.Params.YearMax {
 				g.Params.YearMax = s.YearMax
 			}
-			if g.Params.PriceMax == 0 || s.PriceMax == 0 || s.PriceMax > g.Params.PriceMax {
+			if s.PriceMax == 0 || g.Params.PriceMax == 0 {
+				g.Params.PriceMax = 0
+			} else if s.PriceMax > g.Params.PriceMax {
 				g.Params.PriceMax = s.PriceMax
 			}
 
