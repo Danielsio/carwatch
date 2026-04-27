@@ -147,6 +147,18 @@ func migrate(db *sql.DB) error {
 
 		CREATE INDEX IF NOT EXISTS idx_seen_listings_chatid_firstseen
 			ON seen_listings(chat_id, first_seen_at DESC);
+
+		CREATE INDEX IF NOT EXISTS idx_pending_digest_chat_created
+			ON pending_digest(chat_id, created_at);
+
+		CREATE INDEX IF NOT EXISTS idx_searches_active
+			ON searches(active, chat_id);
+
+		CREATE INDEX IF NOT EXISTS idx_pending_notifications_created
+			ON pending_notifications(created_at);
+
+		CREATE INDEX IF NOT EXISTS idx_listing_history_chat_search
+			ON listing_history(chat_id, search_name);
 	`)
 	if err != nil {
 		return err
@@ -914,7 +926,7 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT token, search_name, manufacturer, model, year, price, km, hand, city, page_link, first_seen_at
 		FROM listing_history
-		GROUP BY token
+		WHERE rowid IN (SELECT MAX(rowid) FROM listing_history GROUP BY token)
 		ORDER BY first_seen_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
