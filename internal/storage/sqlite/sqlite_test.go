@@ -938,13 +938,21 @@ func TestSaveListings_Batch(t *testing.T) {
 func TestSaveListings_Empty(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
+	seedUser(t, store, 100)
 
-	// Empty slice should be a no-op.
 	if err := store.SaveListings(ctx, nil); err != nil {
 		t.Fatalf("empty batch save: %v", err)
 	}
 	if err := store.SaveListings(ctx, []storage.ListingRecord{}); err != nil {
 		t.Fatalf("empty slice batch save: %v", err)
+	}
+
+	listings, err := store.ListUserListings(ctx, 100, 10, 0)
+	if err != nil {
+		t.Fatalf("ListUserListings: %v", err)
+	}
+	if len(listings) != 0 {
+		t.Errorf("expected 0 listings after empty batch, got %d", len(listings))
 	}
 }
 

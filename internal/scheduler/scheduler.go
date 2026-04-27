@@ -703,8 +703,9 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 		if s.listingStore != nil && len(listingRecords) > 0 {
 			if err := s.listingStore.SaveListings(ctx, listingRecords); err != nil {
 				s.logger.Error("batch save listings failed", "error", err)
+				cleanupCtx := context.Background()
 				for _, rec := range listingRecords {
-					if relErr := s.dedup.ReleaseClaim(ctx, rec.Token, rec.ChatID); relErr != nil {
+					if relErr := s.dedup.ReleaseClaim(cleanupCtx, rec.Token, rec.ChatID); relErr != nil {
 						s.logger.Error("release claim after batch save failure",
 							"token", rec.Token, "chat_id", rec.ChatID, "error", relErr)
 					}
