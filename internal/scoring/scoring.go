@@ -110,7 +110,7 @@ func FitnessScore(p FitnessParams) float64 {
 		score  float64
 	}
 
-	var dims []dim
+	dims := make([]dim, 0, 5)
 
 	if p.PriceMax > 0 && p.Price > 0 {
 		dims = append(dims, dim{weightPrice, priceScore(p.Price, p.PriceMax)})

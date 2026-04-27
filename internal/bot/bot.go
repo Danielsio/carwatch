@@ -335,6 +335,25 @@ func (b *Bot) maxSearchesForUser(ctx context.Context, chatID int64) int {
 	return freeMaxSearches
 }
 
+func (b *Bot) checkSearchLimit(ctx context.Context, chatID int64, lang locale.Lang, limitKey string) bool {
+	count, err := b.searches.CountSearches(ctx, chatID)
+	if err != nil {
+		b.logger.Error("count searches failed", "chat_id", chatID, "error", err)
+		b.send(ctx, chatID, locale.T(lang, limitKey+"_error"))
+		return true
+	}
+	limit := b.maxSearchesForUser(ctx, chatID)
+	if count >= int64(limit) {
+		if !b.isPremium(ctx, chatID) {
+			b.sendMarkdown(ctx, chatID, locale.Tf(lang, "upgrade_search_limit", count, limit))
+		} else {
+			b.send(ctx, chatID, locale.Tf(lang, limitKey+"_reached", count, limit))
+		}
+		return true
+	}
+	return false
+}
+
 // --- Wizard State Helpers ---
 
 func (b *Bot) loadWizardData(ctx context.Context, chatID int64) WizardData {

@@ -175,6 +175,47 @@ func TestParseLogLevel(t *testing.T) {
 	}
 }
 
+func TestLoad_InvalidLogFormat(t *testing.T) {
+	yaml := `
+telegram:
+  token: "test-token"
+log_format: xml
+`
+	expectLoadError(t, yaml, "log_format")
+}
+
+func TestLoad_InvalidHTTPBind(t *testing.T) {
+	yaml := `
+telegram:
+  token: "test-token"
+http:
+  bind: "not-a-valid-address"
+`
+	expectLoadError(t, yaml, "http.bind")
+}
+
+func TestLoad_ValidActiveHours(t *testing.T) {
+	yaml := `
+telegram:
+  token: "test-token"
+polling:
+  active_hours:
+    start: "08:00"
+    end: "22:00"
+`
+	cfg := loadFromString(t, yaml)
+
+	if cfg.Polling.ActiveHours == nil {
+		t.Fatal("expected active_hours to be set")
+	}
+	if cfg.Polling.ActiveHours.Start != "08:00" {
+		t.Errorf("start = %q, want '08:00'", cfg.Polling.ActiveHours.Start)
+	}
+	if cfg.Polling.ActiveHours.End != "22:00" {
+		t.Errorf("end = %q, want '22:00'", cfg.Polling.ActiveHours.End)
+	}
+}
+
 func loadFromString(t *testing.T, yaml string) *Config {
 	t.Helper()
 	dir := t.TempDir()

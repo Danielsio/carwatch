@@ -2,26 +2,6 @@ package botcore
 
 import "strings"
 
-const (
-	ActionPrefixSource    = "src:"
-	ActionPrefixMfr       = "mfr:"
-	ActionPrefixModel     = "mdl:"
-	ActionPrefixEngine    = "eng:"
-	ActionPrefixMaxKm     = "maxkm:"
-	ActionPrefixMaxHand   = "maxhand:"
-	ActionConfirm         = "confirm:yes"
-	ActionStartOver       = "confirm:restart"
-	ActionCancel          = "confirm:cancel"
-	ActionSkipKeywords    = "skip_keywords"
-	ActionSkipExcludeKeys = "skip_exclude_keys"
-	ActionSourceToggle    = "src_toggle:"
-	ActionSourceDone      = "src_done"
-	ActionMfrSearch       = "mfr_search"
-	ActionAnyModel        = "mdl:0"
-	ActionPrefixSave      = "save:"
-	ActionPrefixHide      = "hide:"
-)
-
 func NormalizeKeywords(input string) string {
 	parts := strings.Split(input, ",")
 	var trimmed []string
