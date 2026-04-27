@@ -93,7 +93,7 @@ func TestListManufacturers_Search(t *testing.T) {
 	}
 
 	var mfrs []catalogEntry
-	json.Unmarshal(w.Body.Bytes(), &mfrs)
+	mustUnmarshal(t, w.Body.Bytes(), &mfrs)
 	if len(mfrs) != 1 || mfrs[0].Name != "Toyota" {
 		t.Fatalf("expected Toyota, got %v", mfrs)
 	}
@@ -108,7 +108,7 @@ func TestListModels(t *testing.T) {
 	}
 
 	var models []catalogEntry
-	json.Unmarshal(w.Body.Bytes(), &models)
+	mustUnmarshal(t, w.Body.Bytes(), &models)
 	found := false
 	for _, m := range models {
 		if m.Name == "Corolla" {
@@ -139,7 +139,7 @@ func TestSearchCRUD(t *testing.T) {
 	}
 
 	var created searchResponse
-	json.Unmarshal(w.Body.Bytes(), &created)
+	mustUnmarshal(t, w.Body.Bytes(), &created)
 	if created.ManufacturerName != "Toyota" {
 		t.Fatalf("expected Toyota, got %s", created.ManufacturerName)
 	}
@@ -154,7 +154,7 @@ func TestSearchCRUD(t *testing.T) {
 	}
 
 	var searches []searchResponse
-	json.Unmarshal(w.Body.Bytes(), &searches)
+	mustUnmarshal(t, w.Body.Bytes(), &searches)
 	if len(searches) != 1 {
 		t.Fatalf("expected 1 search, got %d", len(searches))
 	}
@@ -178,7 +178,7 @@ func TestSearchCRUD(t *testing.T) {
 	}
 
 	var updated searchResponse
-	json.Unmarshal(w.Body.Bytes(), &updated)
+	mustUnmarshal(t, w.Body.Bytes(), &updated)
 	if updated.PriceMax != 300000 {
 		t.Fatalf("expected price_max 300000, got %d", updated.PriceMax)
 	}
@@ -203,7 +203,7 @@ func TestSearchCRUD(t *testing.T) {
 
 	// Verify deleted
 	w = doRequest(srv, "GET", "/api/v1/searches", nil)
-	json.Unmarshal(w.Body.Bytes(), &searches)
+	mustUnmarshal(t, w.Body.Bytes(), &searches)
 	if len(searches) != 0 {
 		t.Fatalf("expected 0 searches after delete, got %d", len(searches))
 	}
@@ -223,12 +223,12 @@ func TestListListings(t *testing.T) {
 	}
 	w := doRequest(srv, "POST", "/api/v1/searches", req)
 	var created searchResponse
-	json.Unmarshal(w.Body.Bytes(), &created)
+	mustUnmarshal(t, w.Body.Bytes(), &created)
 
 	// Add listings
 	ctx := context.Background()
 	score := 7.5
-	store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token:        "tok1",
 		ChatID:       999,
 		SearchName:   created.Name,
@@ -242,11 +242,13 @@ func TestListListings(t *testing.T) {
 		PageLink:     "https://yad2.co.il/item/tok1",
 		ImageURL:     "https://img.yad2.co.il/tok1.jpg",
 		FitnessScore: &score,
-	})
-	store.SaveListing(ctx, storage.ListingRecord{
-		Token:      "tok2",
-		ChatID:     999,
-		SearchName: created.Name,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token:        "tok2",
+		ChatID:       999,
+		SearchName:   created.Name,
 		Manufacturer: "Toyota",
 		Model:        "Corolla",
 		Year:         2022,
@@ -255,7 +257,9 @@ func TestListListings(t *testing.T) {
 		Hand:         1,
 		City:         "Haifa",
 		PageLink:     "https://yad2.co.il/item/tok2",
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	// List listings
 	w = doRequest(srv, "GET", "/api/v1/searches/"+itoa(created.ID)+"/listings", nil)
@@ -264,7 +268,7 @@ func TestListListings(t *testing.T) {
 	}
 
 	var resp listingsPageResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
 	if resp.Total != 2 {
 		t.Fatalf("expected 2 listings, got %d", resp.Total)
 	}
@@ -274,14 +278,14 @@ func TestListListings(t *testing.T) {
 
 	// Test sort by price_asc
 	w = doRequest(srv, "GET", "/api/v1/searches/"+itoa(created.ID)+"/listings?sort=price_asc", nil)
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
 	if resp.Items[0].Price != 120000 {
 		t.Fatalf("expected cheapest first, got %d", resp.Items[0].Price)
 	}
 
 	// Test pagination
 	w = doRequest(srv, "GET", "/api/v1/searches/"+itoa(created.ID)+"/listings?limit=1&offset=0", nil)
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
 	if len(resp.Items) != 1 || resp.Total != 2 {
 		t.Fatalf("expected 1 item, total 2, got %d items, total %d", len(resp.Items), resp.Total)
 	}
@@ -335,7 +339,9 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 
 	// Correct token — should succeed
-	store.UpsertUser(context.Background(), 999, "testuser")
+	if err := store.UpsertUser(context.Background(), 999, "testuser"); err != nil {
+		t.Fatal(err)
+	}
 	req = httptest.NewRequest("GET", "/api/v1/searches", nil)
 	req.Header.Set("Authorization", "Bearer secret123")
 	w3 := httptest.NewRecorder()
@@ -363,4 +369,11 @@ func TestCORS(t *testing.T) {
 
 func itoa(n int64) string {
 	return strconv.FormatInt(n, 10)
+}
+
+func mustUnmarshal(t *testing.T, data []byte, v any) {
+	t.Helper()
+	if err := json.Unmarshal(data, v); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
 }
