@@ -232,6 +232,9 @@ function ListingCard({ listing }: { listing: Listing }) {
             {relativeTime(listing.first_seen_at)}
           </span>
           <button
+            type="button"
+            aria-label={saved ? "הסר משמורים" : "שמור מודעה"}
+            aria-pressed={saved}
             onClick={(e) => {
               e.stopPropagation();
               const next = !saved;
@@ -254,6 +257,7 @@ function ListingCard({ listing }: { listing: Listing }) {
             href={listing.page_link}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label="פתח מודעה באתר חיצוני"
             onClick={(e) => e.stopPropagation()}
             className="p-1 rounded text-muted-foreground hover:text-primary transition-colors"
           >

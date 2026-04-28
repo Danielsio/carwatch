@@ -88,7 +88,7 @@ func (s *Server) unhideListing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.hidden.ClearHidden(r.Context(), chatID); err != nil {
+	if err := s.hidden.UnhideListing(r.Context(), chatID, token); err != nil {
 		s.logger.Error("unhide listing", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to unhide listing")
 		return

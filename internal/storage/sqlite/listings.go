@@ -295,6 +295,13 @@ func (s *Store) HideListing(ctx context.Context, chatID int64, token string) err
 	return err
 }
 
+func (s *Store) UnhideListing(ctx context.Context, chatID int64, token string) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM hidden_listings WHERE chat_id = ? AND token = ?",
+		chatID, token)
+	return err
+}
+
 func (s *Store) IsHidden(ctx context.Context, chatID int64, token string) (bool, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx,
