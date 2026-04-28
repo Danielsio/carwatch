@@ -57,8 +57,11 @@ func TestSearchLimit_BlocksAt10(t *testing.T) {
 	tb.msg.reset()
 	tb.simulateCommand(ctx, 100, "/watch")
 	last := tb.msg.last()
-	if !strings.Contains(last.Text, "max") && !strings.Contains(last.Text, "10") {
-		t.Fatalf("expected limit-reached message, got: %s", last.Text)
+	if last.HasKB {
+		t.Fatal("expected no keyboard — 11th search should be blocked")
+	}
+	if !strings.Contains(last.Text, "10") || !strings.Contains(last.Text, "max") {
+		t.Fatalf("expected limit-reached message mentioning max and 10, got: %s", last.Text)
 	}
 }
 
