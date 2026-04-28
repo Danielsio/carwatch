@@ -312,63 +312,10 @@ func TestTriggerPoll_DoesNotBlock(t *testing.T) {
 
 // --- processExpiredPremium tests ---
 
-func TestProcessExpiredPremium_NilUserStore(t *testing.T) {
+func TestProcessExpiredPremium_IsNoOp(t *testing.T) {
 	cfg := testConfig()
 	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
 	s.processExpiredPremium(context.Background())
-}
-
-func TestProcessExpiredPremium_NoExpired(t *testing.T) {
-	cfg := testConfig()
-	us := newMockUserStore()
-	n := &mockNotifier{}
-	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{UserStore: us})
-
-	s.processExpiredPremium(context.Background())
-
-	if len(n.rawMessages) != 0 {
-		t.Error("expected no notifications for no expired users")
-	}
-}
-
-func TestProcessExpiredPremium_DowngradesUser(t *testing.T) {
-	cfg := testConfig()
-	us := &mockUserStoreWithExpired{
-		mockUserStore: newMockUserStore(),
-		expired:       []storage.User{{ChatID: 100, Tier: "premium", Language: "he"}},
-	}
-	us.users[100] = &storage.User{ChatID: 100, Tier: "premium", Language: "he"}
-	n := &mockNotifier{}
-	ss := &mockSearchStore{
-		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Active: true},
-		},
-	}
-	dds := newMockDailyDigestStore()
-
-	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{
-		UserStore:        us,
-		SearchStore:      ss,
-		DailyDigestStore: dds,
-	})
-
-	s.processExpiredPremium(context.Background())
-
-	if us.users[100].Tier != "free" {
-		t.Errorf("expected tier 'free', got %q", us.users[100].Tier)
-	}
-	if len(n.rawMessages) != 1 {
-		t.Errorf("expected 1 expiry notification, got %d", len(n.rawMessages))
-	}
-}
-
-type mockUserStoreWithExpired struct {
-	*mockUserStore
-	expired []storage.User
-}
-
-func (m *mockUserStoreWithExpired) ListExpiredPremium(_ context.Context) ([]storage.User, error) {
-	return m.expired, nil
 }
 
 // --- deactivateExcessSearches tests ---
@@ -597,56 +544,11 @@ func (m *mockNotifierWithRawErr) NotifyRaw(_ context.Context, _ string, _ string
 
 // --- isUserPremium tests ---
 
-func TestIsUserPremium_NilUserStore(t *testing.T) {
+func TestIsUserPremium_AlwaysTrue(t *testing.T) {
 	cfg := testConfig()
 	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
 
-	if s.isUserPremium(context.Background(), 100) {
-		t.Error("expected false when no user store")
-	}
-}
-
-func TestIsUserPremium_PremiumUser(t *testing.T) {
-	cfg := testConfig()
-	us := newMockUserStore()
-	us.users[100] = &storage.User{ChatID: 100, Tier: "premium"}
-	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{UserStore: us})
-
 	if !s.isUserPremium(context.Background(), 100) {
-		t.Error("expected true for premium user with no expiry")
-	}
-}
-
-func TestIsUserPremium_ExpiredPremium(t *testing.T) {
-	cfg := testConfig()
-	us := newMockUserStore()
-	us.users[100] = &storage.User{ChatID: 100, Tier: "premium", TierExpires: time.Now().Add(-1 * time.Hour)}
-	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{UserStore: us})
-
-	if s.isUserPremium(context.Background(), 100) {
-		t.Error("expected false for expired premium")
-	}
-}
-
-func TestIsUserPremium_CachesResult(t *testing.T) {
-	cfg := testConfig()
-	us := newMockUserStore()
-	us.users[100] = &storage.User{ChatID: 100, Tier: "premium"}
-	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{UserStore: us})
-
-	s.isUserPremium(context.Background(), 100)
-	delete(us.users, 100)
-	if !s.isUserPremium(context.Background(), 100) {
-		t.Error("second call should use cache even after user deleted from store")
-	}
-}
-
-func TestIsUserPremium_UnknownUser(t *testing.T) {
-	cfg := testConfig()
-	us := newMockUserStore()
-	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{UserStore: us})
-
-	if s.isUserPremium(context.Background(), 999) {
-		t.Error("expected false for unknown user")
+		t.Error("expected true for all users (premium gating disabled)")
 	}
 }

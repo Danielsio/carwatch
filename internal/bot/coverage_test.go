@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -163,9 +164,9 @@ func TestOnQuickStart_AtLimit(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	for i := range 3 {
+	for i := range 10 {
 		if _, err := tb.store.CreateSearch(ctx, storage.Search{
-			ChatID: 100, Name: "s" + string(rune('0'+i)), Source: "yad2",
+			ChatID: 100, Name: fmt.Sprintf("s%d", i), Source: "yad2",
 			Manufacturer: 27, Model: 10332, Active: true,
 		}); err != nil {
 			t.Fatalf("create search: %v", err)
@@ -178,7 +179,7 @@ func TestOnQuickStart_AtLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListSearches: %v", err)
 	}
-	if len(searches) != 3 {
+	if len(searches) != 10 {
 		t.Errorf("should not create beyond limit, got %d searches", len(searches))
 	}
 }

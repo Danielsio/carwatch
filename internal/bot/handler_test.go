@@ -493,15 +493,18 @@ func TestWatch_AtMaxSearches(t *testing.T) {
 
 	tb.createUser(ctx, t, chatID, "alice")
 
-	for i := range 3 {
-		_, _ = tb.store.CreateSearch(ctx, newFakeSearch(chatID, i+1))
+	for i := range freeMaxSearches {
+		if _, err := tb.store.CreateSearch(ctx, newFakeSearch(chatID, i+1)); err != nil {
+			t.Fatalf("seed search %d: %v", i+1, err)
+		}
 	}
 	tb.msg.reset()
 
 	tb.simulateCommand(ctx, chatID, "/watch")
 
 	msg := tb.msg.last()
-	if !strings.Contains(msg.Text, "max") || !strings.Contains(msg.Text, "3") {
+	limit := fmt.Sprintf("%d", freeMaxSearches)
+	if !strings.Contains(msg.Text, "max") || !strings.Contains(msg.Text, limit) {
 		t.Errorf("expected max-searches warning, got %q", msg.Text)
 	}
 }
@@ -826,8 +829,8 @@ func TestHandleSettings(t *testing.T) {
 	tb.simulateCommand(ctx, chatID, "/settings")
 
 	msg := tb.msg.last()
-	if !strings.Contains(msg.Text, "0/1") {
-		t.Errorf("settings should show 0/1 (free tier limit), got %q", msg.Text)
+	if !strings.Contains(msg.Text, fmt.Sprintf("0/%d", freeMaxSearches)) {
+		t.Errorf("settings should show 0/%d search limit, got %q", freeMaxSearches, msg.Text)
 	}
 }
 

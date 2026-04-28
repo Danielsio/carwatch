@@ -63,9 +63,8 @@ type Scheduler struct {
 	dailyDigestStore  storage.DailyDigestStore
 	triggerCh         chan struct{}
 
-	langCache    sync.Map
-	digestCache  sync.Map
-	premiumCache sync.Map
+	langCache   sync.Map
+	digestCache sync.Map
 }
 
 type digestMeta struct {
@@ -407,7 +406,6 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 
 	s.langCache.Range(func(k, _ any) bool { s.langCache.Delete(k); return true })
 	s.digestCache.Range(func(k, _ any) bool { s.digestCache.Delete(k); return true })
-	s.premiumCache.Range(func(k, _ any) bool { s.premiumCache.Delete(k); return true })
 
 	searches, err := s.searchStore.ListAllActiveSearches(ctx)
 	if err != nil {
@@ -415,7 +413,6 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	}
 
 	s.pruneIfDue(ctx)
-	s.processExpiredPremium(ctx)
 
 	if len(searches) == 0 {
 		s.logger.Info("no active searches")
@@ -613,7 +610,6 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 		filtered := filter.Apply(criteria, raw)
 
 		lang := s.userLang(ctx, search.ChatID)
-		isPremium := s.isUserPremium(ctx, search.ChatID)
 
 		var hiddenTokens map[string]bool
 		if s.hiddenStore != nil {
@@ -642,7 +638,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 				oldPrice, changed, err := s.prices.RecordPrice(ctx, l.Token, l.Price)
 				if err != nil {
 					s.logger.Error("record price failed", "token", l.Token, "error", err)
-				} else if changed && l.Price < oldPrice && isPremium {
+				} else if changed && l.Price < oldPrice {
 					s.logger.Info("price drop detected",
 						"token", l.Token,
 						"old_price", oldPrice,
@@ -701,7 +697,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 					Name: d.Name, Score: d.Score, Weight: d.Weight,
 				}
 			}
-			if marketCache != nil && l.Price > 0 && isPremium {
+			if marketCache != nil && l.Price > 0 {
 				median, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
 				if ok {
 					listing.DealScore = &model.ScoreInfo{
@@ -975,51 +971,11 @@ func (s *Scheduler) deactivateExcessSearches(ctx context.Context, chatID int64, 
 		"chat_id", chatID, "paused", len(active)-maxActive, "kept", maxActive)
 }
 
-func (s *Scheduler) isUserPremium(ctx context.Context, chatID int64) bool {
-	if v, ok := s.premiumCache.Load(chatID); ok {
-		return v.(bool)
-	}
-	premium := false
-	if s.userStore != nil {
-		user, err := s.userStore.GetUser(ctx, chatID)
-		if err != nil {
-			s.logger.Error("premium check failed, defaulting to free", "chat_id", chatID, "error", err)
-			return false
-		} else if user != nil {
-			premium = user.Tier == "premium" && (user.TierExpires.IsZero() || user.TierExpires.After(time.Now()))
-		}
-	}
-	s.premiumCache.Store(chatID, premium)
-	return premium
+func (s *Scheduler) isUserPremium(_ context.Context, _ int64) bool {
+	return true
 }
 
-func (s *Scheduler) processExpiredPremium(ctx context.Context) {
-	if s.userStore == nil {
-		return
-	}
-	expired, err := s.userStore.ListExpiredPremium(ctx)
-	if err != nil {
-		s.logger.Error("list expired premium failed", "error", err)
-		return
-	}
-	for _, u := range expired {
-		if err := s.userStore.SetUserTier(ctx, u.ChatID, "free", time.Time{}); err != nil {
-			s.logger.Error("downgrade user failed", "chat_id", u.ChatID, "error", err)
-			continue
-		}
-		if s.dailyDigestStore != nil {
-			if err := s.dailyDigestStore.SetDailyDigest(ctx, u.ChatID, false, "09:00"); err != nil {
-				s.logger.Error("disable daily digest on downgrade failed", "chat_id", u.ChatID, "error", err)
-			}
-		}
-		s.deactivateExcessSearches(ctx, u.ChatID, 1)
-		lang := s.userLang(ctx, u.ChatID)
-		chatIDStr := fmt.Sprintf("%d", u.ChatID)
-		if err := s.notifier.NotifyRaw(ctx, chatIDStr, locale.T(lang, "premium_expired")); err != nil {
-			s.logger.Error("send expiry notification failed", "chat_id", u.ChatID, "error", err)
-		}
-		s.logger.Info("premium expired, downgraded to free", "chat_id", u.ChatID)
-	}
+func (s *Scheduler) processExpiredPremium(_ context.Context) {
 }
 
 func (s *Scheduler) userLang(ctx context.Context, chatID int64) locale.Lang {
