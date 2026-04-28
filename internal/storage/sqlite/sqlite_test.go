@@ -323,6 +323,115 @@ func TestDeleteSearch_WrongOwner(t *testing.T) {
 	}
 }
 
+func TestDeleteSearch_CascadesRelatedRecords(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	id1, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "mazda-3", Manufacturer: 27, Model: 10332,
+		YearMin: 2018, YearMax: 2024, PriceMax: 150000,
+	})
+	if err != nil {
+		t.Fatalf("create search user 100: %v", err)
+	}
+
+	id2, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 200, Name: "mazda-3", Manufacturer: 27, Model: 10332,
+		YearMin: 2018, YearMax: 2024, PriceMax: 150000,
+	})
+	if err != nil {
+		t.Fatalf("create search user 200: %v", err)
+	}
+
+	// Seed seen_listings for both users.
+	_, _ = store.ClaimNew(ctx, "tok1", 100, id1)
+	_, _ = store.ClaimNew(ctx, "tok2", 100, id1)
+	_, _ = store.ClaimNew(ctx, "tok1", 200, id2)
+
+	// Seed listing_history for both users.
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 100, SearchName: "mazda-3",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 95000,
+	})
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok2", ChatID: 100, SearchName: "mazda-3",
+		Manufacturer: "Mazda", Model: "3", Year: 2020, Price: 90000,
+	})
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 200, SearchName: "mazda-3",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 95000,
+	})
+
+	// Seed pending_notifications for both users.
+	_ = store.EnqueueNotification(ctx, "100", "mazda-3", "payload1")
+	_ = store.EnqueueNotification(ctx, "200", "mazda-3", "payload2")
+
+	// Delete user 100's search — should cascade.
+	if err := store.DeleteSearch(ctx, id1, 100); err != nil {
+		t.Fatalf("delete search: %v", err)
+	}
+
+	// Search itself should be gone.
+	s, _ := store.GetSearch(ctx, id1)
+	if s != nil {
+		t.Error("search should be deleted")
+	}
+
+	// seen_listings for user 100 should be cleaned up.
+	isNew, _ := store.ClaimNew(ctx, "tok1", 100, id1)
+	if !isNew {
+		t.Error("tok1 claim for user 100 should be released after cascade delete")
+	}
+
+	// User 200's seen_listings should be untouched.
+	isNew, _ = store.ClaimNew(ctx, "tok1", 200, id2)
+	if isNew {
+		t.Error("user 200's tok1 claim should NOT be affected by user 100's delete")
+	}
+
+	// listing_history for user 100 should be cleaned up.
+	count100, _ := store.CountSearchListings(ctx, 100, "mazda-3")
+	if count100 != 0 {
+		t.Errorf("expected 0 listings for user 100 after cascade, got %d", count100)
+	}
+
+	// User 200's listing_history should be untouched.
+	count200, _ := store.CountSearchListings(ctx, 200, "mazda-3")
+	if count200 != 1 {
+		t.Errorf("expected 1 listing for user 200, got %d", count200)
+	}
+
+	// pending_notifications for user 100 should be cleaned up.
+	pending, _ := store.PendingNotifications(ctx)
+	for _, p := range pending {
+		if p.Recipient == "100" && p.SearchName == "mazda-3" {
+			t.Error("pending notification for user 100 should have been deleted")
+		}
+	}
+	found200 := false
+	for _, p := range pending {
+		if p.Recipient == "200" && p.SearchName == "mazda-3" {
+			found200 = true
+		}
+	}
+	if !found200 {
+		t.Error("user 200's pending notification should NOT be affected")
+	}
+}
+
+func TestDeleteSearch_CascadeNotFound(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	err := store.DeleteSearch(ctx, 999, 100)
+	if err != storage.ErrNotFound {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
 func TestSetSearchActive(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

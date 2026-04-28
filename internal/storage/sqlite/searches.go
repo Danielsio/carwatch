@@ -154,19 +154,49 @@ func (s *Store) UpdateSearch(ctx context.Context, search storage.Search) error {
 }
 
 func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error {
-	result, err := s.db.ExecContext(ctx,
-		"DELETE FROM searches WHERE id = ? AND chat_id = ?", id, chatID)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("begin tx: %w", err)
 	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
+	defer func() { _ = tx.Rollback() }()
+
+	var searchName string
+	err = tx.QueryRowContext(ctx,
+		"SELECT name FROM searches WHERE id = ? AND chat_id = ?", id, chatID,
+	).Scan(&searchName)
+	if err == sql.ErrNoRows {
 		return storage.ErrNotFound
 	}
-	return nil
+	if err != nil {
+		return fmt.Errorf("fetch search name: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM seen_listings WHERE search_id = ? AND chat_id = ?",
+		id, chatID); err != nil {
+		return fmt.Errorf("delete seen_listings: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM listing_history WHERE search_name = ? AND chat_id = ?",
+		searchName, chatID); err != nil {
+		return fmt.Errorf("delete listing_history: %w", err)
+	}
+
+	recipientStr := fmt.Sprintf("%d", chatID)
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM pending_notifications WHERE search_name = ? AND recipient = ?",
+		searchName, recipientStr); err != nil {
+		return fmt.Errorf("delete pending_notifications: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM searches WHERE id = ? AND chat_id = ?",
+		id, chatID); err != nil {
+		return fmt.Errorf("delete search: %w", err)
+	}
+
+	return tx.Commit()
 }
 
 func (s *Store) SetSearchActive(ctx context.Context, id int64, chatID int64, active bool) error {
