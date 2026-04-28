@@ -444,5 +444,31 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	// Add image_url column to listing_history if it doesn't exist.
+	var hasImageURL int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('listing_history') WHERE name = 'image_url'",
+	).Scan(&hasImageURL); err != nil {
+		return fmt.Errorf("check listing_history image_url: %w", err)
+	}
+	if hasImageURL == 0 {
+		if _, err := db.Exec("ALTER TABLE listing_history ADD COLUMN image_url TEXT NOT NULL DEFAULT ''"); err != nil {
+			return fmt.Errorf("add image_url column: %w", err)
+		}
+	}
+
+	// Add last_seen_at column to users table if it doesn't exist.
+	var hasLastSeen int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('users') WHERE name = 'last_seen_at'",
+	).Scan(&hasLastSeen); err != nil {
+		return fmt.Errorf("check users last_seen_at: %w", err)
+	}
+	if hasLastSeen == 0 {
+		if _, err := db.Exec("ALTER TABLE users ADD COLUMN last_seen_at TIMESTAMP"); err != nil {
+			return fmt.Errorf("add last_seen_at column: %w", err)
+		}
+	}
+
 	return nil
 }

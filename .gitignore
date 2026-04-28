@@ -4,3 +4,5 @@ config.yaml
 /bot
 .idea/
 .coverage/
+web/node_modules/
+web/dist/

@@ -15,6 +15,7 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/mattn/go-isatty"
 
+	"github.com/dsionov/carwatch/internal/api"
 	cwbot "github.com/dsionov/carwatch/internal/bot"
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
@@ -156,9 +157,21 @@ func run(configPath string, logger *slog.Logger) error {
 	if tok := cfg.HTTP.DashboardToken; tok != "" {
 		dashHandler = requireBearerToken(tok, dash)
 	}
+
+	apiServer := api.New(api.Config{
+		Catalog:  dynCatalog,
+		Searches: store,
+		Listings: store,
+		Users:    store,
+		Prices:   store,
+		Logger:   logger,
+		API:      cfg.API,
+	})
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.Handler())
 	mux.Handle("/dashboard", dashHandler)
+	mux.Handle("/api/v1/", apiServer.Routes())
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Bind,
 		Handler:           mux,

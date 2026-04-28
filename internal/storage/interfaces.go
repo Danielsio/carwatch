@@ -53,6 +53,7 @@ type UserStore interface {
 	ListActiveUsers(ctx context.Context) ([]User, error)
 	SetUserActive(ctx context.Context, chatID int64, active bool) error
 	SetUserLanguage(ctx context.Context, chatID int64, lang string) error
+	UpdateLastSeenAt(ctx context.Context, chatID int64) error
 	CountUsers(ctx context.Context) (int64, error)
 	SetUserTier(ctx context.Context, chatID int64, tier string, expires time.Time) error
 	GrantTrial(ctx context.Context, chatID int64, duration time.Duration) error
@@ -97,6 +98,7 @@ type NotificationQueue interface {
 type PriceTracker interface {
 	RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error)
 	PrunePrices(ctx context.Context, olderThan time.Duration) (int64, error)
+	GetPriceHistory(ctx context.Context, token string) ([]PricePoint, error)
 }
 
 type DigestStore interface {
@@ -121,8 +123,14 @@ type ListingRecord struct {
 	Hand         int
 	City         string
 	PageLink     string
+	ImageURL     string
 	FitnessScore *float64
 	FirstSeenAt  time.Time
+}
+
+type PricePoint struct {
+	Price      int
+	ObservedAt time.Time
 }
 
 type ListingStore interface {
@@ -130,6 +138,8 @@ type ListingStore interface {
 	SaveListings(ctx context.Context, records []ListingRecord) error
 	ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]ListingRecord, error)
 	CountUserListings(ctx context.Context, chatID int64) (int64, error)
+	ListSearchListings(ctx context.Context, chatID int64, searchName string, limit, offset int, sort string) ([]ListingRecord, error)
+	CountSearchListings(ctx context.Context, chatID int64, searchName string) (int64, error)
 }
 
 type SavedListingStore interface {

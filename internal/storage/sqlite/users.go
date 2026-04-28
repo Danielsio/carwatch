@@ -126,6 +126,13 @@ func (s *Store) SetUserLanguage(ctx context.Context, chatID int64, lang string) 
 	return err
 }
 
+func (s *Store) UpdateLastSeenAt(ctx context.Context, chatID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE users SET last_seen_at = ? WHERE chat_id = ?",
+		time.Now().UTC(), chatID)
+	return err
+}
+
 func scanUsers(rows *sql.Rows) ([]storage.User, error) {
 	var users []storage.User
 	for rows.Next() {

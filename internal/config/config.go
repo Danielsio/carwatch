@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -16,8 +17,15 @@ type Config struct {
 	Telegram TelegramConfig `yaml:"telegram"`
 	Storage  StorageConfig  `yaml:"storage"`
 	HTTP     HTTPConfig     `yaml:"http"`
+	API      APIConfig      `yaml:"api"`
 	LogLevel  string         `yaml:"log_level"`
 	LogFormat string         `yaml:"log_format"`
+}
+
+type APIConfig struct {
+	CORSOrigins []string `yaml:"cors_origins"`
+	DevChatID   int64    `yaml:"dev_chat_id"`
+	AuthToken   string   `yaml:"auth_token"`
 }
 
 type PollingConfig struct {
@@ -129,6 +137,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.LogFormat == "" {
 		cfg.LogFormat = "auto"
 	}
+	if len(cfg.API.CORSOrigins) == 0 {
+		cfg.API.CORSOrigins = []string{"http://localhost:5173"}
+	}
 }
 
 func validate(cfg *Config) error {
@@ -153,6 +164,11 @@ func validate(cfg *Config) error {
 	}
 	if cfg.Telegram.Token == "" {
 		return fmt.Errorf("telegram.token is required")
+	}
+	for _, origin := range cfg.API.CORSOrigins {
+		if _, err := url.Parse(origin); err != nil {
+			return fmt.Errorf("api.cors_origins: invalid URL %q", origin)
+		}
 	}
 	return nil
 }

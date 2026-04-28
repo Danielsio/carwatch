@@ -14,6 +14,7 @@ import (
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 type mockFetcher struct {
@@ -138,6 +139,10 @@ func (m *mockPriceTracker) RecordPrice(_ context.Context, token string, price in
 
 func (m *mockPriceTracker) PrunePrices(_ context.Context, _ time.Duration) (int64, error) {
 	return 0, nil
+}
+
+func (m *mockPriceTracker) GetPriceHistory(_ context.Context, _ string) ([]storage.PricePoint, error) {
+	return nil, nil
 }
 
 func testConfig() *config.Config {
