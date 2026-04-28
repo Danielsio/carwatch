@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router";
-import { ArrowRight, ExternalLink, ChevronDown } from "lucide-react";
+import { ArrowRight, ExternalLink, ChevronDown, Bookmark } from "lucide-react";
 import { useListings } from "@/hooks/useListings";
+import { useSaveBookmark } from "@/hooks/useBookmarks";
 import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 
@@ -167,6 +168,8 @@ export function ListingsPage() {
 
 function ListingCard({ listing }: { listing: Listing }) {
   const navigate = useNavigate();
+  const saveBookmark = useSaveBookmark();
+  const [saved, setSaved] = useState(false);
 
   return (
     <div
@@ -227,7 +230,32 @@ function ListingCard({ listing }: { listing: Listing }) {
           <span className="text-xs text-muted-foreground mr-auto">
             {relativeTime(listing.first_seen_at)}
           </span>
-          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!saved) {
+                saveBookmark.mutate(listing.token);
+                setSaved(true);
+              }
+            }}
+            className={cn(
+              "p-1 rounded transition-colors",
+              saved
+                ? "text-primary"
+                : "text-muted-foreground hover:text-primary",
+            )}
+          >
+            <Bookmark className={cn("h-3.5 w-3.5", saved && "fill-current")} />
+          </button>
+          <a
+            href={listing.page_link}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="p-1 rounded text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
         </div>
       </div>
     </div>

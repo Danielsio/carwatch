@@ -25,6 +25,8 @@ type Server struct {
 	users     storage.UserStore
 	prices    storage.PriceTracker
 	admin     storage.AdminStore
+	saved     storage.SavedListingStore
+	hidden    storage.HiddenListingStore
 	logger    *slog.Logger
 	cfg       config.APIConfig
 	startTime time.Time
@@ -37,6 +39,8 @@ type Config struct {
 	Users    storage.UserStore
 	Prices   storage.PriceTracker
 	Admin    storage.AdminStore
+	Saved    storage.SavedListingStore
+	Hidden   storage.HiddenListingStore
 	Logger   *slog.Logger
 	API      config.APIConfig
 }
@@ -49,6 +53,8 @@ func New(c Config) *Server {
 		users:     c.Users,
 		prices:    c.Prices,
 		admin:     c.Admin,
+		saved:     c.Saved,
+		hidden:    c.Hidden,
 		logger:    c.Logger,
 		cfg:       c.API,
 		startTime: time.Now(),
@@ -75,6 +81,11 @@ func (s *Server) Routes() http.Handler {
 	if s.admin != nil {
 		mux.HandleFunc("GET /api/v1/admin/stats", s.adminStats)
 	}
+
+	mux.HandleFunc("GET /api/v1/saved", s.listSaved)
+	mux.HandleFunc("POST /api/v1/listings/{token}/save", s.saveListing)
+	mux.HandleFunc("DELETE /api/v1/listings/{token}/save", s.unsaveListing)
+	mux.HandleFunc("GET /api/v1/history", s.listHistory)
 
 	return s.corsMiddleware(s.authMiddleware(mux))
 }
