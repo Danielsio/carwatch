@@ -14,7 +14,7 @@ func TestSearchLimit_AllowsUpTo10(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "user1")
 
-	for i := range 9 {
+	for i := range freeMaxSearches - 1 {
 		_, err := tb.store.CreateSearch(ctx, storage.Search{
 			ChatID: 100, Name: fmt.Sprintf("search-%d", i),
 			Source: "yad2", Manufacturer: 19, Model: 8640,
@@ -42,7 +42,7 @@ func TestSearchLimit_BlocksAt10(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "user1")
 
-	for i := range 10 {
+	for i := range freeMaxSearches {
 		_, err := tb.store.CreateSearch(ctx, storage.Search{
 			ChatID: 100, Name: fmt.Sprintf("search-%d", i),
 			Source: "yad2", Manufacturer: 19, Model: 8640,
@@ -60,8 +60,9 @@ func TestSearchLimit_BlocksAt10(t *testing.T) {
 	if last.HasKB {
 		t.Fatal("expected no keyboard — 11th search should be blocked")
 	}
-	if !strings.Contains(last.Text, "10") || !strings.Contains(last.Text, "max") {
-		t.Fatalf("expected limit-reached message mentioning max and 10, got: %s", last.Text)
+	limit := fmt.Sprintf("%d", freeMaxSearches)
+	if !strings.Contains(last.Text, limit) || !strings.Contains(last.Text, "max") {
+		t.Fatalf("expected limit-reached message mentioning max and %s, got: %s", limit, last.Text)
 	}
 }
 
