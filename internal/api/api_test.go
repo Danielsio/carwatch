@@ -327,6 +327,8 @@ func TestCreateSearch_InvalidRanges(t *testing.T) {
 		name string
 		req  createSearchRequest
 	}{
+		{"negative year_min", createSearchRequest{Manufacturer: 19, Model: 10226, YearMin: -1}},
+		{"negative year_max", createSearchRequest{Manufacturer: 19, Model: 10226, YearMax: -1}},
 		{"negative price_max", createSearchRequest{Manufacturer: 19, Model: 10226, PriceMax: -1}},
 		{"negative max_km", createSearchRequest{Manufacturer: 19, Model: 10226, MaxKm: -1}},
 		{"negative max_hand", createSearchRequest{Manufacturer: 19, Model: 10226, MaxHand: -1}},
@@ -383,6 +385,43 @@ func TestPauseResumeNotFound(t *testing.T) {
 	w = doRequest(t, srv, "POST", "/api/v1/searches/99999/resume", nil)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("resume nonexistent: expected 404, got %d", w.Code)
+	}
+}
+
+func TestPauseResumeForeignSearch(t *testing.T) {
+	srv, store := setupTestServer(t)
+
+	// Create a search owned by user 999
+	w := doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{
+		Manufacturer: 19, Model: 10226, YearMin: 2018, YearMax: 2024,
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d", w.Code)
+	}
+	var created searchResponse
+	mustUnmarshal(t, w.Body.Bytes(), &created)
+
+	// Create a second server acting as user 888
+	if err := store.UpsertUser(context.Background(), 888, "other"); err != nil {
+		t.Fatal(err)
+	}
+	cat := catalog.NewDynamic(store, slog.Default())
+	cat.Load(context.Background())
+	otherSrv := New(Config{
+		Catalog: cat, Searches: store, Listings: store,
+		Users: store, Prices: store, Logger: slog.Default(),
+		API: config.APIConfig{CORSOrigins: []string{"http://localhost:5173"}, DevChatID: 888},
+	})
+
+	// User 888 tries to pause user 999's search — should get 404
+	w = doRequest(t, otherSrv, "POST", "/api/v1/searches/"+itoa(created.ID)+"/pause", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("pause foreign: expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequest(t, otherSrv, "POST", "/api/v1/searches/"+itoa(created.ID)+"/resume", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("resume foreign: expected 404, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

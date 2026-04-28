@@ -55,6 +55,12 @@ type searchResponse struct {
 }
 
 func validateSearchRanges(yearMin, yearMax, priceMax, maxKm, maxHand, engineMinCC int) string {
+	if yearMin < 0 {
+		return "year_min must not be negative"
+	}
+	if yearMax < 0 {
+		return "year_max must not be negative"
+	}
 	if yearMin > 0 && yearMax > 0 && yearMin > yearMax {
 		return "year_min must not exceed year_max"
 	}
