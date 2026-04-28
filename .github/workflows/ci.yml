@@ -26,6 +26,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Stub web/dist for embed
+        run: mkdir -p web/dist && echo '<!doctype html>' > web/dist/index.html
       - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
@@ -41,6 +43,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Stub web/dist for embed
+        run: mkdir -p web/dist && echo '<!doctype html>' > web/dist/index.html
       - name: Install C compiler (sqlite3)
         run: sudo apt-get update && sudo apt-get install -y gcc
       - name: Run tests
@@ -80,6 +84,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Stub web/dist for embed
+        run: mkdir -p web/dist && echo '<!doctype html>' > web/dist/index.html
       - name: Build binary
         run: make build
       - name: Build Docker image
