@@ -357,8 +357,8 @@ func TestE2E_PriceTracking(t *testing.T) {
 		t.Errorf("price drop: changed=%v oldPrice=%d", changed, oldPrice)
 	}
 
-	_, changed, _ = store.RecordPrice(ctx, "tok-1", 95000)
-	if changed {
-		t.Error("price increase should not trigger change")
+	oldPrice, changed, _ = store.RecordPrice(ctx, "tok-1", 95000)
+	if !changed || oldPrice != 90000 {
+		t.Errorf("price increase: changed=%v oldPrice=%d (want changed=true, oldPrice=90000)", changed, oldPrice)
 	}
 }
