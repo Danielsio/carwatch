@@ -564,6 +564,59 @@ func TestAdminStats_TableSizesError(t *testing.T) {
 	}
 }
 
+func TestGetListing_Success(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-abc", ChatID: 999, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
+		Price: 100000, Km: 50000, Hand: 2, City: "Tel Aviv",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/listings/tok-abc", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp listingResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if resp.Token != "tok-abc" {
+		t.Errorf("token = %q, want tok-abc", resp.Token)
+	}
+	if resp.Manufacturer != "Toyota" {
+		t.Errorf("manufacturer = %q, want Toyota", resp.Manufacturer)
+	}
+}
+
+func TestGetListing_NotFound(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "GET", "/api/v1/listings/nonexistent", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestGetListing_WrongOwner(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-other", ChatID: 777, SearchName: "s1",
+		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 90000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/listings/tok-other", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for wrong owner, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestAdminStats(t *testing.T) {
 	srv, store := setupTestServer(t)
 

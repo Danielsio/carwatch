@@ -17,11 +17,18 @@ export function ListingDetailPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { token } = useParams();
-  const [listing, setListing] = useState<Listing | undefined>(
-    location.state?.listing as Listing | undefined,
-  );
+  const stateListingRaw = location.state?.listing as Listing | undefined;
+  const stateListingForToken =
+    stateListingRaw?.token === token ? stateListingRaw : undefined;
+
+  const [listing, setListing] = useState<Listing | undefined>(stateListingForToken);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setListing(stateListingForToken);
+    setError(false);
+  }, [token]);
 
   useEffect(() => {
     if (listing || !token) return;

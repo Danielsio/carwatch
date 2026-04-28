@@ -5,9 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func (s *Store) DBFileSize() (int64, error) {
+	if s.dbPath == ":memory:" || strings.HasPrefix(s.dbPath, "file::memory:") {
+		return 0, nil
+	}
+
 	var total int64
 	for _, name := range []string{s.dbPath, s.dbPath + "-wal", s.dbPath + "-shm"} {
 		fi, err := os.Stat(name)
