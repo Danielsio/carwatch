@@ -494,7 +494,9 @@ func TestWatch_AtMaxSearches(t *testing.T) {
 	tb.createUser(ctx, t, chatID, "alice")
 
 	for i := range 10 {
-		_, _ = tb.store.CreateSearch(ctx, newFakeSearch(chatID, i+1))
+		if _, err := tb.store.CreateSearch(ctx, newFakeSearch(chatID, i+1)); err != nil {
+			t.Fatalf("seed search %d: %v", i+1, err)
+		}
 	}
 	tb.msg.reset()
 
