@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { Plus, Play, Pause, Trash2, List } from "lucide-react";
+import { Plus, Play, Pause, Trash2, List, Search as SearchIcon, Activity } from "lucide-react";
 import {
   useSearches,
   useDeleteSearch,
@@ -46,8 +46,34 @@ export function SearchesPage() {
     );
   }
 
+  const activeCount = searches?.filter((s) => s.active).length ?? 0;
+  const pausedCount = (searches?.length ?? 0) - activeCount;
+
   return (
     <div className="space-y-4">
+      {/* Stats summary */}
+      {searches && searches.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-border bg-card p-4 text-center">
+            <SearchIcon className="mx-auto h-5 w-5 text-primary mb-1" />
+            <p className="text-2xl font-bold">{searches.length}</p>
+            <p className="text-xs text-muted-foreground">סה״כ חיפושים</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4 text-center">
+            <Activity className="mx-auto h-5 w-5 text-green-600 mb-1" />
+            <p className="text-2xl font-bold">{activeCount}</p>
+            <p className="text-xs text-muted-foreground">פעילים</p>
+          </div>
+          {pausedCount > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 text-center">
+              <Pause className="mx-auto h-5 w-5 text-yellow-600 mb-1" />
+              <p className="text-2xl font-bold">{pausedCount}</p>
+              <p className="text-xs text-muted-foreground">מושהים</p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">החיפושים שלי</h1>
         <Link

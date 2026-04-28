@@ -27,7 +27,9 @@ import (
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/notifier/telegram"
 	"github.com/dsionov/carwatch/internal/scheduler"
+	"github.com/dsionov/carwatch/internal/spa"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/web"
 )
 
 var (
@@ -164,6 +166,7 @@ func run(configPath string, logger *slog.Logger) error {
 		Listings: store,
 		Users:    store,
 		Prices:   store,
+		Admin:    store,
 		Logger:   logger,
 		API:      cfg.API,
 	})
@@ -172,6 +175,7 @@ func run(configPath string, logger *slog.Logger) error {
 	mux.HandleFunc("/healthz", h.Handler())
 	mux.Handle("/dashboard", dashHandler)
 	mux.Handle("/api/v1/", apiServer.Routes())
+	mux.Handle("/", spa.Handler(web.DistFS()))
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Bind,
 		Handler:           mux,

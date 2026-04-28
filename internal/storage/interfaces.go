@@ -192,6 +192,12 @@ type DailyDigestStore interface {
 	DailyStats(ctx context.Context, chatID int64) ([]DailySearchStats, error)
 }
 
+type AdminStore interface {
+	DBFileSize() (int64, error)
+	CountAllListings(ctx context.Context) (int64, error)
+	TableSizes(ctx context.Context) (map[string]int64, error)
+}
+
 type CatalogEntry struct {
 	ManufacturerID   int
 	ManufacturerName string

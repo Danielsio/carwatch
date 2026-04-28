@@ -36,6 +36,7 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 		Listings: store,
 		Users:    store,
 		Prices:   store,
+		Admin:    store,
 		Logger:   slog.Default(),
 		API: config.APIConfig{
 			CORSOrigins: []string{"http://localhost:5173"},
@@ -516,5 +517,61 @@ func mustUnmarshal(t *testing.T, data []byte, v any) {
 	t.Helper()
 	if err := json.Unmarshal(data, v); err != nil {
 		t.Fatalf("unmarshal: %v", err)
+	}
+}
+
+func TestAdminStats(t *testing.T) {
+	srv, store := setupTestServer(t)
+
+	ctx := context.Background()
+	_, err := store.CreateSearch(ctx, storage.Search{
+		ChatID:       999,
+		Name:         "test-search",
+		Source:       "yad2",
+		Manufacturer: 19,
+		Model:        10226,
+		YearMin:      2018,
+		YearMax:      2024,
+		PriceMax:     150000,
+		Active:       true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token:      "tok-1",
+		ChatID:     999,
+		SearchName: "test-search",
+		Manufacturer: "Toyota",
+		Model:        "Corolla",
+		Year:         2020,
+		Price:        120000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/stats", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp adminStatsResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+
+	if resp.Tables["users"] < 1 {
+		t.Errorf("expected at least 1 user, got %d", resp.Tables["users"])
+	}
+	if resp.Tables["searches"] < 1 {
+		t.Errorf("expected at least 1 search, got %d", resp.Tables["searches"])
+	}
+	if resp.Tables["listing_history"] < 1 {
+		t.Errorf("expected at least 1 listing, got %d", resp.Tables["listing_history"])
+	}
+	if resp.Runtime.Goroutines < 1 {
+		t.Error("expected goroutines > 0")
+	}
+	if resp.Runtime.Uptime == "" {
+		t.Error("expected non-empty uptime")
 	}
 }

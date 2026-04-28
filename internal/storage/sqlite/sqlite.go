@@ -11,7 +11,8 @@ import (
 )
 
 type Store struct {
-	db *sql.DB
+	db     *sql.DB
+	dbPath string
 }
 
 func New(dbPath string) (*Store, error) {
@@ -38,7 +39,7 @@ func New(dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 
-	return &Store{db: db}, nil
+	return &Store{db: db, dbPath: dbPath}, nil
 }
 
 func (s *Store) Checkpoint() error {

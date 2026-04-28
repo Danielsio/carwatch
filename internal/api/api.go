@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
@@ -18,13 +19,15 @@ type contextKey string
 const chatIDKey contextKey = "chatID"
 
 type Server struct {
-	catalog  catalog.Catalog
-	searches storage.SearchStore
-	listings storage.ListingStore
-	users    storage.UserStore
-	prices   storage.PriceTracker
-	logger   *slog.Logger
-	cfg      config.APIConfig
+	catalog   catalog.Catalog
+	searches  storage.SearchStore
+	listings  storage.ListingStore
+	users     storage.UserStore
+	prices    storage.PriceTracker
+	admin     storage.AdminStore
+	logger    *slog.Logger
+	cfg       config.APIConfig
+	startTime time.Time
 }
 
 type Config struct {
@@ -33,19 +36,22 @@ type Config struct {
 	Listings storage.ListingStore
 	Users    storage.UserStore
 	Prices   storage.PriceTracker
+	Admin    storage.AdminStore
 	Logger   *slog.Logger
 	API      config.APIConfig
 }
 
 func New(c Config) *Server {
 	return &Server{
-		catalog:  c.Catalog,
-		searches: c.Searches,
-		listings: c.Listings,
-		users:    c.Users,
-		prices:   c.Prices,
-		logger:   c.Logger,
-		cfg:      c.API,
+		catalog:   c.Catalog,
+		searches:  c.Searches,
+		listings:  c.Listings,
+		users:     c.Users,
+		prices:    c.Prices,
+		admin:     c.Admin,
+		logger:    c.Logger,
+		cfg:       c.API,
+		startTime: time.Now(),
 	}
 }
 
@@ -64,6 +70,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/searches/{id}/resume", s.resumeSearch)
 
 	mux.HandleFunc("GET /api/v1/searches/{id}/listings", s.listListings)
+
+	mux.HandleFunc("GET /api/v1/admin/stats", s.adminStats)
 
 	return s.corsMiddleware(s.authMiddleware(mux))
 }
