@@ -346,27 +346,43 @@ func TestDeleteSearch_CascadesRelatedRecords(t *testing.T) {
 	}
 
 	// Seed seen_listings for both users.
-	_, _ = store.ClaimNew(ctx, "tok1", 100, id1)
-	_, _ = store.ClaimNew(ctx, "tok2", 100, id1)
-	_, _ = store.ClaimNew(ctx, "tok1", 200, id2)
+	if _, err := store.ClaimNew(ctx, "tok1", 100, id1); err != nil {
+		t.Fatalf("claim tok1 user 100: %v", err)
+	}
+	if _, err := store.ClaimNew(ctx, "tok2", 100, id1); err != nil {
+		t.Fatalf("claim tok2 user 100: %v", err)
+	}
+	if _, err := store.ClaimNew(ctx, "tok1", 200, id2); err != nil {
+		t.Fatalf("claim tok1 user 200: %v", err)
+	}
 
 	// Seed listing_history for both users.
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "tok1", ChatID: 100, SearchName: "mazda-3",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 95000,
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatalf("save listing tok1 user 100: %v", err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "tok2", ChatID: 100, SearchName: "mazda-3",
 		Manufacturer: "Mazda", Model: "3", Year: 2020, Price: 90000,
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatalf("save listing tok2 user 100: %v", err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "tok1", ChatID: 200, SearchName: "mazda-3",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 95000,
-	})
+	}); err != nil {
+		t.Fatalf("save listing tok1 user 200: %v", err)
+	}
 
 	// Seed pending_notifications for both users.
-	_ = store.EnqueueNotification(ctx, "100", "mazda-3", "payload1")
-	_ = store.EnqueueNotification(ctx, "200", "mazda-3", "payload2")
+	if err := store.EnqueueNotification(ctx, "100", "mazda-3", "payload1"); err != nil {
+		t.Fatalf("enqueue notification user 100: %v", err)
+	}
+	if err := store.EnqueueNotification(ctx, "200", "mazda-3", "payload2"); err != nil {
+		t.Fatalf("enqueue notification user 200: %v", err)
+	}
 
 	// Delete user 100's search — should cascade.
 	if err := store.DeleteSearch(ctx, id1, 100); err != nil {
@@ -374,37 +390,55 @@ func TestDeleteSearch_CascadesRelatedRecords(t *testing.T) {
 	}
 
 	// Search itself should be gone.
-	s, _ := store.GetSearch(ctx, id1)
+	s, err := store.GetSearch(ctx, id1)
+	if err != nil {
+		t.Fatalf("get deleted search: %v", err)
+	}
 	if s != nil {
 		t.Error("search should be deleted")
 	}
 
 	// seen_listings for user 100 should be cleaned up.
-	isNew, _ := store.ClaimNew(ctx, "tok1", 100, id1)
+	isNew, err := store.ClaimNew(ctx, "tok1", 100, id1)
+	if err != nil {
+		t.Fatalf("claim tok1 after delete: %v", err)
+	}
 	if !isNew {
 		t.Error("tok1 claim for user 100 should be released after cascade delete")
 	}
 
 	// User 200's seen_listings should be untouched.
-	isNew, _ = store.ClaimNew(ctx, "tok1", 200, id2)
+	isNew, err = store.ClaimNew(ctx, "tok1", 200, id2)
+	if err != nil {
+		t.Fatalf("claim tok1 user 200 after delete: %v", err)
+	}
 	if isNew {
 		t.Error("user 200's tok1 claim should NOT be affected by user 100's delete")
 	}
 
 	// listing_history for user 100 should be cleaned up.
-	count100, _ := store.CountSearchListings(ctx, 100, "mazda-3")
+	count100, err := store.CountSearchListings(ctx, 100, "mazda-3")
+	if err != nil {
+		t.Fatalf("count listings user 100: %v", err)
+	}
 	if count100 != 0 {
 		t.Errorf("expected 0 listings for user 100 after cascade, got %d", count100)
 	}
 
 	// User 200's listing_history should be untouched.
-	count200, _ := store.CountSearchListings(ctx, 200, "mazda-3")
+	count200, err := store.CountSearchListings(ctx, 200, "mazda-3")
+	if err != nil {
+		t.Fatalf("count listings user 200: %v", err)
+	}
 	if count200 != 1 {
 		t.Errorf("expected 1 listing for user 200, got %d", count200)
 	}
 
 	// pending_notifications for user 100 should be cleaned up.
-	pending, _ := store.PendingNotifications(ctx)
+	pending, err := store.PendingNotifications(ctx)
+	if err != nil {
+		t.Fatalf("pending notifications: %v", err)
+	}
 	for _, p := range pending {
 		if p.Recipient == "100" && p.SearchName == "mazda-3" {
 			t.Error("pending notification for user 100 should have been deleted")
@@ -426,9 +460,36 @@ func TestDeleteSearch_CascadeNotFound(t *testing.T) {
 	ctx := context.Background()
 	seedUser(t, store, 100)
 
-	err := store.DeleteSearch(ctx, 999, 100)
+	// Seed dependent rows that should NOT be affected by a failed delete.
+	id, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "existing", Manufacturer: 1, Model: 1,
+	})
+	if err != nil {
+		t.Fatalf("create search: %v", err)
+	}
+	if _, err := store.ClaimNew(ctx, "tok1", 100, id); err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 100, SearchName: "existing",
+		Manufacturer: "Test", Model: "Car", Year: 2020, Price: 50000,
+	}); err != nil {
+		t.Fatalf("save listing: %v", err)
+	}
+
+	// Delete a non-existent search — should return ErrNotFound.
+	err = store.DeleteSearch(ctx, 999, 100)
 	if err != storage.ErrNotFound {
 		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+
+	// Verify dependent rows for the real search are still intact.
+	count, err := store.CountSearchListings(ctx, 100, "existing")
+	if err != nil {
+		t.Fatalf("count listings: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 listing still present, got %d", count)
 	}
 }
 

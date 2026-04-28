@@ -826,8 +826,8 @@ func TestHandleSettings(t *testing.T) {
 	tb.simulateCommand(ctx, chatID, "/settings")
 
 	msg := tb.msg.last()
-	if !strings.Contains(msg.Text, "0/1") {
-		t.Errorf("settings should show 0/1 (free tier limit), got %q", msg.Text)
+	if !strings.Contains(msg.Text, "0/10") {
+		t.Errorf("settings should show 0/10 search limit, got %q", msg.Text)
 	}
 }
 

@@ -293,7 +293,12 @@ func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
 
-	count, _ := b.searches.CountSearches(ctx, chatID)
+	count, err := b.searches.CountSearches(ctx, chatID)
+	if err != nil {
+		b.logger.Error("count searches failed", "chat_id", chatID, "error", err)
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
 	limit := b.maxSearchesForUser(ctx, chatID)
 	msg := locale.Tf(lang, "settings", count, limit)
 

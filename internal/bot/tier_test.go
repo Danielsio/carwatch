@@ -2,32 +2,63 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
-func TestSearchLimitAllUsersGet10(t *testing.T) {
+func TestSearchLimit_AllowsUpTo10(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "user1")
 
-	// Create 1 search
-	_, err := tb.store.CreateSearch(ctx, newTestSearch(100))
-	if err != nil {
-		t.Fatal(err)
+	for i := range 9 {
+		_, err := tb.store.CreateSearch(ctx, storage.Search{
+			ChatID: 100, Name: fmt.Sprintf("search-%d", i),
+			Source: "yad2", Manufacturer: 19, Model: 8640,
+			YearMin: 2018, YearMax: 2024, PriceMax: 200000,
+		})
+		if err != nil {
+			t.Fatalf("create search %d: %v", i, err)
+		}
 	}
 
-	// User should still be able to create more (no upgrade prompt)
+	// 10th search should still be allowed
 	tb.msg.reset()
 	tb.simulateCommand(ctx, 100, "/watch")
 	last := tb.msg.last()
 	if strings.Contains(last.Text, "Upgrade") || strings.Contains(last.Text, "upgrade") {
-		t.Fatalf("should not see upgrade prompt, got: %s", last.Text)
+		t.Fatalf("should not see upgrade prompt with 9 searches, got: %s", last.Text)
 	}
 	if !last.HasKB {
-		t.Fatal("expected source keyboard — user should be allowed to create more searches")
+		t.Fatal("expected source keyboard — 10th search should be allowed")
+	}
+}
+
+func TestSearchLimit_BlocksAt10(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "user1")
+
+	for i := range 10 {
+		_, err := tb.store.CreateSearch(ctx, storage.Search{
+			ChatID: 100, Name: fmt.Sprintf("search-%d", i),
+			Source: "yad2", Manufacturer: 19, Model: 8640,
+			YearMin: 2018, YearMax: 2024, PriceMax: 200000,
+		})
+		if err != nil {
+			t.Fatalf("create search %d: %v", i, err)
+		}
+	}
+
+	// 11th search should be blocked
+	tb.msg.reset()
+	tb.simulateCommand(ctx, 100, "/watch")
+	last := tb.msg.last()
+	if !strings.Contains(last.Text, "max") && !strings.Contains(last.Text, "10") {
+		t.Fatalf("expected limit-reached message, got: %s", last.Text)
 	}
 }
 
@@ -55,43 +86,41 @@ func TestSettingsDoesNotShowTier(t *testing.T) {
 	}
 }
 
-func TestDailyDigestAvailableToAllUsers(t *testing.T) {
+func TestDailyDigestVisibleToFreeUsers(t *testing.T) {
 	tb := newTestBotWithDigests(t)
 	tb.bot.dailyDigests = tb.store
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "user1")
 
-	// Free user should see daily digest controls
 	tb.simulateCommand(ctx, 100, "/digest")
 	last := tb.msg.last()
 	if last.Buttons < 3 {
 		t.Fatalf("expected daily digest button for all users, only got %d buttons", last.Buttons)
 	}
+	text := strings.ToLower(last.Text)
+	if !strings.Contains(text, "digest") && !strings.Contains(text, "daily") &&
+		!strings.Contains(text, "סיכום") {
+		t.Fatalf("expected digest-related content in response, got: %s", last.Text)
+	}
 }
 
-func TestDailyDigestCallbackWorksForAllUsers(t *testing.T) {
+func TestDailyDigestCallbackEnablesDigest(t *testing.T) {
 	tb := newTestBotWithDigests(t)
 	tb.bot.dailyDigests = tb.store
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "user1")
 
-	// Free user enabling daily digest should succeed (no upgrade prompt)
 	tb.simulateCallback(ctx, 100, cbDailyDigestOn)
 	last := tb.msg.last()
 	if strings.Contains(last.Text, "Premium") || strings.Contains(last.Text, "upgrade") {
 		t.Fatalf("should not see upgrade prompt, got: %s", last.Text)
 	}
-}
 
-func newTestSearch(chatID int64) storage.Search {
-	return storage.Search{
-		ChatID:       chatID,
-		Name:         "test-search",
-		Source:       "yad2",
-		Manufacturer: 19,
-		Model:        8640,
-		YearMin:      2018,
-		YearMax:      2024,
-		PriceMax:     200000,
+	enabled, _, _, err := tb.store.GetDailyDigest(ctx, 100)
+	if err != nil {
+		t.Fatalf("GetDailyDigest: %v", err)
+	}
+	if !enabled {
+		t.Fatal("daily digest should be enabled after callback")
 	}
 }
