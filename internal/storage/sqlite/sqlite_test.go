@@ -1072,6 +1072,73 @@ func TestListUserListings(t *testing.T) {
 	}
 }
 
+func TestGetListing_Found(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-find", ChatID: 100, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
+		Price: 110000, Km: 40000, Hand: 1, City: "Haifa",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := store.GetListing(ctx, 100, "tok-find")
+	if err != nil {
+		t.Fatalf("get listing: %v", err)
+	}
+	if l == nil {
+		t.Fatal("expected listing, got nil")
+	}
+	if l.Token != "tok-find" {
+		t.Errorf("token = %q, want tok-find", l.Token)
+	}
+	if l.Manufacturer != "Toyota" {
+		t.Errorf("manufacturer = %q, want Toyota", l.Manufacturer)
+	}
+	if l.Price != 110000 {
+		t.Errorf("price = %d, want 110000", l.Price)
+	}
+}
+
+func TestGetListing_NotFound(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	l, err := store.GetListing(ctx, 100, "nonexistent")
+	if err != nil {
+		t.Fatalf("get listing: %v", err)
+	}
+	if l != nil {
+		t.Errorf("expected nil for missing token, got %+v", l)
+	}
+}
+
+func TestGetListing_WrongOwner(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-owned", ChatID: 100, SearchName: "test",
+		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 90000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := store.GetListing(ctx, 200, "tok-owned")
+	if err != nil {
+		t.Fatalf("get listing: %v", err)
+	}
+	if l != nil {
+		t.Errorf("expected nil for wrong owner, got %+v", l)
+	}
+}
+
 func TestSaveListings_Batch(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

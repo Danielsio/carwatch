@@ -1,10 +1,11 @@
 import { Outlet, Link, useLocation } from "react-router";
-import { Search, Plus, Car } from "lucide-react";
+import { Search, Plus, Car, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { path: "/", label: "חיפושים", icon: Search },
   { path: "/searches/new", label: "חיפוש חדש", icon: Plus },
+  { path: "/admin", label: "ניהול", icon: Settings },
 ];
 
 export function Shell() {
