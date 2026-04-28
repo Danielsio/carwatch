@@ -22,12 +22,13 @@ export function ListingDetailPage() {
     stateListingRaw?.token === token ? stateListingRaw : undefined;
 
   const [listing, setListing] = useState<Listing | undefined>(stateListingForToken);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!stateListingForToken && !!token);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     setListing(stateListingForToken);
     setError(false);
+    setLoading(!stateListingForToken && !!token);
   }, [token]);
 
   useEffect(() => {
