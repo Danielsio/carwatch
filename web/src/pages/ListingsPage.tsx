@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import { ArrowRight, ExternalLink, ChevronDown, Bookmark } from "lucide-react";
 import { useListings } from "@/hooks/useListings";
-import { useSaveBookmark } from "@/hooks/useBookmarks";
+import { useSaveBookmark, useRemoveBookmark } from "@/hooks/useBookmarks";
 import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 
@@ -169,6 +169,7 @@ export function ListingsPage() {
 function ListingCard({ listing }: { listing: Listing }) {
   const navigate = useNavigate();
   const saveBookmark = useSaveBookmark();
+  const removeBookmark = useRemoveBookmark();
   const [saved, setSaved] = useState(false);
 
   return (
@@ -233,10 +234,12 @@ function ListingCard({ listing }: { listing: Listing }) {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (!saved) {
-                saveBookmark.mutate(listing.token);
-                setSaved(true);
-              }
+              const next = !saved;
+              setSaved(next);
+              const mutation = next ? saveBookmark : removeBookmark;
+              mutation.mutate(listing.token, {
+                onError: () => setSaved(!next),
+              });
             }}
             className={cn(
               "p-1 rounded transition-colors",

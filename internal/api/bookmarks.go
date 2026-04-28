@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 func (s *Server) saveListing(w http.ResponseWriter, r *http.Request) {
@@ -38,11 +40,7 @@ func (s *Server) unsaveListing(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listSaved(w http.ResponseWriter, r *http.Request) {
 	chatID := chatIDFromContext(r.Context())
-	limit := parseIntParam(r, "limit", 20)
-	if limit > 100 {
-		limit = 100
-	}
-	offset := parseIntParam(r, "offset", 0)
+	limit, offset := parsePagination(r)
 
 	listings, err := s.saved.ListSaved(r.Context(), chatID, limit, offset)
 	if err != nil {
@@ -58,39 +56,49 @@ func (s *Server) listSaved(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items := make([]listingResponse, 0, len(listings))
-	for _, l := range listings {
-		items = append(items, listingResponse{
-			Token:        l.Token,
-			Manufacturer: l.Manufacturer,
-			Model:        l.Model,
-			Year:         l.Year,
-			Price:        l.Price,
-			Km:           l.Km,
-			Hand:         l.Hand,
-			City:         l.City,
-			PageLink:     l.PageLink,
-			ImageURL:     l.ImageURL,
-			FitnessScore: l.FitnessScore,
-			FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
-		})
-	}
-
 	writeJSON(w, http.StatusOK, listingsPageResponse{
-		Items:  items,
+		Items:  toListingResponses(listings),
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,
 	})
 }
 
+func (s *Server) hideListing(w http.ResponseWriter, r *http.Request) {
+	chatID := chatIDFromContext(r.Context())
+	token := r.PathValue("token")
+	if token == "" {
+		writeError(w, http.StatusBadRequest, "missing token")
+		return
+	}
+
+	if err := s.hidden.HideListing(r.Context(), chatID, token); err != nil {
+		s.logger.Error("hide listing", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to hide listing")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) unhideListing(w http.ResponseWriter, r *http.Request) {
+	chatID := chatIDFromContext(r.Context())
+	token := r.PathValue("token")
+	if token == "" {
+		writeError(w, http.StatusBadRequest, "missing token")
+		return
+	}
+
+	if err := s.hidden.ClearHidden(r.Context(), chatID); err != nil {
+		s.logger.Error("unhide listing", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to unhide listing")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) listHistory(w http.ResponseWriter, r *http.Request) {
 	chatID := chatIDFromContext(r.Context())
-	limit := parseIntParam(r, "limit", 20)
-	if limit > 100 {
-		limit = 100
-	}
-	offset := parseIntParam(r, "offset", 0)
+	limit, offset := parsePagination(r)
 
 	listings, err := s.listings.ListUserListings(r.Context(), chatID, limit, offset)
 	if err != nil {
@@ -106,8 +114,17 @@ func (s *Server) listHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items := make([]listingResponse, 0, len(listings))
-	for _, l := range listings {
+	writeJSON(w, http.StatusOK, listingsPageResponse{
+		Items:  toListingResponses(listings),
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	})
+}
+
+func toListingResponses(records []storage.ListingRecord) []listingResponse {
+	items := make([]listingResponse, 0, len(records))
+	for _, l := range records {
 		items = append(items, listingResponse{
 			Token:        l.Token,
 			Manufacturer: l.Manufacturer,
@@ -123,11 +140,19 @@ func (s *Server) listHistory(w http.ResponseWriter, r *http.Request) {
 			FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
 		})
 	}
+	return items
+}
 
-	writeJSON(w, http.StatusOK, listingsPageResponse{
-		Items:  items,
-		Total:  total,
-		Limit:  limit,
-		Offset: offset,
-	})
+func parsePagination(r *http.Request) (limit, offset int) {
+	limit = parseIntParam(r, "limit", 20)
+	if limit <= 0 {
+		limit = 20
+	} else if limit > 100 {
+		limit = 100
+	}
+	offset = parseIntParam(r, "offset", 0)
+	if offset < 0 {
+		offset = 0
+	}
+	return
 }

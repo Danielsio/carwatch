@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
 import { useSavedListings, useRemoveBookmark } from "@/hooks/useBookmarks";
 import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
@@ -10,6 +10,13 @@ export function SavedPage() {
   const [offset, setOffset] = useState(0);
   const { data, isLoading, isError } = useSavedListings(PAGE_SIZE, offset);
   const removeBookmark = useRemoveBookmark();
+
+  useEffect(() => {
+    if (!data || data.total === 0) return;
+    if (offset > 0 && offset >= data.total) {
+      setOffset(Math.floor((data.total - 1) / PAGE_SIZE) * PAGE_SIZE);
+    }
+  }, [data, offset]);
 
   if (isLoading) {
     return (
@@ -68,7 +75,7 @@ export function SavedPage() {
             ))}
           </div>
 
-          {data.total > PAGE_SIZE && (
+          {(data.total > PAGE_SIZE || offset > 0) && (
             <div className="flex items-center justify-center gap-3 pt-4">
               {offset > 0 && (
                 <button
@@ -173,6 +180,7 @@ function SavedCard({
             href={listing.page_link}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label={`פתח מודעה: ${listing.manufacturer} ${listing.model}`}
             className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground hover:text-primary transition-colors"
           >
             <ExternalLink className="h-3.5 w-3.5" />

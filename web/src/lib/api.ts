@@ -129,8 +129,8 @@ export const api = {
   saved: {
     list: (params?: ListingsParams) => {
       const query = new URLSearchParams();
-      if (params?.limit) query.set("limit", String(params.limit));
-      if (params?.offset) query.set("offset", String(params.offset));
+      if (params?.limit !== undefined) query.set("limit", String(params.limit));
+      if (params?.offset !== undefined) query.set("offset", String(params.offset));
       const qs = query.toString();
       return fetchAPI<ListingsResponse>(`/saved${qs ? `?${qs}` : ""}`);
     },
@@ -145,15 +145,15 @@ export const api = {
   },
   history: (params?: ListingsParams) => {
     const query = new URLSearchParams();
-    if (params?.limit) query.set("limit", String(params.limit));
-    if (params?.offset) query.set("offset", String(params.offset));
+    if (params?.limit !== undefined) query.set("limit", String(params.limit));
+    if (params?.offset !== undefined) query.set("offset", String(params.offset));
     const qs = query.toString();
     return fetchAPI<ListingsResponse>(`/history${qs ? `?${qs}` : ""}`);
   },
   listings: (searchId: number, params?: ListingsParams) => {
     const query = new URLSearchParams();
-    if (params?.limit) query.set("limit", String(params.limit));
-    if (params?.offset) query.set("offset", String(params.offset));
+    if (params?.limit !== undefined) query.set("limit", String(params.limit));
+    if (params?.offset !== undefined) query.set("offset", String(params.offset));
     if (params?.sort) query.set("sort", params.sort);
     const qs = query.toString();
     return fetchAPI<ListingsResponse>(
