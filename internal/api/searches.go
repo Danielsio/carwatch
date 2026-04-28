@@ -283,6 +283,17 @@ func (s *Server) setSearchActive(w http.ResponseWriter, r *http.Request, active 
 		return
 	}
 
+	sr, err := s.searches.GetSearch(r.Context(), id)
+	if err != nil {
+		s.logger.Error("get search for active toggle", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get search")
+		return
+	}
+	if sr == nil || sr.ChatID != chatID {
+		writeError(w, http.StatusNotFound, "search not found")
+		return
+	}
+
 	if err := s.searches.SetSearchActive(r.Context(), id, chatID, active); err != nil {
 		s.logger.Error("set search active", "error", err, "active", active)
 		writeError(w, http.StatusInternalServerError, "failed to update search")

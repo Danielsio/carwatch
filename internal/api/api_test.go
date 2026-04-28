@@ -323,13 +323,19 @@ func TestCreateSearch_InvalidRanges(t *testing.T) {
 		t.Fatalf("expected 400 for year_min > year_max, got %d: %s", w.Code, w.Body.String())
 	}
 
-	w = doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{
-		Manufacturer: 19,
-		Model:        10226,
-		PriceMax:     -1,
-	})
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for negative price_max, got %d", w.Code)
+	for _, tc := range []struct {
+		name string
+		req  createSearchRequest
+	}{
+		{"negative price_max", createSearchRequest{Manufacturer: 19, Model: 10226, PriceMax: -1}},
+		{"negative max_km", createSearchRequest{Manufacturer: 19, Model: 10226, MaxKm: -1}},
+		{"negative max_hand", createSearchRequest{Manufacturer: 19, Model: 10226, MaxHand: -1}},
+		{"negative engine_min_cc", createSearchRequest{Manufacturer: 19, Model: 10226, EngineMinCC: -1}},
+	} {
+		w = doRequest(t, srv, "POST", "/api/v1/searches", tc.req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("%s: expected 400, got %d: %s", tc.name, w.Code, w.Body.String())
+		}
 	}
 }
 
@@ -363,6 +369,20 @@ func TestSearchNotFound(t *testing.T) {
 	w := doRequest(t, srv, "GET", "/api/v1/searches/99999", nil)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestPauseResumeNotFound(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "POST", "/api/v1/searches/99999/pause", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("pause nonexistent: expected 404, got %d", w.Code)
+	}
+
+	w = doRequest(t, srv, "POST", "/api/v1/searches/99999/resume", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("resume nonexistent: expected 404, got %d", w.Code)
 	}
 }
 
@@ -441,6 +461,9 @@ func TestCORS_DisallowedOrigin(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.Routes().ServeHTTP(w, req)
 
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204 for OPTIONS preflight, got %d", w.Code)
+	}
 	if origin := w.Header().Get("Access-Control-Allow-Origin"); origin != "" {
 		t.Fatalf("expected no CORS origin header for disallowed origin, got %q", origin)
 	}
