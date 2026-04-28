@@ -50,7 +50,6 @@ var he = map[string]string{
 		"/saved — צפה ברכבים שמורים\n" +
 		"/hidden — צפה ברכבים מוסתרים\n" +
 		"/digest — התראות וסיכום שוק יומי\n" +
-		"/upgrade — שדרוג לפרימיום\n" +
 		"/language — שנה שפה\n" +
 		"/settings — הצג הגדרות\n" +
 		"/cancel — בטל אשף נוכחי\n" +
@@ -347,6 +346,8 @@ var he = map[string]string{
 	"trial_expired":  "תקופת הניסיון הסתיימה. חזרת למנוי *חינמי*.\nהשתמש ב /upgrade כדי להמשיך ליהנות מתכונות פרימיום.",
 	"premium_expired":"מנוי הפרימיום שלך פג. חזרת למנוי *חינמי*.\nהשתמש ב /upgrade לחידוש.",
 
+	"upgrade_disabled": "כל התכונות זמינות כרגע לכל המשתמשים בחינם!",
+
 	"admin_grant_usage":   "שימוש: /grant\\_premium <chat\\_id> <days>",
 	"admin_grant_success": "פרימיום הופעל למשתמש %d עד %s.",
 	"admin_grant_failed":  "הפעלת פרימיום נכשלה.",
@@ -375,7 +376,6 @@ var en = map[string]string{
 		"/saved — View saved listings\n" +
 		"/hidden — View hidden listings\n" +
 		"/digest — Notifications & daily market summary\n" +
-		"/upgrade — Upgrade to Premium\n" +
 		"/language — Change language\n" +
 		"/settings — View your settings\n" +
 		"/cancel — Cancel current wizard\n" +
@@ -671,6 +671,8 @@ var en = map[string]string{
 	"trial_welcome":  "🎉 You've received a 7-day *Premium* trial! All features unlocked until %s.",
 	"trial_expired":  "Your trial has ended. You're back on the *Free* plan.\nUse /upgrade to keep enjoying Premium features.",
 	"premium_expired":"Your Premium subscription has expired. You're back on the *Free* plan.\nUse /upgrade to renew.",
+
+	"upgrade_disabled": "All features are currently available to everyone for free!",
 
 	"admin_grant_usage":   "Usage: /grant\\_premium <chat\\_id> <days>",
 	"admin_grant_success": "Premium activated for user %d until %s.",

@@ -189,8 +189,6 @@ func (b *Bot) RegisterHandlers() {
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/saved", tgbot.MatchTypeExact, b.rateLimited(b.handleSaved))
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/hidden", tgbot.MatchTypeExact, b.rateLimited(b.handleHidden))
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/upgrade", tgbot.MatchTypeExact, b.rateLimited(b.handleUpgrade))
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/grant_premium", tgbot.MatchTypePrefix, b.rateLimited(b.handleGrantPremium))
-	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/revoke_premium", tgbot.MatchTypePrefix, b.rateLimited(b.handleRevokePremium))
 	b.bot.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "", tgbot.MatchTypePrefix, b.rateLimited(b.handleCallback))
 }
 
@@ -316,16 +314,12 @@ const (
 	TierFree    = "free"
 	TierPremium = "premium"
 
-	freeMaxSearches    = 1
+	freeMaxSearches    = 10
 	premiumMaxSearches = 10
 )
 
-func (b *Bot) isPremium(ctx context.Context, chatID int64) bool {
-	user, err := b.users.GetUser(ctx, chatID)
-	if err != nil || user == nil {
-		return false
-	}
-	return user.Tier == TierPremium && (user.TierExpires.IsZero() || user.TierExpires.After(time.Now()))
+func (b *Bot) isPremium(_ context.Context, _ int64) bool {
+	return true
 }
 
 func (b *Bot) maxSearchesForUser(ctx context.Context, chatID int64) int {
@@ -344,11 +338,7 @@ func (b *Bot) checkSearchLimit(ctx context.Context, chatID int64, lang locale.La
 	}
 	limit := b.maxSearchesForUser(ctx, chatID)
 	if count >= int64(limit) {
-		if !b.isPremium(ctx, chatID) {
-			b.sendMarkdown(ctx, chatID, locale.Tf(lang, "upgrade_search_limit", count, limit))
-		} else {
-			b.send(ctx, chatID, locale.Tf(lang, limitKey+"_reached", count, limit))
-		}
+		b.send(ctx, chatID, locale.Tf(lang, limitKey+"_reached", count, limit))
 		return true
 	}
 	return false

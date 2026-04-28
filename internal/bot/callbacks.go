@@ -382,10 +382,6 @@ func (b *Bot) onDailyDigestOn(ctx context.Context, chatID int64) {
 		return
 	}
 	lang := b.getUserLang(ctx, chatID)
-	if !b.isPremium(ctx, chatID) {
-		b.sendMarkdown(ctx, chatID, locale.T(lang, "upgrade_prompt"))
-		return
-	}
 	_, digestTime, _, err := b.dailyDigests.GetDailyDigest(ctx, chatID)
 	if err != nil {
 		b.send(ctx, chatID, locale.T(lang, "error_generic"))

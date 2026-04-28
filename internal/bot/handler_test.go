@@ -493,7 +493,7 @@ func TestWatch_AtMaxSearches(t *testing.T) {
 
 	tb.createUser(ctx, t, chatID, "alice")
 
-	for i := range 3 {
+	for i := range 10 {
 		_, _ = tb.store.CreateSearch(ctx, newFakeSearch(chatID, i+1))
 	}
 	tb.msg.reset()
@@ -501,7 +501,7 @@ func TestWatch_AtMaxSearches(t *testing.T) {
 	tb.simulateCommand(ctx, chatID, "/watch")
 
 	msg := tb.msg.last()
-	if !strings.Contains(msg.Text, "max") || !strings.Contains(msg.Text, "3") {
+	if !strings.Contains(msg.Text, "max") || !strings.Contains(msg.Text, "10") {
 		t.Errorf("expected max-searches warning, got %q", msg.Text)
 	}
 }

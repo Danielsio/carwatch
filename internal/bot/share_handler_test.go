@@ -216,7 +216,7 @@ func TestOnShareCopy_AtMaxSearches(t *testing.T) {
 	})
 	search, _ := tb.store.GetSearch(ctx, srcID)
 
-	for i := range 3 {
+	for i := range 10 {
 		_, _ = tb.store.CreateSearch(ctx, storage.Search{
 			ChatID: 200, Name: fmt.Sprintf("bob-%d", i), Manufacturer: i + 1, Model: 1,
 		})
