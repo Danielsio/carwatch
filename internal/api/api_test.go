@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -517,6 +518,49 @@ func mustUnmarshal(t *testing.T, data []byte, v any) {
 	t.Helper()
 	if err := json.Unmarshal(data, v); err != nil {
 		t.Fatalf("unmarshal: %v", err)
+	}
+}
+
+type failingAdminStore struct {
+	failDBFileSize bool
+	failTableSizes bool
+}
+
+func (f *failingAdminStore) DBFileSize() (int64, error) {
+	if f.failDBFileSize {
+		return 0, fmt.Errorf("disk error")
+	}
+	return 0, nil
+}
+
+func (f *failingAdminStore) CountAllListings(_ context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (f *failingAdminStore) TableSizes(_ context.Context) (map[string]int64, error) {
+	if f.failTableSizes {
+		return nil, fmt.Errorf("query error")
+	}
+	return map[string]int64{}, nil
+}
+
+func TestAdminStats_DBFileSizeError(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	srv.admin = &failingAdminStore{failDBFileSize: true}
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/stats", nil)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminStats_TableSizesError(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	srv.admin = &failingAdminStore{failTableSizes: true}
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/stats", nil)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

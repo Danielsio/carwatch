@@ -1,4 +1,5 @@
-import { useLocation, Link, useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { useLocation, Link, useNavigate, useParams } from "react-router";
 import {
   ArrowRight,
   ExternalLink,
@@ -9,14 +10,40 @@ import {
   Clock,
 } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 import type { Listing } from "@/lib/api";
 
 export function ListingDetailPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const listing = location.state?.listing as Listing | undefined;
+  const { token } = useParams();
+  const [listing, setListing] = useState<Listing | undefined>(
+    location.state?.listing as Listing | undefined,
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
-  if (!listing) {
+  useEffect(() => {
+    if (listing || !token) return;
+    setLoading(true);
+    api
+      .listing(token)
+      .then((data) => setListing(data))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [listing, token]);
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-8 w-40 animate-pulse rounded bg-muted" />
+        <div className="aspect-video w-full animate-pulse rounded-xl bg-muted" />
+        <div className="h-12 w-60 animate-pulse rounded bg-muted" />
+      </div>
+    );
+  }
+
+  if (error || !listing) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <p className="text-lg font-medium mb-2">המודעה לא נמצאה</p>

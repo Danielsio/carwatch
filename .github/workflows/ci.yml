@@ -73,6 +73,11 @@ jobs:
         run: cd web && npx tsc -b
       - name: Build
         run: cd web && npm run build
+      - name: Upload web dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
 
   build:
     name: Build
@@ -84,8 +89,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Stub web/dist for embed
-        run: mkdir -p web/dist && echo '<!doctype html>' > web/dist/index.html
+      - name: Download web dist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
       - name: Build binary
         run: make build
       - name: Build Docker image

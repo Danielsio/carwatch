@@ -141,7 +141,7 @@ function StorageBar({ sizeBytes }: { sizeBytes: number }) {
       <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${color}`}
-          style={{ width: `${Math.max(percent, 1)}%` }}
+          style={{ width: `${percent}%` }}
         />
       </div>
       <p className="text-xs text-muted-foreground mt-1 text-left" dir="ltr">

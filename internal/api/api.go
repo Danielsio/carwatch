@@ -70,8 +70,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/searches/{id}/resume", s.resumeSearch)
 
 	mux.HandleFunc("GET /api/v1/searches/{id}/listings", s.listListings)
+	mux.HandleFunc("GET /api/v1/listings/{token}", s.getListing)
 
-	mux.HandleFunc("GET /api/v1/admin/stats", s.adminStats)
+	if s.admin != nil {
+		mux.HandleFunc("GET /api/v1/admin/stats", s.adminStats)
+	}
 
 	return s.corsMiddleware(s.authMiddleware(mux))
 }

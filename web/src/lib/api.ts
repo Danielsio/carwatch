@@ -125,6 +125,7 @@ export const api = {
     resume: (id: number) =>
       fetchAPI<void>(`/searches/${id}/resume`, { method: "POST" }),
   },
+  listing: (token: string) => fetchAPI<Listing>(`/listings/${encodeURIComponent(token)}`),
   listings: (searchId: number, params?: ListingsParams) => {
     const query = new URLSearchParams();
     if (params?.limit) query.set("limit", String(params.limit));

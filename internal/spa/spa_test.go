@@ -17,14 +17,16 @@ func TestHandler_ServesIndexForSPARoutes(t *testing.T) {
 
 	tests := []struct {
 		path       string
+		wantStatus int
 		wantBody   string
 		wantCache  string
 	}{
-		{"/", "<html>app</html>", "no-cache"},
-		{"/searches/new", "<html>app</html>", "no-cache"},
-		{"/listings/tok-123", "<html>app</html>", "no-cache"},
-		{"/admin", "<html>app</html>", "no-cache"},
-		{"/assets/index-abc123.js", "console.log('app')", "public, max-age=31536000, immutable"},
+		{"/", http.StatusOK, "<html>app</html>", "no-cache"},
+		{"/searches/new", http.StatusOK, "<html>app</html>", "no-cache"},
+		{"/listings/tok-123", http.StatusOK, "<html>app</html>", "no-cache"},
+		{"/admin", http.StatusOK, "<html>app</html>", "no-cache"},
+		{"/assets/index-abc123.js", http.StatusOK, "console.log('app')", "public, max-age=31536000, immutable"},
+		{"/assets/missing.js", http.StatusNotFound, "", ""},
 	}
 
 	for _, tt := range tests {
@@ -33,14 +35,18 @@ func TestHandler_ServesIndexForSPARoutes(t *testing.T) {
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 
-			if w.Code != http.StatusOK {
-				t.Fatalf("expected 200, got %d", w.Code)
+			if w.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", w.Code, tt.wantStatus)
 			}
-			if got := w.Body.String(); got != tt.wantBody {
-				t.Errorf("body = %q, want %q", got, tt.wantBody)
+			if tt.wantBody != "" {
+				if got := w.Body.String(); got != tt.wantBody {
+					t.Errorf("body = %q, want %q", got, tt.wantBody)
+				}
 			}
-			if got := w.Header().Get("Cache-Control"); got != tt.wantCache {
-				t.Errorf("Cache-Control = %q, want %q", got, tt.wantCache)
+			if tt.wantCache != "" {
+				if got := w.Header().Get("Cache-Control"); got != tt.wantCache {
+					t.Errorf("Cache-Control = %q, want %q", got, tt.wantCache)
+				}
 			}
 		})
 	}

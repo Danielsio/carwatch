@@ -20,6 +20,10 @@ func Handler(distFS fs.FS) http.Handler {
 				fileServer.ServeHTTP(w, r)
 				return
 			}
+			if strings.HasPrefix(path, "assets/") {
+				http.NotFound(w, r)
+				return
+			}
 		}
 
 		w.Header().Set("Cache-Control", "no-cache")

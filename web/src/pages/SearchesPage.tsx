@@ -64,13 +64,11 @@ export function SearchesPage() {
             <p className="text-2xl font-bold">{activeCount}</p>
             <p className="text-xs text-muted-foreground">פעילים</p>
           </div>
-          {pausedCount > 0 && (
-            <div className="rounded-xl border border-border bg-card p-4 text-center">
-              <Pause className="mx-auto h-5 w-5 text-yellow-600 mb-1" />
-              <p className="text-2xl font-bold">{pausedCount}</p>
-              <p className="text-xs text-muted-foreground">מושהים</p>
-            </div>
-          )}
+          <div className="rounded-xl border border-border bg-card p-4 text-center">
+            <Pause className="mx-auto h-5 w-5 text-yellow-600 mb-1" />
+            <p className="text-2xl font-bold">{pausedCount}</p>
+            <p className="text-xs text-muted-foreground">מושהים</p>
+          </div>
         </div>
       )}
 
