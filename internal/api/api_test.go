@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
@@ -40,6 +41,7 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 		Admin:    store,
 		Saved:    store,
 		Hidden:   store,
+		Notifs:   store,
 		Logger:   slog.Default(),
 		API: config.APIConfig{
 			CORSOrigins: []string{"http://localhost:5173"},
@@ -746,5 +748,110 @@ func TestAdminStats(t *testing.T) {
 	}
 	if resp.Runtime.Uptime == "" {
 		t.Error("expected non-empty uptime")
+	}
+}
+
+func setLastSeenAt(t *testing.T, store *sqlite.Store, chatID int64, when time.Time) {
+	t.Helper()
+	db := store.DB()
+	if _, err := db.Exec("UPDATE users SET last_seen_at = ? WHERE chat_id = ?", when, chatID); err != nil {
+		t.Fatalf("set last_seen_at: %v", err)
+	}
+}
+
+func TestNotificationCount(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	// Set last_seen_at to now so no listings are new
+	if err := store.UpdateLastSeenAt(ctx, 999); err != nil {
+		t.Fatal(err)
+	}
+	// Then move it back to the past so future inserts appear as new
+	setLastSeenAt(t, store, 999, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	w := doRequest(t, srv, "GET", "/api/v1/notifications/count", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp notifCountResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if resp.Count != 0 {
+		t.Errorf("expected 0 initially, got %d", resp.Count)
+	}
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "notif-1", ChatID: 999, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		FirstSeenAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w = doRequest(t, srv, "GET", "/api/v1/notifications/count", nil)
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if resp.Count != 1 {
+		t.Errorf("expected 1 after adding listing, got %d", resp.Count)
+	}
+}
+
+func TestNotificationsList(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	setLastSeenAt(t, store, 999, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "notif-list-1", ChatID: 999, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		FirstSeenAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/notifications", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp listingsPageResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if resp.Total != 1 {
+		t.Errorf("expected 1 notification, got %d", resp.Total)
+	}
+	if len(resp.Items) != 1 {
+		t.Errorf("expected 1 item, got %d", len(resp.Items))
+	}
+}
+
+func TestNotificationsMarkSeen(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	setLastSeenAt(t, store, 999, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "notif-seen-1", ChatID: 999, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		FirstSeenAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var countResp notifCountResponse
+	w := doRequest(t, srv, "GET", "/api/v1/notifications/count", nil)
+	mustUnmarshal(t, w.Body.Bytes(), &countResp)
+	if countResp.Count != 1 {
+		t.Fatalf("expected 1 before mark seen, got %d", countResp.Count)
+	}
+
+	w = doRequest(t, srv, "POST", "/api/v1/notifications/seen", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("mark seen: expected 204, got %d", w.Code)
+	}
+
+	w = doRequest(t, srv, "GET", "/api/v1/notifications/count", nil)
+	mustUnmarshal(t, w.Body.Bytes(), &countResp)
+	if countResp.Count != 0 {
+		t.Errorf("expected 0 after mark seen, got %d", countResp.Count)
 	}
 }

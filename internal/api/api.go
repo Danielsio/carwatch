@@ -27,6 +27,7 @@ type Server struct {
 	admin     storage.AdminStore
 	saved     storage.SavedListingStore
 	hidden    storage.HiddenListingStore
+	notifs    storage.NotificationStore
 	logger    *slog.Logger
 	cfg       config.APIConfig
 	startTime time.Time
@@ -41,6 +42,7 @@ type Config struct {
 	Admin    storage.AdminStore
 	Saved    storage.SavedListingStore
 	Hidden   storage.HiddenListingStore
+	Notifs   storage.NotificationStore
 	Logger   *slog.Logger
 	API      config.APIConfig
 }
@@ -55,6 +57,7 @@ func New(c Config) *Server {
 		admin:     c.Admin,
 		saved:     c.Saved,
 		hidden:    c.Hidden,
+		notifs:    c.Notifs,
 		logger:    c.Logger,
 		cfg:       c.API,
 		startTime: time.Now(),
@@ -80,6 +83,12 @@ func (s *Server) Routes() http.Handler {
 
 	if s.admin != nil {
 		mux.HandleFunc("GET /api/v1/admin/stats", s.adminStats)
+	}
+
+	if s.notifs != nil {
+		mux.HandleFunc("GET /api/v1/notifications", s.listNotifications)
+		mux.HandleFunc("GET /api/v1/notifications/count", s.notificationCount)
+		mux.HandleFunc("POST /api/v1/notifications/seen", s.markNotificationsSeen)
 	}
 
 	if s.saved != nil && s.hidden != nil {

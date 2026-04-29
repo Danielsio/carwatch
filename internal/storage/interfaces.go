@@ -200,6 +200,12 @@ type AdminStore interface {
 	TableSizes(ctx context.Context) (map[string]int64, error)
 }
 
+type NotificationStore interface {
+	NewListingsSince(ctx context.Context, chatID int64, since time.Time, limit, offset int) ([]ListingRecord, error)
+	CountNewListingsSince(ctx context.Context, chatID int64, since time.Time) (int64, error)
+	GetLastSeenAt(ctx context.Context, chatID int64) (time.Time, error)
+}
+
 type CatalogEntry struct {
 	ManufacturerID   int
 	ManufacturerName string
