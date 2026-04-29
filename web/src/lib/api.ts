@@ -162,24 +162,6 @@ export const api = {
   },
 };
 
-export interface AdminStats {
-  db: {
-    file_size_bytes: number;
-    file_size_human: string;
-  };
-  tables: Record<string, number>;
-  runtime: {
-    goroutines: number;
-    mem_alloc_mb: number;
-    mem_sys_mb: number;
-    uptime: string;
-  };
-}
-
-export const adminApi = {
-  stats: () => fetchAPI<AdminStats>("/admin/stats"),
-};
-
 export interface NotificationCount {
   count: number;
 }
@@ -198,6 +180,24 @@ export const notificationsApi = {
   },
   markSeen: () =>
     fetchAPI<void>("/notifications/seen", { method: "POST" }),
+};
+
+export interface AdminStats {
+  db: {
+    file_size_bytes: number;
+    file_size_human: string;
+  };
+  tables: Record<string, number>;
+  runtime: {
+    goroutines: number;
+    mem_alloc_mb: number;
+    mem_sys_mb: number;
+    uptime: string;
+  };
+}
+
+export const adminApi = {
+  stats: () => fetchAPI<AdminStats>("/admin/stats"),
 };
 
 export { ApiError };

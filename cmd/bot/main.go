@@ -169,6 +169,7 @@ func run(configPath string, logger *slog.Logger) error {
 		Admin:    store,
 		Saved:    store,
 		Hidden:   store,
+		Notifs:   store,
 		Logger:   logger,
 		API:      cfg.API,
 	})

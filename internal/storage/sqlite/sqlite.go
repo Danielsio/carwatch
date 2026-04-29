@@ -42,6 +42,8 @@ func New(dbPath string) (*Store, error) {
 	return &Store{db: db, dbPath: dbPath}, nil
 }
 
+func (s *Store) DB() *sql.DB { return s.db }
+
 func (s *Store) Checkpoint() error {
 	_, err := s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
 	return err

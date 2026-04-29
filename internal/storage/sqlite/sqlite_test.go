@@ -2212,3 +2212,121 @@ func TestNew_CreatesDirectory(t *testing.T) {
 	}
 }
 
+// --- Notification Center Tests ---
+
+func TestNewListingsSince(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	// Use a cutoff well in the past so all inserts are after it
+	cutoff := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	now := time.Now().UTC()
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "new-1", ChatID: 100, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		FirstSeenAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "new-2", ChatID: 100, SearchName: "s1",
+		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 90000,
+		FirstSeenAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	listings, err := store.NewListingsSince(ctx, 100, cutoff, 20, 0)
+	if err != nil {
+		t.Fatalf("NewListingsSince: %v", err)
+	}
+	if len(listings) != 2 {
+		t.Fatalf("expected 2, got %d", len(listings))
+	}
+
+	listings, err = store.NewListingsSince(ctx, 100, cutoff, 1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listings) != 1 {
+		t.Errorf("pagination: expected 1, got %d", len(listings))
+	}
+
+	listings, err = store.NewListingsSince(ctx, 200, cutoff, 20, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listings) != 0 {
+		t.Errorf("wrong user: expected 0, got %d", len(listings))
+	}
+
+	futureCutoff := time.Now().Add(time.Hour)
+	listings, err = store.NewListingsSince(ctx, 100, futureCutoff, 20, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listings) != 0 {
+		t.Errorf("future cutoff: expected 0, got %d", len(listings))
+	}
+}
+
+func TestCountNewListingsSince(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	cutoff := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "cnt-1", ChatID: 100, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		FirstSeenAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := store.CountNewListingsSince(ctx, 100, cutoff)
+	if err != nil {
+		t.Fatalf("CountNewListingsSince: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1, got %d", count)
+	}
+
+	count, err = store.CountNewListingsSince(ctx, 100, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("future cutoff: expected 0, got %d", count)
+	}
+}
+
+func TestGetLastSeenAt(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	lastSeen, err := store.GetLastSeenAt(ctx, 100)
+	if err != nil {
+		t.Fatalf("GetLastSeenAt: %v", err)
+	}
+	if lastSeen.IsZero() {
+		t.Error("expected non-zero time (should fallback to created_at)")
+	}
+
+	if err := store.UpdateLastSeenAt(ctx, 100); err != nil {
+		t.Fatal(err)
+	}
+
+	lastSeen2, err := store.GetLastSeenAt(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !lastSeen2.After(lastSeen) && !lastSeen2.Equal(lastSeen) {
+		t.Error("last_seen_at should be >= after UpdateLastSeenAt")
+	}
+}
+

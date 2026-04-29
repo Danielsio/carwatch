@@ -86,7 +86,7 @@ export function Shell() {
       {/* Mobile bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/50 bg-card/80 backdrop-blur-xl md:hidden">
         <div className="flex justify-around py-1.5">
-          {navItems.slice(0, 5).map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
               item.path === "/"

@@ -7,6 +7,7 @@ import { ListingDetailPage } from "./pages/ListingDetailPage";
 import { AdminPage } from "./pages/AdminPage";
 import { SavedPage } from "./pages/SavedPage";
 import { HistoryPage } from "./pages/HistoryPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/saved" element={<SavedPage />} />
         <Route path="/history" element={<HistoryPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
       </Route>
     </Routes>
   );

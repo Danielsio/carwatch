@@ -3,23 +3,26 @@ import { notificationsApi } from "@/lib/api";
 
 export function useNotificationCount() {
   return useQuery({
-    queryKey: ["notifications", "count"],
+    queryKey: ["notification-count"],
     queryFn: () => notificationsApi.count(),
     refetchInterval: 60_000,
   });
 }
 
-export function useNotifications(limit = 20, offset = 0) {
+export function useNotifications(limit: number, offset: number) {
   return useQuery({
-    queryKey: ["notifications", { limit, offset }],
+    queryKey: ["notifications", limit, offset],
     queryFn: () => notificationsApi.list({ limit, offset }),
   });
 }
 
 export function useMarkNotificationsSeen() {
-  const qc = useQueryClient();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => notificationsApi.markSeen(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+    onSuccess: () => {
+      queryClient.setQueryData(["notification-count"], { count: 0 });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
   });
 }

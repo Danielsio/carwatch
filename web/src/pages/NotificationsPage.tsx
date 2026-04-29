@@ -12,16 +12,16 @@ const PAGE_SIZE = 20;
 
 export function NotificationsPage() {
   const [offset, setOffset] = useState(0);
-  const { data, isLoading, isError } = useNotifications(PAGE_SIZE, offset);
+  const { data, isLoading, isSuccess, isFetching, isError } = useNotifications(PAGE_SIZE, offset);
   const markSeen = useMarkNotificationsSeen();
   const markedRef = useRef(false);
 
   useEffect(() => {
-    if (!markedRef.current) {
+    if (!markedRef.current && isSuccess && !isFetching) {
       markedRef.current = true;
       markSeen.mutate();
     }
-  }, [markSeen]);
+  }, [isSuccess, isFetching, markSeen]);
 
   useEffect(() => {
     if (!data || data.total === 0) return;
