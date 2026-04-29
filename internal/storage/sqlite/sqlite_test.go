@@ -1948,7 +1948,10 @@ func TestUnhideListing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	hidden, _ := store.IsHidden(ctx, 100, "tok-a")
+	hidden, err := store.IsHidden(ctx, 100, "tok-a")
+	if err != nil {
+		t.Fatalf("IsHidden tok-a before unhide: %v", err)
+	}
 	if !hidden {
 		t.Fatal("tok-a should be hidden")
 	}
@@ -1957,12 +1960,18 @@ func TestUnhideListing(t *testing.T) {
 		t.Fatalf("UnhideListing: %v", err)
 	}
 
-	hidden, _ = store.IsHidden(ctx, 100, "tok-a")
+	hidden, err = store.IsHidden(ctx, 100, "tok-a")
+	if err != nil {
+		t.Fatalf("IsHidden tok-a after unhide: %v", err)
+	}
 	if hidden {
 		t.Error("tok-a should no longer be hidden")
 	}
 
-	hidden, _ = store.IsHidden(ctx, 100, "tok-b")
+	hidden, err = store.IsHidden(ctx, 100, "tok-b")
+	if err != nil {
+		t.Fatalf("IsHidden tok-b after unhide: %v", err)
+	}
 	if !hidden {
 		t.Error("tok-b should still be hidden")
 	}
@@ -1987,11 +1996,9 @@ func TestGetPriceHistory(t *testing.T) {
 	if _, _, err := store.RecordPrice(ctx, "tok-ph", 100000); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(10 * time.Millisecond)
 	if _, _, err := store.RecordPrice(ctx, "tok-ph", 95000); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(10 * time.Millisecond)
 	if _, _, err := store.RecordPrice(ctx, "tok-ph", 90000); err != nil {
 		t.Fatal(err)
 	}
