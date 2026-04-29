@@ -347,18 +347,27 @@ func TestE2E_PriceTracking(t *testing.T) {
 	defer store.Close()
 	ctx := context.Background()
 
-	_, changed, _ := store.RecordPrice(ctx, "tok-1", 100000)
+	_, changed, err := store.RecordPrice(ctx, "tok-1", 100000)
+	if err != nil {
+		t.Fatalf("record first price: %v", err)
+	}
 	if changed {
 		t.Error("first price should not be a change")
 	}
 
-	oldPrice, changed, _ := store.RecordPrice(ctx, "tok-1", 90000)
+	oldPrice, changed, err := store.RecordPrice(ctx, "tok-1", 90000)
+	if err != nil {
+		t.Fatalf("record price drop: %v", err)
+	}
 	if !changed || oldPrice != 100000 {
 		t.Errorf("price drop: changed=%v oldPrice=%d", changed, oldPrice)
 	}
 
-	_, changed, _ = store.RecordPrice(ctx, "tok-1", 95000)
-	if changed {
-		t.Error("price increase should not trigger change")
+	oldPrice, changed, err = store.RecordPrice(ctx, "tok-1", 95000)
+	if err != nil {
+		t.Fatalf("record price increase: %v", err)
+	}
+	if !changed || oldPrice != 90000 {
+		t.Errorf("price increase: changed=%v oldPrice=%d (want changed=true, oldPrice=90000)", changed, oldPrice)
 	}
 }
