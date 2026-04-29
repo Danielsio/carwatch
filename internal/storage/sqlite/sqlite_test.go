@@ -815,6 +815,34 @@ func TestRecordPrice(t *testing.T) {
 	}
 }
 
+func TestRecordPrice_OscillationNoFalseDrop(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if _, _, err := store.RecordPrice(ctx, "osc1", 50000); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.RecordPrice(ctx, "osc1", 60000); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.RecordPrice(ctx, "osc1", 50000); err != nil {
+		t.Fatal(err)
+	}
+
+	// Re-observing 50000 should now see prev=50000 (not 60000) because the
+	// UPSERT updates observed_at, making 50000 the latest row.
+	oldPrice, changed, err := store.RecordPrice(ctx, "osc1", 50000)
+	if err != nil {
+		t.Fatalf("RecordPrice: %v", err)
+	}
+	if changed {
+		t.Error("same price re-observed should not be a change")
+	}
+	if oldPrice != 50000 {
+		t.Errorf("oldPrice = %d, want 50000", oldPrice)
+	}
+}
+
 // --- ListingStore ---
 
 // --- DigestStore ---

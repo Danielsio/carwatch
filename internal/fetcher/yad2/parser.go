@@ -52,6 +52,7 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 	}
 
 	listings := make([]model.RawListing, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
 	skipped := 0
 	for _, item := range items {
 		l, err := itemToListing(item)
@@ -62,6 +63,10 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 			}
 			continue
 		}
+		if _, dup := seen[l.Token]; dup {
+			continue
+		}
+		seen[l.Token] = struct{}{}
 		listings = append(listings, l)
 	}
 
@@ -213,6 +218,9 @@ func textFromField(f field) string {
 	if f.EnglishText != "" {
 		return f.EnglishText
 	}
+	if f.TextEng != "" {
+		return f.TextEng
+	}
 	return f.Text
 }
 
@@ -269,5 +277,6 @@ type feedItem struct {
 type field struct {
 	Text        string `json:"text"`
 	EnglishText string `json:"english_text"`
+	TextEng     string `json:"textEng"`
 	ID          int    `json:"id"`
 }

@@ -21,7 +21,8 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 	scanErr := row.Scan(&prev)
 
 	_, err = tx.ExecContext(ctx,
-		"INSERT OR IGNORE INTO price_history (token, price) VALUES (?, ?)", token, price)
+		"INSERT OR REPLACE INTO price_history (token, price) VALUES (?, ?)",
+		token, price)
 	if err != nil {
 		return 0, false, err
 	}

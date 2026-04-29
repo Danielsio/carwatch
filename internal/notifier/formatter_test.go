@@ -101,8 +101,8 @@ func TestFormatPriceDrop_MinimalFields(t *testing.T) {
 	if !strings.Contains(msg, "-₪10,000") {
 		t.Errorf("should show correct drop amount:\n%s", msg)
 	}
-	if !strings.Contains(msg, "N/A") {
-		t.Errorf("should show N/A for mileage when zero:\n%s", msg)
+	if strings.Contains(msg, "N/A") || strings.Contains(msg, "km") {
+		t.Errorf("should not show mileage line when Km=0:\n%s", msg)
 	}
 }
 
@@ -312,8 +312,8 @@ func TestFormatListing_ZeroKm(t *testing.T) {
 	}
 
 	msg := FormatListing(l, locale.English)
-	if !strings.Contains(msg, "Not specified") {
-		t.Errorf("should show 'Not specified' when Km=0:\n%s", msg)
+	if strings.Contains(msg, "Mileage") || strings.Contains(msg, "Not specified") {
+		t.Errorf("should omit mileage line when Km=0:\n%s", msg)
 	}
 }
 
