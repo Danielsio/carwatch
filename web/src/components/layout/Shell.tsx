@@ -107,7 +107,7 @@ export function Shell() {
                   <Icon className="h-5 w-5" />
                   {showBadge && (
                     <span className="absolute -top-1 -right-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-destructive px-0.5 text-[9px] font-bold text-white animate-pulse-soft">
-                      {unread > 99 ? "+" : unread}
+                      {unread > 99 ? "99+" : unread}
                     </span>
                   )}
                 </span>

@@ -2,6 +2,12 @@ import type { ReactNode } from "react";
 import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 
+/**
+ * Shared card body for listing display. When `hoverScale` is true the image
+ * zooms on hover via `group-hover:scale-105` -- the caller must wrap this
+ * component in an element with the Tailwind `group` class for the effect to
+ * work.
+ */
 export function ListingCardBody({
   listing,
   actions,

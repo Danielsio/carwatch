@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from "react-router";
 import { ArrowRight, ExternalLink, ChevronDown, Bookmark } from "lucide-react";
 import { useListings } from "@/hooks/useListings";
 import { useSaveBookmark, useRemoveBookmark } from "@/hooks/useBookmarks";
-import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
+import { formatPrice, formatKm, relativeTime, safeHref, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 
 const SORT_OPTIONS = [
@@ -272,16 +272,18 @@ function ListingCard({ listing }: { listing: Listing }) {
               className={cn("h-3.5 w-3.5", saved && "fill-current")}
             />
           </button>
-          <a
-            href={listing.page_link}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="פתח מודעה באתר חיצוני"
-            onClick={(e) => e.stopPropagation()}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all duration-200"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+          {safeHref(listing.page_link) && (
+            <a
+              href={safeHref(listing.page_link)!}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="פתח מודעה באתר חיצוני"
+              onClick={(e) => e.stopPropagation()}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all duration-200"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
         </div>
       </div>
     </div>
