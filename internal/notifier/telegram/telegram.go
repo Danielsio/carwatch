@@ -69,6 +69,11 @@ func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.L
 }
 
 func (n *Notifier) NotifyRaw(ctx context.Context, chatID string, message string) error {
+	n.logger.Debug("notifyRaw",
+		"chat_id", chatID,
+		"msg_len", len(message),
+		"msg_preview", truncate(message, 100),
+	)
 	return n.sendMessage(ctx, chatID, message)
 }
 
@@ -83,6 +88,15 @@ func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, list
 	}
 
 	caption := notifier.FormatListing(listing, lang)
+
+	if notifier.IsMalformedMessage(caption) {
+		n.logger.Error("blocked malformed photo caption",
+			"chat_id", chatID,
+			"caption_len", len(caption),
+			"caption_preview", truncate(caption, 200),
+		)
+		return fmt.Errorf("blocked malformed photo caption (%d chars): %q", len(caption), truncate(caption, 100))
+	}
 
 	if len([]rune(caption)) > maxCaptionLen {
 		_, err = n.bot.SendPhoto(ctx, &tgbot.SendPhotoParams{
@@ -123,6 +137,15 @@ func (n *Notifier) sendMessageWithParseMode(ctx context.Context, chatID string, 
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid chat ID %q: %w", chatID, err)
+	}
+
+	if notifier.IsMalformedMessage(text) {
+		n.logger.Error("blocked malformed message",
+			"chat_id", chatID,
+			"text_len", len(text),
+			"text_preview", truncate(text, 200),
+		)
+		return fmt.Errorf("blocked malformed message (%d chars): %q", len(text), truncate(text, 100))
 	}
 
 	chunks := splitMessage(text, maxMessageLen)
@@ -204,6 +227,14 @@ func isRateLimited(err error) bool {
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "too many requests") ||
 		strings.Contains(msg, "retry_after")
+}
+
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
 }
 
 // parseRetryAfter attempts to extract the retry-after duration from a

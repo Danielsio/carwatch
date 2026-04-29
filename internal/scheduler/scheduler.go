@@ -233,7 +233,7 @@ func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.L
 			return NewDigestDelivery(s.digestStore, lang)
 		}
 	}
-	return NewInstantDelivery(s.notifier, s.queue, lang)
+	return NewInstantDelivery(s.notifier, s.queue, lang, WithLogger(s.logger))
 }
 
 func (s *Scheduler) fetcherForSource(source string) fetcher.Fetcher {
@@ -387,6 +387,24 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 	}
 	s.logger.Info("retrying pending notifications", "count", len(pending))
 	for _, p := range pending {
+		if notifier.IsMalformedMessage(p.Payload) {
+			s.logger.Error("purging malformed pending notification",
+				"id", p.ID,
+				"recipient", maskPhone(p.Recipient),
+				"payload_len", len(p.Payload),
+				"payload_preview", truncateStr(p.Payload, 200),
+			)
+			if err := s.queue.AckNotification(ctx, p.ID); err != nil {
+				s.logger.Error("ack malformed notification failed", "id", p.ID, "error", err)
+			}
+			continue
+		}
+		s.logger.Debug("retrying pending notification",
+			"id", p.ID,
+			"recipient", maskPhone(p.Recipient),
+			"payload_len", len(p.Payload),
+			"payload_preview", truncateStr(p.Payload, 100),
+		)
 		if err := s.notifier.NotifyRaw(ctx, p.Recipient, p.Payload); err != nil {
 			s.logger.Error("retry notification failed",
 				"recipient", maskPhone(p.Recipient),
@@ -998,4 +1016,12 @@ func maskPhone(phone string) string {
 		return "***"
 	}
 	return phone[:len(phone)-4] + "****"
+}
+
+func truncateStr(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
 }

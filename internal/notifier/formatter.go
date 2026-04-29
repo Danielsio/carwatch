@@ -17,7 +17,12 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 
 	b.WriteString(locale.T(lang, "fmt_new_listing"))
 
-	title := format.EscapeMarkdown(strings.TrimSpace(l.Manufacturer + " " + l.Model))
+	mfr := strings.TrimSpace(l.Manufacturer)
+	mdl := strings.TrimSpace(l.Model)
+	if mfr == "" && mdl == "" {
+		mfr = "Unknown"
+	}
+	title := format.EscapeMarkdown(strings.TrimSpace(mfr + " " + mdl))
 	if l.SubModel != "" {
 		title += " " + format.EscapeMarkdown(l.SubModel)
 	}
@@ -84,7 +89,12 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 func FormatPriceDrop(l model.Listing, oldPrice int, lang locale.Lang) string {
 	var b strings.Builder
 
-	title := format.EscapeMarkdown(strings.TrimSpace(l.Manufacturer + " " + l.Model))
+	mfr := strings.TrimSpace(l.Manufacturer)
+	mdl := strings.TrimSpace(l.Model)
+	if mfr == "" && mdl == "" {
+		mfr = "Unknown"
+	}
+	title := format.EscapeMarkdown(strings.TrimSpace(mfr + " " + mdl))
 	if l.SubModel != "" {
 		title += " " + format.EscapeMarkdown(l.SubModel)
 	}

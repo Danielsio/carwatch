@@ -194,7 +194,7 @@ func TestSendMessage_InvalidChatID(t *testing.T) {
 		_, _ = w.Write(sendMessageOK)
 	}))
 
-	err := n.NotifyRaw(context.Background(), "not-a-number", "hello")
+	err := n.NotifyRaw(context.Background(), "not-a-number", "test message body")
 	if err == nil {
 		t.Fatal("expected error for invalid chat ID")
 	}
@@ -229,7 +229,7 @@ func TestSendMessage_APIError_Blocked(t *testing.T) {
 		_, _ = w.Write(resp)
 	}))
 
-	err := n.NotifyRaw(context.Background(), "123", "hello")
+	err := n.NotifyRaw(context.Background(), "123", "test message body")
 	if err == nil {
 		t.Fatal("expected error for API failure")
 	}
@@ -297,7 +297,7 @@ func TestSendMessage_429_RetriesAndSucceeds(t *testing.T) {
 		_, _ = w.Write(sendMessageOK)
 	}))
 
-	err := n.NotifyRaw(context.Background(), "123", "hello")
+	err := n.NotifyRaw(context.Background(), "123", "test message body")
 	if err != nil {
 		t.Fatalf("expected retry to succeed, got: %v", err)
 	}
@@ -316,7 +316,7 @@ func TestSendMessage_429_RetryAlsoFails(t *testing.T) {
 		_, _ = w.Write(resp)
 	}))
 
-	err := n.NotifyRaw(context.Background(), "123", "hello")
+	err := n.NotifyRaw(context.Background(), "123", "test message body")
 	if err == nil {
 		t.Fatal("expected error when retry also fails")
 	}
@@ -653,3 +653,47 @@ func TestNotify_BatchListings_UsesText(t *testing.T) {
 		}
 	}
 }
+
+func TestNotifyRaw_BlocksMalformedMessage(t *testing.T) {
+	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("should not reach API for malformed message")
+	}))
+
+	tests := []struct {
+		name string
+		msg  string
+	}{
+		{"template syntax", "{{.}}"},
+		{"short message", "hi"},
+		{"empty", ""},
+		{"sprintf error", "%!s(MISSING)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := n.NotifyRaw(context.Background(), "123", tt.msg)
+			if err == nil {
+				t.Error("expected error for malformed message")
+			}
+			if !strings.Contains(err.Error(), "blocked malformed") {
+				t.Errorf("expected 'blocked malformed' error, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestNotifyRaw_AllowsValidMessage(t *testing.T) {
+	var called atomic.Int32
+	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
+		called.Add(1)
+		_, _ = w.Write(sendMessageOK)
+	}))
+
+	err := n.NotifyRaw(context.Background(), "123", "This is a valid notification message")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if called.Load() == 0 {
+		t.Error("API should have been called for valid message")
+	}
+}
+
