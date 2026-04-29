@@ -2136,6 +2136,9 @@ func TestListSearchListings(t *testing.T) {
 	if len(listings) != 2 {
 		t.Fatalf("expected 2 listings for mazda3, got %d", len(listings))
 	}
+	if listings[0].Token != "lsl-2" || listings[1].Token != "lsl-1" {
+		t.Fatalf("newest sort order = [%s, %s], want [lsl-2, lsl-1]", listings[0].Token, listings[1].Token)
+	}
 
 	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 20, 0, "price_asc")
 	if err != nil {
@@ -2174,7 +2177,21 @@ func TestListSearchListings(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(listings) != 1 {
-		t.Errorf("pagination: expected 1, got %d", len(listings))
+		t.Fatalf("pagination: expected 1, got %d", len(listings))
+	}
+	if listings[0].Token != "lsl-2" {
+		t.Fatalf("pagination offset=0 returned %q, want lsl-2", listings[0].Token)
+	}
+
+	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 1, 1, "newest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("pagination offset=1: expected 1, got %d", len(listings))
+	}
+	if listings[0].Token != "lsl-1" {
+		t.Fatalf("pagination offset=1 returned %q, want lsl-1", listings[0].Token)
 	}
 }
 
