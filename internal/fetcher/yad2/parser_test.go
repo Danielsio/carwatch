@@ -228,8 +228,10 @@ func TestTextFromField_PrefersEnglish(t *testing.T) {
 		f    field
 		want string
 	}{
-		{"english preferred", field{Text: "Hebrew", EnglishText: "English"}, "English"},
-		{"hebrew fallback", field{Text: "Hebrew", EnglishText: ""}, "Hebrew"},
+		{"english_text preferred", field{Text: "Hebrew", EnglishText: "English"}, "English"},
+		{"textEng fallback", field{Text: "Hebrew", TextEng: "English2"}, "English2"},
+		{"english_text over textEng", field{Text: "Hebrew", EnglishText: "E1", TextEng: "E2"}, "E1"},
+		{"hebrew fallback", field{Text: "Hebrew"}, "Hebrew"},
 		{"both empty", field{}, ""},
 	}
 
@@ -240,5 +242,34 @@ func TestTextFromField_PrefersEnglish(t *testing.T) {
 				t.Errorf("textFromField() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestParseNextData_DeduplicatesAcrossBuckets(t *testing.T) {
+	data := []byte(`{
+		"props": {"pageProps": {"dehydratedState": {"queries": [{"state": {"data": {
+			"private": [
+				{"token": "dup1", "manufacturer": {"text": "Honda"}, "model": {"text": "Civic"}, "price": 50000, "hand": 1},
+				{"token": "uniq", "manufacturer": {"text": "Honda"}, "model": {"text": "Civic"}, "price": 60000, "hand": 2}
+			],
+			"commercial": [
+				{"token": "dup1", "manufacturer": {"text": "Honda"}, "model": {"text": "Civic"}, "price": 50000, "hand": 1}
+			]
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 2 {
+		t.Errorf("expected 2 unique listings (dup removed), got %d", len(listings))
+	}
+	tokens := map[string]bool{}
+	for _, l := range listings {
+		if tokens[l.Token] {
+			t.Errorf("duplicate token %q in results", l.Token)
+		}
+		tokens[l.Token] = true
 	}
 }

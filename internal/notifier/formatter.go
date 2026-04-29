@@ -29,8 +29,6 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 
 	if l.Km > 0 {
 		b.WriteString(locale.Tf(lang, "fmt_mileage", format.Number(l.Km)))
-	} else {
-		b.WriteString(locale.T(lang, "fmt_mileage_unknown"))
 	}
 
 	if l.FitnessScore > 0 {
@@ -102,16 +100,18 @@ func FormatPriceDrop(l model.Listing, oldPrice int, lang locale.Lang) string {
 		format.Number(drop),
 	))
 
+	var inlineParts []string
 	if l.Km > 0 {
-		b.WriteString(fmt.Sprintf("🛣️ %s km", format.Number(l.Km)))
-	} else {
-		b.WriteString(locale.T(lang, "fmt_mileage_unknown_inline"))
+		inlineParts = append(inlineParts, fmt.Sprintf("🛣️ %s km", format.Number(l.Km)))
 	}
 	if l.Hand > 0 {
-		b.WriteString(" · " + locale.Tf(lang, "fmt_hand_inline", l.Hand))
+		inlineParts = append(inlineParts, locale.Tf(lang, "fmt_hand_inline", l.Hand))
 	}
 	if l.FitnessScore > 0 {
-		b.WriteString(fmt.Sprintf(" · 🎯 %.1f", l.FitnessScore))
+		inlineParts = append(inlineParts, fmt.Sprintf("🎯 %.1f", l.FitnessScore))
+	}
+	if len(inlineParts) > 0 {
+		b.WriteString(strings.Join(inlineParts, " · "))
 	}
 	b.WriteString("\n")
 
