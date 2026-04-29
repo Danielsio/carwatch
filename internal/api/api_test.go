@@ -693,6 +693,115 @@ func TestListHistory(t *testing.T) {
 	}
 }
 
+func TestHideUnhideListing(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-hide", ChatID: 999, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Hide
+	w := doRequest(t, srv, "POST", "/api/v1/listings/tok-hide/hide", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("hide: expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify hidden
+	hidden, err := store.IsHidden(ctx, 999, "tok-hide")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hidden {
+		t.Error("listing should be hidden after hide")
+	}
+
+	// Unhide
+	w = doRequest(t, srv, "DELETE", "/api/v1/listings/tok-hide/hide", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unhide: expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify unhidden
+	hidden, err = store.IsHidden(ctx, 999, "tok-hide")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hidden {
+		t.Error("listing should not be hidden after unhide")
+	}
+}
+
+func TestListHistory_Pagination(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	for i := range 5 {
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token: fmt.Sprintf("tok-hist-%d", i), ChatID: 999, SearchName: "s1",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2020 + i, Price: 100000 + i*10000,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/history?limit=2&offset=0", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp listingsPageResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if len(resp.Items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(resp.Items))
+	}
+	if resp.Total != 5 {
+		t.Errorf("expected total 5, got %d", resp.Total)
+	}
+
+	w = doRequest(t, srv, "GET", "/api/v1/history?limit=2&offset=4", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if len(resp.Items) != 1 {
+		t.Errorf("expected 1 item at offset 4, got %d", len(resp.Items))
+	}
+}
+
+func TestListSaved_Pagination(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	for i := range 3 {
+		token := fmt.Sprintf("tok-sv-%d", i)
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token: token, ChatID: 999, SearchName: "s1",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.SaveBookmark(ctx, 999, token); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/saved?limit=2&offset=0", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp listingsPageResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if len(resp.Items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(resp.Items))
+	}
+	if resp.Total != 3 {
+		t.Errorf("expected total 3, got %d", resp.Total)
+	}
+}
+
 func TestAdminStats(t *testing.T) {
 	srv, store := setupTestServer(t)
 
