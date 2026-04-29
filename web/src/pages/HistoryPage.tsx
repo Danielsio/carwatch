@@ -98,6 +98,7 @@ function HistoryCard({ listing }: { listing: Listing }) {
       href={listing.page_link}
       target="_blank"
       rel="noopener noreferrer"
+      aria-label={`פתח מודעה: ${listing.manufacturer} ${listing.model}`}
       className="group block rounded-xl border border-border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow"
     >
       {listing.image_url ? (

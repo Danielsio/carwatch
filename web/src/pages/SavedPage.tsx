@@ -8,6 +8,7 @@ const PAGE_SIZE = 20;
 
 export function SavedPage() {
   const [offset, setOffset] = useState(0);
+  const [removingToken, setRemovingToken] = useState<string | null>(null);
   const { data, isLoading, isError } = useSavedListings(PAGE_SIZE, offset);
   const removeBookmark = useRemoveBookmark();
 
@@ -69,8 +70,13 @@ export function SavedPage() {
               <SavedCard
                 key={listing.token}
                 listing={listing}
-                onRemove={() => removeBookmark.mutate(listing.token)}
-                removing={removeBookmark.isPending}
+                onRemove={() => {
+                  setRemovingToken(listing.token);
+                  removeBookmark.mutate(listing.token, {
+                    onSettled: () => setRemovingToken(null),
+                  });
+                }}
+                removing={removingToken === listing.token}
               />
             ))}
           </div>

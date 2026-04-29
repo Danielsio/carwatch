@@ -82,12 +82,14 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/admin/stats", s.adminStats)
 	}
 
-	mux.HandleFunc("GET /api/v1/saved", s.listSaved)
-	mux.HandleFunc("POST /api/v1/listings/{token}/save", s.saveListing)
-	mux.HandleFunc("DELETE /api/v1/listings/{token}/save", s.unsaveListing)
-	mux.HandleFunc("POST /api/v1/listings/{token}/hide", s.hideListing)
-	mux.HandleFunc("DELETE /api/v1/listings/{token}/hide", s.unhideListing)
-	mux.HandleFunc("GET /api/v1/history", s.listHistory)
+	if s.saved != nil && s.hidden != nil {
+		mux.HandleFunc("GET /api/v1/saved", s.listSaved)
+		mux.HandleFunc("POST /api/v1/listings/{token}/save", s.saveListing)
+		mux.HandleFunc("DELETE /api/v1/listings/{token}/save", s.unsaveListing)
+		mux.HandleFunc("POST /api/v1/listings/{token}/hide", s.hideListing)
+		mux.HandleFunc("DELETE /api/v1/listings/{token}/hide", s.unhideListing)
+		mux.HandleFunc("GET /api/v1/history", s.listHistory)
+	}
 
 	return s.corsMiddleware(s.authMiddleware(mux))
 }
