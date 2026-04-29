@@ -35,7 +35,11 @@ func NewInstantDelivery(n notifier.Notifier, q storage.NotificationQueue, lang l
 }
 
 func WithLogger(l *slog.Logger) func(*InstantDelivery) {
-	return func(d *InstantDelivery) { d.logger = l }
+	return func(d *InstantDelivery) {
+		if l != nil {
+			d.logger = l
+		}
+	}
 }
 
 func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error {

@@ -33,7 +33,7 @@ func IsMalformedMessage(text string) bool {
 	if strings.Contains(trimmed, "{{") && strings.Contains(trimmed, "}}") {
 		return true
 	}
-	if strings.HasPrefix(trimmed, "%!") {
+	if strings.Contains(trimmed, "%!") {
 		return true
 	}
 	return false

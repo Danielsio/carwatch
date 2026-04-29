@@ -394,7 +394,8 @@ func TestIsMalformedMessage(t *testing.T) {
 		{"template syntax", "{{.SomeField}}", true},
 		{"template in long msg", "Hello world {{.Name}} how are you", true},
 		{"double braces no dot", "some {{partial}} template", true},
-		{"sprintf error", "%!s(MISSING) value", true},
+		{"sprintf error prefix", "%!s(MISSING) value", true},
+		{"sprintf error mid-string", "Hello %!s(MISSING) world", true},
 		{"valid notification", "🚗 New listing found: Toyota Corolla 2021", false},
 		{"valid price drop", "📉 Price Drop! Toyota Corolla: ₪95,000 → ₪89,000", false},
 	}
@@ -420,6 +421,19 @@ func TestFormatListing_EmptyManufacturerAndModel(t *testing.T) {
 	}
 	if IsMalformedMessage(msg) {
 		t.Errorf("formatted listing with fallback should not be malformed:\n%s", msg)
+	}
+}
+
+func TestFormatPriceDrop_EmptyManufacturerAndModel(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "empty-pd",
+			Price: 40000,
+		},
+	}
+	msg := FormatPriceDrop(l, 50000, locale.English)
+	if !strings.Contains(msg, "Unknown") {
+		t.Errorf("should show 'Unknown' when both manufacturer and model are empty:\n%s", msg)
 	}
 }
 
