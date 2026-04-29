@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -58,5 +59,5 @@ func (s *Store) GetLastSeenAt(ctx context.Context, chatID int64) (time.Time, err
 			return t, nil
 		}
 	}
-	return time.Time{}, nil
+	return time.Time{}, errors.New("invalid last_seen_at/created_at timestamp: " + raw)
 }
