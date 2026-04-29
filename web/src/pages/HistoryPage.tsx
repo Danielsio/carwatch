@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Clock, ExternalLink } from "lucide-react";
 import { useHistory } from "@/hooks/useBookmarks";
-import { formatPrice, formatKm, relativeTime, safeHref, cn } from "@/lib/utils";
+import { safeHref } from "@/lib/utils";
+import { ListingCardBody } from "@/components/ListingCardBody";
 import type { Listing } from "@/lib/api";
 
 const PAGE_SIZE = 20;
@@ -102,66 +103,16 @@ export function HistoryPage() {
 function HistoryCard({ listing }: { listing: Listing }) {
   const href = safeHref(listing.page_link);
 
-  const card = (
-    <>
-      {listing.image_url ? (
-        <div className="aspect-video w-full overflow-hidden bg-muted">
-          <img
-            src={listing.image_url}
-            alt={`${listing.manufacturer} ${listing.model}`}
-            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
-          />
-        </div>
-      ) : (
-        <div className="aspect-video w-full bg-muted flex items-center justify-center">
-          <span className="text-4xl text-muted-foreground/30">🚗</span>
-        </div>
-      )}
-
-      <div className="p-4">
-        <div className="flex items-start justify-between mb-2">
-          <div>
-            <h3 className="font-semibold">
-              {listing.manufacturer} {listing.model}
-            </h3>
-            <p className="text-xs text-muted-foreground">{listing.year}</p>
-          </div>
-          <span className="text-lg font-bold text-primary">
-            {formatPrice(listing.price)}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mb-3">
-          <span>{formatKm(listing.km)}</span>
-          <span>יד {listing.hand}</span>
-          {listing.city && <span>{listing.city}</span>}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {listing.fitness_score != null && (
-            <span
-              className={cn(
-                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                listing.fitness_score >= 7
-                  ? "bg-green-100 text-green-800"
-                  : listing.fitness_score >= 5
-                    ? "bg-yellow-100 text-yellow-800"
-                    : "bg-gray-100 text-gray-600",
-              )}
-            >
-              {listing.fitness_score.toFixed(1)}
-            </span>
-          )}
-          <span className="text-xs text-muted-foreground mr-auto">
-            {relativeTime(listing.first_seen_at)}
-          </span>
-          {href && (
-            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
-          )}
-        </div>
-      </div>
-    </>
+  const body = (
+    <ListingCardBody
+      listing={listing}
+      hoverScale={!!href}
+      actions={
+        href ? (
+          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+        ) : undefined
+      }
+    />
   );
 
   if (href) {
@@ -173,14 +124,14 @@ function HistoryCard({ listing }: { listing: Listing }) {
         aria-label={`פתח מודעה: ${listing.manufacturer} ${listing.model}`}
         className="group block rounded-xl border border-border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow"
       >
-        {card}
+        {body}
       </a>
     );
   }
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-      {card}
+      {body}
     </div>
   );
 }
