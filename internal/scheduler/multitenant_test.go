@@ -633,6 +633,15 @@ func (m *mockHiddenStore) CountHidden(_ context.Context, chatID int64) (int64, e
 	return int64(len(m.hidden[chatID])), nil
 }
 
+func (m *mockHiddenStore) UnhideListing(_ context.Context, chatID int64, token string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if h, ok := m.hidden[chatID]; ok {
+		delete(h, token)
+	}
+	return nil
+}
+
 func (m *mockHiddenStore) ClearHidden(_ context.Context, chatID int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

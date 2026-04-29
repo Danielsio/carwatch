@@ -152,6 +152,7 @@ type SavedListingStore interface {
 
 type HiddenListingStore interface {
 	HideListing(ctx context.Context, chatID int64, token string) error
+	UnhideListing(ctx context.Context, chatID int64, token string) error
 	IsHidden(ctx context.Context, chatID int64, token string) (bool, error)
 	ListHiddenTokens(ctx context.Context, chatID int64) (map[string]bool, error)
 	ListHidden(ctx context.Context, chatID int64, limit, offset int) ([]string, error)

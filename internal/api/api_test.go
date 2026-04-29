@@ -38,6 +38,8 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 		Users:    store,
 		Prices:   store,
 		Admin:    store,
+		Saved:    store,
+		Hidden:   store,
 		Logger:   slog.Default(),
 		API: config.APIConfig{
 			CORSOrigins: []string{"http://localhost:5173"},
@@ -600,6 +602,51 @@ func TestGetListing_NotFound(t *testing.T) {
 	}
 }
 
+func TestBookmarkCRUD(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-bm", ChatID: 999, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save bookmark
+	w := doRequest(t, srv, "POST", "/api/v1/listings/tok-bm/save", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("save: expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// List saved
+	w = doRequest(t, srv, "GET", "/api/v1/saved", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list saved: expected 200, got %d", w.Code)
+	}
+	var savedResp listingsPageResponse
+	mustUnmarshal(t, w.Body.Bytes(), &savedResp)
+	if savedResp.Total != 1 {
+		t.Fatalf("expected 1 saved, got %d", savedResp.Total)
+	}
+	if savedResp.Items[0].Token != "tok-bm" {
+		t.Errorf("token = %q, want tok-bm", savedResp.Items[0].Token)
+	}
+
+	// Remove bookmark
+	w = doRequest(t, srv, "DELETE", "/api/v1/listings/tok-bm/save", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unsave: expected 204, got %d", w.Code)
+	}
+
+	// Verify removed
+	w = doRequest(t, srv, "GET", "/api/v1/saved", nil)
+	mustUnmarshal(t, w.Body.Bytes(), &savedResp)
+	if savedResp.Total != 0 {
+		t.Errorf("expected 0 saved after removal, got %d", savedResp.Total)
+	}
+}
+
 func TestGetListing_WrongOwner(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()
@@ -614,6 +661,35 @@ func TestGetListing_WrongOwner(t *testing.T) {
 	w := doRequest(t, srv, "GET", "/api/v1/listings/tok-other", nil)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for wrong owner, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestListHistory(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-h1", ChatID: 999, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-h2", ChatID: 999, SearchName: "s2",
+		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 90000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/history", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp listingsPageResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if resp.Total != 2 {
+		t.Errorf("expected 2 history items, got %d", resp.Total)
 	}
 }
 

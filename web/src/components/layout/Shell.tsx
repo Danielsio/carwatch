@@ -1,10 +1,12 @@
 import { Outlet, Link, useLocation } from "react-router";
-import { Search, Plus, Car, Settings } from "lucide-react";
+import { Search, Plus, Car, Settings, Bookmark, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { path: "/", label: "חיפושים", icon: Search },
   { path: "/searches/new", label: "חיפוש חדש", icon: Plus },
+  { path: "/saved", label: "שמורים", icon: Bookmark },
+  { path: "/history", label: "היסטוריה", icon: Clock },
   { path: "/admin", label: "ניהול", icon: Settings },
 ];
 
