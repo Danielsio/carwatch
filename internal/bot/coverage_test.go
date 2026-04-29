@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +11,13 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
+
+func mustNoErr(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("unexpected setup error: %v", err)
+	}
+}
 
 func newTestBotFull(t *testing.T) *testBot {
 	t.Helper()
@@ -78,7 +84,7 @@ func TestLanguageSwitch_English(t *testing.T) {
 	tb := newTestBotFull(t)
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
-	_ = tb.store.SetUserLanguage(ctx, 100, "he")
+	mustNoErr(t, tb.store.SetUserLanguage(ctx, 100, "he"))
 
 	tb.simulateCallback(ctx, 100, "lang:en")
 
@@ -124,8 +130,8 @@ func TestOnClearHidden(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.HideListing(ctx, 100, "tok1")
-	_ = tb.store.HideListing(ctx, 100, "tok2")
+	mustNoErr(t, tb.store.HideListing(ctx, 100, "tok1"))
+	mustNoErr(t, tb.store.HideListing(ctx, 100, "tok2"))
 
 	tb.simulateCallback(ctx, 100, "hidden_clear")
 
@@ -206,7 +212,7 @@ func TestOnMfrPage(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "ask_manufacturer", "{}")
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "ask_manufacturer", "{}"))
 
 	tb.simulateCallback(ctx, 100, "mfr_pg:0")
 
@@ -221,7 +227,7 @@ func TestOnMfrSearch(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "ask_manufacturer", "{}")
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "ask_manufacturer", "{}"))
 
 	tb.simulateCallback(ctx, 100, "mfr_search")
 
@@ -236,7 +242,7 @@ func TestOnMdlPage(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "ask_model", `{"manufacturer":19,"manufacturer_name":"Toyota"}`)
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "ask_model", `{"manufacturer":19,"manufacturer_name":"Toyota"}`))
 
 	tb.simulateCallback(ctx, 100, "mdl_pg:0")
 
@@ -251,7 +257,7 @@ func TestOnMdlSearch(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "ask_model", `{"manufacturer":19}`)
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "ask_model", `{"manufacturer":19}`))
 
 	tb.simulateCallback(ctx, 100, "mdl_search")
 
@@ -266,7 +272,7 @@ func TestHandleManufacturerSearch(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "search_manufacturer", "{}")
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "search_manufacturer", "{}"))
 
 	tb.simulateText(ctx, 100, "Toyota")
 
@@ -281,7 +287,7 @@ func TestHandleModelSearch(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "search_model", `{"manufacturer":19}`)
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "search_model", `{"manufacturer":19}`))
 
 	tb.simulateText(ctx, 100, "Corolla")
 
@@ -298,8 +304,8 @@ func TestOnDailyDigestOff(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.SetUserTier(ctx, 100, "premium", time.Now().Add(30*24*time.Hour))
-	_ = tb.store.SetDailyDigest(ctx, 100, true, "09:00")
+	mustNoErr(t, tb.store.SetUserTier(ctx, 100, "premium", time.Now().Add(30*24*time.Hour)))
+	mustNoErr(t, tb.store.SetDailyDigest(ctx, 100, true, "09:00"))
 
 	tb.simulateCallback(ctx, 100, "daily_digest:off")
 
@@ -314,12 +320,580 @@ func TestOnDailyDigestOff(t *testing.T) {
 
 // --- formatInterval ---
 
-func TestFormatInterval(t *testing.T) {
+func TestFormatInterval_Minutes(t *testing.T) {
 	tb := newTestBotFull(t)
-	tb.bot.pollInterval = 15 * 60_000_000_000
+	tb.bot.pollInterval = 15 * time.Minute
 
 	got := tb.bot.formatInterval()
-	if !strings.Contains(got, "15") {
-		t.Errorf("formatInterval() = %q, want it to contain '15'", got)
+	if got != "15 minutes" {
+		t.Errorf("formatInterval() = %q, want '15 minutes'", got)
+	}
+}
+
+func TestFormatInterval_Seconds(t *testing.T) {
+	tb := newTestBotFull(t)
+	tb.bot.pollInterval = 30 * time.Second
+
+	got := tb.bot.formatInterval()
+	if got != "30s" {
+		t.Errorf("formatInterval() = %q, want '30s'", got)
+	}
+}
+
+func TestFormatInterval_Hours(t *testing.T) {
+	tb := newTestBotFull(t)
+	tb.bot.pollInterval = 2 * time.Hour
+
+	got := tb.bot.formatInterval()
+	if got != "2 hours" {
+		t.Errorf("formatInterval() = %q, want '2 hours'", got)
+	}
+}
+
+func TestFormatInterval_OneHour(t *testing.T) {
+	tb := newTestBotFull(t)
+	tb.bot.pollInterval = 1 * time.Hour
+
+	got := tb.bot.formatInterval()
+	if got != "1 hour" {
+		t.Errorf("formatInterval() = %q, want '1 hour'", got)
+	}
+}
+
+func TestFormatInterval_HoursAndMinutes(t *testing.T) {
+	tb := newTestBotFull(t)
+	tb.bot.pollInterval = 1*time.Hour + 30*time.Minute
+
+	got := tb.bot.formatInterval()
+	if got != "1h30m0s" {
+		t.Errorf("formatInterval() = %q, want '1h30m0s'", got)
+	}
+}
+
+// --- SetPollTrigger ---
+
+type mockPollTrigger struct {
+	triggered bool
+}
+
+func (m *mockPollTrigger) TriggerPoll() { m.triggered = true }
+
+func TestSetPollTrigger(t *testing.T) {
+	tb := newTestBotFull(t)
+	pt := &mockPollTrigger{}
+	tb.bot.SetPollTrigger(pt)
+	if tb.bot.pollTrigger == nil {
+		t.Error("pollTrigger should be set")
+	}
+}
+
+// --- handleGrantPremium ---
+
+func TestHandleGrantPremium_NotAdmin(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	tb.simulateCommand(ctx, 100, "/grant_premium 100 30")
+
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected response for non-admin")
+	}
+}
+
+func TestHandleGrantPremium_MissingArgs(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 999, "admin")
+
+	tb.simulateCommand(ctx, 999, "/grant_premium")
+
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected usage message")
+	}
+}
+
+func TestHandleGrantPremium_InvalidChatID(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 999, "admin")
+
+	tb.simulateCommand(ctx, 999, "/grant_premium abc 30")
+
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected usage message for invalid chat_id")
+	}
+}
+
+func TestHandleGrantPremium_InvalidDays(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 999, "admin")
+
+	tb.simulateCommand(ctx, 999, "/grant_premium 100 abc")
+
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected usage message for invalid days")
+	}
+}
+
+func TestHandleGrantPremium_NegativeDays(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 999, "admin")
+
+	tb.simulateCommand(ctx, 999, "/grant_premium 100 -5")
+
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected usage message for negative days")
+	}
+}
+
+func TestHandleGrantPremium_Success(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 999, "admin")
+	tb.createUser(ctx, t, 100, "alice")
+
+	tb.simulateCommand(ctx, 999, "/grant_premium 100 30")
+
+	user, err := tb.store.GetUser(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.Tier != "premium" {
+		t.Errorf("tier = %q, want premium", user.Tier)
+	}
+}
+
+func TestHandleGrantPremium_UserNotFound(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 999, "admin")
+
+	tb.simulateCommand(ctx, 999, "/grant_premium 99999 30")
+
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected error message for nonexistent user")
+	}
+}
+
+// --- handleRevokePremium ---
+
+func TestHandleRevokePremium_NotAdmin(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	tb.simulateCommand(ctx, 100, "/revoke_premium 100")
+
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected response for non-admin")
+	}
+}
+
+func TestHandleRevokePremium_MissingArgs(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 999, "admin")
+
+	tb.simulateCommand(ctx, 999, "/revoke_premium")
+
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected usage message")
+	}
+}
+
+func TestHandleRevokePremium_Success(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 999, "admin")
+	tb.createUser(ctx, t, 100, "alice")
+	mustNoErr(t, tb.store.SetUserTier(ctx, 100, "premium", time.Now().Add(30*24*time.Hour)))
+
+	tb.simulateCommand(ctx, 999, "/revoke_premium 100")
+
+	user, err := tb.store.GetUser(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.Tier != "free" {
+		t.Errorf("tier = %q, want free", user.Tier)
+	}
+}
+
+// --- onSavedPage / onHiddenPage ---
+
+func TestOnSavedPage_WithData(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	for i := range 15 {
+		token := fmt.Sprintf("saved-tok-%02d", i)
+		mustNoErr(t, tb.store.SaveListing(ctx, storage.ListingRecord{
+			Token: token, ChatID: 100, SearchName: "s1",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		}))
+		mustNoErr(t, tb.store.SaveBookmark(ctx, 100, token))
+	}
+
+	tb.bot.onSavedPage(ctx, 100, cbSavedPage+"0")
+
+	msg := tb.msg.last()
+	if !msg.HasKB {
+		t.Error("expected keyboard with pagination")
+	}
+}
+
+func TestOnSavedPage_InvalidPage(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	tb.bot.onSavedPage(ctx, 100, cbSavedPage+"abc")
+}
+
+func TestOnHiddenPage_WithData(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	for i := range 15 {
+		token := fmt.Sprintf("hidden-tok-%02d", i)
+		mustNoErr(t, tb.store.HideListing(ctx, 100, token))
+	}
+
+	tb.bot.onHiddenPage(ctx, 100, cbHiddenPage+"0")
+
+	msg := tb.msg.last()
+	if !msg.HasKB {
+		t.Error("expected keyboard with pagination for hidden")
+	}
+}
+
+func TestOnHiddenPage_InvalidPage(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	tb.bot.onHiddenPage(ctx, 100, cbHiddenPage+"abc")
+}
+
+// --- ListingActionKeyboard ---
+
+func TestListingActionKeyboard(t *testing.T) {
+	kb := ListingActionKeyboard("test-token", "en")
+	if kb == nil {
+		t.Fatal("expected non-nil keyboard")
+	}
+	if len(kb.InlineKeyboard) != 1 || len(kb.InlineKeyboard[0]) != 2 {
+		t.Fatalf("expected 1 row with 2 buttons, got %v", kb.InlineKeyboard)
+	}
+	if kb.InlineKeyboard[0][0].CallbackData != "save:test-token" {
+		t.Errorf("save button data = %q", kb.InlineKeyboard[0][0].CallbackData)
+	}
+	if kb.InlineKeyboard[0][1].CallbackData != "hide:test-token" {
+		t.Errorf("hide button data = %q", kb.InlineKeyboard[0][1].CallbackData)
+	}
+}
+
+// --- isRateLimited ---
+
+func TestIsRateLimited_Exhaustion(t *testing.T) {
+	tb := newTestBotFull(t)
+
+	for range rateLimitBurst {
+		if tb.bot.isRateLimited(555) {
+			t.Error("should not be limited within burst")
+		}
+	}
+
+	if !tb.bot.isRateLimited(555) {
+		t.Error("should be limited after burst exhausted")
+	}
+}
+
+// --- sweepStaleMaps ---
+
+func TestSweepStaleMaps_NoError(t *testing.T) {
+	tb := newTestBotFull(t)
+	tb.bot.isRateLimited(555)
+	unlock := tb.bot.lockChat(556)
+	unlock()
+
+	tb.bot.sweepStaleMaps()
+}
+
+// --- maxSearchesForUser ---
+
+func TestMaxSearchesForUser(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	limit := tb.bot.maxSearchesForUser(ctx, 100)
+	if limit != premiumMaxSearches {
+		t.Errorf("maxSearches = %d, want %d", limit, premiumMaxSearches)
+	}
+}
+
+// --- saveWizardState / loadWizardData ---
+
+func TestSaveAndLoadWizardState(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	wd := WizardData{
+		Source:           "yad2",
+		Manufacturer:     19,
+		ManufacturerName: "Toyota",
+	}
+	tb.bot.saveWizardState(ctx, 100, "ask_model", wd)
+
+	loaded := tb.bot.loadWizardData(ctx, 100)
+	if loaded.Manufacturer != 19 {
+		t.Errorf("manufacturer = %d, want 19", loaded.Manufacturer)
+	}
+	if loaded.ManufacturerName != "Toyota" {
+		t.Errorf("manufacturer_name = %q, want Toyota", loaded.ManufacturerName)
+	}
+}
+
+func TestLoadWizardData_NoUser(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+
+	wd := tb.bot.loadWizardData(ctx, 99999)
+	if wd.Manufacturer != 0 {
+		t.Errorf("expected empty wizard data for nonexistent user")
+	}
+}
+
+func TestLoadWizardData_InvalidJSON(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "ask_model", "not-json"))
+	wd := tb.bot.loadWizardData(ctx, 100)
+	if wd.Manufacturer != 0 {
+		t.Errorf("expected empty wizard data for invalid JSON")
+	}
+}
+
+// --- getUserLang ---
+
+func TestGetUserLang_Default(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+
+	lang := tb.bot.getUserLang(ctx, 99999)
+	if lang != "he" {
+		t.Errorf("default language = %q, want 'he'", lang)
+	}
+}
+
+// --- onLegacySourceSelected ---
+
+func TestOnLegacySourceSelected(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, StateAskSource, "{}"))
+
+	tb.bot.onLegacySourceSelected(ctx, 100, "yad2")
+
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected response from source selection")
+	}
+}
+
+// --- onDailyDigestOn ---
+
+func TestOnDailyDigestOn(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+	mustNoErr(t, tb.store.SetUserTier(ctx, 100, "premium", time.Now().Add(30*24*time.Hour)))
+
+	tb.simulateCallback(ctx, 100, "daily_digest:on")
+
+	enabled, _, _, err := tb.store.GetDailyDigest(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !enabled {
+		t.Error("expected daily digest to be enabled")
+	}
+}
+
+// --- handleRevokePremium invalid ID ---
+
+func TestHandleRevokePremium_InvalidChatID(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 999, "admin")
+
+	tb.simulateCommand(ctx, 999, "/revoke_premium abc")
+
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected usage message for invalid chat_id")
+	}
+}
+
+func TestHandleRevokePremium_UserNotFound(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 999, "admin")
+
+	tb.simulateCommand(ctx, 999, "/revoke_premium 99999")
+
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected failure message")
+	}
+}
+
+// --- SetBot ---
+
+func TestSetBot_NilKeepsBotNil(t *testing.T) {
+	tb := newTestBotFull(t)
+
+	origMsg := tb.bot.msg
+
+	tb.bot.SetBot(nil)
+	if tb.bot.bot != nil {
+		t.Error("expected nil bot after SetBot(nil)")
+	}
+	if tb.bot.msg != origMsg {
+		t.Error("messenger should be unchanged when SetBot(nil) — no tgbot to wrap")
+	}
+}
+
+// --- onHistoryPage invalid ---
+
+func TestOnHistoryPage_InvalidPage(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	tb.bot.onHistoryPage(ctx, 100, cbHistoryPage+"abc")
+	msg := tb.msg.last()
+	if msg.Text == "" {
+		t.Error("expected error message for invalid page")
+	}
+}
+
+// --- onQuickStart with poll trigger ---
+
+func TestOnQuickStart_TriggersPoll(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	pt := &mockPollTrigger{}
+	tb.bot.SetPollTrigger(pt)
+
+	tb.simulateCallback(ctx, 100, "quick_start")
+
+	if !pt.triggered {
+		t.Error("expected poll trigger to be called")
+	}
+}
+
+// --- saved/hidden pagination with multiple pages ---
+
+func TestHandleSaved_WithPagination(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	for i := range 15 {
+		token := fmt.Sprintf("sav-pg-%02d", i)
+		mustNoErr(t, tb.store.SaveListing(ctx, storage.ListingRecord{
+			Token: token, ChatID: 100, SearchName: "s1",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		}))
+		mustNoErr(t, tb.store.SaveBookmark(ctx, 100, token))
+	}
+
+	tb.simulateCommand(ctx, 100, "/saved")
+
+	msg := tb.msg.last()
+	if !msg.HasKB {
+		t.Error("expected keyboard with pagination")
+	}
+}
+
+func TestHandleHidden_WithPagination(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	for i := range 15 {
+		mustNoErr(t, tb.store.HideListing(ctx, 100, fmt.Sprintf("hid-pg-%02d", i)))
+	}
+
+	tb.simulateCommand(ctx, 100, "/hidden")
+
+	msg := tb.msg.last()
+	if !msg.HasKB {
+		t.Error("expected keyboard with pagination for hidden")
+	}
+}
+
+// --- onSavedPage page 1 ---
+
+func TestOnSavedPage_Page1(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	for i := range 20 {
+		token := fmt.Sprintf("sav-p1-%02d", i)
+		mustNoErr(t, tb.store.SaveListing(ctx, storage.ListingRecord{
+			Token: token, ChatID: 100, SearchName: "s1",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		}))
+		mustNoErr(t, tb.store.SaveBookmark(ctx, 100, token))
+	}
+
+	tb.bot.onSavedPage(ctx, 100, cbSavedPage+"1")
+
+	msg := tb.msg.last()
+	if !msg.HasKB {
+		t.Error("expected keyboard on page 1")
+	}
+}
+
+// --- onHiddenPage page 1 ---
+
+func TestOnHiddenPage_Page1(t *testing.T) {
+	tb := newTestBotFull(t)
+	ctx := context.Background()
+	tb.createUser(ctx, t, 100, "alice")
+
+	for i := range 20 {
+		mustNoErr(t, tb.store.HideListing(ctx, 100, fmt.Sprintf("hid-p1-%02d", i)))
+	}
+
+	tb.bot.onHiddenPage(ctx, 100, cbHiddenPage+"1")
+
+	msg := tb.msg.last()
+	if !msg.HasKB {
+		t.Error("expected keyboard on hidden page 1")
 	}
 }

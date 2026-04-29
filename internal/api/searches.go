@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -265,6 +266,10 @@ func (s *Server) deleteSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.searches.DeleteSearch(r.Context(), id, chatID); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "search not found")
+			return
+		}
 		s.logger.Error("delete search", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to delete search")
 		return
