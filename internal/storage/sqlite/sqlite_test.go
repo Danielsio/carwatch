@@ -1845,6 +1845,332 @@ func TestUpdateSearch_WrongOwner(t *testing.T) {
 	}
 }
 
+// --- Admin Store Tests ---
+
+func TestDBFileSize_InMemory(t *testing.T) {
+	store := newTestStore(t)
+	size, err := store.DBFileSize()
+	if err != nil {
+		t.Fatalf("DBFileSize: %v", err)
+	}
+	if size != 0 {
+		t.Errorf("expected 0 for in-memory DB, got %d", size)
+	}
+}
+
+func TestDBFileSize_OnDisk(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := dir + "/test.db"
+	store, err := New(dbPath)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	ctx := context.Background()
+	if err := store.UpsertUser(ctx, 1, "test"); err != nil {
+		t.Fatal(err)
+	}
+
+	size, err := store.DBFileSize()
+	if err != nil {
+		t.Fatalf("DBFileSize: %v", err)
+	}
+	if size <= 0 {
+		t.Errorf("expected positive file size, got %d", size)
+	}
+}
+
+func TestCountAllListings(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	count, err := store.CountAllListings(ctx)
+	if err != nil {
+		t.Fatalf("CountAllListings: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected 0, got %d", count)
+	}
+
+	seedUser(t, store, 100)
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-1", ChatID: 100, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-2", ChatID: 100, SearchName: "s1",
+		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 90000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	count, err = store.CountAllListings(ctx)
+	if err != nil {
+		t.Fatalf("CountAllListings: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2, got %d", count)
+	}
+}
+
+func TestTableSizes(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	seedUser(t, store, 100)
+
+	sizes, err := store.TableSizes(ctx)
+	if err != nil {
+		t.Fatalf("TableSizes: %v", err)
+	}
+	if len(sizes) == 0 {
+		t.Fatal("expected non-empty table sizes")
+	}
+	if sizes["users"] != 1 {
+		t.Errorf("expected 1 user, got %d", sizes["users"])
+	}
+}
+
+// --- UnhideListing Tests ---
+
+func TestUnhideListing(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.HideListing(ctx, 100, "tok-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.HideListing(ctx, 100, "tok-b"); err != nil {
+		t.Fatal(err)
+	}
+
+	hidden, _ := store.IsHidden(ctx, 100, "tok-a")
+	if !hidden {
+		t.Fatal("tok-a should be hidden")
+	}
+
+	if err := store.UnhideListing(ctx, 100, "tok-a"); err != nil {
+		t.Fatalf("UnhideListing: %v", err)
+	}
+
+	hidden, _ = store.IsHidden(ctx, 100, "tok-a")
+	if hidden {
+		t.Error("tok-a should no longer be hidden")
+	}
+
+	hidden, _ = store.IsHidden(ctx, 100, "tok-b")
+	if !hidden {
+		t.Error("tok-b should still be hidden")
+	}
+}
+
+func TestUnhideListing_Nonexistent(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.UnhideListing(ctx, 100, "does-not-exist"); err != nil {
+		t.Fatalf("UnhideListing nonexistent should not error: %v", err)
+	}
+}
+
+// --- GetPriceHistory Tests ---
+
+func TestGetPriceHistory(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if _, _, err := store.RecordPrice(ctx, "tok-ph", 100000); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	if _, _, err := store.RecordPrice(ctx, "tok-ph", 95000); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	if _, _, err := store.RecordPrice(ctx, "tok-ph", 90000); err != nil {
+		t.Fatal(err)
+	}
+
+	points, err := store.GetPriceHistory(ctx, "tok-ph")
+	if err != nil {
+		t.Fatalf("GetPriceHistory: %v", err)
+	}
+	if len(points) != 3 {
+		t.Fatalf("expected 3 price points, got %d", len(points))
+	}
+	if points[0].Price != 90000 {
+		t.Errorf("expected most recent price 90000 first, got %d", points[0].Price)
+	}
+	if points[2].Price != 100000 {
+		t.Errorf("expected oldest price 100000 last, got %d", points[2].Price)
+	}
+}
+
+func TestGetPriceHistory_Empty(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	points, err := store.GetPriceHistory(ctx, "nonexistent")
+	if err != nil {
+		t.Fatalf("GetPriceHistory: %v", err)
+	}
+	if len(points) != 0 {
+		t.Errorf("expected 0 points, got %d", len(points))
+	}
+}
+
+// --- GetSearchByShareToken Tests ---
+
+func TestGetSearchByShareToken(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	id, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "shared-search", Source: "yad2",
+		Manufacturer: 27, Model: 10332, YearMin: 2018, YearMax: 2024,
+	})
+	if err != nil {
+		t.Fatalf("CreateSearch: %v", err)
+	}
+
+	search, err := store.GetSearch(ctx, id)
+	if err != nil {
+		t.Fatalf("GetSearch: %v", err)
+	}
+	if search.ShareToken == "" {
+		t.Fatal("expected non-empty share token")
+	}
+
+	found, err := store.GetSearchByShareToken(ctx, search.ShareToken)
+	if err != nil {
+		t.Fatalf("GetSearchByShareToken: %v", err)
+	}
+	if found == nil {
+		t.Fatal("expected to find search by share token")
+	}
+	if found.ID != id {
+		t.Errorf("expected ID %d, got %d", id, found.ID)
+	}
+	if found.Name != "shared-search" {
+		t.Errorf("expected name shared-search, got %s", found.Name)
+	}
+}
+
+func TestGetSearchByShareToken_NotFound(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	found, err := store.GetSearchByShareToken(ctx, "nonexistent-token")
+	if err != nil {
+		t.Fatalf("GetSearchByShareToken: %v", err)
+	}
+	if found != nil {
+		t.Errorf("expected nil for nonexistent token, got %+v", found)
+	}
+}
+
+// --- UpdateLastSeenAt Tests ---
+
+func TestUpdateLastSeenAt(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.UpdateLastSeenAt(ctx, 100); err != nil {
+		t.Fatalf("UpdateLastSeenAt: %v", err)
+	}
+}
+
+func TestUpdateLastSeenAt_NonexistentUser(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if err := store.UpdateLastSeenAt(ctx, 99999); err != nil {
+		t.Fatalf("UpdateLastSeenAt should not error for nonexistent user: %v", err)
+	}
+}
+
+// --- ListSearchListings Tests ---
+
+func TestListSearchListings(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "lsl-1", ChatID: 100, SearchName: "mazda3",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 120000, Km: 50000, Hand: 2,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "lsl-2", ChatID: 100, SearchName: "mazda3",
+		Manufacturer: "Mazda", Model: "3", Year: 2022, Price: 90000, Km: 30000, Hand: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "lsl-other", ChatID: 100, SearchName: "civic",
+		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 80000, Km: 70000, Hand: 3,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	listings, err := store.ListSearchListings(ctx, 100, "mazda3", 20, 0, "newest")
+	if err != nil {
+		t.Fatalf("ListSearchListings: %v", err)
+	}
+	if len(listings) != 2 {
+		t.Fatalf("expected 2 listings for mazda3, got %d", len(listings))
+	}
+
+	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 20, 0, "price_asc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listings[0].Price != 90000 {
+		t.Errorf("price_asc: expected 90000 first, got %d", listings[0].Price)
+	}
+
+	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 20, 0, "price_desc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listings[0].Price != 120000 {
+		t.Errorf("price_desc: expected 120000 first, got %d", listings[0].Price)
+	}
+
+	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 20, 0, "km")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listings[0].Km != 30000 {
+		t.Errorf("km sort: expected 30000 first, got %d", listings[0].Km)
+	}
+
+	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 20, 0, "year")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listings[0].Year != 2022 {
+		t.Errorf("year sort: expected 2022 first, got %d", listings[0].Year)
+	}
+
+	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 1, 0, "newest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listings) != 1 {
+		t.Errorf("pagination: expected 1, got %d", len(listings))
+	}
+}
+
 // --- New() edge cases ---
 
 func TestNew_CreatesDirectory(t *testing.T) {
