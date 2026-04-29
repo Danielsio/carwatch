@@ -26,6 +26,41 @@ type listingsPageResponse struct {
 	Offset int               `json:"offset"`
 }
 
+func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
+	chatID := chatIDFromContext(r.Context())
+	token := r.PathValue("token")
+	if token == "" {
+		writeError(w, http.StatusBadRequest, "missing token")
+		return
+	}
+
+	l, err := s.listings.GetListing(r.Context(), chatID, token)
+	if err != nil {
+		s.logger.Error("get listing", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get listing")
+		return
+	}
+	if l == nil {
+		writeError(w, http.StatusNotFound, "listing not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, listingResponse{
+		Token:        l.Token,
+		Manufacturer: l.Manufacturer,
+		Model:        l.Model,
+		Year:         l.Year,
+		Price:        l.Price,
+		Km:           l.Km,
+		Hand:         l.Hand,
+		City:         l.City,
+		PageLink:     l.PageLink,
+		ImageURL:     l.ImageURL,
+		FitnessScore: l.FitnessScore,
+		FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
+	})
+}
+
 func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 	chatID := chatIDFromContext(r.Context())
 	id, ok := parsePathID(r)

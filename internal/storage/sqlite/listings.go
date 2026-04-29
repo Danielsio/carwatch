@@ -97,6 +97,29 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 	return tx.Commit()
 }
 
+func (s *Store) GetListing(ctx context.Context, chatID int64, token string) (*storage.ListingRecord, error) {
+	var l storage.ListingRecord
+	var fs sql.NullFloat64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT token, search_name, manufacturer, model, year, price,
+			km, hand, city, page_link, image_url, fitness_score, first_seen_at
+		FROM listing_history
+		WHERE chat_id = ? AND token = ?
+		ORDER BY rowid DESC LIMIT 1`, chatID, token).
+		Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
+			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.ImageURL, &fs, &l.FirstSeenAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if fs.Valid {
+		l.FitnessScore = &fs.Float64
+	}
+	return &l, nil
+}
+
 func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT token, search_name, manufacturer, model, year, price,

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
 import { ArrowRight, ExternalLink, ChevronDown } from "lucide-react";
 import { useListings } from "@/hooks/useListings";
 import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
@@ -166,12 +166,21 @@ export function ListingsPage() {
 }
 
 function ListingCard({ listing }: { listing: Listing }) {
+  const navigate = useNavigate();
+
   return (
-    <a
-      href={listing.page_link}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group block rounded-xl border border-border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() =>
+        navigate(`/listings/${listing.token}`, { state: { listing } })
+      }
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          navigate(`/listings/${listing.token}`, { state: { listing } });
+        }
+      }}
+      className="group block cursor-pointer rounded-xl border border-border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow"
     >
       {/* Image */}
       {listing.image_url ? (
@@ -221,7 +230,7 @@ function ListingCard({ listing }: { listing: Listing }) {
           <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
         </div>
       </div>
-    </a>
+    </div>
   );
 }
 

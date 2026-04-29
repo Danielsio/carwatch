@@ -136,6 +136,7 @@ type PricePoint struct {
 type ListingStore interface {
 	SaveListing(ctx context.Context, r ListingRecord) error
 	SaveListings(ctx context.Context, records []ListingRecord) error
+	GetListing(ctx context.Context, chatID int64, token string) (*ListingRecord, error)
 	ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]ListingRecord, error)
 	CountUserListings(ctx context.Context, chatID int64) (int64, error)
 	ListSearchListings(ctx context.Context, chatID int64, searchName string, limit, offset int, sort string) ([]ListingRecord, error)
@@ -190,6 +191,12 @@ type DailyDigestStore interface {
 	UpdateDailyDigestLastSent(ctx context.Context, chatID int64) error
 	ListDailyDigestUsers(ctx context.Context) ([]DailyDigestUser, error)
 	DailyStats(ctx context.Context, chatID int64) ([]DailySearchStats, error)
+}
+
+type AdminStore interface {
+	DBFileSize() (int64, error)
+	CountAllListings(ctx context.Context) (int64, error)
+	TableSizes(ctx context.Context) (map[string]int64, error)
 }
 
 type CatalogEntry struct {

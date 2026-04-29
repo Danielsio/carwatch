@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -36,6 +37,7 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 		Listings: store,
 		Users:    store,
 		Prices:   store,
+		Admin:    store,
 		Logger:   slog.Default(),
 		API: config.APIConfig{
 			CORSOrigins: []string{"http://localhost:5173"},
@@ -516,5 +518,157 @@ func mustUnmarshal(t *testing.T, data []byte, v any) {
 	t.Helper()
 	if err := json.Unmarshal(data, v); err != nil {
 		t.Fatalf("unmarshal: %v", err)
+	}
+}
+
+type failingAdminStore struct {
+	failDBFileSize bool
+	failTableSizes bool
+}
+
+func (f *failingAdminStore) DBFileSize() (int64, error) {
+	if f.failDBFileSize {
+		return 0, fmt.Errorf("disk error")
+	}
+	return 0, nil
+}
+
+func (f *failingAdminStore) CountAllListings(_ context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (f *failingAdminStore) TableSizes(_ context.Context) (map[string]int64, error) {
+	if f.failTableSizes {
+		return nil, fmt.Errorf("query error")
+	}
+	return map[string]int64{}, nil
+}
+
+func TestAdminStats_DBFileSizeError(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	srv.admin = &failingAdminStore{failDBFileSize: true}
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/stats", nil)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminStats_TableSizesError(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	srv.admin = &failingAdminStore{failTableSizes: true}
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/stats", nil)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestGetListing_Success(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-abc", ChatID: 999, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
+		Price: 100000, Km: 50000, Hand: 2, City: "Tel Aviv",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/listings/tok-abc", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp listingResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if resp.Token != "tok-abc" {
+		t.Errorf("token = %q, want tok-abc", resp.Token)
+	}
+	if resp.Manufacturer != "Toyota" {
+		t.Errorf("manufacturer = %q, want Toyota", resp.Manufacturer)
+	}
+}
+
+func TestGetListing_NotFound(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "GET", "/api/v1/listings/nonexistent", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestGetListing_WrongOwner(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-other", ChatID: 777, SearchName: "s1",
+		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 90000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/listings/tok-other", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for wrong owner, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminStats(t *testing.T) {
+	srv, store := setupTestServer(t)
+
+	ctx := context.Background()
+	_, err := store.CreateSearch(ctx, storage.Search{
+		ChatID:       999,
+		Name:         "test-search",
+		Source:       "yad2",
+		Manufacturer: 19,
+		Model:        10226,
+		YearMin:      2018,
+		YearMax:      2024,
+		PriceMax:     150000,
+		Active:       true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token:      "tok-1",
+		ChatID:     999,
+		SearchName: "test-search",
+		Manufacturer: "Toyota",
+		Model:        "Corolla",
+		Year:         2020,
+		Price:        120000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/stats", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp adminStatsResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+
+	if resp.Tables["users"] < 1 {
+		t.Errorf("expected at least 1 user, got %d", resp.Tables["users"])
+	}
+	if resp.Tables["searches"] < 1 {
+		t.Errorf("expected at least 1 search, got %d", resp.Tables["searches"])
+	}
+	if resp.Tables["listing_history"] < 1 {
+		t.Errorf("expected at least 1 listing, got %d", resp.Tables["listing_history"])
+	}
+	if resp.Runtime.Goroutines < 1 {
+		t.Error("expected goroutines > 0")
+	}
+	if resp.Runtime.Uptime == "" {
+		t.Error("expected non-empty uptime")
 	}
 }

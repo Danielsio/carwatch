@@ -125,6 +125,7 @@ export const api = {
     resume: (id: number) =>
       fetchAPI<void>(`/searches/${id}/resume`, { method: "POST" }),
   },
+  listing: (token: string) => fetchAPI<Listing>(`/listings/${encodeURIComponent(token)}`),
   listings: (searchId: number, params?: ListingsParams) => {
     const query = new URLSearchParams();
     if (params?.limit) query.set("limit", String(params.limit));
@@ -135,6 +136,24 @@ export const api = {
       `/searches/${searchId}/listings${qs ? `?${qs}` : ""}`,
     );
   },
+};
+
+export interface AdminStats {
+  db: {
+    file_size_bytes: number;
+    file_size_human: string;
+  };
+  tables: Record<string, number>;
+  runtime: {
+    goroutines: number;
+    mem_alloc_mb: number;
+    mem_sys_mb: number;
+    uptime: string;
+  };
+}
+
+export const adminApi = {
+  stats: () => fetchAPI<AdminStats>("/admin/stats"),
 };
 
 export { ApiError };
