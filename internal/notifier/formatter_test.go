@@ -381,6 +381,48 @@ func TestFormatListing_WithFitnessBreakdown(t *testing.T) {
 	}
 }
 
+func TestIsMalformedMessage(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		want bool
+	}{
+		{"empty", "", true},
+		{"whitespace only", "   \n\t  ", true},
+		{"too short", "hi", true},
+		{"exactly min length", "0123456789", false},
+		{"template syntax", "{{.SomeField}}", true},
+		{"template in long msg", "Hello world {{.Name}} how are you", true},
+		{"double braces no dot", "some {{partial}} template", true},
+		{"sprintf error", "%!s(MISSING) value", true},
+		{"valid notification", "🚗 New listing found: Toyota Corolla 2021", false},
+		{"valid price drop", "📉 Price Drop! Toyota Corolla: ₪95,000 → ₪89,000", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsMalformedMessage(tt.text); got != tt.want {
+				t.Errorf("IsMalformedMessage(%q) = %v, want %v", tt.text, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatListing_EmptyManufacturerAndModel(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "empty1",
+			Price: 50000,
+		},
+	}
+	msg := FormatListing(l, locale.English)
+	if !strings.Contains(msg, "Unknown") {
+		t.Errorf("should show 'Unknown' when both manufacturer and model are empty:\n%s", msg)
+	}
+	if IsMalformedMessage(msg) {
+		t.Errorf("formatted listing with fallback should not be malformed:\n%s", msg)
+	}
+}
+
 func TestFormatDailyDigest(t *testing.T) {
 	stats := []storage.DailySearchStats{
 		{

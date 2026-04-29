@@ -516,7 +516,7 @@ func TestRetryPending_NotifyRawFails(t *testing.T) {
 	q := &errNotificationQueue{
 		mockNotificationQueue: mockNotificationQueue{
 			pending: []storage.PendingNotification{
-				{ID: 1, Recipient: "123", Payload: "test"},
+				{ID: 1, Recipient: "123", Payload: "test notification payload"},
 			},
 		},
 	}
@@ -534,7 +534,7 @@ func TestRetryPending_AckFails(t *testing.T) {
 	q := &errNotificationQueue{
 		mockNotificationQueue: mockNotificationQueue{
 			pending: []storage.PendingNotification{
-				{ID: 1, Recipient: "123", Payload: "test"},
+				{ID: 1, Recipient: "123", Payload: "test notification payload"},
 			},
 		},
 		ackErr: errors.New("ack failed"),
@@ -904,4 +904,35 @@ func (m *errDailyDigestStore) ListDailyDigestUsers(_ context.Context) ([]storage
 
 func (m *errDailyDigestStore) DailyStats(_ context.Context, _ int64) ([]storage.DailySearchStats, error) {
 	return m.stats, nil
+}
+
+func TestRetryPending_PurgesMalformedPayloads(t *testing.T) {
+	n := &mockNotifier{}
+	q := &mockNotificationQueue{
+		pending: []storage.PendingNotification{
+			{ID: 1, Recipient: "123", Payload: "{{.}}"},
+			{ID: 2, Recipient: "123", Payload: "short"},
+			{ID: 3, Recipient: "123", Payload: "valid notification message"},
+		},
+	}
+
+	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{Queue: q})
+	s.retryPending(context.Background())
+
+	if len(n.rawMessages) != 1 {
+		t.Errorf("expected only 1 valid message sent, got %d", len(n.rawMessages))
+	}
+	if n.rawMessages[0].message != "valid notification message" {
+		t.Errorf("expected valid message, got %q", n.rawMessages[0].message)
+	}
+
+	if !q.acked[1] {
+		t.Error("malformed payload id=1 should be acked (purged)")
+	}
+	if !q.acked[2] {
+		t.Error("malformed payload id=2 should be acked (purged)")
+	}
+	if !q.acked[3] {
+		t.Error("valid payload id=3 should be acked after send")
+	}
 }

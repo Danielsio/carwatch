@@ -262,3 +262,63 @@ func TestDigestDelivery_DeliverBatch_Error(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestInstantDelivery_DeliverRaw_BlocksMalformed(t *testing.T) {
+	n := &mockNotifier{}
+	d := NewInstantDelivery(n, nil, locale.English)
+
+	tests := []struct {
+		name string
+		msg  string
+	}{
+		{"template syntax", "{{.}}"},
+		{"too short", "hi"},
+		{"empty", ""},
+		{"sprintf error", "%!s(MISSING)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := d.DeliverRaw(context.Background(), 100, tt.msg)
+			if !errors.Is(err, errMalformedMessage) {
+				t.Errorf("expected errMalformedMessage, got: %v", err)
+			}
+		})
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.rawMessages) != 0 {
+		t.Errorf("no messages should reach notifier, got %d", len(n.rawMessages))
+	}
+}
+
+func TestInstantDelivery_DeliverRaw_AllowsValid(t *testing.T) {
+	n := &mockNotifier{}
+	d := NewInstantDelivery(n, nil, locale.English)
+
+	err := d.DeliverRaw(context.Background(), 100, "Valid notification message here")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.rawMessages) != 1 {
+		t.Errorf("expected 1 raw message, got %d", len(n.rawMessages))
+	}
+}
+
+func TestDigestDelivery_DeliverRaw_BlocksMalformed(t *testing.T) {
+	ds := newMockDigestStore()
+	d := NewDigestDelivery(ds, locale.English)
+
+	err := d.DeliverRaw(context.Background(), 100, "{{.}}")
+	if !errors.Is(err, errMalformedMessage) {
+		t.Errorf("expected errMalformedMessage, got: %v", err)
+	}
+
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	if len(ds.items[100]) != 0 {
+		t.Errorf("no items should be stored, got %d", len(ds.items[100]))
+	}
+}
