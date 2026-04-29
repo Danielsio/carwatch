@@ -1,10 +1,6 @@
-import {
-  Database,
-  Cpu,
-  Table,
-  RefreshCw,
-} from "lucide-react";
+import { Database, Cpu, Table, RefreshCw, HardDrive, Activity } from "lucide-react";
 import { useAdminStats } from "@/hooks/useAdmin";
+import { cn } from "@/lib/utils";
 
 const TABLE_LABELS: Record<string, string> = {
   users: "משתמשים",
@@ -22,14 +18,11 @@ export function AdminPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-bold">ניהול מערכת</h1>
+      <div className="space-y-6 animate-fade-in">
+        <div className="h-8 w-40 rounded-lg skeleton" />
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-40 animate-pulse rounded-xl bg-muted"
-            />
+            <div key={i} className="h-44 rounded-2xl skeleton" />
           ))}
         </div>
       </div>
@@ -38,85 +31,119 @@ export function AdminPage() {
 
   if (isError || !data) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6 animate-fade-in">
         <h1 className="text-2xl font-bold">ניהול מערכת</h1>
-        <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-6 text-center">
-          <p className="text-destructive font-medium">שגיאה בטעינת הנתונים</p>
-          <p className="text-sm text-muted-foreground mt-1">ייתכן שאין הרשאת גישה</p>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-8 text-center">
+          <p className="text-destructive font-semibold text-lg">
+            שגיאה בטעינת הנתונים
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            ייתכן שאין הרשאת גישה
+          </p>
         </div>
       </div>
     );
   }
 
   const lastUpdated = new Date(dataUpdatedAt);
+  const sortedTables = Object.entries(data.tables).sort(
+    ([, a], [, b]) => b - a,
+  );
+  const maxCount = sortedTables.length > 0 ? sortedTables[0][1] : 1;
 
   return (
-    <div className="space-y-6 pb-20 md:pb-4">
+    <div className="space-y-6 pb-20 md:pb-4 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">ניהול מערכת</h1>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl gradient-primary">
+            <Activity className="h-4 w-4 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight">ניהול מערכת</h1>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-secondary rounded-lg px-3 py-1.5">
           <RefreshCw className="h-3 w-3" />
-          עדכון אחרון: {lastUpdated.toLocaleTimeString("he-IL")}
+          {lastUpdated.toLocaleTimeString("he-IL")}
         </div>
       </div>
 
       {/* DB Storage */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Database className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">אחסון בסיס נתונים</h2>
+      <div className="rounded-2xl border border-border bg-card p-6 gradient-card card-shine animate-slide-up stagger-1">
+        <div className="flex items-center gap-2.5 mb-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 dark:bg-blue-500/20">
+            <Database className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <h2 className="text-lg font-bold">אחסון בסיס נתונים</h2>
         </div>
-        <div className="flex items-baseline gap-2 mb-3">
-          <span className="text-3xl font-bold">{data.db.file_size_human}</span>
-          <span className="text-sm text-muted-foreground">
+        <div className="flex items-baseline gap-2 mb-4">
+          <span className="text-4xl font-bold tracking-tight">
+            {data.db.file_size_human}
+          </span>
+          <span className="text-sm text-muted-foreground font-medium">
             ({data.db.file_size_bytes.toLocaleString("he-IL")} bytes)
           </span>
         </div>
         <StorageBar sizeBytes={data.db.file_size_bytes} />
       </div>
 
-      {/* Table sizes */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Table className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">גודל טבלאות</h2>
+      {/* Tables */}
+      <div className="rounded-2xl border border-border bg-card p-6 gradient-card animate-slide-up stagger-2">
+        <div className="flex items-center gap-2.5 mb-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500/10 dark:bg-purple-500/20">
+            <Table className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+          </div>
+          <h2 className="text-lg font-bold">גודל טבלאות</h2>
         </div>
         <div className="space-y-2">
-          {Object.entries(data.tables)
-            .sort(([, a], [, b]) => b - a)
-            .map(([table, count]) => (
-              <div
-                key={table}
-                className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-2.5"
-              >
-                <span className="text-sm font-medium">
-                  {TABLE_LABELS[table] ?? table}
-                </span>
-                <span className="text-sm font-mono font-semibold">
-                  {count.toLocaleString("he-IL")}
-                </span>
+          {sortedTables.map(([table, count]) => (
+            <div
+              key={table}
+              className="flex items-center gap-3 rounded-xl bg-muted/50 px-4 py-3 group hover:bg-muted transition-colors"
+            >
+              <span className="text-sm font-semibold min-w-[100px]">
+                {TABLE_LABELS[table] ?? table}
+              </span>
+              <div className="flex-1 h-2 rounded-full bg-border overflow-hidden">
+                <div
+                  className="h-full rounded-full gradient-primary transition-all duration-700"
+                  style={{
+                    width: `${Math.max(2, (count / maxCount) * 100)}%`,
+                  }}
+                />
               </div>
-            ))}
+              <span className="text-sm font-mono font-bold tabular-nums min-w-[60px] text-left">
+                {count.toLocaleString("he-IL")}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Runtime */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Cpu className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">סטטוס מערכת</h2>
+      <div className="rounded-2xl border border-border bg-card p-6 gradient-card animate-slide-up stagger-3">
+        <div className="flex items-center gap-2.5 mb-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20">
+            <Cpu className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <h2 className="text-lg font-bold">סטטוס מערכת</h2>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatBox label="זמן פעילות" value={data.runtime.uptime} />
-          <StatBox
+          <RuntimeStat
+            icon={HardDrive}
+            label="זמן פעילות"
+            value={data.runtime.uptime}
+          />
+          <RuntimeStat
+            icon={Activity}
             label="Goroutines"
             value={String(data.runtime.goroutines)}
           />
-          <StatBox
+          <RuntimeStat
+            icon={Cpu}
             label="זיכרון (Alloc)"
             value={`${data.runtime.mem_alloc_mb.toFixed(1)} MB`}
           />
-          <StatBox
+          <RuntimeStat
+            icon={Database}
             label="זיכרון (Sys)"
             value={`${data.runtime.mem_sys_mb.toFixed(1)} MB`}
           />
@@ -127,35 +154,49 @@ export function AdminPage() {
 }
 
 function StorageBar({ sizeBytes }: { sizeBytes: number }) {
-  const maxBytes = 500 * 1024 * 1024; // 500 MB reference cap
+  const maxBytes = 500 * 1024 * 1024;
   const percent = Math.min((sizeBytes / maxBytes) * 100, 100);
   const color =
     percent > 80
-      ? "bg-destructive"
+      ? "from-red-500 to-red-600"
       : percent > 50
-        ? "bg-yellow-500"
-        : "bg-green-500";
+        ? "from-amber-500 to-orange-500"
+        : "from-emerald-500 to-green-500";
 
   return (
     <div>
       <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all ${color}`}
+          className={cn(
+            "h-full rounded-full bg-gradient-to-r transition-all duration-700",
+            color,
+          )}
           style={{ width: `${percent}%` }}
         />
       </div>
-      <p className="text-xs text-muted-foreground mt-1 text-left" dir="ltr">
+      <p className="text-xs text-muted-foreground mt-1.5 text-left font-medium" dir="ltr">
         {percent.toFixed(1)}% of 500 MB
       </p>
     </div>
   );
 }
 
-function StatBox({ label, value }: { label: string; value: string }) {
+function RuntimeStat({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="rounded-xl border border-border bg-background p-3 text-center">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-sm font-semibold mt-1 font-mono">{value}</p>
+    <div className="rounded-xl border border-border bg-background p-4 text-center card-shine">
+      <Icon className="mx-auto h-4 w-4 text-muted-foreground mb-1.5" />
+      <p className="text-xs text-muted-foreground font-medium">{label}</p>
+      <p className="text-sm font-bold mt-1 font-mono tracking-tight">
+        {value}
+      </p>
     </div>
   );
 }

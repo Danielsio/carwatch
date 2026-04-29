@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router";
 import { Shell } from "./components/layout/Shell";
+import { LandingPage } from "./pages/LandingPage";
 import { SearchesPage } from "./pages/SearchesPage";
 import { NewSearchPage } from "./pages/NewSearchPage";
 import { ListingsPage } from "./pages/ListingsPage";
@@ -11,6 +12,7 @@ import { HistoryPage } from "./pages/HistoryPage";
 export default function App() {
   return (
     <Routes>
+      <Route path="/welcome" element={<LandingPage />} />
       <Route element={<Shell />}>
         <Route path="/" element={<SearchesPage />} />
         <Route path="/searches/new" element={<NewSearchPage />} />

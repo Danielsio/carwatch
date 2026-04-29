@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, Loader2, Sparkles } from "lucide-react";
 import { useManufacturers, useModels } from "@/hooks/useCatalog";
 import { useCreateSearch } from "@/hooks/useSearches";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, cn } from "@/lib/utils";
 
 type WizardStep =
   | "manufacturer"
@@ -113,35 +113,41 @@ export function NewSearchPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">חיפוש חדש</h1>
+    <div className="space-y-6 animate-fade-in">
+      <h1 className="text-2xl font-bold tracking-tight">חיפוש חדש</h1>
 
-      {/* Progress */}
-      <div className="flex items-center gap-1">
-        {STEPS.map((s, i) => (
-          <div key={s} className="flex items-center gap-1 flex-1">
-            <div
-              className={`h-2 w-full rounded-full ${
-                i <= currentIndex ? "bg-primary" : "bg-muted"
-              }`}
-            />
-          </div>
-        ))}
+      {/* Progress bar */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-1">
+          {STEPS.map((s, i) => (
+            <div key={s} className="flex-1">
+              <div
+                className={cn(
+                  "h-1.5 w-full rounded-full transition-all duration-500",
+                  i <= currentIndex
+                    ? "gradient-primary"
+                    : "bg-muted",
+                )}
+              />
+            </div>
+          ))}
+        </div>
+        <p className="text-sm text-muted-foreground font-medium">
+          שלב {currentIndex + 1} מתוך {STEPS.length} —{" "}
+          <span className="text-foreground">{STEP_LABELS[step]}</span>
+        </p>
       </div>
-      <p className="text-sm text-muted-foreground">
-        שלב {currentIndex + 1} מתוך {STEPS.length} — {STEP_LABELS[step]}
-      </p>
 
       {/* Step content */}
       <div className="min-h-[300px]">
         {step === "manufacturer" && (
-          <div className="space-y-3">
+          <div className="space-y-3 animate-slide-up">
             <input
               type="text"
               placeholder="חפש יצרן..."
               value={mfrSearch}
               onChange={(e) => setMfrSearch(e.target.value)}
-              className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
             />
             <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto sm:grid-cols-3">
               {manufacturers?.map((mfr) => (
@@ -158,11 +164,12 @@ export function NewSearchPage() {
                     setModelSearch("");
                     goNext();
                   }}
-                  className={`rounded-lg border px-3 py-2 text-sm text-right transition-colors ${
+                  className={cn(
+                    "rounded-xl border px-3 py-2.5 text-sm text-right font-medium transition-all duration-200",
                     form.manufacturer === mfr.id
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border hover:bg-muted"
-                  }`}
+                      ? "border-primary bg-primary/10 text-primary shadow-sm"
+                      : "border-border hover:border-primary/30 hover:bg-muted",
+                  )}
                 >
                   {mfr.name}
                 </button>
@@ -172,34 +179,32 @@ export function NewSearchPage() {
         )}
 
         {step === "model" && (
-          <div className="space-y-3">
-            <p className="text-sm font-medium">
-              נבחר: {form.manufacturerName}
+          <div className="space-y-3 animate-slide-up">
+            <p className="text-sm font-semibold">
+              <span className="text-muted-foreground">נבחר:</span>{" "}
+              {form.manufacturerName}
             </p>
             <input
               type="text"
               placeholder="חפש דגם..."
               value={modelSearch}
               onChange={(e) => setModelSearch(e.target.value)}
-              className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
             />
             <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto sm:grid-cols-3">
               {models?.map((mdl) => (
                 <button
                   key={mdl.id}
                   onClick={() => {
-                    setForm({
-                      ...form,
-                      model: mdl.id,
-                      modelName: mdl.name,
-                    });
+                    setForm({ ...form, model: mdl.id, modelName: mdl.name });
                     goNext();
                   }}
-                  className={`rounded-lg border px-3 py-2 text-sm text-right transition-colors ${
+                  className={cn(
+                    "rounded-xl border px-3 py-2.5 text-sm text-right font-medium transition-all duration-200",
                     form.model === mdl.id
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border hover:bg-muted"
-                  }`}
+                      ? "border-primary bg-primary/10 text-primary shadow-sm"
+                      : "border-border hover:border-primary/30 hover:bg-muted",
+                  )}
                 >
                   {mdl.name}
                 </button>
@@ -209,9 +214,9 @@ export function NewSearchPage() {
         )}
 
         {step === "year" && (
-          <div className="space-y-4">
+          <div className="space-y-5 animate-slide-up">
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-semibold mb-2">
                 שנה מינימלית
               </label>
               <input
@@ -222,11 +227,11 @@ export function NewSearchPage() {
                 }
                 min={2000}
                 max={2030}
-                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-semibold mb-2">
                 שנה מקסימלית
               </label>
               <input
@@ -237,11 +242,11 @@ export function NewSearchPage() {
                 }
                 min={2000}
                 max={2030}
-                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
               />
             </div>
             {form.yearMin > form.yearMax && (
-              <p className="text-sm text-destructive">
+              <p className="text-sm text-destructive font-medium">
                 שנה מינימלית חייבת להיות קטנה או שווה לשנה מקסימלית
               </p>
             )}
@@ -249,9 +254,9 @@ export function NewSearchPage() {
         )}
 
         {step === "price" && (
-          <div className="space-y-4">
+          <div className="space-y-5 animate-slide-up">
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-semibold mb-2">
                 מחיר מקסימלי (₪)
               </label>
               <input
@@ -261,10 +266,10 @@ export function NewSearchPage() {
                   setForm({ ...form, priceMax: Number(e.target.value) })
                 }
                 placeholder="ללא הגבלה"
-                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
               />
               {form.priceMax > 0 && (
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1.5 text-sm text-primary font-semibold">
                   {formatPrice(form.priceMax)}
                 </p>
               )}
@@ -274,11 +279,12 @@ export function NewSearchPage() {
                 <button
                   key={p}
                   onClick={() => setForm({ ...form, priceMax: p })}
-                  className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                  className={cn(
+                    "rounded-xl border px-4 py-2 text-sm font-medium transition-all duration-200",
                     form.priceMax === p
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border hover:bg-muted"
-                  }`}
+                      ? "border-primary bg-primary/10 text-primary shadow-sm"
+                      : "border-border hover:border-primary/30 hover:bg-muted",
+                  )}
                 >
                   {formatPrice(p)}
                 </button>
@@ -288,9 +294,9 @@ export function NewSearchPage() {
         )}
 
         {step === "filters" && (
-          <div className="space-y-4">
+          <div className="space-y-5 animate-slide-up">
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-semibold mb-2">
                 ק&quot;מ מקסימלי
               </label>
               <div className="flex flex-wrap gap-2">
@@ -298,11 +304,12 @@ export function NewSearchPage() {
                   <button
                     key={km}
                     onClick={() => setForm({ ...form, maxKm: km })}
-                    className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                    className={cn(
+                      "rounded-xl border px-4 py-2 text-sm font-medium transition-all duration-200",
                       form.maxKm === km
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border hover:bg-muted"
-                    }`}
+                        ? "border-primary bg-primary/10 text-primary shadow-sm"
+                        : "border-border hover:border-primary/30 hover:bg-muted",
+                    )}
                   >
                     {km === 0 ? "ללא הגבלה" : km.toLocaleString("he-IL")}
                   </button>
@@ -310,7 +317,7 @@ export function NewSearchPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-semibold mb-2">
                 יד מקסימלית
               </label>
               <div className="flex flex-wrap gap-2">
@@ -318,11 +325,12 @@ export function NewSearchPage() {
                   <button
                     key={h}
                     onClick={() => setForm({ ...form, maxHand: h })}
-                    className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                    className={cn(
+                      "rounded-xl border px-4 py-2 text-sm font-medium transition-all duration-200",
                       form.maxHand === h
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border hover:bg-muted"
-                    }`}
+                        ? "border-primary bg-primary/10 text-primary shadow-sm"
+                        : "border-border hover:border-primary/30 hover:bg-muted",
+                    )}
                   >
                     {h === 0 ? "ללא הגבלה" : `יד ${h}`}
                   </button>
@@ -330,7 +338,7 @@ export function NewSearchPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-semibold mb-2">
                 מילות מפתח (אופציונלי)
               </label>
               <input
@@ -339,12 +347,12 @@ export function NewSearchPage() {
                 onChange={(e) =>
                   setForm({ ...form, keywords: e.target.value })
                 }
-                placeholder='לדוגמה: היברידי, אוטומט'
-                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                placeholder="לדוגמה: היברידי, אוטומט"
+                className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-semibold mb-2">
                 מילות מפתח לסינון (אופציונלי)
               </label>
               <input
@@ -353,10 +361,10 @@ export function NewSearchPage() {
                 onChange={(e) =>
                   setForm({ ...form, excludeKeys: e.target.value })
                 }
-                placeholder='לדוגמה: חירום, תאונה'
-                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                placeholder="לדוגמה: חירום, תאונה"
+                className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
               />
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1.5 text-xs text-muted-foreground">
                 מודעות שמכילות מילים אלה לא יוצגו
               </p>
             </div>
@@ -364,27 +372,30 @@ export function NewSearchPage() {
         )}
 
         {step === "confirm" && (
-          <div className="space-y-4">
+          <div className="space-y-5 animate-slide-up">
             {error && (
-              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive font-medium">
                 {error}
               </div>
             )}
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-lg font-semibold mb-3">סיכום חיפוש</h3>
-              <dl className="grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-2xl border border-border bg-card p-6 gradient-card card-shine">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-bold">סיכום חיפוש</h3>
+              </div>
+              <dl className="grid grid-cols-2 gap-3 text-sm">
                 <dt className="text-muted-foreground">יצרן</dt>
-                <dd className="font-medium">{form.manufacturerName}</dd>
+                <dd className="font-semibold">{form.manufacturerName}</dd>
                 <dt className="text-muted-foreground">דגם</dt>
-                <dd className="font-medium">{form.modelName}</dd>
+                <dd className="font-semibold">{form.modelName}</dd>
                 <dt className="text-muted-foreground">שנים</dt>
-                <dd className="font-medium">
+                <dd className="font-semibold">
                   {form.yearMin}–{form.yearMax}
                 </dd>
                 {form.priceMax > 0 && (
                   <>
                     <dt className="text-muted-foreground">מחיר מקסימלי</dt>
-                    <dd className="font-medium">
+                    <dd className="font-semibold text-primary">
                       {formatPrice(form.priceMax)}
                     </dd>
                   </>
@@ -392,7 +403,7 @@ export function NewSearchPage() {
                 {form.maxKm > 0 && (
                   <>
                     <dt className="text-muted-foreground">ק&quot;מ מקסימלי</dt>
-                    <dd className="font-medium">
+                    <dd className="font-semibold">
                       {form.maxKm.toLocaleString("he-IL")}
                     </dd>
                   </>
@@ -400,13 +411,13 @@ export function NewSearchPage() {
                 {form.maxHand > 0 && (
                   <>
                     <dt className="text-muted-foreground">יד מקסימלית</dt>
-                    <dd className="font-medium">יד {form.maxHand}</dd>
+                    <dd className="font-semibold">יד {form.maxHand}</dd>
                   </>
                 )}
                 {form.keywords && (
                   <>
                     <dt className="text-muted-foreground">מילות מפתח</dt>
-                    <dd className="font-medium">{form.keywords}</dd>
+                    <dd className="font-semibold">{form.keywords}</dd>
                   </>
                 )}
               </dl>
@@ -416,11 +427,11 @@ export function NewSearchPage() {
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center gap-3 border-t border-border pt-4">
+      <div className="flex items-center gap-3 border-t border-border pt-5">
         {canGoBack && (
           <button
             onClick={goBack}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
           >
             <ChevronRight className="h-4 w-4" />
             הקודם
@@ -432,8 +443,12 @@ export function NewSearchPage() {
         {step === "confirm" ? (
           <button
             onClick={handleSubmit}
-            disabled={createSearch.isPending || form.manufacturer === 0 || form.model === 0}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            disabled={
+              createSearch.isPending ||
+              form.manufacturer === 0 ||
+              form.model === 0
+            }
+            className="inline-flex items-center gap-2 rounded-xl gradient-primary px-8 py-2.5 text-sm font-semibold text-white shadow-md hover:shadow-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:hover:shadow-md"
           >
             {createSearch.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -447,7 +462,7 @@ export function NewSearchPage() {
           step !== "model" && (
             <button
               onClick={goNext}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl gradient-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:shadow-md hover:brightness-110 transition-all"
             >
               הבא
               <ChevronLeft className="h-4 w-4" />
