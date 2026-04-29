@@ -1,15 +1,27 @@
-import { useEffect, useState } from "react";
-import { Clock, ExternalLink } from "lucide-react";
-import { useHistory } from "@/hooks/useBookmarks";
+import { useEffect, useRef, useState } from "react";
+import { Bell, ExternalLink } from "lucide-react";
+import {
+  useNotifications,
+  useMarkNotificationsSeen,
+} from "@/hooks/useNotifications";
 import { safeHref } from "@/lib/utils";
 import { ListingCardBody } from "@/components/ListingCardBody";
 import type { Listing } from "@/lib/api";
 
 const PAGE_SIZE = 20;
 
-export function HistoryPage() {
+export function NotificationsPage() {
   const [offset, setOffset] = useState(0);
-  const { data, isLoading, isError } = useHistory(PAGE_SIZE, offset);
+  const { data, isLoading, isError } = useNotifications(PAGE_SIZE, offset);
+  const markSeen = useMarkNotificationsSeen();
+  const markedRef = useRef(false);
+
+  useEffect(() => {
+    if (!markedRef.current) {
+      markedRef.current = true;
+      markSeen.mutate();
+    }
+  }, [markSeen]);
 
   useEffect(() => {
     if (!data || data.total === 0) return;
@@ -21,7 +33,7 @@ export function HistoryPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 w-40 shimmer-skeleton rounded-lg" />
+        <div className="h-8 w-36 shimmer-skeleton rounded-lg" />
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-72 shimmer-skeleton rounded-2xl" />
@@ -34,10 +46,10 @@ export function HistoryPage() {
   if (isError) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight">היסטוריה</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">התראות</h1>
         <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center">
           <p className="text-destructive font-medium">
-            שגיאה בטעינת ההיסטוריה
+            שגיאה בטעינת ההתראות
           </p>
         </div>
       </div>
@@ -48,29 +60,29 @@ export function HistoryPage() {
     <div className="space-y-6 pb-20 md:pb-4">
       <div className="flex items-center gap-2.5">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-          <Clock className="h-4 w-4 text-primary" />
+          <Bell className="h-4 w-4 text-primary" />
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">היסטוריה</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">התראות</h1>
         {data && (
           <span className="text-sm text-muted-foreground tabular-nums">
-            ({data.total} מודעות)
+            ({data.total} חדשות)
           </span>
         )}
       </div>
 
       {!data || data.total === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-border/50 bg-card/50 py-20">
-          <Clock className="h-10 w-10 text-muted-foreground/20 mb-4" />
-          <p className="text-muted-foreground">אין מודעות בהיסטוריה</p>
+          <Bell className="h-10 w-10 text-muted-foreground/20 mb-4" />
+          <p className="text-muted-foreground">אין התראות חדשות</p>
           <p className="text-sm text-muted-foreground mt-1">
-            מודעות שנמצאו יופיעו כאן
+            מודעות חדשות שימצאו יופיעו כאן
           </p>
         </div>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
             {data.items.map((listing) => (
-              <HistoryCard key={listing.token} listing={listing} />
+              <NotificationCard key={listing.token} listing={listing} />
             ))}
           </div>
 
@@ -104,7 +116,7 @@ export function HistoryPage() {
   );
 }
 
-function HistoryCard({ listing }: { listing: Listing }) {
+function NotificationCard({ listing }: { listing: Listing }) {
   const href = safeHref(listing.page_link);
 
   const body = (

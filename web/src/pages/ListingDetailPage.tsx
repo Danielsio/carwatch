@@ -21,7 +21,9 @@ export function ListingDetailPage() {
   const stateListingForToken =
     stateListingRaw?.token === token ? stateListingRaw : undefined;
 
-  const [listing, setListing] = useState<Listing | undefined>(stateListingForToken);
+  const [listing, setListing] = useState<Listing | undefined>(
+    stateListingForToken,
+  );
   const [loading, setLoading] = useState(!stateListingForToken && !!token);
   const [error, setError] = useState(false);
 
@@ -43,24 +45,24 @@ export function ListingDetailPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="h-8 w-40 animate-pulse rounded bg-muted" />
-        <div className="aspect-video w-full animate-pulse rounded-xl bg-muted" />
-        <div className="h-12 w-60 animate-pulse rounded bg-muted" />
+      <div className="space-y-6">
+        <div className="h-8 w-40 shimmer-skeleton rounded-lg" />
+        <div className="aspect-video w-full shimmer-skeleton rounded-2xl" />
+        <div className="h-12 w-60 shimmer-skeleton rounded-lg" />
       </div>
     );
   }
 
   if (error || !listing) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
+      <div className="flex flex-col items-center justify-center py-24">
         <p className="text-lg font-medium mb-2">המודעה לא נמצאה</p>
         <p className="text-sm text-muted-foreground mb-6">
           ניתן לגשת למודעה דרך רשימת התוצאות
         </p>
         <Link
           to="/"
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.25)] transition-all duration-200 hover:bg-primary/90 hover:shadow-[0_0_30px_rgba(59,130,246,0.35)] active:scale-[0.98]"
         >
           <ArrowRight className="h-4 w-4" />
           חזרה לחיפושים
@@ -71,18 +73,18 @@ export function ListingDetailPage() {
 
   return (
     <div className="space-y-6 pb-20 md:pb-4">
-      {/* Back button */}
+      {/* Back */}
       <button
         onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors duration-200"
       >
         <ArrowRight className="h-4 w-4" />
         חזרה לתוצאות
       </button>
 
-      {/* Cover image */}
+      {/* Hero image */}
       {listing.image_url ? (
-        <div className="aspect-video w-full overflow-hidden rounded-xl bg-muted">
+        <div className="aspect-video w-full overflow-hidden rounded-2xl bg-secondary">
           <img
             src={listing.image_url}
             alt={`${listing.manufacturer} ${listing.model}`}
@@ -90,41 +92,29 @@ export function ListingDetailPage() {
           />
         </div>
       ) : (
-        <div className="aspect-video w-full rounded-xl bg-muted flex items-center justify-center">
-          <span className="text-6xl text-muted-foreground/20">🚗</span>
+        <div className="aspect-video w-full rounded-2xl bg-secondary flex items-center justify-center">
+          <span className="text-6xl opacity-15">🚗</span>
         </div>
       )}
 
       {/* Title + Price */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-2xl font-bold tracking-tight">
             {listing.manufacturer} {listing.model}
           </h1>
-          <p className="text-muted-foreground">{listing.year}</p>
+          <p className="text-muted-foreground mt-0.5">{listing.year}</p>
         </div>
-        <span className="text-2xl font-bold text-primary">
+        <span className="text-2xl font-bold text-primary tabular-nums">
           {formatPrice(listing.price)}
         </span>
       </div>
 
       {/* Specs grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SpecCard
-          icon={Gauge}
-          label='ק"מ'
-          value={formatKm(listing.km)}
-        />
-        <SpecCard
-          icon={Hand}
-          label="יד"
-          value={String(listing.hand)}
-        />
-        <SpecCard
-          icon={MapPin}
-          label="עיר"
-          value={listing.city || "—"}
-        />
+        <SpecCard icon={Gauge} label='ק"מ' value={formatKm(listing.km)} />
+        <SpecCard icon={Hand} label="יד" value={String(listing.hand)} />
+        <SpecCard icon={MapPin} label="עיר" value={listing.city || "—"} />
         <SpecCard
           icon={Calendar}
           label="שנה"
@@ -139,12 +129,12 @@ export function ListingDetailPage() {
             <span className="text-sm text-muted-foreground">ציון התאמה:</span>
             <span
               className={cn(
-                "inline-flex items-center rounded-full px-3 py-1 text-sm font-medium",
+                "inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold tabular-nums",
                 listing.fitness_score >= 7
-                  ? "bg-green-100 text-green-800"
+                  ? "bg-score-great/15 text-score-great"
                   : listing.fitness_score >= 5
-                    ? "bg-yellow-100 text-yellow-800"
-                    : "bg-gray-100 text-gray-600",
+                    ? "bg-score-good/15 text-score-good"
+                    : "bg-score-low/15 text-score-low",
               )}
             >
               {listing.fitness_score.toFixed(1)}
@@ -157,12 +147,12 @@ export function ListingDetailPage() {
         </div>
       </div>
 
-      {/* External link */}
+      {/* CTA */}
       <a
         href={listing.page_link}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.25)] transition-all duration-200 hover:bg-primary/90 hover:shadow-[0_0_30px_rgba(59,130,246,0.35)] active:scale-[0.98]"
       >
         <ExternalLink className="h-4 w-4" />
         צפה במודעה המקורית
@@ -181,10 +171,10 @@ function SpecCard({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 text-center">
-      <Icon className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
+    <div className="rounded-2xl border border-border/50 bg-card p-4 text-center transition-colors duration-200 hover:border-border">
+      <Icon className="mx-auto h-5 w-5 text-muted-foreground mb-1.5" />
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-sm font-semibold mt-0.5">{value}</p>
+      <p className="text-sm font-semibold mt-0.5 tabular-nums">{value}</p>
     </div>
   );
 }
