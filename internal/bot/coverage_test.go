@@ -12,6 +12,13 @@ import (
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
 
+func mustNoErr(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("unexpected setup error: %v", err)
+	}
+}
+
 func newTestBotFull(t *testing.T) *testBot {
 	t.Helper()
 	store, err := sqlite.New("file::memory:?cache=shared")
@@ -77,7 +84,7 @@ func TestLanguageSwitch_English(t *testing.T) {
 	tb := newTestBotFull(t)
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
-	_ = tb.store.SetUserLanguage(ctx, 100, "he")
+	mustNoErr(t, tb.store.SetUserLanguage(ctx, 100, "he"))
 
 	tb.simulateCallback(ctx, 100, "lang:en")
 
@@ -123,8 +130,8 @@ func TestOnClearHidden(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.HideListing(ctx, 100, "tok1")
-	_ = tb.store.HideListing(ctx, 100, "tok2")
+	mustNoErr(t, tb.store.HideListing(ctx, 100, "tok1"))
+	mustNoErr(t, tb.store.HideListing(ctx, 100, "tok2"))
 
 	tb.simulateCallback(ctx, 100, "hidden_clear")
 
@@ -205,7 +212,7 @@ func TestOnMfrPage(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "ask_manufacturer", "{}")
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "ask_manufacturer", "{}"))
 
 	tb.simulateCallback(ctx, 100, "mfr_pg:0")
 
@@ -220,7 +227,7 @@ func TestOnMfrSearch(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "ask_manufacturer", "{}")
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "ask_manufacturer", "{}"))
 
 	tb.simulateCallback(ctx, 100, "mfr_search")
 
@@ -235,7 +242,7 @@ func TestOnMdlPage(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "ask_model", `{"manufacturer":19,"manufacturer_name":"Toyota"}`)
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "ask_model", `{"manufacturer":19,"manufacturer_name":"Toyota"}`))
 
 	tb.simulateCallback(ctx, 100, "mdl_pg:0")
 
@@ -250,7 +257,7 @@ func TestOnMdlSearch(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "ask_model", `{"manufacturer":19}`)
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "ask_model", `{"manufacturer":19}`))
 
 	tb.simulateCallback(ctx, 100, "mdl_search")
 
@@ -265,7 +272,7 @@ func TestHandleManufacturerSearch(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "search_manufacturer", "{}")
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "search_manufacturer", "{}"))
 
 	tb.simulateText(ctx, 100, "Toyota")
 
@@ -280,7 +287,7 @@ func TestHandleModelSearch(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "search_model", `{"manufacturer":19}`)
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "search_model", `{"manufacturer":19}`))
 
 	tb.simulateText(ctx, 100, "Corolla")
 
@@ -297,8 +304,8 @@ func TestOnDailyDigestOff(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.SetUserTier(ctx, 100, "premium", time.Now().Add(30*24*time.Hour))
-	_ = tb.store.SetDailyDigest(ctx, 100, true, "09:00")
+	mustNoErr(t, tb.store.SetUserTier(ctx, 100, "premium", time.Now().Add(30*24*time.Hour)))
+	mustNoErr(t, tb.store.SetDailyDigest(ctx, 100, true, "09:00"))
 
 	tb.simulateCallback(ctx, 100, "daily_digest:off")
 
@@ -510,7 +517,7 @@ func TestHandleRevokePremium_Success(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 999, "admin")
 	tb.createUser(ctx, t, 100, "alice")
-	_ = tb.store.SetUserTier(ctx, 100, "premium", time.Now().Add(30*24*time.Hour))
+	mustNoErr(t, tb.store.SetUserTier(ctx, 100, "premium", time.Now().Add(30*24*time.Hour)))
 
 	tb.simulateCommand(ctx, 999, "/revoke_premium 100")
 
@@ -532,11 +539,11 @@ func TestOnSavedPage_WithData(t *testing.T) {
 
 	for i := range 15 {
 		token := fmt.Sprintf("saved-tok-%02d", i)
-		_ = tb.store.SaveListing(ctx, storage.ListingRecord{
+		mustNoErr(t, tb.store.SaveListing(ctx, storage.ListingRecord{
 			Token: token, ChatID: 100, SearchName: "s1",
 			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
-		})
-		_ = tb.store.SaveBookmark(ctx, 100, token)
+		}))
+		mustNoErr(t, tb.store.SaveBookmark(ctx, 100, token))
 	}
 
 	tb.bot.onSavedPage(ctx, 100, cbSavedPage+"0")
@@ -562,7 +569,7 @@ func TestOnHiddenPage_WithData(t *testing.T) {
 
 	for i := range 15 {
 		token := fmt.Sprintf("hidden-tok-%02d", i)
-		_ = tb.store.HideListing(ctx, 100, token)
+		mustNoErr(t, tb.store.HideListing(ctx, 100, token))
 	}
 
 	tb.bot.onHiddenPage(ctx, 100, cbHiddenPage+"0")
@@ -677,7 +684,7 @@ func TestLoadWizardData_InvalidJSON(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, "ask_model", "not-json")
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, "ask_model", "not-json"))
 	wd := tb.bot.loadWizardData(ctx, 100)
 	if wd.Manufacturer != 0 {
 		t.Errorf("expected empty wizard data for invalid JSON")
@@ -703,7 +710,7 @@ func TestOnLegacySourceSelected(t *testing.T) {
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
 
-	_ = tb.store.UpdateUserState(ctx, 100, StateAskSource, "{}")
+	mustNoErr(t, tb.store.UpdateUserState(ctx, 100, StateAskSource, "{}"))
 
 	tb.bot.onLegacySourceSelected(ctx, 100, "yad2")
 
@@ -719,7 +726,7 @@ func TestOnDailyDigestOn(t *testing.T) {
 	tb := newTestBotFull(t)
 	ctx := context.Background()
 	tb.createUser(ctx, t, 100, "alice")
-	_ = tb.store.SetUserTier(ctx, 100, "premium", time.Now().Add(30*24*time.Hour))
+	mustNoErr(t, tb.store.SetUserTier(ctx, 100, "premium", time.Now().Add(30*24*time.Hour)))
 
 	tb.simulateCallback(ctx, 100, "daily_digest:on")
 
@@ -762,11 +769,17 @@ func TestHandleRevokePremium_UserNotFound(t *testing.T) {
 
 // --- SetBot ---
 
-func TestSetBot_NilClears(t *testing.T) {
+func TestSetBot_NilKeepsBotNil(t *testing.T) {
 	tb := newTestBotFull(t)
+
+	origMsg := tb.bot.msg
+
 	tb.bot.SetBot(nil)
 	if tb.bot.bot != nil {
-		t.Error("expected nil bot")
+		t.Error("expected nil bot after SetBot(nil)")
+	}
+	if tb.bot.msg != origMsg {
+		t.Error("messenger should be unchanged when SetBot(nil) — no tgbot to wrap")
 	}
 }
 
@@ -810,11 +823,11 @@ func TestHandleSaved_WithPagination(t *testing.T) {
 
 	for i := range 15 {
 		token := fmt.Sprintf("sav-pg-%02d", i)
-		_ = tb.store.SaveListing(ctx, storage.ListingRecord{
+		mustNoErr(t, tb.store.SaveListing(ctx, storage.ListingRecord{
 			Token: token, ChatID: 100, SearchName: "s1",
 			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
-		})
-		_ = tb.store.SaveBookmark(ctx, 100, token)
+		}))
+		mustNoErr(t, tb.store.SaveBookmark(ctx, 100, token))
 	}
 
 	tb.simulateCommand(ctx, 100, "/saved")
@@ -831,7 +844,7 @@ func TestHandleHidden_WithPagination(t *testing.T) {
 	tb.createUser(ctx, t, 100, "alice")
 
 	for i := range 15 {
-		_ = tb.store.HideListing(ctx, 100, fmt.Sprintf("hid-pg-%02d", i))
+		mustNoErr(t, tb.store.HideListing(ctx, 100, fmt.Sprintf("hid-pg-%02d", i)))
 	}
 
 	tb.simulateCommand(ctx, 100, "/hidden")
@@ -851,11 +864,11 @@ func TestOnSavedPage_Page1(t *testing.T) {
 
 	for i := range 20 {
 		token := fmt.Sprintf("sav-p1-%02d", i)
-		_ = tb.store.SaveListing(ctx, storage.ListingRecord{
+		mustNoErr(t, tb.store.SaveListing(ctx, storage.ListingRecord{
 			Token: token, ChatID: 100, SearchName: "s1",
 			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
-		})
-		_ = tb.store.SaveBookmark(ctx, 100, token)
+		}))
+		mustNoErr(t, tb.store.SaveBookmark(ctx, 100, token))
 	}
 
 	tb.bot.onSavedPage(ctx, 100, cbSavedPage+"1")
@@ -874,7 +887,7 @@ func TestOnHiddenPage_Page1(t *testing.T) {
 	tb.createUser(ctx, t, 100, "alice")
 
 	for i := range 20 {
-		_ = tb.store.HideListing(ctx, 100, fmt.Sprintf("hid-p1-%02d", i))
+		mustNoErr(t, tb.store.HideListing(ctx, 100, fmt.Sprintf("hid-p1-%02d", i)))
 	}
 
 	tb.bot.onHiddenPage(ctx, 100, cbHiddenPage+"1")

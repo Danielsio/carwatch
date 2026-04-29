@@ -158,7 +158,9 @@ func TestPrunePrices_OldRecords(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
-	_, _, _ = store.RecordPrice(ctx, "prune-tok", 100000)
+	if _, _, err := store.RecordPrice(ctx, "prune-tok", 100000); err != nil {
+		t.Fatal(err)
+	}
 
 	db := store.DB()
 	_, err := db.ExecContext(ctx,
@@ -278,6 +280,73 @@ func TestDeleteSearch_CascadeCleanup(t *testing.T) {
 	}
 }
 
+func TestDeleteSearch_DuplicateNameDoesNotAffectOther(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	id1, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "shared-name", Source: "yad2",
+		Manufacturer: 19, Model: 10226, Active: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "shared-name", Source: "yad2",
+		Manufacturer: 8, Model: 10061, Active: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-s1", ChatID: 100, SearchName: "shared-name",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-s2", ChatID: 100, SearchName: "shared-name",
+		Manufacturer: "Honda", Model: "Civic", Year: 2022, Price: 110000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.EnqueueNotification(ctx, "100", "shared-name", "payload-for-s1"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.DeleteSearch(ctx, id1, 100); err != nil {
+		t.Fatal(err)
+	}
+
+	// BUG: Both listing_history rows and pending_notifications are deleted
+	// because DeleteSearch uses search_name (not search_id) for cascade.
+	// This test documents the current behavior. When the schema is migrated
+	// to use search_id as FK, update these assertions.
+	listings, err := store.ListSearchListings(ctx, 100, "shared-name", 100, 0, "newest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Current behavior: cascade deletes ALL listings with this search_name
+	t.Logf("listings remaining after deleting search %d: %d (search %d still exists)", id1, len(listings), id2)
+
+	searches, err := store.ListSearches(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, s := range searches {
+		if s.ID == id2 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("search %d should still exist after deleting search %d", id2, id1)
+	}
+}
+
 // --- SetUserTier / GrantTrial ---
 
 func TestSetUserTier_NotFound(t *testing.T) {
@@ -371,7 +440,9 @@ func TestCountUsers_ActiveOnly(t *testing.T) {
 	ctx := context.Background()
 	seedUser(t, store, 100)
 	seedUser(t, store, 200)
-	_ = store.SetUserActive(ctx, 200, false)
+	if err := store.SetUserActive(ctx, 200, false); err != nil {
+		t.Fatal(err)
+	}
 
 	count, err := store.CountUsers(ctx)
 	if err != nil {
@@ -388,14 +459,18 @@ func TestCountAllSearches(t *testing.T) {
 	seedUser(t, store, 100)
 	seedUser(t, store, 200)
 
-	_, _ = store.CreateSearch(ctx, storage.Search{
+	if _, err := store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "s1", Source: "yad2",
 		Manufacturer: 19, Model: 10226, Active: true,
-	})
-	_, _ = store.CreateSearch(ctx, storage.Search{
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateSearch(ctx, storage.Search{
 		ChatID: 200, Name: "s2", Source: "yad2",
 		Manufacturer: 8, Model: 10061, Active: true,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	count, err := store.CountAllSearches(ctx)
 	if err != nil {
@@ -454,10 +529,12 @@ func TestGetSearchBySeq_Coverage(t *testing.T) {
 	ctx := context.Background()
 	seedUser(t, store, 100)
 
-	_, _ = store.CreateSearch(ctx, storage.Search{
+	if _, err := store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "seq-s1", Source: "yad2",
 		Manufacturer: 19, Model: 10226, Active: true,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	found, err := store.GetSearchBySeq(ctx, 100, 1)
 	if err != nil {
@@ -486,7 +563,10 @@ func TestSetUserLanguage_Coverage(t *testing.T) {
 	if err := store.SetUserLanguage(ctx, 100, "en"); err != nil {
 		t.Fatal(err)
 	}
-	u, _ := store.GetUser(ctx, 100)
+	u, err := store.GetUser(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if u.Language != "en" {
 		t.Errorf("language = %q, want en", u.Language)
 	}
@@ -561,15 +641,22 @@ func TestListAllActiveSearches_ExcludesPaused(t *testing.T) {
 	seedUser(t, store, 100)
 	seedUser(t, store, 200)
 
-	_, _ = store.CreateSearch(ctx, storage.Search{
+	if _, err := store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "active-s", Source: "yad2",
 		Manufacturer: 19, Model: 10226, Active: true,
-	})
-	id2, _ := store.CreateSearch(ctx, storage.Search{
+	}); err != nil {
+		t.Fatal(err)
+	}
+	id2, err := store.CreateSearch(ctx, storage.Search{
 		ChatID: 200, Name: "paused-s", Source: "yad2",
 		Manufacturer: 8, Model: 10061, Active: true,
 	})
-	_ = store.SetSearchActive(ctx, id2, 200, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSearchActive(ctx, id2, 200, false); err != nil {
+		t.Fatal(err)
+	}
 
 	searches, err := store.ListAllActiveSearches(ctx)
 	if err != nil {
@@ -602,5 +689,7 @@ func TestNew_WithQueryParams(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success with query params: %v", err)
 	}
-	store.Close()
+	if err := store.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
 }

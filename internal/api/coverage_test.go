@@ -216,8 +216,8 @@ func TestDeleteSearch_NotFound(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
 	w := doRequest(t, srv, "DELETE", "/api/v1/searches/99999", nil)
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500 for delete nonexistent, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for delete nonexistent, got %d", w.Code)
 	}
 }
 
@@ -323,8 +323,8 @@ func TestGetListing_EmptyToken(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
 	w := doRequest(t, srv, "GET", "/api/v1/listings/", nil)
-	if w.Code != http.StatusBadRequest && w.Code != http.StatusNotFound {
-		t.Fatalf("expected 400 or 404 for empty token, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for empty token (mux rejects empty path param), got %d", w.Code)
 	}
 }
 
