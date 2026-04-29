@@ -14,6 +14,16 @@ export function formatKm(km: number): string {
   return km.toLocaleString("he-IL") + " ק\"מ";
 }
 
+export function safeHref(raw: string): string | null {
+  try {
+    const u = new URL(raw);
+    if (u.protocol === "http:" || u.protocol === "https:") return u.toString();
+  } catch {
+    // invalid URL
+  }
+  return null;
+}
+
 export function relativeTime(dateStr: string): string {
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) return "—";

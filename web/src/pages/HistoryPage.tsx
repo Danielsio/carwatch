@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock, ExternalLink } from "lucide-react";
 import { useHistory } from "@/hooks/useBookmarks";
-import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
+import { formatPrice, formatKm, relativeTime, safeHref, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 
 const PAGE_SIZE = 20;
@@ -9,6 +9,13 @@ const PAGE_SIZE = 20;
 export function HistoryPage() {
   const [offset, setOffset] = useState(0);
   const { data, isLoading, isError } = useHistory(PAGE_SIZE, offset);
+
+  useEffect(() => {
+    if (!data || data.total === 0) return;
+    if (offset >= data.total) {
+      setOffset(Math.floor((data.total - 1) / PAGE_SIZE) * PAGE_SIZE);
+    }
+  }, [data, offset]);
 
   if (isLoading) {
     return (
@@ -46,7 +53,7 @@ export function HistoryPage() {
         )}
       </div>
 
-      {!data || data.items.length === 0 ? (
+      {!data || data.total === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
           <Clock className="h-8 w-8 text-muted-foreground/30 mb-3" />
           <p className="text-muted-foreground">אין מודעות בהיסטוריה</p>
@@ -62,7 +69,7 @@ export function HistoryPage() {
             ))}
           </div>
 
-          {data.total > PAGE_SIZE && (
+          {(data.total > PAGE_SIZE || offset > 0) && (
             <div className="flex items-center justify-center gap-3 pt-4">
               {offset > 0 && (
                 <button
@@ -93,14 +100,10 @@ export function HistoryPage() {
 }
 
 function HistoryCard({ listing }: { listing: Listing }) {
-  return (
-    <a
-      href={listing.page_link}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`פתח מודעה: ${listing.manufacturer} ${listing.model}`}
-      className="group block rounded-xl border border-border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-    >
+  const href = safeHref(listing.page_link);
+
+  const card = (
+    <>
       {listing.image_url ? (
         <div className="aspect-video w-full overflow-hidden bg-muted">
           <img
@@ -153,9 +156,31 @@ function HistoryCard({ listing }: { listing: Listing }) {
           <span className="text-xs text-muted-foreground mr-auto">
             {relativeTime(listing.first_seen_at)}
           </span>
-          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+          {href && (
+            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+          )}
         </div>
       </div>
-    </a>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`פתח מודעה: ${listing.manufacturer} ${listing.model}`}
+        className="group block rounded-xl border border-border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+      >
+        {card}
+      </a>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+      {card}
+    </div>
   );
 }

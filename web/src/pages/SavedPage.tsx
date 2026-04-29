@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
 import { useSavedListings, useRemoveBookmark } from "@/hooks/useBookmarks";
-import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
+import { formatPrice, formatKm, relativeTime, safeHref, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 
 const PAGE_SIZE = 20;
 
 export function SavedPage() {
   const [offset, setOffset] = useState(0);
-  const [removingToken, setRemovingToken] = useState<string | null>(null);
+  const [removingTokens, setRemovingTokens] = useState<Set<string>>(new Set());
   const { data, isLoading, isError } = useSavedListings(PAGE_SIZE, offset);
   const removeBookmark = useRemoveBookmark();
 
@@ -71,12 +71,17 @@ export function SavedPage() {
                 key={listing.token}
                 listing={listing}
                 onRemove={() => {
-                  setRemovingToken(listing.token);
+                  setRemovingTokens((prev) => new Set(prev).add(listing.token));
                   removeBookmark.mutate(listing.token, {
-                    onSettled: () => setRemovingToken(null),
+                    onSettled: () =>
+                      setRemovingTokens((prev) => {
+                        const next = new Set(prev);
+                        next.delete(listing.token);
+                        return next;
+                      }),
                   });
                 }}
-                removing={removingToken === listing.token}
+                removing={removingTokens.has(listing.token)}
               />
             ))}
           </div>
@@ -120,6 +125,8 @@ function SavedCard({
   onRemove: () => void;
   removing: boolean;
 }) {
+  const externalHref = safeHref(listing.page_link);
+
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
       {listing.image_url ? (
@@ -182,15 +189,17 @@ function SavedCard({
             <Trash2 className="h-3.5 w-3.5" />
             הסר
           </button>
-          <a
-            href={listing.page_link}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`פתח מודעה: ${listing.manufacturer} ${listing.model}`}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+          {externalHref && (
+            <a
+              href={externalHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`פתח מודעה: ${listing.manufacturer} ${listing.model}`}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
         </div>
       </div>
     </div>
