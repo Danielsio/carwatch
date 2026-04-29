@@ -200,24 +200,4 @@ export const adminApi = {
   stats: () => fetchAPI<AdminStats>("/admin/stats"),
 };
 
-export interface NotificationCount {
-  count: number;
-}
-
-export const notificationsApi = {
-  count: () => fetchAPI<NotificationCount>("/notifications/count"),
-  list: (params?: ListingsParams) => {
-    const query = new URLSearchParams();
-    if (params?.limit !== undefined) query.set("limit", String(params.limit));
-    if (params?.offset !== undefined)
-      query.set("offset", String(params.offset));
-    const qs = query.toString();
-    return fetchAPI<ListingsResponse>(
-      `/notifications${qs ? `?${qs}` : ""}`,
-    );
-  },
-  markSeen: () =>
-    fetchAPI<void>("/notifications/seen", { method: "POST" }),
-};
-
 export { ApiError };
