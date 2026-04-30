@@ -48,8 +48,14 @@ func (p *ProxyPool) Next() string {
 		}
 	}
 
-	p.proxies[p.idx].healthy = true
-	return p.proxies[p.idx].url
+	oldest := 0
+	for i := range p.proxies {
+		if p.proxies[i].cooldown.Before(p.proxies[oldest].cooldown) {
+			oldest = i
+		}
+	}
+	p.proxies[oldest].healthy = true
+	return p.proxies[oldest].url
 }
 
 func (p *ProxyPool) MarkUnhealthy(url string) {
