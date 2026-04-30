@@ -15,6 +15,7 @@ func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(token, chat_id) DO UPDATE SET
 			search_id = excluded.search_id,
+			search_name = excluded.search_name,
 			price = excluded.price,
 			km = excluded.km,
 			hand = excluded.hand,

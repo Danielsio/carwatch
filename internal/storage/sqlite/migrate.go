@@ -483,12 +483,14 @@ func migrate(db *sql.DB) error {
 		}
 		// Backfill search_id from searches table where names match.
 		if _, err := db.Exec(`
-			UPDATE listing_history SET search_id = (
+			UPDATE listing_history
+			SET search_id = COALESCE((
 				SELECT s.id FROM searches s
 				WHERE s.chat_id = listing_history.chat_id
 				  AND s.name = listing_history.search_name
 				LIMIT 1
-			) WHERE search_id = 0
+			), 0)
+			WHERE search_id = 0
 		`); err != nil {
 			return fmt.Errorf("backfill listing_history search_id: %w", err)
 		}

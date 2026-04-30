@@ -329,12 +329,14 @@ function SearchCard({
           <span className="text-xs text-muted-foreground">{search.source}</span>
         </div>
         <div className="flex shrink-0 items-start gap-2">
-          <span
-            className="inline-flex items-center rounded-full bg-muted/80 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-foreground ring-1 ring-border/50"
-            title="מספר מודעות שנמצאו בחיפוש"
-          >
-            {(search.listings_count ?? 0).toLocaleString("he-IL")} מודעות
-          </span>
+          {(search.listings_count ?? 0) > 0 && (
+            <span
+              className="inline-flex items-center rounded-full bg-muted/80 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-foreground ring-1 ring-border/50"
+              title="מספר מודעות שנמצאו בחיפוש"
+            >
+              {search.listings_count!.toLocaleString("he-IL")} מודעות
+            </span>
+          )}
           <Badge variant={search.active ? "success" : "warning"}>
             {search.active ? "פעיל" : "מושהה"}
           </Badge>
