@@ -43,6 +43,7 @@ type PollingConfig struct {
 	ActiveHours          *ActiveHours  `yaml:"active_hours"`
 	Timezone             string        `yaml:"timezone"`
 	MaxConcurrentFetches int           `yaml:"max_concurrent_fetches"`
+	EnableKmEnrichment   bool          `yaml:"enable_km_enrichment"`
 }
 
 type ActiveHours struct {

@@ -6,28 +6,46 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/model"
 )
 
-func TestEnricher_FillsMissingKm(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
-{"props":{"pageProps":{"itemData":{"km":75000}}}}
-</script></html>`)
-	}))
-	defer srv.Close()
+func newTestEnricher(t *testing.T, handler http.Handler, cfg EnricherConfig) *Enricher {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+
+	client, err := newPlainClient([]string{"test-ua"}, "")
+	if err != nil {
+		t.Fatalf("create plain client: %v", err)
+	}
 
 	fetcher := &Yad2Fetcher{
-		client:  mustPlainClient(t),
-		baseURL: srv.URL,
-		logger:  slog.Default(),
+		client:     client,
+		baseURL:    srv.URL,
+		logger:     slog.Default(),
+		userAgents: []string{"test-ua"},
 	}
-	// Override the item URL by wrapping the fetcher's FetchItem via a test enricher.
-	// Instead, we'll just test the Enricher directly with a custom server.
-	enricher := &testEnricher{details: ItemDetails{Km: 75000}}
+
+	return NewEnricher(fetcher, slog.Default(), cfg)
+}
+
+func itemPageHandler(km int) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":%d}}}}
+</script></html>`, km)
+	}
+}
+
+func TestEnricher_FillsMissingKm(t *testing.T) {
+	enricher := newTestEnricher(t, itemPageHandler(75000), EnricherConfig{
+		Delay:       time.Millisecond,
+		MaxPerCycle: 10,
+	})
 
 	listings := []model.RawListing{
 		{Token: "a", Km: 50000},
@@ -48,12 +66,21 @@ func TestEnricher_FillsMissingKm(t *testing.T) {
 	if listings[2].Km != 75000 {
 		t.Errorf("listing[2].Km = %d, want 75000", listings[2].Km)
 	}
-
-	_ = fetcher
 }
 
 func TestEnricher_RespectsMaxPerCycle(t *testing.T) {
-	enricher := &testEnricher{details: ItemDetails{Km: 10000}, maxPerCycle: 1}
+	var requestCount atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount.Add(1)
+		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":10000}}}}
+</script></html>`)
+	})
+
+	enricher := newTestEnricher(t, handler, EnricherConfig{
+		Delay:       time.Millisecond,
+		MaxPerCycle: 1,
+	})
 
 	listings := []model.RawListing{
 		{Token: "a", Km: 0},
@@ -71,28 +98,40 @@ func TestEnricher_RespectsMaxPerCycle(t *testing.T) {
 	if listings[1].Km != 0 {
 		t.Errorf("listing[1].Km = %d, want 0 (not enriched)", listings[1].Km)
 	}
+	if got := requestCount.Load(); got != 1 {
+		t.Errorf("requests = %d, want 1 (budget limits attempts)", got)
+	}
 }
 
 func TestEnricher_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	enricher := &testEnricher{details: ItemDetails{Km: 10000}}
+	enricher := newTestEnricher(t, itemPageHandler(10000), EnricherConfig{
+		Delay:       time.Millisecond,
+		MaxPerCycle: 10,
+	})
 
 	listings := []model.RawListing{
 		{Token: "a", Km: 0},
 		{Token: "b", Km: 0},
 	}
 
-	// First item gets enriched (no delay before first), second should be skipped.
 	count := enricher.Enrich(ctx, listings)
-	if count > 1 {
-		t.Errorf("enriched = %d, want <= 1 (ctx canceled)", count)
+	if count > 0 {
+		t.Errorf("enriched = %d, want 0 (ctx canceled before first attempt)", count)
 	}
 }
 
 func TestEnricher_SkipsOnError(t *testing.T) {
-	enricher := &testEnricher{err: fmt.Errorf("network error")}
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+
+	enricher := newTestEnricher(t, handler, EnricherConfig{
+		Delay:       time.Millisecond,
+		MaxPerCycle: 10,
+	})
 
 	listings := []model.RawListing{
 		{Token: "a", Km: 0},
@@ -108,7 +147,18 @@ func TestEnricher_SkipsOnError(t *testing.T) {
 }
 
 func TestEnricher_AllHaveKm(t *testing.T) {
-	enricher := &testEnricher{details: ItemDetails{Km: 50000}}
+	var requestCount atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount.Add(1)
+		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":50000}}}}
+</script></html>`)
+	})
+
+	enricher := newTestEnricher(t, handler, EnricherConfig{
+		Delay:       time.Millisecond,
+		MaxPerCycle: 10,
+	})
 
 	listings := []model.RawListing{
 		{Token: "a", Km: 10000},
@@ -119,51 +169,34 @@ func TestEnricher_AllHaveKm(t *testing.T) {
 	if count != 0 {
 		t.Errorf("enriched = %d, want 0 (all have km)", count)
 	}
+	if got := requestCount.Load(); got != 0 {
+		t.Errorf("requests = %d, want 0 (no fetches needed)", got)
+	}
 }
 
-// testEnricher is a mock that simulates the real Enricher's logic.
-type testEnricher struct {
-	details     ItemDetails
-	err         error
-	maxPerCycle int
-}
+func TestEnricher_FailedAttemptsConsumeBudget(t *testing.T) {
+	var requestCount atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	})
 
-func (e *testEnricher) Enrich(ctx context.Context, listings []model.RawListing) int {
-	max := e.maxPerCycle
-	if max <= 0 {
-		max = 100
-	}
-	enriched := 0
-	for i := range listings {
-		if listings[i].Km > 0 {
-			continue
-		}
-		if enriched >= max {
-			break
-		}
-		if enriched > 0 {
-			select {
-			case <-ctx.Done():
-				return enriched
-			case <-time.After(time.Millisecond):
-			}
-		}
-		if e.err != nil {
-			continue
-		}
-		if e.details.Km > 0 {
-			listings[i].Km = e.details.Km
-			enriched++
-		}
-	}
-	return enriched
-}
+	enricher := newTestEnricher(t, handler, EnricherConfig{
+		Delay:       time.Millisecond,
+		MaxPerCycle: 2,
+	})
 
-func mustPlainClient(t *testing.T) HTTPDoer {
-	t.Helper()
-	c, err := newPlainClient([]string{"test-ua"}, "")
-	if err != nil {
-		t.Fatalf("create plain client: %v", err)
+	listings := []model.RawListing{
+		{Token: "a", Km: 0},
+		{Token: "b", Km: 0},
+		{Token: "c", Km: 0},
 	}
-	return c
+
+	count := enricher.Enrich(context.Background(), listings)
+	if count != 0 {
+		t.Errorf("enriched = %d, want 0 (all failed)", count)
+	}
+	if got := requestCount.Load(); got != 2 {
+		t.Errorf("requests = %d, want 2 (budget=2, failures count)", got)
+	}
 }

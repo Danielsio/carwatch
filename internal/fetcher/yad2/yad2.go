@@ -72,7 +72,13 @@ func (f *Yad2Fetcher) Close() {
 
 // FetchItem fetches an individual listing page and returns enrichment details.
 func (f *Yad2Fetcher) FetchItem(ctx context.Context, token string) (ItemDetails, error) {
-	itemURL := fmt.Sprintf("https://www.yad2.co.il/item/%s", token)
+	base, err := url.Parse(f.baseURL)
+	if err != nil {
+		return ItemDetails{}, fmt.Errorf("parse base URL: %w", err)
+	}
+	base.Path = "/item/" + url.PathEscape(token)
+	base.RawQuery = ""
+	itemURL := base.String()
 
 	client := f.client
 	var usedProxy string

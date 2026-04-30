@@ -43,16 +43,27 @@ func NewEnricher(fetcher *Yad2Fetcher, logger *slog.Logger, cfg EnricherConfig) 
 // It modifies the slice in place and returns the number of successfully enriched listings.
 func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int {
 	enriched := 0
+	attempts := 0
 	for i := range listings {
 		if listings[i].Km > 0 {
 			continue
 		}
-		if enriched >= e.cfg.MaxPerCycle {
-			e.logger.Info("km enrichment limit reached", "enriched", enriched, "remaining", countMissingKm(listings[i:]))
+		if attempts >= e.cfg.MaxPerCycle {
+			e.logger.Info("km enrichment limit reached",
+				"enriched", enriched,
+				"attempts", attempts,
+				"remaining", countMissingKm(listings[i:]),
+			)
 			break
 		}
 
-		if enriched > 0 {
+		select {
+		case <-ctx.Done():
+			return enriched
+		default:
+		}
+
+		if attempts > 0 {
 			select {
 			case <-ctx.Done():
 				return enriched
@@ -60,6 +71,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			}
 		}
 
+		attempts++
 		details, err := e.fetcher.FetchItem(ctx, listings[i].Token)
 		if err != nil {
 			e.logger.Warn("km enrichment failed",

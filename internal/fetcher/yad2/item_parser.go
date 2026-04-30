@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-var itemNextDataRe = regexp.MustCompile(`(?s)<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>`)
+var itemNextDataRe = regexp.MustCompile(`(?is)<script[^>]*\bid=["']__NEXT_DATA__["'][^>]*>(.*?)</script>`)
 
 // ItemDetails holds enrichment data parsed from an individual listing page.
 type ItemDetails struct {
@@ -49,9 +49,8 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 	}
 
 	if envelope.Props.PageProps.ItemData != nil {
-		d := envelope.Props.PageProps.ItemData
-		if d.Km > 0 {
-			return ItemDetails{Km: d.Km}, nil
+		if km := effectiveKm(*envelope.Props.PageProps.ItemData); km > 0 {
+			return ItemDetails{Km: km}, nil
 		}
 	}
 
@@ -75,16 +74,19 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 				continue
 			}
 			var item itemPageData
-			if json.Unmarshal(q.State.Data, &item) == nil && item.Km > 0 {
-				return ItemDetails{Km: item.Km}, nil
+			if json.Unmarshal(q.State.Data, &item) == nil {
+				if km := effectiveKm(item); km > 0 {
+					return ItemDetails{Km: km}, nil
+				}
 			}
-			// Try nested under a wrapper key.
 			var wrapper map[string]json.RawMessage
 			if json.Unmarshal(q.State.Data, &wrapper) == nil {
 				for _, v := range wrapper {
 					var nested itemPageData
-					if json.Unmarshal(v, &nested) == nil && nested.Km > 0 {
-						return ItemDetails{Km: nested.Km}, nil
+					if json.Unmarshal(v, &nested) == nil {
+						if km := effectiveKm(nested); km > 0 {
+							return ItemDetails{Km: km}, nil
+						}
 					}
 				}
 			}
@@ -95,6 +97,13 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 }
 
 type itemPageData struct {
-	Km       int `json:"km"`
+	Km        int `json:"km"`
 	Kilometer int `json:"kilometer"`
+}
+
+func effectiveKm(d itemPageData) int {
+	if d.Km > 0 {
+		return d.Km
+	}
+	return d.Kilometer
 }

@@ -615,8 +615,8 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 		}
 	}
 
-	if s.kmEnricher != nil {
-		enriched := s.kmEnricher.Enrich(ctx, raw)
+	if source == "yad2" && s.kmEnricher != nil {
+		enriched := s.kmEnricher.Enrich(fetchCtx, raw)
 		if enriched > 0 {
 			s.logger.Info("km enrichment complete", "enriched", enriched)
 		}
