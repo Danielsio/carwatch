@@ -106,7 +106,7 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/history", s.listHistory)
 	}
 
-	return s.corsMiddleware(s.authMiddleware(mux))
+	return s.corsMiddleware(s.authMiddleware(s.rateLimitMiddleware(mux)))
 }
 
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
