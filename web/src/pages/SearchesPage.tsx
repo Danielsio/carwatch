@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import {
   Plus,
@@ -7,26 +8,49 @@ import {
   List,
   Search as SearchIcon,
   Activity,
+  Bell,
+  Car,
 } from "lucide-react";
+import { motion } from "motion/react";
 import {
   useSearches,
   useDeleteSearch,
   usePauseSearch,
   useResumeSearch,
 } from "@/hooks/useSearches";
-import { formatPrice, formatKm, cn } from "@/lib/utils";
-import { useState } from "react";
-import type { Search } from "@/lib/api";
-import { PageHeader } from "@/components/ui/PageHeader";
+import {
+  useNotificationCount,
+  useNotifications,
+} from "@/hooks/useNotifications";
+import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
+import type { Search, Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { useToast } from "@/components/ui/Toast";
+
+const STAGGER_DELAY = 0.06;
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 18 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      delay: i * STAGGER_DELAY,
+      duration: 0.35,
+      ease: [0, 0, 0.2, 1] as const,
+    },
+  }),
+};
 
 export function SearchesPage() {
   const { toast } = useToast();
   const { data: searches, isLoading, isError } = useSearches();
+  const { data: notifCount } = useNotificationCount();
+  const { data: recentListings } = useNotifications(5, 0);
   const deleteSearch = useDeleteSearch();
   const pauseSearch = usePauseSearch();
   const resumeSearch = useResumeSearch();
@@ -34,18 +58,26 @@ export function SearchesPage() {
     deleteSearch.isPending || pauseSearch.isPending || resumeSearch.isPending;
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
+  const unread = notifCount?.count ?? 0;
+  const activeCount = searches?.filter((s) => s.active).length ?? 0;
+  const totalSearches = searches?.length ?? 0;
+
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4 border-b border-border/50 pb-6">
-          <Skeleton className="h-8 w-48 rounded-lg" />
-          <Skeleton className="h-10 w-36 rounded-md" />
+      <div className="space-y-8">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-40 rounded-lg" />
+            <Skeleton className="h-4 w-56 rounded-md" />
+          </div>
+          <Skeleton className="h-10 w-36 rounded-xl" />
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-24 rounded-2xl" />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-[100px] rounded-xl" />
           ))}
         </div>
+        <Skeleton className="h-5 w-32 rounded-md" />
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2].map((i) => (
             <Skeleton key={i} className="h-52 rounded-2xl" />
@@ -57,8 +89,8 @@ export function SearchesPage() {
 
   if (isError) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="החיפושים שלי" />
+      <div className="space-y-8">
+        <DashboardHeader />
         <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center">
           <p className="text-destructive font-medium">
             שגיאה בטעינת החיפושים
@@ -69,94 +101,164 @@ export function SearchesPage() {
     );
   }
 
-  const activeCount = searches?.filter((s) => s.active).length ?? 0;
-  const pausedCount = (searches?.length ?? 0) - activeCount;
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      <DashboardHeader />
+
       {/* Stats row */}
-      {searches && searches.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {[
+          {
+            icon: SearchIcon,
+            label: "חיפושים פעילים",
+            value: activeCount,
+            color: "text-primary",
+            bg: "bg-primary/12",
+            glow: "shadow-[0_0_24px_-4px_rgba(59,130,246,0.3)]",
+          },
+          {
+            icon: Car,
+            label: "סה״כ מודעות",
+            value: recentListings?.total ?? 0,
+            color: "text-score-great",
+            bg: "bg-score-great/12",
+            glow: "shadow-[0_0_24px_-4px_rgba(16,185,129,0.25)]",
+          },
+          {
+            icon: Bell,
+            label: "מודעות חדשות",
+            value: unread,
+            color: "text-score-good",
+            bg: "bg-score-good/12",
+            glow: unread > 0
+              ? "shadow-[0_0_24px_-4px_rgba(245,158,11,0.3)]"
+              : "",
+          },
+          {
+            icon: Activity,
+            label: "סה״כ חיפושים",
+            value: totalSearches,
+            color: "text-[#A78BFA]",
+            bg: "bg-[#A78BFA]/12",
+            glow: "shadow-[0_0_24px_-4px_rgba(167,139,250,0.25)]",
+          },
+        ].map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            custom={i}
+            initial="hidden"
+            animate="visible"
+            variants={fadeUp}
+          >
+            <StatCard {...stat} />
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Saved searches */}
+      <section className="space-y-4">
+        <SectionHeader title="חיפושים שמורים" />
+
+        {!searches || searches.length === 0 ? (
+          <EmptyState
             icon={SearchIcon}
-            value={searches.length}
-            label="סה״כ חיפושים"
-            color="text-primary"
+            title="אין חיפושים פעילים עדיין"
+            description="צור חיפוש ראשון כדי להתחיל לעקוב אחר מודעות רכבים"
+            action={
+              <Button asChild>
+                <Link to="/searches/new">
+                  <Plus className="h-4 w-4" />
+                  צור חיפוש
+                </Link>
+              </Button>
+            }
           />
-          <StatCard
-            icon={Activity}
-            value={activeCount}
-            label="פעילים"
-            color="text-score-great"
-          />
-          <StatCard
-            icon={Pause}
-            value={pausedCount}
-            label="מושהים"
-            color="text-score-good"
-          />
-        </div>
-      )}
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {searches.map((search, i) => (
+              <motion.div
+                key={search.id}
+                custom={i}
+                initial="hidden"
+                animate="visible"
+                variants={fadeUp}
+              >
+                <SearchCard
+                  search={search}
+                  disabled={isMutating}
+                  onPause={() =>
+                    pauseSearch.mutate(search.id, {
+                      onSuccess: () => toast("החיפוש הושהה", "info"),
+                    })
+                  }
+                  onResume={() =>
+                    resumeSearch.mutate(search.id, {
+                      onSuccess: () => toast("החיפוש חודש", "success"),
+                    })
+                  }
+                  onDelete={() => {
+                    if (confirmDelete === search.id) {
+                      deleteSearch.mutate(search.id, {
+                        onSuccess: () => toast("החיפוש נמחק", "success"),
+                      });
+                      setConfirmDelete(null);
+                    } else {
+                      setConfirmDelete(search.id);
+                    }
+                  }}
+                  isConfirmingDelete={confirmDelete === search.id}
+                  onCancelDelete={() => setConfirmDelete(null)}
+                />
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </section>
 
-      <PageHeader
-        title="החיפושים שלי"
-        action={
-          <Button asChild>
-            <Link to="/searches/new">
-              <Plus className="h-4 w-4" />
-              חיפוש חדש
-            </Link>
-          </Button>
-        }
-      />
-
-      {/* Search cards */}
-      {!searches || searches.length === 0 ? (
-        <EmptyState
-          icon={SearchIcon}
-          title="אין חיפושים פעילים עדיין"
-          action={
-            <Button asChild>
-              <Link to="/searches/new">
-                <Plus className="h-4 w-4" />
-                צור חיפוש ראשון
-              </Link>
-            </Button>
-          }
-        />
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {searches.map((search) => (
-            <SearchCard
-              key={search.id}
-              search={search}
-              disabled={isMutating}
-              onPause={() =>
-                pauseSearch.mutate(search.id, {
-                  onSuccess: () => toast("החיפוש הושהה", "info"),
-                })
-              }
-              onResume={() =>
-                resumeSearch.mutate(search.id, {
-                  onSuccess: () => toast("החיפוש חודש", "success"),
-                })
-              }
-              onDelete={() => {
-                if (confirmDelete === search.id) {
-                  deleteSearch.mutate(search.id, {
-                    onSuccess: () => toast("החיפוש נמחק", "success"),
-                  });
-                  setConfirmDelete(null);
-                } else {
-                  setConfirmDelete(search.id);
-                }
-              }}
-              isConfirmingDelete={confirmDelete === search.id}
-              onCancelDelete={() => setConfirmDelete(null)}
-            />
-          ))}
-        </div>
+      {/* Recent listings feed */}
+      {recentListings && recentListings.items.length > 0 && (
+        <section className="space-y-4">
+          <SectionHeader
+            title="מודעות אחרונות"
+            linkTo="/notifications"
+            linkLabel="הצג הכל"
+          />
+          <div className="space-y-2">
+            {recentListings.items.map((listing, i) => (
+              <motion.div
+                key={listing.token}
+                custom={i}
+                initial="hidden"
+                animate="visible"
+                variants={fadeUp}
+              >
+                <RecentListingRow listing={listing} />
+              </motion.div>
+            ))}
+          </div>
+        </section>
       )}
+    </div>
+  );
+}
+
+/* ---------- sub-components ---------- */
+
+function DashboardHeader() {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">לוח בקרה</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          מעקב אחר חיפושי רכבים שלך
+        </p>
+      </div>
+      <Button asChild className="rounded-xl">
+        <Link to="/searches/new">
+          <Plus className="h-4 w-4" />
+          חיפוש חדש
+        </Link>
+      </Button>
     </div>
   );
 }
@@ -166,17 +268,35 @@ function StatCard({
   value,
   label,
   color,
+  bg,
+  glow,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   value: number;
   label: string;
   color: string;
+  bg: string;
+  glow?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border/50 bg-card p-4 text-center transition-colors duration-200 hover:border-border">
-      <Icon className={cn("mx-auto h-5 w-5 mb-1.5", color)} />
-      <p className="text-2xl font-bold tabular-nums">{value}</p>
-      <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+    <div
+      className={cn(
+        "rounded-xl border border-border/50 bg-card p-5 transition-all duration-200 hover:border-border hover:-translate-y-0.5",
+        glow,
+      )}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm text-muted-foreground">{label}</span>
+        <div
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+            bg,
+          )}
+        >
+          <Icon className={cn("h-[18px] w-[18px]", color)} />
+        </div>
+      </div>
+      <p className="text-3xl font-bold tabular-nums text-foreground">{value}</p>
     </div>
   );
 }
@@ -295,5 +415,41 @@ function SearchCard({
         </div>
       </div>
     </div>
+  );
+}
+
+function RecentListingRow({ listing }: { listing: Listing }) {
+  return (
+    <Link
+      to={`/listings/${listing.token}`}
+      state={{ listing }}
+      className="flex items-center gap-4 rounded-xl border border-border/50 bg-card p-4 transition-all duration-200 hover:border-primary/40 hover:shadow-[0_2px_16px_rgba(59,130,246,0.08)]"
+    >
+      <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-secondary">
+        {listing.image_url ? (
+          <img
+            src={listing.image_url}
+            alt={`${listing.manufacturer} ${listing.model}`}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-xl opacity-20">
+            🚗
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">
+          {listing.manufacturer} {listing.model} {listing.year}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {listing.city || "—"} · {relativeTime(listing.first_seen_at)}
+        </p>
+      </div>
+      <span className="shrink-0 text-sm font-bold tabular-nums text-primary">
+        {formatPrice(listing.price)}
+      </span>
+    </Link>
   );
 }
