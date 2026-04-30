@@ -482,20 +482,25 @@ func migrate(db *sql.DB) error {
 			return fmt.Errorf("add search_id column: %w", err)
 		}
 	}
-	// Always backfill: a partial rollout may have the column but still
-	// contain legacy rows with search_id = 0.
+	// Backfill runs unconditionally so partial rollouts with the column
+	// but un-backfilled rows still get repaired. Only updates rows where
+	// exactly one search matches to avoid mis-assignment; unresolvable
+	// rows (0 or 2+ matches) are skipped entirely to avoid WAL churn.
 	if _, err := db.Exec(`
 		UPDATE listing_history
-		SET search_id = COALESCE((
-			SELECT CASE
-				WHEN COUNT(*) = 1 THEN MIN(s.id)
-				ELSE 0
-			END
+		SET search_id = (
+			SELECT MIN(s.id)
 			FROM searches s
 			WHERE s.chat_id = listing_history.chat_id
 			  AND s.name = listing_history.search_name
-		), 0)
+		)
 		WHERE search_id = 0
+		  AND (
+			SELECT COUNT(*)
+			FROM searches s
+			WHERE s.chat_id = listing_history.chat_id
+			  AND s.name = listing_history.search_name
+		  ) = 1
 	`); err != nil {
 		return fmt.Errorf("backfill listing_history search_id: %w", err)
 	}
