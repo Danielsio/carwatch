@@ -88,7 +88,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/listings/{token}", s.getListing)
 
 	if s.admin != nil {
-		mux.HandleFunc("GET /api/v1/admin/stats", s.adminStats)
+		mux.HandleFunc("GET /api/v1/admin/stats", s.requireAdmin(s.adminStats))
 	}
 
 	if s.notifs != nil {

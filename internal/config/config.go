@@ -33,6 +33,7 @@ type APIConfig struct {
 	CORSOrigins []string `yaml:"cors_origins"`
 	DevChatID   int64    `yaml:"dev_chat_id"`
 	AuthToken   string   `yaml:"auth_token"`
+	AdminChatID int64    `yaml:"-"`
 }
 
 type PollingConfig struct {

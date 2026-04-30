@@ -25,6 +25,17 @@ type runtimeStats struct {
 	Uptime     string `json:"uptime"`
 }
 
+func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		chatID := chatIDFromContext(r.Context())
+		if s.cfg.AdminChatID == 0 || chatID != s.cfg.AdminChatID {
+			writeError(w, http.StatusForbidden, "admin access required")
+			return
+		}
+		next(w, r)
+	}
+}
+
 func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
