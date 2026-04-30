@@ -174,6 +174,11 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		}
 	}
 
+	timer := time.NewTimer(0)
+	if !timer.Stop() {
+		<-timer.C
+	}
+
 	for {
 		delay := s.nextDelay()
 
@@ -188,16 +193,25 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 		s.logger.Info("next poll", "delay", delay.Round(time.Second))
 
+		timer.Reset(delay)
+
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			s.logger.Info("scheduler stopping")
 			return ctx.Err()
 		case <-sighup:
+			if !timer.Stop() {
+				<-timer.C
+			}
 			s.reloadConfig()
 			continue
 		case <-s.triggerCh:
+			if !timer.Stop() {
+				<-timer.C
+			}
 			s.logger.Info("poll triggered")
-		case <-time.After(delay):
+		case <-timer.C:
 		}
 
 		if !s.isActiveHours() {
