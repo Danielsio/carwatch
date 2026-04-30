@@ -6,13 +6,15 @@ import {
 } from "@/hooks/useNotifications";
 import { safeHref } from "@/lib/utils";
 import { ListingCardBody } from "@/components/ListingCardBody";
+import { Button, EmptyState, PageHeader, Skeleton } from "@/components/ui";
 import type { Listing } from "@/lib/api";
 
 const PAGE_SIZE = 20;
 
 export function NotificationsPage() {
   const [offset, setOffset] = useState(0);
-  const { data, isLoading, isSuccess, isFetching, isError } = useNotifications(PAGE_SIZE, offset);
+  const { data, isLoading, isSuccess, isFetching, isError } =
+    useNotifications(PAGE_SIZE, offset);
   const markSeen = useMarkNotificationsSeen();
   const markedRef = useRef(false);
 
@@ -32,11 +34,11 @@ export function NotificationsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="h-8 w-36 shimmer-skeleton rounded-lg" />
+      <div className="space-y-6 pb-20 md:pb-4">
+        <PageHeader title="התראות" />
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-72 shimmer-skeleton rounded-2xl" />
+            <Skeleton key={i} className="h-72 rounded-2xl" />
           ))}
         </div>
       </div>
@@ -45,8 +47,8 @@ export function NotificationsPage() {
 
   if (isError) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight">התראות</h1>
+      <div className="space-y-6 pb-20 md:pb-4">
+        <PageHeader title="התראות" />
         <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center">
           <p className="text-destructive font-medium">
             שגיאה בטעינת ההתראות
@@ -58,26 +60,23 @@ export function NotificationsPage() {
 
   return (
     <div className="space-y-6 pb-20 md:pb-4">
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-          <Bell className="h-4 w-4 text-primary" />
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight">התראות</h1>
-        {data && (
-          <span className="text-sm text-muted-foreground tabular-nums">
-            ({data.total} חדשות)
-          </span>
-        )}
-      </div>
+      <PageHeader
+        title="התראות"
+        action={
+          data ? (
+            <span className="text-sm text-muted-foreground tabular-nums">
+              ({data.total} חדשות)
+            </span>
+          ) : null
+        }
+      />
 
       {!data || data.total === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-border/50 bg-card/50 py-20">
-          <Bell className="h-10 w-10 text-muted-foreground/20 mb-4" />
-          <p className="text-muted-foreground">אין התראות חדשות</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            מודעות חדשות שימצאו יופיעו כאן
-          </p>
-        </div>
+        <EmptyState
+          icon={Bell}
+          title="אין התראות חדשות"
+          description="מודעות חדשות שימצאו יופיעו כאן"
+        />
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -89,24 +88,26 @@ export function NotificationsPage() {
           {(data.total > PAGE_SIZE || offset > 0) && (
             <div className="flex items-center justify-center gap-3 pt-4">
               {offset > 0 && (
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-                  className="rounded-xl bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-200 hover:bg-accent active:scale-[0.97]"
                 >
                   הקודם
-                </button>
+                </Button>
               )}
               <span className="text-sm text-muted-foreground tabular-nums">
                 {offset + 1}–{Math.min(offset + PAGE_SIZE, data.total)} מתוך{" "}
                 {data.total}
               </span>
               {offset + PAGE_SIZE < data.total && (
-                <button
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={() => setOffset(offset + PAGE_SIZE)}
-                  className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-200 hover:bg-primary/90 active:scale-[0.97]"
                 >
                   הבא
-                </button>
+                </Button>
               )}
             </div>
           )}

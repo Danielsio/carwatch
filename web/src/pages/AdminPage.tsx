@@ -1,5 +1,6 @@
-import { Database, Cpu, Table, RefreshCw } from "lucide-react";
+import { AlertCircle, Cpu, Database, RefreshCw, Table } from "lucide-react";
 import { useAdminStats } from "@/hooks/useAdmin";
+import { EmptyState, PageHeader, Skeleton } from "@/components/ui";
 
 const TABLE_LABELS: Record<string, string> = {
   users: "משתמשים",
@@ -17,11 +18,11 @@ export function AdminPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="h-8 w-48 shimmer-skeleton rounded-lg" />
+      <div className="space-y-6 pb-20 md:pb-4">
+        <PageHeader title="ניהול" />
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-44 shimmer-skeleton rounded-2xl" />
+            <Skeleton key={i} className="h-44 rounded-2xl" />
           ))}
         </div>
       </div>
@@ -30,14 +31,13 @@ export function AdminPage() {
 
   if (isError || !data) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight">ניהול מערכת</h1>
-        <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center">
-          <p className="text-destructive font-medium">שגיאה בטעינת הנתונים</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            ייתכן שאין הרשאת גישה
-          </p>
-        </div>
+      <div className="space-y-6 pb-20 md:pb-4">
+        <PageHeader title="ניהול" />
+        <EmptyState
+          icon={AlertCircle}
+          title="שגיאה בטעינת הנתונים"
+          description="ייתכן שאין הרשאת גישה"
+        />
       </div>
     );
   }
@@ -46,13 +46,15 @@ export function AdminPage() {
 
   return (
     <div className="space-y-6 pb-20 md:pb-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">ניהול מערכת</h1>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <RefreshCw className="h-3 w-3" />
-          עדכון אחרון: {lastUpdated.toLocaleTimeString("he-IL")}
-        </div>
-      </div>
+      <PageHeader
+        title="ניהול"
+        action={
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <RefreshCw className="h-3 w-3" />
+            עדכון אחרון: {lastUpdated.toLocaleTimeString("he-IL")}
+          </div>
+        }
+      />
 
       {/* DB Storage */}
       <div className="rounded-2xl border border-border/50 bg-card p-6">
