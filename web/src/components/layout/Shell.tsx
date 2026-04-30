@@ -32,7 +32,7 @@ export function Shell() {
   const { user, signOut } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const emailInitial =
-    user?.email?.trim().charAt(0)?.toLocaleUpperCase("he-IL") ?? "?";
+    user?.email?.trim().charAt(0)?.toLocaleUpperCase("he-IL") || "?";
 
   return (
     <div className="min-h-screen bg-background">
