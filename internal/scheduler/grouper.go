@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/dsionov/carwatch/internal/model"
@@ -64,6 +65,15 @@ func GroupSearches(searches []storage.Search) []CanonicalGroup {
 	for _, g := range grouped {
 		groups = append(groups, *g)
 	}
+	sort.Slice(groups, func(i, j int) bool {
+		if groups[i].Source != groups[j].Source {
+			return groups[i].Source < groups[j].Source
+		}
+		if groups[i].Manufacturer != groups[j].Manufacturer {
+			return groups[i].Manufacturer < groups[j].Manufacturer
+		}
+		return groups[i].Model < groups[j].Model
+	})
 	return groups
 }
 
