@@ -41,10 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setAuthTokenGetter(async () => {
+    setAuthTokenGetter(async (forceRefresh?: boolean) => {
       const u = auth.currentUser;
       if (!u) return null;
-      return u.getIdToken();
+      return u.getIdToken(forceRefresh);
     });
     return () => {
       setAuthTokenGetter(async () => null);

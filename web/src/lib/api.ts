@@ -26,6 +26,19 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
     headers,
   });
+  if (res.status === 401) {
+    const freshToken = await getAuthToken(true).catch(() => null);
+    if (freshToken) {
+      headers.set("Authorization", `Bearer ${freshToken}`);
+      const retry = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+      if (!retry.ok) {
+        const body = await retry.json().catch(() => ({ error: "Unknown error" }));
+        throw new ApiError(retry.status, body.error);
+      }
+      if (retry.status === 204) return undefined as T;
+      return retry.json();
+    }
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: "Unknown error" }));
     throw new ApiError(res.status, body.error);
