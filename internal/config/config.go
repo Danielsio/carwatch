@@ -145,6 +145,7 @@ func applyDefaults(cfg *Config) {
 	}
 	filtered := cfg.API.CORSOrigins[:0]
 	for _, o := range cfg.API.CORSOrigins {
+		o = strings.TrimSpace(o)
 		if o != "" && o != "https://" && o != "http://" {
 			filtered = append(filtered, o)
 		}

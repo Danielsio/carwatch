@@ -13,6 +13,7 @@ services:
     environment:
       - TZ=Asia/Jerusalem
       - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
