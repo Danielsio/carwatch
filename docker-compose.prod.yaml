@@ -12,6 +12,7 @@ services:
       - ./firebase-sa.json:/config/firebase-sa.json:ro
     environment:
       - TZ=Asia/Jerusalem
+      - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
@@ -28,6 +29,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    environment:
+      - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
     restart: unless-stopped
 
   watchtower:

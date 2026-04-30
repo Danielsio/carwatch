@@ -39,6 +39,7 @@ http:
 # REST API settings (for web frontend)
 api:
   cors_origins:
-    - "http://localhost:5173"
+    - "http://localhost:5173"              # dev (Vite)
+    - "https://${CARWATCH_DOMAIN}"         # production
   # dev_chat_id: 0       # chat_id to use in dev mode (no auth)
   # auth_token: ""       # bearer token for API auth (optional)

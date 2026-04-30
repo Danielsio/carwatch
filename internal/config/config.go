@@ -143,6 +143,13 @@ func applyDefaults(cfg *Config) {
 	if cfg.LogFormat == "" {
 		cfg.LogFormat = "auto"
 	}
+	filtered := cfg.API.CORSOrigins[:0]
+	for _, o := range cfg.API.CORSOrigins {
+		if o != "" && o != "https://" && o != "http://" {
+			filtered = append(filtered, o)
+		}
+	}
+	cfg.API.CORSOrigins = filtered
 	if len(cfg.API.CORSOrigins) == 0 {
 		cfg.API.CORSOrigins = []string{"http://localhost:5173"}
 	}
