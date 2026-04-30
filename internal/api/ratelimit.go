@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"time"
@@ -11,6 +12,7 @@ type rateLimiter struct {
 	users map[int64]*bucket
 	burst int
 	every time.Duration
+	done  chan struct{}
 }
 
 type bucket struct {
@@ -19,13 +21,14 @@ type bucket struct {
 	lastUsed time.Time
 }
 
-func newRateLimiter(burst int, every time.Duration) *rateLimiter {
+func newRateLimiter(ctx context.Context, burst int, every time.Duration) *rateLimiter {
 	rl := &rateLimiter{
 		users: make(map[int64]*bucket),
 		burst: burst,
 		every: every,
+		done:  make(chan struct{}),
 	}
-	go rl.cleanup()
+	go rl.cleanup(ctx)
 	return rl
 }
 
@@ -56,29 +59,34 @@ func (rl *rateLimiter) allow(chatID int64) bool {
 	return true
 }
 
-func (rl *rateLimiter) cleanup() {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-	for range ticker.C {
-		rl.mu.Lock()
-		cutoff := time.Now().Add(-10 * time.Minute)
-		for id, b := range rl.users {
-			if b.lastUsed.Before(cutoff) {
-				delete(rl.users, id)
-			}
-		}
-		rl.mu.Unlock()
-	}
-}
-
-func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
-	rl := newRateLimiter(60, time.Second)
+func (s *Server) withRateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		chatID := chatIDFromContext(r.Context())
-		if chatID != 0 && !rl.allow(chatID) {
+		if chatID != 0 && !s.rl.allow(chatID) {
 			writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (rl *rateLimiter) cleanup(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			close(rl.done)
+			return
+		case <-ticker.C:
+			rl.mu.Lock()
+			cutoff := time.Now().Add(-10 * time.Minute)
+			for id, b := range rl.users {
+				if b.lastUsed.Before(cutoff) {
+					delete(rl.users, id)
+				}
+			}
+			rl.mu.Unlock()
+		}
+	}
 }
