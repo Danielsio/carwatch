@@ -15,7 +15,7 @@ func TestParseListingsPage_ValidHTML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open fixture: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	listings, err := ParseListingsPage(f)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestParseListingsPage_Challenge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open fixture: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	_, err = ParseListingsPage(f)
 	if err == nil {

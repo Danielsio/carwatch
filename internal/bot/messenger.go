@@ -39,7 +39,7 @@ func (t *telegramMessenger) SendPhoto(ctx context.Context, chatID int64, photoPa
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	params := &tgbot.SendPhotoParams{
 		ChatID:  chatID,

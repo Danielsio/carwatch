@@ -9,7 +9,10 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
-const whatsappIDOffset int64 = 1_000_000_000_000
+const (
+	whatsappIDOffset int64 = 1_000_000_000_000
+	webIDOffset      int64 = 2_000_000_000_000
+)
 
 func (s *Store) UpsertUser(ctx context.Context, chatID int64, username string) error {
 	channelID := fmt.Sprintf("%d", chatID)
@@ -56,37 +59,50 @@ func (s *Store) GetUserByChannelID(ctx context.Context, channel, channelID strin
 	return &u, nil
 }
 
-func (s *Store) UpsertWhatsAppUser(ctx context.Context, phoneNumber string) (int64, error) {
-	existing, err := s.GetUserByChannelID(ctx, "whatsapp", phoneNumber)
-	if err != nil {
-		return 0, err
-	}
-	if existing != nil {
-		return existing.ChatID, nil
-	}
-
+func (s *Store) upsertChannelUser(ctx context.Context, channel, channelID, username string, idOffset int64) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	var existingID int64
+	err = tx.QueryRowContext(ctx,
+		"SELECT chat_id FROM users WHERE channel = ? AND channel_id = ?",
+		channel, channelID).Scan(&existingID)
+	if err == nil {
+		return existingID, nil
+	}
+	if err != sql.ErrNoRows {
+		return 0, fmt.Errorf("check existing %s user: %w", channel, err)
+	}
+
 	var maxID int64
-	_ = tx.QueryRowContext(ctx,
+	if err := tx.QueryRowContext(ctx,
 		"SELECT COALESCE(MAX(chat_id), ?) FROM users WHERE chat_id >= ?",
-		whatsappIDOffset-1, whatsappIDOffset).Scan(&maxID)
+		idOffset-1, idOffset).Scan(&maxID); err != nil {
+		return 0, fmt.Errorf("select max %s user id: %w", channel, err)
+	}
 	newID := maxID + 1
 
 	_, err = tx.ExecContext(ctx,
-		"INSERT INTO users (chat_id, username, channel, channel_id) VALUES (?, ?, 'whatsapp', ?)",
-		newID, phoneNumber, phoneNumber)
+		"INSERT INTO users (chat_id, username, channel, channel_id) VALUES (?, ?, ?, ?)",
+		newID, username, channel, channelID)
 	if err != nil {
-		return 0, fmt.Errorf("create whatsapp user: %w", err)
+		return 0, fmt.Errorf("create %s user: %w", channel, err)
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, fmt.Errorf("commit: %w", err)
 	}
 	return newID, nil
+}
+
+func (s *Store) UpsertWhatsAppUser(ctx context.Context, phoneNumber string) (int64, error) {
+	return s.upsertChannelUser(ctx, "whatsapp", phoneNumber, phoneNumber, whatsappIDOffset)
+}
+
+func (s *Store) UpsertWebUser(ctx context.Context, firebaseUID, email string) (int64, error) {
+	return s.upsertChannelUser(ctx, "web", firebaseUID, email, webIDOffset)
 }
 
 func (s *Store) UpdateUserState(ctx context.Context, chatID int64, state string, stateData string) error {

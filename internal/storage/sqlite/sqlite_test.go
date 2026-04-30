@@ -14,7 +14,7 @@ func newTestStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { _ = store.Close() })
 	return store
 }
 
@@ -106,6 +106,43 @@ func TestUpsertWhatsAppUser(t *testing.T) {
 	}
 	if u.Channel != "whatsapp" || u.ChannelID != "+972501234567" {
 		t.Errorf("user = channel:%q channelID:%q", u.Channel, u.ChannelID)
+	}
+}
+
+func TestUpsertWebUser(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	id1, err := store.UpsertWebUser(ctx, "firebase-uid-1", "a@example.com")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if id1 < 2_000_000_000_000 {
+		t.Errorf("Web ID = %d, want >= 2T", id1)
+	}
+
+	id2, err := store.UpsertWebUser(ctx, "firebase-uid-1", "a@example.com")
+	if err != nil {
+		t.Fatalf("idempotent: %v", err)
+	}
+	if id2 != id1 {
+		t.Errorf("idempotent call returned different ID: %d vs %d", id2, id1)
+	}
+
+	id3, err := store.UpsertWebUser(ctx, "firebase-uid-2", "b@example.com")
+	if err != nil {
+		t.Fatalf("second user: %v", err)
+	}
+	if id3 == id1 {
+		t.Error("different firebase UIDs should get different IDs")
+	}
+
+	u, err := store.GetUser(ctx, id1)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if u.Channel != "web" || u.ChannelID != "firebase-uid-1" || u.Username != "a@example.com" {
+		t.Errorf("user = %+v", u)
 	}
 }
 
@@ -1893,7 +1930,7 @@ func TestDBFileSize_OnDisk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { _ = store.Close() })
 
 	ctx := context.Background()
 	if err := store.UpsertUser(ctx, 1, "test"); err != nil {
@@ -2233,7 +2270,7 @@ func TestNew_CreatesDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { _ = store.Close() })
 
 	if err := store.UpsertUser(context.Background(), 1, "test"); err != nil {
 		t.Fatalf("store should be usable: %v", err)

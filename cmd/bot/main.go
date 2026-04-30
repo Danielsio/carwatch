@@ -73,7 +73,7 @@ func run(configPath string, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("create store: %w", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	var proxyPool *fetcher.ProxyPool
 	if len(cfg.HTTP.Proxies) > 0 {
@@ -160,6 +160,15 @@ func run(configPath string, logger *slog.Logger) error {
 		dashHandler = requireBearerToken(tok, dash)
 	}
 
+	var firebaseAuth api.TokenVerifier
+	if cfg.Firebase.ProjectID != "" {
+		v, err := api.NewFirebaseVerifier(cfg.Firebase.CredentialsFile, cfg.Firebase.CredentialsJSON, cfg.Firebase.ProjectID)
+		if err != nil {
+			return fmt.Errorf("init firebase: %w", err)
+		}
+		firebaseAuth = v
+	}
+
 	apiServer := api.New(api.Config{
 		Catalog:  dynCatalog,
 		Searches: store,
@@ -172,6 +181,7 @@ func run(configPath string, logger *slog.Logger) error {
 		Notifs:   store,
 		Logger:   logger,
 		API:      cfg.API,
+		FirebaseAuth: firebaseAuth,
 	})
 
 	mux := http.NewServeMux()

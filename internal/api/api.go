@@ -3,11 +3,14 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	fbauth "firebase.google.com/go/v4/auth"
 
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
@@ -19,11 +22,12 @@ type contextKey string
 const chatIDKey contextKey = "chatID"
 
 type Server struct {
-	catalog   catalog.Catalog
-	searches  storage.SearchStore
-	listings  storage.ListingStore
-	users     storage.UserStore
-	prices    storage.PriceTracker
+	catalog       catalog.Catalog
+	searches      storage.SearchStore
+	listings      storage.ListingStore
+	users         storage.UserStore
+	firebaseAuth  TokenVerifier
+	prices        storage.PriceTracker
 	admin     storage.AdminStore
 	saved     storage.SavedListingStore
 	hidden    storage.HiddenListingStore
@@ -41,19 +45,21 @@ type Config struct {
 	Prices   storage.PriceTracker
 	Admin    storage.AdminStore
 	Saved    storage.SavedListingStore
-	Hidden   storage.HiddenListingStore
-	Notifs   storage.NotificationStore
-	Logger   *slog.Logger
-	API      config.APIConfig
+	Hidden       storage.HiddenListingStore
+	Notifs       storage.NotificationStore
+	Logger       *slog.Logger
+	API          config.APIConfig
+	FirebaseAuth TokenVerifier
 }
 
 func New(c Config) *Server {
 	return &Server{
-		catalog:   c.Catalog,
-		searches:  c.Searches,
-		listings:  c.Listings,
-		users:     c.Users,
-		prices:    c.Prices,
+		catalog:      c.Catalog,
+		searches:     c.Searches,
+		listings:     c.Listings,
+		users:        c.Users,
+		firebaseAuth: c.FirebaseAuth,
+		prices:       c.Prices,
 		admin:     c.Admin,
 		saved:     c.Saved,
 		hidden:    c.Hidden,
@@ -129,25 +135,73 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHdr := r.Header.Get("Authorization")
+		bearer := bearerFromAuthHeader(authHdr)
+
 		var chatID int64
 
-		if s.cfg.AuthToken != "" {
-			auth := r.Header.Get("Authorization")
-			if auth != "Bearer "+s.cfg.AuthToken {
+		if s.firebaseAuth != nil && bearer != "" {
+			tok, err := s.firebaseAuth.VerifyIDToken(r.Context(), bearer)
+			if err != nil {
 				writeError(w, http.StatusUnauthorized, "invalid or missing token")
 				return
 			}
-		}
-
-		chatID = s.cfg.DevChatID
-		if chatID == 0 {
-			writeError(w, http.StatusUnauthorized, "no user configured")
+			email := emailFromClaims(tok)
+			id, err := s.users.UpsertWebUser(r.Context(), tok.UID, email)
+			if err != nil {
+				s.logger.Error("upsert web user", "error", err)
+				writeError(w, http.StatusInternalServerError, "internal error")
+				return
+			}
+			chatID = id
+		} else if s.firebaseAuth != nil && bearer == "" && s.cfg.DevChatID != 0 {
+			if s.cfg.AuthToken != "" && authHdr != "Bearer "+s.cfg.AuthToken {
+				writeError(w, http.StatusUnauthorized, "invalid or missing token")
+				return
+			}
+			chatID = s.cfg.DevChatID
+		} else if s.firebaseAuth == nil {
+			if s.cfg.AuthToken != "" {
+				if authHdr != "Bearer "+s.cfg.AuthToken {
+					writeError(w, http.StatusUnauthorized, "invalid or missing token")
+					return
+				}
+			}
+			chatID = s.cfg.DevChatID
+			if chatID == 0 {
+				writeError(w, http.StatusUnauthorized, "no user configured")
+				return
+			}
+		} else {
+			writeError(w, http.StatusUnauthorized, "invalid or missing token")
 			return
 		}
 
 		ctx := context.WithValue(r.Context(), chatIDKey, chatID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func bearerFromAuthHeader(authHdr string) string {
+	const prefix = "Bearer "
+	if !strings.HasPrefix(authHdr, prefix) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(authHdr, prefix))
+}
+
+func emailFromClaims(tok *fbauth.Token) string {
+	if tok == nil {
+		return ""
+	}
+	v, ok := tok.Claims["email"]
+	if !ok || v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return fmt.Sprint(v)
 }
 
 func chatIDFromContext(ctx context.Context) int64 {

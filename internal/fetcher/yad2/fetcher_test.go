@@ -98,8 +98,8 @@ func TestYad2Fetcher_Fetch_GzipResponse(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html")
 		w.Header().Set("Content-Encoding", "gzip")
 		gz := gzip.NewWriter(w)
+		defer func() { _ = gz.Close() }()
 		_, _ = gz.Write([]byte(validPageHTML()))
-		gz.Close()
 	}))
 	defer server.Close()
 

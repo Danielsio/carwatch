@@ -28,9 +28,9 @@ jobs:
           go-version-file: go.mod
       - name: Stub web/dist for embed
         run: mkdir -p web/dist && echo '<!doctype html>' > web/dist/index.html
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v7
         with:
-          version: latest
+          version: v2.4
           args: --timeout=5m
 
   test:
