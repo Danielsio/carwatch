@@ -47,8 +47,10 @@ services:
 
 networks:
   carwatch-net:
+    name: carwatch-net
 
 volumes:
   carwatch-data:
+    name: carwatch_carwatch-data
   caddy-data:
   caddy-config:
