@@ -4,6 +4,9 @@ import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { useManufacturers, useModels } from "@/hooks/useCatalog";
 import { useCreateSearch } from "@/hooks/useSearches";
 import { formatPrice, cn } from "@/lib/utils";
+import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { useToast } from "@/components/ui/Toast";
 
 type WizardStep =
   | "manufacturer"
@@ -65,6 +68,7 @@ export function NewSearchPage() {
     excludeKeys: "",
   });
 
+  const { toast } = useToast();
   const { data: manufacturers } = useManufacturers(
     mfrSearch.length >= 1 ? mfrSearch : undefined,
   );
@@ -106,7 +110,10 @@ export function NewSearchPage() {
         exclude_keys: form.excludeKeys || undefined,
       },
       {
-        onSuccess: () => navigate("/"),
+        onSuccess: () => {
+          toast("החיפוש נוצר בהצלחה!", "success");
+          navigate("/");
+        },
         onError: () => setError("שגיאה ביצירת החיפוש, נסה שוב"),
       },
     );
@@ -114,7 +121,7 @@ export function NewSearchPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-semibold tracking-tight">חיפוש חדש</h1>
+      <PageHeader title="חיפוש חדש" backTo="/" backLabel="חזרה לחיפושים" />
 
       {/* Progress bar */}
       <div className="space-y-2">
@@ -429,19 +436,17 @@ export function NewSearchPage() {
       {/* Navigation */}
       <div className="flex items-center gap-3 border-t border-border/50 pt-5">
         {canGoBack && (
-          <button
-            onClick={goBack}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground transition-all duration-200 hover:bg-accent active:scale-[0.97]"
-          >
+          <Button variant="secondary" onClick={goBack}>
             <ChevronRight className="h-4 w-4" />
             הקודם
-          </button>
+          </Button>
         )}
 
         <div className="mr-auto" />
 
         {step === "confirm" ? (
-          <button
+          <Button
+            variant="primary"
             onClick={handleSubmit}
             disabled={
               createSearch.isPending ||
@@ -449,7 +454,6 @@ export function NewSearchPage() {
               form.model === 0 ||
               form.yearMin > form.yearMax
             }
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.25)] transition-all duration-200 hover:bg-primary/90 hover:shadow-[0_0_30px_rgba(59,130,246,0.35)] disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
           >
             {createSearch.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -457,17 +461,14 @@ export function NewSearchPage() {
               <Check className="h-4 w-4" />
             )}
             צור חיפוש
-          </button>
+          </Button>
         ) : (
           step !== "manufacturer" &&
           step !== "model" && (
-            <button
-              onClick={goNext}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.25)] transition-all duration-200 hover:bg-primary/90 hover:shadow-[0_0_30px_rgba(59,130,246,0.35)] active:scale-[0.98]"
-            >
+            <Button variant="primary" onClick={goNext}>
               הבא
               <ChevronLeft className="h-4 w-4" />
-            </button>
+            </Button>
           )
         )}
       </div>

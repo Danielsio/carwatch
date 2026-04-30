@@ -8,10 +8,15 @@ import {
   Hand,
   MapPin,
   Clock,
+  Car,
 } from "lucide-react";
-import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
+import { formatPrice, formatKm, relativeTime, safeHref } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Listing } from "@/lib/api";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export function ListingDetailPage() {
   const location = useLocation();
@@ -46,41 +51,42 @@ export function ListingDetailPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 w-40 shimmer-skeleton rounded-lg" />
-        <div className="aspect-video w-full shimmer-skeleton rounded-2xl" />
-        <div className="h-12 w-60 shimmer-skeleton rounded-lg" />
+        <Skeleton className="h-8 w-40 rounded-lg" />
+        <Skeleton className="aspect-video w-full rounded-2xl" />
+        <Skeleton className="h-12 w-60 rounded-lg" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-24 rounded-2xl" />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (error || !listing) {
     return (
-      <div className="flex flex-col items-center justify-center py-24">
-        <p className="text-lg font-medium mb-2">המודעה לא נמצאה</p>
-        <p className="text-sm text-muted-foreground mb-6">
-          ניתן לגשת למודעה דרך רשימת התוצאות
-        </p>
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.25)] transition-all duration-200 hover:bg-primary/90 hover:shadow-[0_0_30px_rgba(59,130,246,0.35)] active:scale-[0.98]"
-        >
-          <ArrowRight className="h-4 w-4" />
-          חזרה לחיפושים
-        </Link>
-      </div>
+      <EmptyState
+        icon={Car}
+        title="המודעה לא נמצאה"
+        description="ניתן לגשת למודעה דרך רשימת התוצאות"
+        action={
+          <Button asChild>
+            <Link to="/">
+              <ArrowRight className="h-4 w-4" />
+              חזרה לחיפושים
+            </Link>
+          </Button>
+        }
+      />
     );
   }
 
   return (
     <div className="space-y-6 pb-20 md:pb-4">
-      {/* Back */}
-      <button
-        onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors duration-200"
-      >
+      <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground -mr-2">
         <ArrowRight className="h-4 w-4" />
         חזרה לתוצאות
-      </button>
+      </Button>
 
       {/* Hero image */}
       {listing.image_url ? (
@@ -122,23 +128,22 @@ export function ListingDetailPage() {
         />
       </div>
 
-      {/* Score + Seen */}
       <div className="flex items-center gap-4">
         {listing.fitness_score != null && (
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">ציון התאמה:</span>
-            <span
-              className={cn(
-                "inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold tabular-nums",
+            <Badge
+              variant={
                 listing.fitness_score >= 7
-                  ? "bg-score-great/15 text-score-great"
+                  ? "success"
                   : listing.fitness_score >= 5
-                    ? "bg-score-good/15 text-score-good"
-                    : "bg-score-low/15 text-score-low",
-              )}
+                    ? "warning"
+                    : "default"
+              }
+              className="text-sm tabular-nums"
             >
               {listing.fitness_score.toFixed(1)}
-            </span>
+            </Badge>
           </div>
         )}
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -147,16 +152,19 @@ export function ListingDetailPage() {
         </div>
       </div>
 
-      {/* CTA */}
-      <a
-        href={listing.page_link}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.25)] transition-all duration-200 hover:bg-primary/90 hover:shadow-[0_0_30px_rgba(59,130,246,0.35)] active:scale-[0.98]"
-      >
-        <ExternalLink className="h-4 w-4" />
-        צפה במודעה המקורית
-      </a>
+      {safeHref(listing.page_link) && (
+        <Button
+          as="a"
+          href={safeHref(listing.page_link)!}
+          target="_blank"
+          rel="noopener noreferrer"
+          size="lg"
+          className="rounded-xl"
+        >
+          <ExternalLink className="h-4 w-4" />
+          צפה במודעה המקורית
+        </Button>
+      )}
     </div>
   );
 }
