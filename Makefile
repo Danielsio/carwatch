@@ -88,7 +88,7 @@ vm-logs: vm-check-env
 LOGS_FILTER ?=
 logs: vm-check-env
 ifdef LOGS_FILTER
-	$(SSH) "docker logs carwatch --tail 500 2>&1 | grep -i '$(LOGS_FILTER)'"
+	$(SSH) "docker logs carwatch --tail 500 -f 2>&1" | grep -iF --line-buffered -- "$(LOGS_FILTER)"
 else
 	$(SSH) "docker logs carwatch --tail 200 -f"
 endif
