@@ -138,9 +138,9 @@ export function SearchesPage() {
             icon: Activity,
             label: "סה״כ חיפושים",
             value: totalSearches,
-            color: "text-[#A78BFA]",
-            bg: "bg-[#A78BFA]/12",
-            glow: "shadow-[0_0_24px_-4px_rgba(167,139,250,0.25)]",
+            color: "text-chart-purple",
+            bg: "bg-chart-purple/12",
+            glow: "shadow-[0_0_24px_-4px_var(--color-glow-chart-purple)]",
           },
         ].map((stat, i) => (
           <motion.div
@@ -253,7 +253,7 @@ function DashboardHeader() {
           מעקב אחר חיפושי רכבים שלך
         </p>
       </div>
-      <Button asChild className="rounded-xl">
+      <Button asChild>
         <Link to="/searches/new">
           <Plus className="h-4 w-4" />
           חיפוש חדש

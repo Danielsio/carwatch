@@ -33,9 +33,12 @@
   --color-score-good: #F59E0B;
   --color-score-low: #64748B;
 
+  --color-chart-purple: #A78BFA;
+
   --color-surface-hover: #1E2233;
   --color-glow-primary: rgba(59, 130, 246, 0.15);
   --color-glow-success: rgba(16, 185, 129, 0.15);
+  --color-glow-chart-purple: rgba(167, 139, 250, 0.25);
 
   --radius-lg: 0.75rem;
   --radius-md: 0.5rem;
