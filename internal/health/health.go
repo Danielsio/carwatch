@@ -129,7 +129,7 @@ func (s *Status) Snapshot() map[string]any {
 	}
 
 	status := "ok"
-	if cycles > 0 && (lastSuccessNs == 0 || time.Since(lastSuccess) > 30*time.Minute) {
+	if cycles > 0 && (lastSuccessNs == 0 || time.Since(lastSuccess) > 2*time.Hour) {
 		status = "degraded"
 	}
 
