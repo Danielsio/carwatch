@@ -14,12 +14,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { path: "/", label: "חיפושים", icon: Search },
-  { path: "/searches/new", label: "חיפוש חדש", icon: Plus },
-  { path: "/saved", label: "שמורים", icon: Bookmark },
-  { path: "/history", label: "היסטוריה", icon: Clock },
-  { path: "/notifications", label: "התראות", icon: Bell, badge: true },
-  { path: "/admin", label: "ניהול", icon: Settings },
+  { path: "/", label: "חיפושים", icon: Search, mobile: true },
+  { path: "/searches/new", label: "חיפוש חדש", icon: Plus, mobile: false },
+  { path: "/saved", label: "שמורים", icon: Bookmark, mobile: true },
+  { path: "/history", label: "היסטוריה", icon: Clock, mobile: true },
+  { path: "/notifications", label: "התראות", icon: Bell, badge: true, mobile: true },
+  { path: "/admin", label: "ניהול", icon: Settings, mobile: false },
 ];
 
 export function Shell() {
@@ -47,9 +47,14 @@ export function Shell() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/12 ring-1 ring-primary/15 shadow-[0_0_20px_-4px_rgba(59,130,246,0.35)]">
               <Car className="h-4.5 w-4.5 text-primary" />
             </div>
-            <span className="text-lg font-semibold tracking-tight">
-              CarWatch
-            </span>
+            <div className="flex flex-col">
+              <span className="text-lg font-semibold tracking-tight leading-tight">
+                CarWatch
+              </span>
+              <span className="text-[11px] text-muted-foreground leading-tight">
+                מעקב רכבים
+              </span>
+            </div>
           </div>
           <div
             className="h-px w-full bg-gradient-to-l from-transparent via-primary/25 to-transparent opacity-80"
@@ -142,7 +147,7 @@ export function Shell() {
 
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.06] bg-card/55 shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 md:hidden">
         <div className="flex justify-around px-1 py-3">
-          {navItems.map((item) => {
+          {navItems.filter((item) => item.mobile).map((item) => {
             const Icon = item.icon;
             const isActive =
               item.path === "/"
