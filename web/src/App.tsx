@@ -11,6 +11,7 @@ import { HistoryPage } from "./pages/HistoryPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
+import { EditSearchPage } from "./pages/EditSearchPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
         <Route element={<Shell />}>
           <Route path="/" element={<SearchesPage />} />
           <Route path="/searches/new" element={<NewSearchPage />} />
+          <Route path="/searches/:id/edit" element={<EditSearchPage />} />
           <Route path="/searches/:id/listings" element={<ListingsPage />} />
           <Route path="/listings/:token" element={<ListingDetailPage />} />
           <Route path="/admin" element={<AdminPage />} />

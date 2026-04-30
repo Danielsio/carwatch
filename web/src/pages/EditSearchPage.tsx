@@ -1,49 +1,31 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router";
-import { Search, Loader2 } from "lucide-react";
-import { useManufacturers, useModels } from "@/hooks/useCatalog";
-import { useCreateSearch } from "@/hooks/useSearches";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams, Link } from "react-router";
+import { Save, Loader2 } from "lucide-react";
+import { useSearch, useUpdateSearch } from "@/hooks/useSearches";
 import { formatPrice, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
 import { FormField } from "@/components/ui/FormField";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
-
-interface FormData {
-  source: string;
-  manufacturer: number;
-  model: number;
-  yearMin: number;
-  yearMax: number;
-  priceMax: number;
-  engineMinCC: number;
-  maxKm: number;
-  maxHand: number;
-  keywords: string;
-  excludeKeys: string;
-}
-
-const SOURCE_OPTIONS = [
-  { value: "yad2", label: "יד2" },
-  { value: "winwin", label: "WinWin" },
-];
 
 const KM_OPTIONS = [0, 50_000, 100_000, 150_000, 200_000];
 const HAND_OPTIONS = [0, 1, 2, 3, 4];
 
-export function NewSearchPage() {
+export function EditSearchPage() {
   const navigate = useNavigate();
-  const createSearch = useCreateSearch();
+  const { id } = useParams();
+  const searchId = Number(id);
+  const { data: search, isLoading, isError } = useSearch(searchId);
+  const updateSearch = useUpdateSearch();
   const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState<FormData>({
-    source: "yad2",
-    manufacturer: 0,
-    model: 0,
-    yearMin: 2018,
-    yearMax: new Date().getFullYear(),
+
+  const [form, setForm] = useState({
+    yearMin: 0,
+    yearMax: 0,
     priceMax: 0,
     engineMinCC: 0,
     maxKm: 0,
@@ -52,51 +34,86 @@ export function NewSearchPage() {
     excludeKeys: "",
   });
 
-  const { data: manufacturers } = useManufacturers();
-  const { data: models } = useModels(form.manufacturer);
+  useEffect(() => {
+    if (search) {
+      setForm({
+        yearMin: search.year_min,
+        yearMax: search.year_max,
+        priceMax: search.price_max,
+        engineMinCC: search.engine_min_cc,
+        maxKm: search.max_km,
+        maxHand: search.max_hand,
+        keywords: search.keywords,
+        excludeKeys: search.exclude_keys,
+      });
+    }
+  }, [search]);
 
-  const set = <K extends keyof FormData>(key: K, val: FormData[K]) =>
+  const set = <K extends keyof typeof form>(key: K, val: (typeof form)[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const canSubmit =
-    form.manufacturer > 0 &&
-    form.model > 0 &&
     form.yearMin >= 2000 &&
     form.yearMax >= 2000 &&
     form.yearMin <= form.yearMax &&
-    !createSearch.isPending;
+    !updateSearch.isPending;
 
   function handleSubmit() {
     setError(null);
-    createSearch.mutate(
+    updateSearch.mutate(
       {
-        source: form.source,
-        manufacturer: form.manufacturer,
-        model: form.model,
-        year_min: form.yearMin,
-        year_max: form.yearMax,
-        price_max: form.priceMax,
-        engine_min_cc: form.engineMinCC || undefined,
-        max_km: form.maxKm,
-        max_hand: form.maxHand,
-        keywords: form.keywords || undefined,
-        exclude_keys: form.excludeKeys || undefined,
+        id: searchId,
+        data: {
+          year_min: form.yearMin,
+          year_max: form.yearMax,
+          price_max: form.priceMax,
+          engine_min_cc: form.engineMinCC || undefined,
+          max_km: form.maxKm,
+          max_hand: form.maxHand,
+          keywords: form.keywords || undefined,
+          exclude_keys: form.excludeKeys || undefined,
+        },
       },
       {
         onSuccess: () => {
-          toast("החיפוש נוצר בהצלחה!", "success");
+          toast("החיפוש עודכן בהצלחה!", "success");
           navigate("/");
         },
-        onError: () => setError("שגיאה ביצירת החיפוש, נסה שוב"),
+        onError: () => setError("שגיאה בעדכון החיפוש, נסה שוב"),
       },
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 pb-24 md:pb-8">
+        <Skeleton className="h-8 w-48 rounded-lg" />
+        <Skeleton className="h-64 rounded-2xl" />
+        <Skeleton className="h-48 rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (isError || !search) {
+    return (
+      <EmptyState
+        icon={Save}
+        title="החיפוש לא נמצא"
+        description="ניתן לחזור לדף הראשי"
+        action={
+          <Button asChild>
+            <Link to="/">חזרה לחיפושים</Link>
+          </Button>
+        }
+      />
     );
   }
 
   return (
     <div className="space-y-6 pb-24 md:pb-8">
       <PageHeader
-        title="חיפוש חדש"
-        subtitle="הגדר פילטרים למעקב אחר מודעות"
+        title={`עריכת ${search.manufacturer_name} ${search.model_name}`}
+        subtitle={`מקור: ${search.source}`}
         backTo="/"
         backLabel="חזרה"
       />
@@ -110,62 +127,8 @@ export function NewSearchPage() {
         </div>
       )}
 
-      {/* Section: Source */}
       <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
-        <h2 className="text-sm font-semibold text-foreground">מקור</h2>
-        <div className="flex flex-wrap gap-2">
-          {SOURCE_OPTIONS.map((src) => (
-            <ChipButton
-              key={src.value}
-              selected={form.source === src.value}
-              onClick={() => set("source", src.value)}
-            >
-              {src.label}
-            </ChipButton>
-          ))}
-        </div>
-      </section>
-
-      {/* Section: Vehicle filter */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
-        <h2 className="text-sm font-semibold text-foreground">סינון לפי רכב</h2>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="יצרן" htmlFor="mfr">
-            <Select
-              id="mfr"
-              value={form.manufacturer}
-              onChange={(e) => {
-                set("manufacturer", Number(e.target.value));
-                set("model", 0);
-              }}
-            >
-              <option value={0}>כל היצרנים</option>
-              {manufacturers?.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-
-          <FormField label="דגם" htmlFor="mdl">
-            <Select
-              id="mdl"
-              value={form.model}
-              disabled={form.manufacturer === 0}
-              onChange={(e) => set("model", Number(e.target.value))}
-            >
-              <option value={0}>כל הדגמים</option>
-              {models?.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-        </div>
-
+        <h2 className="text-sm font-semibold text-foreground">טווח שנים</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             label="שנה מ-"
@@ -202,7 +165,6 @@ export function NewSearchPage() {
         </div>
       </section>
 
-      {/* Section: Price & KM */}
       <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
         <h2 className="text-sm font-semibold text-foreground">מחיר וק&quot;מ</h2>
 
@@ -267,7 +229,6 @@ export function NewSearchPage() {
         </FormField>
       </section>
 
-      {/* Section: Keywords */}
       <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
         <h2 className="text-sm font-semibold text-foreground">מילות מפתח</h2>
 
@@ -298,15 +259,14 @@ export function NewSearchPage() {
         </FormField>
       </section>
 
-      {/* Actions */}
       <div className="flex items-center gap-3">
         <Button onClick={handleSubmit} disabled={!canSubmit} size="lg">
-          {createSearch.isPending ? (
+          {updateSearch.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Search className="h-4 w-4" />
+            <Save className="h-4 w-4" />
           )}
-          צור חיפוש
+          שמור שינויים
         </Button>
         <Button variant="secondary" size="lg" asChild>
           <Link to="/">ביטול</Link>
