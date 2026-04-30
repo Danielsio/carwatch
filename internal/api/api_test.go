@@ -266,6 +266,7 @@ func TestListListings(t *testing.T) {
 	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token:        "tok1",
 		ChatID:       999,
+		SearchID:     created.ID,
 		SearchName:   created.Name,
 		Manufacturer: "Toyota",
 		Model:        "Corolla",
@@ -283,6 +284,7 @@ func TestListListings(t *testing.T) {
 	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token:        "tok2",
 		ChatID:       999,
+		SearchID:     created.ID,
 		SearchName:   created.Name,
 		Manufacturer: "Toyota",
 		Model:        "Corolla",

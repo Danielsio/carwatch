@@ -470,5 +470,35 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	// Add search_id column to listing_history for per-search filtering.
+	var hasSearchID int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('listing_history') WHERE name = 'search_id'",
+	).Scan(&hasSearchID); err != nil {
+		return fmt.Errorf("check listing_history search_id: %w", err)
+	}
+	if hasSearchID == 0 {
+		if _, err := db.Exec("ALTER TABLE listing_history ADD COLUMN search_id INTEGER NOT NULL DEFAULT 0"); err != nil {
+			return fmt.Errorf("add search_id column: %w", err)
+		}
+		// Backfill search_id from searches table where names match.
+		if _, err := db.Exec(`
+			UPDATE listing_history SET search_id = (
+				SELECT s.id FROM searches s
+				WHERE s.chat_id = listing_history.chat_id
+				  AND s.name = listing_history.search_name
+				LIMIT 1
+			) WHERE search_id = 0
+		`); err != nil {
+			return fmt.Errorf("backfill listing_history search_id: %w", err)
+		}
+		if _, err := db.Exec(`
+			CREATE INDEX IF NOT EXISTS idx_listing_history_chat_searchid
+				ON listing_history(chat_id, search_id)
+		`); err != nil {
+			return fmt.Errorf("create listing_history search_id index: %w", err)
+		}
+	}
+
 	return nil
 }

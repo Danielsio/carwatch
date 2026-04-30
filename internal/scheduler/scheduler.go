@@ -687,7 +687,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 					priceDropMessages = append(priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice, lang))
 					if s.listingStore != nil {
 						if err := s.listingStore.SaveListing(ctx, storage.ListingRecord{
-							Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
+							Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
 							Manufacturer: l.Manufacturer, Model: l.Model,
 							Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 							City: l.City, PageLink: l.PageLink,
@@ -742,7 +742,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 			newListings = append(newListings, listing)
 
 			listingRecords = append(listingRecords, storage.ListingRecord{
-				Token: l.Token, ChatID: search.ChatID, SearchName: search.Name,
+				Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
 				Manufacturer: l.Manufacturer, Model: l.Model,
 				Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 				City: l.City, PageLink: l.PageLink,

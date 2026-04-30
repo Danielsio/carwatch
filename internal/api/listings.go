@@ -89,14 +89,14 @@ func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 	offset := parseIntParam(r, "offset", 0)
 	sort := parseSortParam(r)
 
-	listings, err := s.listings.ListSearchListings(r.Context(), chatID, sr.Name, limit, offset, sort)
+	listings, err := s.listings.ListSearchListings(r.Context(), chatID, sr.ID, limit, offset, sort)
 	if err != nil {
 		s.logger.Error("list search listings", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list listings")
 		return
 	}
 
-	total, err := s.listings.CountSearchListings(r.Context(), chatID, sr.Name)
+	total, err := s.listings.CountSearchListings(r.Context(), chatID, sr.ID)
 	if err != nil {
 		s.logger.Error("count search listings", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to count listings")

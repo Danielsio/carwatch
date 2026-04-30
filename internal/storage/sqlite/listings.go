@@ -11,15 +11,16 @@ import (
 func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO listing_history
-		(token, chat_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, image_url, fitness_score, first_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		(token, chat_id, search_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, image_url, fitness_score, first_seen_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(token, chat_id) DO UPDATE SET
+			search_id = excluded.search_id,
 			price = excluded.price,
 			km = excluded.km,
 			hand = excluded.hand,
 			image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE listing_history.image_url END,
 			fitness_score = excluded.fitness_score`,
-		r.Token, r.ChatID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
+		r.Token, r.ChatID, r.SearchID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
 		r.Km, r.Hand, r.City, r.PageLink, r.ImageURL, r.FitnessScore, r.FirstSeenAt)
 	if err != nil {
 		return err
@@ -184,7 +185,7 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 	return listings, rows.Err()
 }
 
-func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchName string, limit, offset int, sort string) ([]storage.ListingRecord, error) {
+func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID int64, limit, offset int, sort string) ([]storage.ListingRecord, error) {
 	orderBy := "first_seen_at DESC, token DESC"
 	switch sort {
 	case "newest":
@@ -205,9 +206,9 @@ func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchName
 		SELECT token, search_name, manufacturer, model, year, price,
 			km, hand, city, page_link, image_url, fitness_score, first_seen_at
 		FROM listing_history
-		WHERE chat_id = ? AND search_name = ?
+		WHERE chat_id = ? AND search_id = ?
 		ORDER BY %s
-		LIMIT ? OFFSET ?`, orderBy), chatID, searchName, limit, offset)
+		LIMIT ? OFFSET ?`, orderBy), chatID, searchID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -229,11 +230,11 @@ func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchName
 	return listings, rows.Err()
 }
 
-func (s *Store) CountSearchListings(ctx context.Context, chatID int64, searchName string) (int64, error) {
+func (s *Store) CountSearchListings(ctx context.Context, chatID int64, searchID int64) (int64, error) {
 	var count int64
 	err := s.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM listing_history
-		WHERE chat_id = ? AND search_name = ?`, chatID, searchName).Scan(&count)
+		WHERE chat_id = ? AND search_id = ?`, chatID, searchID).Scan(&count)
 	return count, err
 }
 

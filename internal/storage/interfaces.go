@@ -115,6 +115,7 @@ type DigestStore interface {
 type ListingRecord struct {
 	Token        string
 	ChatID       int64
+	SearchID     int64
 	SearchName   string
 	Manufacturer string
 	Model        string
@@ -140,8 +141,8 @@ type ListingStore interface {
 	GetListing(ctx context.Context, chatID int64, token string) (*ListingRecord, error)
 	ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]ListingRecord, error)
 	CountUserListings(ctx context.Context, chatID int64) (int64, error)
-	ListSearchListings(ctx context.Context, chatID int64, searchName string, limit, offset int, sort string) ([]ListingRecord, error)
-	CountSearchListings(ctx context.Context, chatID int64, searchName string) (int64, error)
+	ListSearchListings(ctx context.Context, chatID int64, searchID int64, limit, offset int, sort string) ([]ListingRecord, error)
+	CountSearchListings(ctx context.Context, chatID int64, searchID int64) (int64, error)
 }
 
 type SavedListingStore interface {
