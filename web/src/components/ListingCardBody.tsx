@@ -36,6 +36,7 @@ export function ListingCardBody({
           <img
             src={listing.image_url}
             alt={`${listing.manufacturer} ${listing.model}`}
+            referrerPolicy="no-referrer"
             className={cn(
               "h-full w-full object-cover transition-transform duration-500 ease-out",
               hoverScale && "group-hover:scale-105",

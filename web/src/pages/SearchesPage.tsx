@@ -451,6 +451,7 @@ function RecentListingRow({ listing }: { listing: Listing }) {
           <img
             src={listing.image_url}
             alt={`${listing.manufacturer} ${listing.model}`}
+            referrerPolicy="no-referrer"
             className="h-full w-full object-cover"
             loading="lazy"
           />

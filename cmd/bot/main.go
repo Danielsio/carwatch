@@ -203,6 +203,12 @@ func run(configPath string, logger *slog.Logger) error {
 		}
 	}()
 
+	var kmEnricher *yad2.Enricher
+	if cfg.Polling.EnableKmEnrichment {
+		kmEnricher = yad2.NewEnricher(yad2Fetcher, logger, yad2.EnricherConfig{})
+		logger.Info("km enrichment enabled")
+	}
+
 	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, multi, logger, scheduler.Options{
 		Observer:         h,
 		Queue:            store,
@@ -215,6 +221,7 @@ func run(configPath string, logger *slog.Logger) error {
 		DigestStore:      store,
 		HiddenStore:      store,
 		CatalogIngester:  dynCatalog,
+		KmEnricher:       kmEnricher,
 		MarketStore:      store,
 		DailyDigestStore: store,
 	})

@@ -94,6 +94,7 @@ export function ListingDetailPage() {
           <img
             src={listing.image_url}
             alt={`${listing.manufacturer} ${listing.model}`}
+            referrerPolicy="no-referrer"
             className="h-full w-full object-cover"
           />
         </div>
