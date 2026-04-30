@@ -12,6 +12,7 @@ import (
 )
 
 type createSearchRequest struct {
+	Name         string `json:"name"`
 	Source       string `json:"source"`
 	Manufacturer int    `json:"manufacturer"`
 	Model        int    `json:"model"`
@@ -166,7 +167,10 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "unknown model id")
 		return
 	}
-	name := strings.ToLower(fmt.Sprintf("%s-%s", mfrName, modelName))
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = strings.ToLower(fmt.Sprintf("%s-%s", mfrName, modelName))
+	}
 
 	search := storage.Search{
 		ChatID:       chatID,
