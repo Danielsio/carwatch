@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router";
 import { Save, Loader2 } from "lucide-react";
 import { useSearch, useUpdateSearch } from "@/hooks/useSearches";
@@ -35,8 +35,10 @@ export function EditSearchPage() {
     excludeKeys: "",
   });
 
+  const initializedSearchIdRef = useRef<number | null>(null);
+
   useEffect(() => {
-    if (search) {
+    if (search && initializedSearchIdRef.current !== search.id) {
       setForm({
         yearMin: search.year_min,
         yearMax: search.year_max,
@@ -47,6 +49,7 @@ export function EditSearchPage() {
         keywords: search.keywords,
         excludeKeys: search.exclude_keys,
       });
+      initializedSearchIdRef.current = search.id;
     }
   }, [search]);
 
