@@ -481,25 +481,30 @@ func migrate(db *sql.DB) error {
 		if _, err := db.Exec("ALTER TABLE listing_history ADD COLUMN search_id INTEGER NOT NULL DEFAULT 0"); err != nil {
 			return fmt.Errorf("add search_id column: %w", err)
 		}
-		// Backfill search_id from searches table where names match.
+		// Backfill search_id only when exactly one search matches to avoid
+		// mis-assignment when duplicate (chat_id, name) rows exist.
 		if _, err := db.Exec(`
 			UPDATE listing_history
 			SET search_id = COALESCE((
-				SELECT s.id FROM searches s
+				SELECT CASE
+					WHEN COUNT(*) = 1 THEN MIN(s.id)
+					ELSE 0
+				END
+				FROM searches s
 				WHERE s.chat_id = listing_history.chat_id
 				  AND s.name = listing_history.search_name
-				LIMIT 1
 			), 0)
 			WHERE search_id = 0
 		`); err != nil {
 			return fmt.Errorf("backfill listing_history search_id: %w", err)
 		}
-		if _, err := db.Exec(`
-			CREATE INDEX IF NOT EXISTS idx_listing_history_chat_searchid
-				ON listing_history(chat_id, search_id)
-		`); err != nil {
-			return fmt.Errorf("create listing_history search_id index: %w", err)
-		}
+	}
+
+	if _, err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_listing_history_chat_searchid
+			ON listing_history(chat_id, search_id)
+	`); err != nil {
+		return fmt.Errorf("create listing_history search_id index: %w", err)
 	}
 
 	return nil
