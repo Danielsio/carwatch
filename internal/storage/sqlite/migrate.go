@@ -470,5 +470,47 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	// Add search_id column to listing_history for per-search filtering.
+	var hasSearchID int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('listing_history') WHERE name = 'search_id'",
+	).Scan(&hasSearchID); err != nil {
+		return fmt.Errorf("check listing_history search_id: %w", err)
+	}
+	if hasSearchID == 0 {
+		if _, err := db.Exec("ALTER TABLE listing_history ADD COLUMN search_id INTEGER NOT NULL DEFAULT 0"); err != nil {
+			return fmt.Errorf("add search_id column: %w", err)
+		}
+	}
+	// Backfill runs unconditionally so partial rollouts with the column
+	// but un-backfilled rows still get repaired. Only updates rows where
+	// exactly one search matches to avoid mis-assignment; unresolvable
+	// rows (0 or 2+ matches) are skipped entirely to avoid WAL churn.
+	if _, err := db.Exec(`
+		UPDATE listing_history
+		SET search_id = (
+			SELECT MIN(s.id)
+			FROM searches s
+			WHERE s.chat_id = listing_history.chat_id
+			  AND s.name = listing_history.search_name
+		)
+		WHERE search_id = 0
+		  AND (
+			SELECT COUNT(*)
+			FROM searches s
+			WHERE s.chat_id = listing_history.chat_id
+			  AND s.name = listing_history.search_name
+		  ) = 1
+	`); err != nil {
+		return fmt.Errorf("backfill listing_history search_id: %w", err)
+	}
+
+	if _, err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_listing_history_chat_searchid
+			ON listing_history(chat_id, search_id)
+	`); err != nil {
+		return fmt.Errorf("create listing_history search_id index: %w", err)
+	}
+
 	return nil
 }

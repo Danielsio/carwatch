@@ -301,7 +301,7 @@ Oracle Cloud VM (ARM A1, 1 OCPU, 6 GB RAM)
 │   ├── Telegram bot (long polling)
 │   ├── Scheduler (shared scraping loop)
 │   ├── Health endpoint (:8080/healthz)
-│   └── Dashboard (:8080/dashboard)
+│   └── React SPA + REST API (:8080/ and :8080/api/v1/)
 ├── SQLite database (./data/ volume)
 └── systemd service (auto-restart)
 ```
@@ -432,12 +432,13 @@ carwatch/
 │   │       └── sqlite.go           # SQLite adapter (users, searches, dedup)
 │   ├── health/
 │   │   └── health.go               # Health check endpoint
-│   └── dashboard/
-│       └── dashboard.go            # Listing history HTML
+│   └── spa/
+│       └── spa.go                  # Embedded React SPA (see web/)
 ├── testdata/
 ├── config.example.yaml              # Minimal: bot_token, db_path, polling
 ├── Dockerfile
-├── docker-compose.yaml
+├── docker-compose.dev.yaml
+├── docker-compose.prod.yaml
 ├── Makefile
 └── go.mod
 ```

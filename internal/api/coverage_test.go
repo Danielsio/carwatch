@@ -299,7 +299,7 @@ func TestListListings_LimitCap(t *testing.T) {
 	mustUnmarshal(t, w.Body.Bytes(), &created)
 
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "lc-1", ChatID: 999, SearchName: created.Name,
+		Token: "lc-1", ChatID: 999, SearchID: created.ID, SearchName: created.Name,
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 	}); err != nil {
 		t.Fatal(err)
@@ -536,7 +536,7 @@ func TestListListings_AllSorts(t *testing.T) {
 
 	for _, tok := range []string{"sort-1", "sort-2"} {
 		if err := store.SaveListing(ctx, storage.ListingRecord{
-			Token: tok, ChatID: 999, SearchName: created.Name,
+			Token: tok, ChatID: 999, SearchID: created.ID, SearchName: created.Name,
 			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 		}); err != nil {
 			t.Fatal(err)
@@ -631,7 +631,7 @@ func TestListListings_WithAllFields(t *testing.T) {
 
 	score := 9.2
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "full-1", ChatID: 999, SearchName: created.Name,
+		Token: "full-1", ChatID: 999, SearchID: created.ID, SearchName: created.Name,
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2022,
 		Price: 150000, Km: 30000, Hand: 1, City: "Haifa",
 		PageLink: "https://yad2.co.il/item/full-1",

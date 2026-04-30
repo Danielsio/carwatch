@@ -271,10 +271,10 @@ func (m *mockListingStore) CountUserListings(_ context.Context, _ int64) (int64,
 	return 0, nil
 }
 
-func (m *mockListingStore) ListSearchListings(_ context.Context, _ int64, _ string, _, _ int, _ string) ([]storage.ListingRecord, error) {
+func (m *mockListingStore) ListSearchListings(_ context.Context, _ int64, _ int64, _, _ int, _ string) ([]storage.ListingRecord, error) {
 	return nil, nil
 }
 
-func (m *mockListingStore) CountSearchListings(_ context.Context, _ int64, _ string) (int64, error) {
+func (m *mockListingStore) CountSearchListings(_ context.Context, _ int64, _ int64) (int64, error) {
 	return 0, nil
 }

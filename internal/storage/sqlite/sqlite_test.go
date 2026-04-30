@@ -395,19 +395,19 @@ func TestDeleteSearch_CascadesRelatedRecords(t *testing.T) {
 
 	// Seed listing_history for both users.
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "tok1", ChatID: 100, SearchName: "mazda-3",
+		Token: "tok1", ChatID: 100, SearchID: id1, SearchName: "mazda-3",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 95000,
 	}); err != nil {
 		t.Fatalf("save listing tok1 user 100: %v", err)
 	}
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "tok2", ChatID: 100, SearchName: "mazda-3",
+		Token: "tok2", ChatID: 100, SearchID: id1, SearchName: "mazda-3",
 		Manufacturer: "Mazda", Model: "3", Year: 2020, Price: 90000,
 	}); err != nil {
 		t.Fatalf("save listing tok2 user 100: %v", err)
 	}
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "tok1", ChatID: 200, SearchName: "mazda-3",
+		Token: "tok1", ChatID: 200, SearchID: id2, SearchName: "mazda-3",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 95000,
 	}); err != nil {
 		t.Fatalf("save listing tok1 user 200: %v", err)
@@ -454,7 +454,7 @@ func TestDeleteSearch_CascadesRelatedRecords(t *testing.T) {
 	}
 
 	// listing_history for user 100 should be cleaned up.
-	count100, err := store.CountSearchListings(ctx, 100, "mazda-3")
+	count100, err := store.CountSearchListings(ctx, 100, id1)
 	if err != nil {
 		t.Fatalf("count listings user 100: %v", err)
 	}
@@ -463,7 +463,7 @@ func TestDeleteSearch_CascadesRelatedRecords(t *testing.T) {
 	}
 
 	// User 200's listing_history should be untouched.
-	count200, err := store.CountSearchListings(ctx, 200, "mazda-3")
+	count200, err := store.CountSearchListings(ctx, 200, id2)
 	if err != nil {
 		t.Fatalf("count listings user 200: %v", err)
 	}
@@ -508,7 +508,7 @@ func TestDeleteSearch_CascadeNotFound(t *testing.T) {
 		t.Fatalf("claim: %v", err)
 	}
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "tok1", ChatID: 100, SearchName: "existing",
+		Token: "tok1", ChatID: 100, SearchID: id, SearchName: "existing",
 		Manufacturer: "Test", Model: "Car", Year: 2020, Price: 50000,
 	}); err != nil {
 		t.Fatalf("save listing: %v", err)
@@ -521,7 +521,7 @@ func TestDeleteSearch_CascadeNotFound(t *testing.T) {
 	}
 
 	// Verify dependent rows for the real search are still intact.
-	count, err := store.CountSearchListings(ctx, 100, "existing")
+	count, err := store.CountSearchListings(ctx, 100, id)
 	if err != nil {
 		t.Fatalf("count listings: %v", err)
 	}
@@ -1590,6 +1590,55 @@ func TestCountSaved_CrossUserIsolation(t *testing.T) {
 	}
 }
 
+func TestIsSaved(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	saved, err := store.IsSaved(ctx, 100, "tok1")
+	if err != nil {
+		t.Fatalf("IsSaved: %v", err)
+	}
+	if saved {
+		t.Fatal("expected not saved")
+	}
+	if err := store.SaveBookmark(ctx, 100, "tok1"); err != nil {
+		t.Fatal(err)
+	}
+	saved, err = store.IsSaved(ctx, 100, "tok1")
+	if err != nil {
+		t.Fatalf("IsSaved: %v", err)
+	}
+	if !saved {
+		t.Fatal("expected saved")
+	}
+}
+
+func TestSavedAmong(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	m, err := store.SavedAmong(ctx, 100, nil)
+	if err != nil {
+		t.Fatalf("SavedAmong: %v", err)
+	}
+	if m != nil {
+		t.Fatalf("expected nil map for empty tokens, got %v", m)
+	}
+
+	_ = store.SaveBookmark(ctx, 100, "a")
+	_ = store.SaveBookmark(ctx, 100, "c")
+
+	m, err = store.SavedAmong(ctx, 100, []string{"a", "b", "c", "a"})
+	if err != nil {
+		t.Fatalf("SavedAmong: %v", err)
+	}
+	if len(m) != 2 || !m["a"] || !m["c"] || m["b"] {
+		t.Fatalf("map = %v, want a and c true only", m)
+	}
+}
+
 // --- HiddenListingStore Tests ---
 
 func TestHideListing(t *testing.T) {
@@ -2175,26 +2224,41 @@ func TestListSearchListings(t *testing.T) {
 	ctx := context.Background()
 	seedUser(t, store, 100)
 
+	idMazda3, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "mazda3", Source: "yad2",
+		Manufacturer: 8, Model: 10061, Active: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	idCivic, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "civic", Source: "yad2",
+		Manufacturer: 9, Model: 10062, Active: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "lsl-1", ChatID: 100, SearchName: "mazda3",
+		Token: "lsl-1", ChatID: 100, SearchID: idMazda3, SearchName: "mazda3",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 120000, Km: 50000, Hand: 2,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "lsl-2", ChatID: 100, SearchName: "mazda3",
+		Token: "lsl-2", ChatID: 100, SearchID: idMazda3, SearchName: "mazda3",
 		Manufacturer: "Mazda", Model: "3", Year: 2022, Price: 90000, Km: 30000, Hand: 1,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "lsl-other", ChatID: 100, SearchName: "civic",
+		Token: "lsl-other", ChatID: 100, SearchID: idCivic, SearchName: "civic",
 		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 80000, Km: 70000, Hand: 3,
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	listings, err := store.ListSearchListings(ctx, 100, "mazda3", 20, 0, "newest")
+	listings, err := store.ListSearchListings(ctx, 100, idMazda3, 20, 0, "newest")
 	if err != nil {
 		t.Fatalf("ListSearchListings: %v", err)
 	}
@@ -2205,7 +2269,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Fatalf("newest sort order = [%s, %s], want [lsl-2, lsl-1]", listings[0].Token, listings[1].Token)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 20, 0, "price_asc")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 20, 0, "price_asc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2213,7 +2277,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Errorf("price_asc: expected 90000 first, got %d", listings[0].Price)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 20, 0, "price_desc")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 20, 0, "price_desc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2221,7 +2285,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Errorf("price_desc: expected 120000 first, got %d", listings[0].Price)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 20, 0, "km")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 20, 0, "km")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2229,7 +2293,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Errorf("km sort: expected 30000 first, got %d", listings[0].Km)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 20, 0, "year")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 20, 0, "year")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2237,7 +2301,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Errorf("year sort: expected 2022 first, got %d", listings[0].Year)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 1, 0, "newest")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 1, 0, "newest")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2248,7 +2312,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Fatalf("pagination offset=0 returned %q, want lsl-2", listings[0].Token)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, "mazda3", 1, 1, "newest")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 1, 1, "newest")
 	if err != nil {
 		t.Fatal(err)
 	}

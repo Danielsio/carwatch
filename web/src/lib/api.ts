@@ -75,6 +75,8 @@ export interface Search {
   exclude_keys: string;
   active: boolean;
   created_at: string;
+  /** Total listings found for this search; from API when supported. */
+  listings_count?: number;
 }
 
 export interface CreateSearchRequest {
@@ -104,6 +106,8 @@ export interface Listing {
   image_url?: string;
   fitness_score?: number;
   first_seen_at: string;
+  /** Present when API includes bookmark state */
+  saved?: boolean;
 }
 
 export interface ListingsResponse {

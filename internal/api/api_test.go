@@ -187,6 +187,9 @@ func TestSearchCRUD(t *testing.T) {
 	if len(searches) != 1 {
 		t.Fatalf("expected 1 search, got %d", len(searches))
 	}
+	if searches[0].ListingsCount != 0 {
+		t.Fatalf("expected listings_count 0, got %d", searches[0].ListingsCount)
+	}
 
 	// Get search
 	w = doRequest(t, srv, "GET", "/api/v1/searches/"+itoa(created.ID), nil)
@@ -266,6 +269,7 @@ func TestListListings(t *testing.T) {
 	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token:        "tok1",
 		ChatID:       999,
+		SearchID:     created.ID,
 		SearchName:   created.Name,
 		Manufacturer: "Toyota",
 		Model:        "Corolla",
@@ -283,6 +287,7 @@ func TestListListings(t *testing.T) {
 	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token:        "tok2",
 		ChatID:       999,
+		SearchID:     created.ID,
 		SearchName:   created.Name,
 		Manufacturer: "Toyota",
 		Model:        "Corolla",
@@ -332,6 +337,39 @@ func TestListListings(t *testing.T) {
 	mustUnmarshal(t, w.Body.Bytes(), &resp)
 	if len(resp.Items) != 1 || resp.Total != 2 {
 		t.Fatalf("expected 1 item, total 2, got %d items, total %d", len(resp.Items), resp.Total)
+	}
+
+	// Bookmark + saved flag + listings_count on search list
+	w = doRequest(t, srv, "POST", "/api/v1/listings/tok1/save", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("bookmark: expected 204, got %d", w.Code)
+	}
+	w = doRequest(t, srv, "GET", "/api/v1/searches/"+itoa(created.ID)+"/listings?sort=newest", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list after bookmark: %d", w.Code)
+	}
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if len(resp.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(resp.Items))
+	}
+	var tok1Saved, tok2Saved bool
+	for _, it := range resp.Items {
+		switch it.Token {
+		case "tok1":
+			tok1Saved = it.Saved
+		case "tok2":
+			tok2Saved = it.Saved
+		}
+	}
+	if !tok1Saved || tok2Saved {
+		t.Fatalf("saved flags: tok1=%v tok2=%v, want true false", tok1Saved, tok2Saved)
+	}
+
+	w = doRequest(t, srv, "GET", "/api/v1/searches", nil)
+	var searches []searchResponse
+	mustUnmarshal(t, w.Body.Bytes(), &searches)
+	if len(searches) != 1 || searches[0].ListingsCount != 2 {
+		t.Fatalf("search listings_count: got %+v", searches)
 	}
 }
 
@@ -612,6 +650,9 @@ func TestGetListing_Success(t *testing.T) {
 	if resp.Manufacturer != "Toyota" {
 		t.Errorf("manufacturer = %q, want Toyota", resp.Manufacturer)
 	}
+	if resp.SearchName != "s1" {
+		t.Errorf("search_name = %q, want s1", resp.SearchName)
+	}
 }
 
 func TestGetListing_NotFound(t *testing.T) {
@@ -652,6 +693,22 @@ func TestBookmarkCRUD(t *testing.T) {
 	}
 	if savedResp.Items[0].Token != "tok-bm" {
 		t.Errorf("token = %q, want tok-bm", savedResp.Items[0].Token)
+	}
+	if savedResp.Items[0].SearchName != "test" {
+		t.Errorf("search_name = %q, want test", savedResp.Items[0].SearchName)
+	}
+	if !savedResp.Items[0].Saved {
+		t.Error("expected saved item to have saved=true")
+	}
+
+	w = doRequest(t, srv, "GET", "/api/v1/listings/tok-bm", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get listing: expected 200, got %d", w.Code)
+	}
+	var one listingResponse
+	mustUnmarshal(t, w.Body.Bytes(), &one)
+	if !one.Saved {
+		t.Error("expected get listing saved=true")
 	}
 
 	// Remove bookmark

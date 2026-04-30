@@ -18,6 +18,7 @@ type listingResponse struct {
 	ImageURL     string   `json:"image_url,omitempty"`
 	FitnessScore *float64 `json:"fitness_score,omitempty"`
 	FirstSeenAt  string   `json:"first_seen_at"`
+	Saved        bool     `json:"saved,omitempty"`
 }
 
 type listingsPageResponse struct {
@@ -46,6 +47,15 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	savedFlag := false
+	if s.saved != nil {
+		var err error
+		savedFlag, err = s.saved.IsSaved(r.Context(), chatID, token)
+		if err != nil {
+			s.logger.Error("is saved", "error", err)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, listingResponse{
 		Token:        l.Token,
 		SearchName:   l.SearchName,
@@ -60,6 +70,7 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		ImageURL:     l.ImageURL,
 		FitnessScore: l.FitnessScore,
 		FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
+		Saved:        savedFlag,
 	})
 }
 
@@ -89,22 +100,24 @@ func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 	offset := parseIntParam(r, "offset", 0)
 	sort := parseSortParam(r)
 
-	listings, err := s.listings.ListSearchListings(r.Context(), chatID, sr.Name, limit, offset, sort)
+	listings, err := s.listings.ListSearchListings(r.Context(), chatID, sr.ID, limit, offset, sort)
 	if err != nil {
 		s.logger.Error("list search listings", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list listings")
 		return
 	}
 
-	total, err := s.listings.CountSearchListings(r.Context(), chatID, sr.Name)
+	total, err := s.listings.CountSearchListings(r.Context(), chatID, sr.ID)
 	if err != nil {
 		s.logger.Error("count search listings", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to count listings")
 		return
 	}
 
+	savedMap := s.savedLookupForRecords(r.Context(), chatID, listings)
+
 	writeJSON(w, http.StatusOK, listingsPageResponse{
-		Items:  toListingResponses(listings),
+		Items:  toListingResponses(listings, savedMap),
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,

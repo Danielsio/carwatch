@@ -321,16 +321,26 @@ function SearchCard({
 }) {
   return (
     <div className="group rounded-2xl border border-border/50 bg-card p-5 transition-all duration-200 hover:border-border hover:shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
-      <div className="flex items-start justify-between mb-3">
-        <div>
+      <div className="flex items-start justify-between mb-3 gap-2">
+        <div className="min-w-0">
           <h3 className="text-lg font-semibold">
             {search.manufacturer_name} {search.model_name}
           </h3>
           <span className="text-xs text-muted-foreground">{search.source}</span>
         </div>
-        <Badge variant={search.active ? "success" : "warning"}>
-          {search.active ? "פעיל" : "מושהה"}
-        </Badge>
+        <div className="flex shrink-0 items-start gap-2">
+          {(search.listings_count ?? 0) > 0 && (
+            <span
+              className="inline-flex items-center rounded-full bg-muted/80 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-foreground ring-1 ring-border/50"
+              title="מספר מודעות שנמצאו בחיפוש"
+            >
+              {search.listings_count!.toLocaleString("he-IL")} מודעות
+            </span>
+          )}
+          <Badge variant={search.active ? "success" : "warning"}>
+            {search.active ? "פעיל" : "מושהה"}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-4">
@@ -458,7 +468,7 @@ function RecentListingRow({ listing }: { listing: Listing }) {
           {listing.city || "—"} · {relativeTime(listing.first_seen_at)}
         </p>
       </div>
-      <span className="shrink-0 text-sm font-bold tabular-nums text-primary">
+      <span className="shrink-0 text-sm font-bold tabular-nums text-amber-500 dark:text-amber-400">
         {formatPrice(listing.price)}
       </span>
     </Link>

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -53,6 +54,7 @@ type searchResponse struct {
 	ExcludeKeys      string `json:"exclude_keys,omitempty"`
 	Active           bool   `json:"active"`
 	CreatedAt        string `json:"created_at"`
+	ListingsCount    int64  `json:"listings_count"`
 }
 
 func validateSearchRanges(yearMin, yearMax, priceMax, maxKm, maxHand, engineMinCC int) string {
@@ -102,6 +104,19 @@ func (s *Server) toSearchResponse(sr storage.Search) searchResponse {
 	}
 }
 
+func (s *Server) searchResponseWithListingCount(ctx context.Context, chatID int64, sr storage.Search) searchResponse {
+	item := s.toSearchResponse(sr)
+	if s.listings != nil {
+		n, err := s.listings.CountSearchListings(ctx, chatID, sr.ID)
+		if err != nil {
+			s.logger.Error("count search listings", "error", err, "search_id", sr.ID)
+		} else {
+			item.ListingsCount = n
+		}
+	}
+	return item
+}
+
 func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
 	chatID := chatIDFromContext(r.Context())
 	searches, err := s.searches.ListSearches(r.Context(), chatID)
@@ -113,7 +128,7 @@ func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
 
 	resp := make([]searchResponse, 0, len(searches))
 	for _, sr := range searches {
-		resp = append(resp, s.toSearchResponse(sr))
+		resp = append(resp, s.searchResponseWithListingCount(r.Context(), chatID, sr))
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -184,7 +199,7 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, s.toSearchResponse(*created))
+	writeJSON(w, http.StatusCreated, s.searchResponseWithListingCount(r.Context(), chatID, *created))
 }
 
 func (s *Server) getSearch(w http.ResponseWriter, r *http.Request) {
@@ -206,7 +221,7 @@ func (s *Server) getSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, s.toSearchResponse(*sr))
+	writeJSON(w, http.StatusOK, s.searchResponseWithListingCount(r.Context(), chatID, *sr))
 }
 
 func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
@@ -254,7 +269,7 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, s.toSearchResponse(*existing))
+	writeJSON(w, http.StatusOK, s.searchResponseWithListingCount(r.Context(), chatID, *existing))
 }
 
 func (s *Server) deleteSearch(w http.ResponseWriter, r *http.Request) {

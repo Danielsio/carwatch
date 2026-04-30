@@ -247,7 +247,7 @@ func TestDeleteSearch_CascadeCleanup(t *testing.T) {
 	}
 
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "cascade-tok", ChatID: 100, SearchName: "cascade-test",
+		Token: "cascade-tok", ChatID: 100, SearchID: id, SearchName: "cascade-test",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 	}); err != nil {
 		t.Fatal(err)
@@ -261,7 +261,7 @@ func TestDeleteSearch_CascadeCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	listings, err := store.ListSearchListings(ctx, 100, "cascade-test", 100, 0, "newest")
+	listings, err := store.ListSearchListings(ctx, 100, id, 100, 0, "newest")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,13 +301,13 @@ func TestDeleteSearch_DuplicateNameDoesNotAffectOther(t *testing.T) {
 	}
 
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "tok-s1", ChatID: 100, SearchName: "shared-name",
+		Token: "tok-s1", ChatID: 100, SearchID: id1, SearchName: "shared-name",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "tok-s2", ChatID: 100, SearchName: "shared-name",
+		Token: "tok-s2", ChatID: 100, SearchID: id2, SearchName: "shared-name",
 		Manufacturer: "Honda", Model: "Civic", Year: 2022, Price: 110000,
 	}); err != nil {
 		t.Fatal(err)
@@ -321,16 +321,15 @@ func TestDeleteSearch_DuplicateNameDoesNotAffectOther(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// BUG: Both listing_history rows and pending_notifications are deleted
-	// because DeleteSearch uses search_name (not search_id) for cascade.
-	// This test documents the current behavior. When the schema is migrated
-	// to use search_id as FK, update these assertions.
-	listings, err := store.ListSearchListings(ctx, 100, "shared-name", 100, 0, "newest")
+	// Deleting id1 cascades only rows tied to that search_id; id2's listing remains.
+	listings, err := store.ListSearchListings(ctx, 100, id2, 100, 0, "newest")
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Current behavior: cascade deletes ALL listings with this search_name
-	t.Logf("listings remaining after deleting search %d: %d (search %d still exists)", id1, len(listings), id2)
+	if len(listings) != 1 || listings[0].Token != "tok-s2" {
+		t.Fatalf("after deleting search %d, search %d should still have tok-s2; got %d listings: %+v", id1, id2, len(listings), listings)
+	}
+	t.Logf("listings for search %d after deleting search %d: %d", id2, id1, len(listings))
 
 	searches, err := store.ListSearches(ctx, 100)
 	if err != nil {

@@ -178,8 +178,8 @@ func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error 
 	}
 
 	if _, err := tx.ExecContext(ctx,
-		"DELETE FROM listing_history WHERE search_name = ? AND chat_id = ?",
-		searchName, chatID); err != nil {
+		"DELETE FROM listing_history WHERE search_id = ? AND chat_id = ?",
+		id, chatID); err != nil {
 		return fmt.Errorf("delete listing_history: %w", err)
 	}
 
