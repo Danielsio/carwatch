@@ -157,7 +157,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		"jitter", logJitter,
 	)
 
-	go s.retryPending(ctx)
+	s.retryPending(ctx)
 
 	sighup := make(chan os.Signal, 1)
 	signal.Notify(sighup, syscall.SIGHUP)
