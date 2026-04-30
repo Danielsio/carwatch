@@ -13,7 +13,7 @@ class ApiError extends Error {
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers);
-  if (!headers.has("Content-Type")) {
+  if (!headers.has("Content-Type") && options?.body) {
     headers.set("Content-Type", "application/json");
   }
   if (!headers.has("Authorization")) {

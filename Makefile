@@ -1,5 +1,5 @@
 .PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
-       vm-check-env vm-ssh vm-logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
+       vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
        web-install web-dev web-build
 
 all: build
@@ -83,7 +83,15 @@ vm-ssh: vm-check-env
 	$(SSH)
 
 vm-logs: vm-check-env
-	$(SSH) "docker logs carwatch --tail 50"
+	$(SSH) "docker logs carwatch --tail 200 -f"
+
+LOGS_FILTER ?=
+logs: vm-check-env
+ifdef LOGS_FILTER
+	$(SSH) "docker logs carwatch --tail 500 -f 2>&1" | grep -iF --line-buffered -- "$(LOGS_FILTER)"
+else
+	$(SSH) "docker logs carwatch --tail 200 -f"
+endif
 
 vm-status: vm-check-env
 	$(SSH) "docker ps --filter name=carwatch && echo '---' && docker exec carwatch /bot -version"

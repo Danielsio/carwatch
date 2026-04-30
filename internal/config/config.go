@@ -143,7 +143,7 @@ func applyDefaults(cfg *Config) {
 	if cfg.LogFormat == "" {
 		cfg.LogFormat = "auto"
 	}
-	filtered := cfg.API.CORSOrigins[:0]
+	var filtered []string
 	for _, o := range cfg.API.CORSOrigins {
 		o = strings.TrimSpace(o)
 		if o != "" && o != "https://" && o != "http://" {
@@ -189,8 +189,15 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("telegram.token is required")
 	}
 	for _, origin := range cfg.API.CORSOrigins {
-		if _, err := url.Parse(origin); err != nil {
+		u, err := url.Parse(origin)
+		if err != nil {
 			return fmt.Errorf("api.cors_origins: invalid URL %q", origin)
+		}
+		if u.Scheme == "" || u.Host == "" {
+			return fmt.Errorf("api.cors_origins: %q must have a scheme and host (e.g. https://example.com)", origin)
+		}
+		if u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+			return fmt.Errorf("api.cors_origins: %q must be a bare origin (scheme://host[:port]), no path or query", origin)
 		}
 	}
 	return nil

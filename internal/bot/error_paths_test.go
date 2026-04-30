@@ -196,7 +196,7 @@ func newErrBot(t *testing.T, msg messenger, users storage.UserStore, searches st
 		searches:    searches,
 		catalog:     catalog.NewStatic(),
 		adminChatID: 999,
-		maxSearches: 3,
+		maxSearches: defaultMaxSearches,
 		botUsername:  "test_bot",
 		logger:      logger,
 	}
@@ -759,8 +759,8 @@ func TestNew_DefaultCatalog(t *testing.T) {
 	if b.catalog == nil {
 		t.Error("catalog should default to static when nil")
 	}
-	if b.maxSearches != 3 {
-		t.Errorf("maxSearches = %d, want 3", b.maxSearches)
+	if b.maxSearches != defaultMaxSearches {
+		t.Errorf("maxSearches = %d, want %d", b.maxSearches, defaultMaxSearches)
 	}
 }
 

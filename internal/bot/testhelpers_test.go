@@ -96,7 +96,7 @@ func newTestBot(t *testing.T) *testBot {
 		listings:    store,
 		catalog:     catalog.NewStatic(),
 		adminChatID: 999,
-		maxSearches: 3,
+		maxSearches: defaultMaxSearches,
 		botUsername:  "test_bot",
 		logger:      logger,
 	}
@@ -152,7 +152,7 @@ func newTestBotWithDigests(t *testing.T) *testBot {
 		digests:     store,
 		catalog:     catalog.NewStatic(),
 		adminChatID: 999,
-		maxSearches: 3,
+		maxSearches: defaultMaxSearches,
 		botUsername:  "test_bot",
 		logger:      logger,
 	}
@@ -193,10 +193,6 @@ func (tb *testBot) simulateCommand(ctx context.Context, chatID int64, text strin
 		tb.bot.handleDigest(ctx, nilBot, update)
 	case text == "/upgrade":
 		tb.bot.handleUpgrade(ctx, nilBot, update)
-	case strings.HasPrefix(text, "/grant_premium"):
-		tb.bot.handleGrantPremium(ctx, nilBot, update)
-	case strings.HasPrefix(text, "/revoke_premium"):
-		tb.bot.handleRevokePremium(ctx, nilBot, update)
 	case strings.HasPrefix(text, "/start"):
 		tb.bot.handleStart(ctx, nilBot, update)
 	case strings.HasPrefix(text, "/stop"):

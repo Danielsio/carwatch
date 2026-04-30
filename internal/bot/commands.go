@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
@@ -472,68 +471,3 @@ func (b *Bot) handleUpgrade(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	b.sendMarkdown(ctx, chatID, locale.T(lang, "upgrade_disabled"))
 }
 
-func (b *Bot) handleGrantPremium(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
-	chatID := update.Message.Chat.ID
-	if chatID != b.adminChatID {
-		lang := b.getUserLang(ctx, chatID)
-		b.send(ctx, chatID, locale.T(lang, "unknown_command"))
-		return
-	}
-
-	parts := strings.Fields(update.Message.Text)
-	if len(parts) < 3 {
-		b.sendMarkdown(ctx, chatID, locale.T(locale.English, "admin_grant_usage"))
-		return
-	}
-
-	targetChatID, err := strconv.ParseInt(parts[1], 10, 64)
-	if err != nil {
-		b.sendMarkdown(ctx, chatID, locale.T(locale.English, "admin_grant_usage"))
-		return
-	}
-
-	days, err := strconv.Atoi(parts[2])
-	if err != nil || days <= 0 {
-		b.sendMarkdown(ctx, chatID, locale.T(locale.English, "admin_grant_usage"))
-		return
-	}
-
-	expires := time.Now().AddDate(0, 0, days)
-	if err := b.users.SetUserTier(ctx, targetChatID, TierPremium, expires); err != nil {
-		b.logger.Error("grant premium failed", "target", targetChatID, "error", err)
-		b.send(ctx, chatID, locale.T(locale.English, "admin_grant_failed"))
-		return
-	}
-
-	b.sendMarkdown(ctx, chatID, locale.Tf(locale.English, "admin_grant_success",
-		targetChatID, expires.Format("2006-01-02")))
-}
-
-func (b *Bot) handleRevokePremium(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
-	chatID := update.Message.Chat.ID
-	if chatID != b.adminChatID {
-		lang := b.getUserLang(ctx, chatID)
-		b.send(ctx, chatID, locale.T(lang, "unknown_command"))
-		return
-	}
-
-	parts := strings.Fields(update.Message.Text)
-	if len(parts) < 2 {
-		b.sendMarkdown(ctx, chatID, locale.T(locale.English, "admin_revoke_usage"))
-		return
-	}
-
-	targetChatID, err := strconv.ParseInt(parts[1], 10, 64)
-	if err != nil {
-		b.sendMarkdown(ctx, chatID, locale.T(locale.English, "admin_revoke_usage"))
-		return
-	}
-
-	if err := b.users.SetUserTier(ctx, targetChatID, TierFree, time.Time{}); err != nil {
-		b.logger.Error("revoke premium failed", "target", targetChatID, "error", err)
-		b.send(ctx, chatID, locale.T(locale.English, "admin_revoke_failed"))
-		return
-	}
-
-	b.sendMarkdown(ctx, chatID, locale.Tf(locale.English, "admin_revoke_success", targetChatID))
-}

@@ -56,7 +56,7 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 	}
 
 	if l.EngineVolume > 0 {
-		b.WriteString(locale.Tf(lang, "fmt_engine", l.EngineVolume/1000))
+		b.WriteString(locale.Tf(lang, "fmt_engine", float64(l.EngineVolume)/1000.0))
 		if l.GearBox != "" {
 			b.WriteString(", " + format.EscapeMarkdown(l.GearBox))
 		}

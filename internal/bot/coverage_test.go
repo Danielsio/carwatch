@@ -41,7 +41,7 @@ func newTestBotFull(t *testing.T) *testBot {
 		dailyDigests: store,
 		catalog:      catalog.NewStatic(),
 		adminChatID:  999,
-		maxSearches:  3,
+		maxSearches:  defaultMaxSearches,
 		botUsername:   "test_bot",
 		logger:       logger,
 	}
@@ -389,147 +389,6 @@ func TestSetPollTrigger(t *testing.T) {
 
 // --- handleGrantPremium ---
 
-func TestHandleGrantPremium_NotAdmin(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 100, "alice")
-
-	tb.simulateCommand(ctx, 100, "/grant_premium 100 30")
-
-	msg := tb.msg.last()
-	if msg.Text == "" {
-		t.Error("expected response for non-admin")
-	}
-}
-
-func TestHandleGrantPremium_MissingArgs(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 999, "admin")
-
-	tb.simulateCommand(ctx, 999, "/grant_premium")
-
-	msg := tb.msg.last()
-	if msg.Text == "" {
-		t.Error("expected usage message")
-	}
-}
-
-func TestHandleGrantPremium_InvalidChatID(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 999, "admin")
-
-	tb.simulateCommand(ctx, 999, "/grant_premium abc 30")
-
-	msg := tb.msg.last()
-	if msg.Text == "" {
-		t.Error("expected usage message for invalid chat_id")
-	}
-}
-
-func TestHandleGrantPremium_InvalidDays(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 999, "admin")
-
-	tb.simulateCommand(ctx, 999, "/grant_premium 100 abc")
-
-	msg := tb.msg.last()
-	if msg.Text == "" {
-		t.Error("expected usage message for invalid days")
-	}
-}
-
-func TestHandleGrantPremium_NegativeDays(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 999, "admin")
-
-	tb.simulateCommand(ctx, 999, "/grant_premium 100 -5")
-
-	msg := tb.msg.last()
-	if msg.Text == "" {
-		t.Error("expected usage message for negative days")
-	}
-}
-
-func TestHandleGrantPremium_Success(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 999, "admin")
-	tb.createUser(ctx, t, 100, "alice")
-
-	tb.simulateCommand(ctx, 999, "/grant_premium 100 30")
-
-	user, err := tb.store.GetUser(ctx, 100)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if user.Tier != "premium" {
-		t.Errorf("tier = %q, want premium", user.Tier)
-	}
-}
-
-func TestHandleGrantPremium_UserNotFound(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 999, "admin")
-
-	tb.simulateCommand(ctx, 999, "/grant_premium 99999 30")
-
-	msg := tb.msg.last()
-	if msg.Text == "" {
-		t.Error("expected error message for nonexistent user")
-	}
-}
-
-// --- handleRevokePremium ---
-
-func TestHandleRevokePremium_NotAdmin(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 100, "alice")
-
-	tb.simulateCommand(ctx, 100, "/revoke_premium 100")
-
-	msg := tb.msg.last()
-	if msg.Text == "" {
-		t.Error("expected response for non-admin")
-	}
-}
-
-func TestHandleRevokePremium_MissingArgs(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 999, "admin")
-
-	tb.simulateCommand(ctx, 999, "/revoke_premium")
-
-	msg := tb.msg.last()
-	if msg.Text == "" {
-		t.Error("expected usage message")
-	}
-}
-
-func TestHandleRevokePremium_Success(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 999, "admin")
-	tb.createUser(ctx, t, 100, "alice")
-	mustNoErr(t, tb.store.SetUserTier(ctx, 100, "premium", time.Now().Add(30*24*time.Hour)))
-
-	tb.simulateCommand(ctx, 999, "/revoke_premium 100")
-
-	user, err := tb.store.GetUser(ctx, 100)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if user.Tier != "free" {
-		t.Errorf("tier = %q, want free", user.Tier)
-	}
-}
-
 // --- onSavedPage / onHiddenPage ---
 
 func TestOnSavedPage_WithData(t *testing.T) {
@@ -641,8 +500,8 @@ func TestMaxSearchesForUser(t *testing.T) {
 	tb.createUser(ctx, t, 100, "alice")
 
 	limit := tb.bot.maxSearchesForUser(ctx, 100)
-	if limit != premiumMaxSearches {
-		t.Errorf("maxSearches = %d, want %d", limit, premiumMaxSearches)
+	if limit != defaultMaxSearches {
+		t.Errorf("maxSearches = %d, want %d", limit, defaultMaxSearches)
 	}
 }
 
@@ -736,34 +595,6 @@ func TestOnDailyDigestOn(t *testing.T) {
 	}
 	if !enabled {
 		t.Error("expected daily digest to be enabled")
-	}
-}
-
-// --- handleRevokePremium invalid ID ---
-
-func TestHandleRevokePremium_InvalidChatID(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 999, "admin")
-
-	tb.simulateCommand(ctx, 999, "/revoke_premium abc")
-
-	msg := tb.msg.last()
-	if msg.Text == "" {
-		t.Error("expected usage message for invalid chat_id")
-	}
-}
-
-func TestHandleRevokePremium_UserNotFound(t *testing.T) {
-	tb := newTestBotFull(t)
-	ctx := context.Background()
-	tb.createUser(ctx, t, 999, "admin")
-
-	tb.simulateCommand(ctx, 999, "/revoke_premium 99999")
-
-	msg := tb.msg.last()
-	if msg.Text == "" {
-		t.Error("expected failure message")
 	}
 }
 

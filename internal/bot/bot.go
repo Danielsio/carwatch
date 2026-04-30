@@ -101,7 +101,7 @@ type Config struct {
 
 func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cfg Config, logger *slog.Logger) *Bot {
 	if cfg.MaxSearches == 0 {
-		cfg.MaxSearches = 3
+		cfg.MaxSearches = defaultMaxSearches
 	}
 	if cfg.PollInterval == 0 {
 		cfg.PollInterval = 15 * time.Minute
@@ -314,19 +314,14 @@ const (
 	TierFree    = "free"
 	TierPremium = "premium"
 
-	freeMaxSearches    = 10
-	premiumMaxSearches = 10
+	defaultMaxSearches = 10
 )
 
-func (b *Bot) isPremium(_ context.Context, _ int64) bool {
-	return true
-}
-
-func (b *Bot) maxSearchesForUser(ctx context.Context, chatID int64) int {
-	if b.isPremium(ctx, chatID) {
-		return premiumMaxSearches
+func (b *Bot) maxSearchesForUser(_ context.Context, _ int64) int {
+	if b.maxSearches > 0 {
+		return b.maxSearches
 	}
-	return freeMaxSearches
+	return defaultMaxSearches
 }
 
 func (b *Bot) checkSearchLimit(ctx context.Context, chatID int64, lang locale.Lang, limitKey string) bool {
