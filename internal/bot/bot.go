@@ -314,19 +314,11 @@ const (
 	TierFree    = "free"
 	TierPremium = "premium"
 
-	freeMaxSearches    = 10
-	premiumMaxSearches = 10
+	defaultMaxSearches = 10
 )
 
-func (b *Bot) isPremium(_ context.Context, _ int64) bool {
-	return true
-}
-
-func (b *Bot) maxSearchesForUser(ctx context.Context, chatID int64) int {
-	if b.isPremium(ctx, chatID) {
-		return premiumMaxSearches
-	}
-	return freeMaxSearches
+func (b *Bot) maxSearchesForUser(_ context.Context, _ int64) int {
+	return defaultMaxSearches
 }
 
 func (b *Bot) checkSearchLimit(ctx context.Context, chatID int64, lang locale.Lang, limitKey string) bool {
