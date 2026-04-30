@@ -101,7 +101,7 @@ type Config struct {
 
 func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cfg Config, logger *slog.Logger) *Bot {
 	if cfg.MaxSearches == 0 {
-		cfg.MaxSearches = 3
+		cfg.MaxSearches = defaultMaxSearches
 	}
 	if cfg.PollInterval == 0 {
 		cfg.PollInterval = 15 * time.Minute
@@ -318,6 +318,9 @@ const (
 )
 
 func (b *Bot) maxSearchesForUser(_ context.Context, _ int64) int {
+	if b.maxSearches > 0 {
+		return b.maxSearches
+	}
 	return defaultMaxSearches
 }
 

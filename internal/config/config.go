@@ -196,6 +196,9 @@ func validate(cfg *Config) error {
 		if u.Scheme == "" || u.Host == "" {
 			return fmt.Errorf("api.cors_origins: %q must have a scheme and host (e.g. https://example.com)", origin)
 		}
+		if u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+			return fmt.Errorf("api.cors_origins: %q must be a bare origin (scheme://host[:port]), no path or query", origin)
+		}
 	}
 	return nil
 }
