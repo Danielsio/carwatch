@@ -17,7 +17,7 @@ type AuthContextValue = {
   user: User | null;
   loading: boolean;
   signOut: () => Promise<void>;
-  getIdToken: () => Promise<string | null>;
+  getIdToken: (forceRefresh?: boolean) => Promise<string | null>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
