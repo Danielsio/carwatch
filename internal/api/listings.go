@@ -6,6 +6,7 @@ import (
 
 type listingResponse struct {
 	Token        string   `json:"token"`
+	SearchName   string   `json:"search_name,omitempty"`
 	Manufacturer string   `json:"manufacturer"`
 	Model        string   `json:"model"`
 	Year         int      `json:"year"`
@@ -47,6 +48,7 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, listingResponse{
 		Token:        l.Token,
+		SearchName:   l.SearchName,
 		Manufacturer: l.Manufacturer,
 		Model:        l.Model,
 		Year:         l.Year,
