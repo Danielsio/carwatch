@@ -52,6 +52,7 @@ services:
 networks:
   carwatch-net:
     name: carwatch-net
+    external: true
 
 volumes:
   carwatch-data:
