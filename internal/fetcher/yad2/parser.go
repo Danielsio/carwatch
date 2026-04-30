@@ -51,6 +51,10 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 		return nil, err
 	}
 
+	if logger != nil && len(items) > 0 {
+		logger.Info("raw feed item sample", "json", string(items[0]))
+	}
+
 	listings := make([]model.RawListing, 0, len(items))
 	seen := make(map[string]struct{}, len(items))
 	skipped := 0

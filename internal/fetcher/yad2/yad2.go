@@ -100,7 +100,7 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 		return nil, fmt.Errorf("unexpected status: %d", result.StatusCode)
 	}
 
-	listings, err := ParseListingsPage(bytes.NewReader(result.Body))
+	listings, err := ParseListingsPageWithLogger(bytes.NewReader(result.Body), f.logger)
 	if err != nil {
 		return nil, fmt.Errorf("parse page: %w", err)
 	}
