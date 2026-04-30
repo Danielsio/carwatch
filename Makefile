@@ -99,6 +99,8 @@ vm-restart: vm-check-env
 
 vm-deploy: vm-check-env
 	$(SSH) "docker pull ghcr.io/danielsio/carwatch:latest \
+		&& docker network create carwatch-net 2>/dev/null || true \
+		&& docker volume create carwatch_carwatch-data 2>/dev/null || true \
 		&& (docker stop carwatch >/dev/null 2>&1 || true) \
 		&& (docker rm carwatch >/dev/null 2>&1 || true) \
 		&& docker run -d --name carwatch --restart unless-stopped \
@@ -107,6 +109,5 @@ vm-deploy: vm-check-env
 			-v carwatch_carwatch-data:/data \
 			-v /home/ubuntu/carwatch/config.yaml:/config.yaml:ro \
 			-v /home/ubuntu/carwatch/firebase-sa.json:/config/firebase-sa.json:ro \
-			-p 8080:8080 \
 			ghcr.io/danielsio/carwatch:latest \
 		&& sleep 3 && docker exec carwatch /bot -version"
