@@ -172,6 +172,19 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 		name = strings.ToLower(fmt.Sprintf("%s-%s", mfrName, modelName))
 	}
 
+	existing, err := s.searches.ListSearches(r.Context(), chatID)
+	if err != nil {
+		s.logger.Error("list searches for duplicate check", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to validate search name")
+		return
+	}
+	for _, ex := range existing {
+		if strings.EqualFold(strings.TrimSpace(ex.Name), name) {
+			writeError(w, http.StatusConflict, "search name already exists")
+			return
+		}
+	}
+
 	search := storage.Search{
 		ChatID:       chatID,
 		Name:         name,

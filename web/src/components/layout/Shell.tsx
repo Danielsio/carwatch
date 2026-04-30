@@ -53,6 +53,7 @@ export function Shell() {
           <button
             type="button"
             onClick={toggleTheme}
+            aria-label={theme === "dark" ? "הפעל מצב בהיר" : "הפעל מצב כהה"}
             className="w-7 h-7 shrink-0 rounded-lg bg-sidebar-accent flex items-center justify-center text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/80 transition-all"
             title={theme === "dark" ? "מצב בהיר" : "מצב כהה"}
           >
