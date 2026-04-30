@@ -10,7 +10,7 @@ import {
   Clock,
   Car,
 } from "lucide-react";
-import { formatPrice, formatKm, relativeTime } from "@/lib/utils";
+import { formatPrice, formatKm, relativeTime, safeHref } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -152,10 +152,19 @@ export function ListingDetailPage() {
         </div>
       </div>
 
-      <Button as="a" href={listing.page_link} target="_blank" rel="noopener noreferrer" size="lg" className="rounded-xl">
-        <ExternalLink className="h-4 w-4" />
-        צפה במודעה המקורית
-      </Button>
+      {safeHref(listing.page_link) && (
+        <Button
+          as="a"
+          href={safeHref(listing.page_link)!}
+          target="_blank"
+          rel="noopener noreferrer"
+          size="lg"
+          className="rounded-xl"
+        >
+          <ExternalLink className="h-4 w-4" />
+          צפה במודעה המקורית
+        </Button>
+      )}
     </div>
   );
 }

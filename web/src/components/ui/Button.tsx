@@ -66,6 +66,7 @@ function ButtonRender(
     return React.cloneElement(
       children as React.ReactElement<Record<string, unknown>>,
       {
+        ...rest,
         className: cn(classes, childProps.className),
         ref,
       },

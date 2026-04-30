@@ -118,7 +118,7 @@ export function SearchesPage() {
           },
           {
             icon: Car,
-            label: "סה״כ מודעות",
+            label: "מודעות שנמצאו",
             value: recentListings?.total ?? 0,
             color: "text-score-great",
             bg: "bg-score-great/12",

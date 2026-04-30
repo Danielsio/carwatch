@@ -6,7 +6,7 @@ export type SkeletonProps = HTMLAttributes<HTMLDivElement>;
 export function Skeleton({ className, ...props }: SkeletonProps) {
   return (
     <div
-      className={cn("shimmer-skeleton", className)}
+      className={cn("shimmer-skeleton motion-reduce:animate-none", className)}
       {...props}
     />
   );

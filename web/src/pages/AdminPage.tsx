@@ -36,7 +36,7 @@ export function AdminPage() {
         <EmptyState
           icon={AlertCircle}
           title="שגיאה בטעינת הנתונים"
-          description="ייתכן שאין הרשאת גישה"
+          description="שגיאה בטעינת הנתונים, נסה מחדש מאוחר יותר"
         />
       </div>
     );
