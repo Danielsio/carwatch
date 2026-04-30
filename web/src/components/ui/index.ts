@@ -1,4 +1,5 @@
 export { Badge, badgeVariants, type BadgeProps } from "./Badge";
+export { ChipButton, type ChipButtonProps } from "./ChipButton";
 export {
   Button,
   buttonVariants,

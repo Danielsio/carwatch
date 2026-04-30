@@ -3,8 +3,9 @@ import { useNavigate, Link } from "react-router";
 import { Search, Loader2 } from "lucide-react";
 import { useManufacturers, useModels } from "@/hooks/useCatalog";
 import { useCreateSearch } from "@/hooks/useSearches";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { ChipButton } from "@/components/ui/ChipButton";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { FormField } from "@/components/ui/FormField";
@@ -316,28 +317,3 @@ export function NewSearchPage() {
   );
 }
 
-function ChipButton({
-  selected,
-  onClick,
-  children,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={cn(
-        "rounded-xl border px-3.5 py-2 text-sm transition-all duration-200 active:scale-[0.97]",
-        selected
-          ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/20"
-          : "border-border/50 bg-card hover:border-border hover:bg-surface-hover text-secondary-foreground",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
