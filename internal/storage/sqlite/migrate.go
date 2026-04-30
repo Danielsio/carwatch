@@ -481,23 +481,23 @@ func migrate(db *sql.DB) error {
 		if _, err := db.Exec("ALTER TABLE listing_history ADD COLUMN search_id INTEGER NOT NULL DEFAULT 0"); err != nil {
 			return fmt.Errorf("add search_id column: %w", err)
 		}
-		// Backfill search_id only when exactly one search matches to avoid
-		// mis-assignment when duplicate (chat_id, name) rows exist.
-		if _, err := db.Exec(`
-			UPDATE listing_history
-			SET search_id = COALESCE((
-				SELECT CASE
-					WHEN COUNT(*) = 1 THEN MIN(s.id)
-					ELSE 0
-				END
-				FROM searches s
-				WHERE s.chat_id = listing_history.chat_id
-				  AND s.name = listing_history.search_name
-			), 0)
-			WHERE search_id = 0
-		`); err != nil {
-			return fmt.Errorf("backfill listing_history search_id: %w", err)
-		}
+	}
+	// Always backfill: a partial rollout may have the column but still
+	// contain legacy rows with search_id = 0.
+	if _, err := db.Exec(`
+		UPDATE listing_history
+		SET search_id = COALESCE((
+			SELECT CASE
+				WHEN COUNT(*) = 1 THEN MIN(s.id)
+				ELSE 0
+			END
+			FROM searches s
+			WHERE s.chat_id = listing_history.chat_id
+			  AND s.name = listing_history.search_name
+		), 0)
+		WHERE search_id = 0
+	`); err != nil {
+		return fmt.Errorf("backfill listing_history search_id: %w", err)
 	}
 
 	if _, err := db.Exec(`
