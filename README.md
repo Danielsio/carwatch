@@ -117,7 +117,7 @@ All components communicate through interfaces, making each layer independently t
 carwatch/
 ├── cmd/bot/main.go              # Entry point, wiring
 ├── internal/
-│   ├── api/                     # REST API (Firebase auth, listings, searches)
+│   ├── api/                     # REST API (listings, searches, bookmarks)
 │   ├── bot/                     # Telegram bot handlers, wizards, callbacks
 │   ├── catalog/                 # Dynamic car catalog (make/model/submodel)
 │   ├── config/                  # YAML loading, validation, defaults

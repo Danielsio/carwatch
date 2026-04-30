@@ -174,11 +174,11 @@ The dashboard is a single page with two sections:
 
 ### Deferred to Planning
 
-- [Affects R33][Needs research] Can Yad2 cover images be loaded directly in the browser, or do they require a backend proxy due to CORS/hotlink restrictions?
-- [Affects R14][Technical] What charting library to use for price history visualization (recharts, chart.js, etc.)?
-- [Affects R4][Technical] How to structure the REST API endpoints — resource-based REST is likely, but exact resource design needs codebase exploration
-- [Affects R28][Technical] How to efficiently compute market analytics — on-the-fly queries from `listing_history`/`price_history` vs. materialized aggregation table updated by the scheduler
-- [Affects R33][Technical] Schema migration strategy for adding `image_url` to `listing_history` and backfilling existing records
+- *(Affects R33, needs research)* Can Yad2 cover images be loaded directly in the browser, or do they require a backend proxy due to CORS/hotlink restrictions?
+- *(Affects R14, technical)* What charting library to use for price history visualization (recharts, chart.js, etc.)?
+- *(Affects R4, technical)* How to structure the REST API endpoints — resource-based REST is likely, but exact resource design needs codebase exploration
+- *(Affects R28, technical)* How to efficiently compute market analytics — on-the-fly queries from `listing_history`/`price_history` vs. materialized aggregation table updated by the scheduler
+- *(Affects R33, technical)* Schema migration strategy for adding `image_url` to `listing_history` and backfilling existing records
 
 ## Next Steps
 

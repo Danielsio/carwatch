@@ -12,11 +12,12 @@ Current architecture analysis, scalability assessment, and proposed improvements
 │              (wiring + lifecycle)                 │
 └────────────┬────────────┬───────────────────┬────┘
              │            │                   │
-    ┌────────▼──────┐  ┌──▼──────────┐  ┌─────▼─────┐
-    │   Scheduler   │  │  Telegram   │  │   HTTP     │
-    │  (poll loop)  │  │  Bot (cmds) │  │  /healthz  │
-    │               │  │             │  │  /dashboard │
-    └───┬───────────┘  └──────┬──────┘  └────────────┘
+    ┌────────▼──────┐  ┌──▼──────────┐  ┌─────▼──────┐
+    │   Scheduler   │  │  Telegram   │  │   HTTP      │
+    │  (poll loop)  │  │  Bot (cmds) │  │  /healthz   │
+    │               │  │             │  │  /api/v1/*  │
+    │               │  │             │  │  / (SPA)    │
+    └───┬───────────┘  └──────┬──────┘  └─────────────┘
         │                     │
         │  ┌──────────────────┘
         │  │
@@ -122,8 +123,8 @@ Current architecture + these changes:
 ┌────────▼──────┐  ┌──▼──────────┐  ┌─────────▼──────┐
 │   Scheduler   │  │  Telegram   │  │     HTTP        │
 │ (coordinator) │  │  Bot (wh)   │  │  /healthz       │
-│               │  │  webhook    │  │  /dashboard     │
-│               │  │  mode       │  │  /api/v1/...    │
+│               │  │  webhook    │  │  /api/v1/...    │
+│               │  │  mode       │  │  / (SPA)        │
 └───┬───────────┘  └──────┬──────┘  └────────────────┘
     │                     │
     │  ┌──────────────────┘
@@ -206,8 +207,10 @@ The architecture is already 80% ready for WhatsApp thanks to the `Notifier` inte
 
 ```go
 type Notifier interface {
-    Notify(ctx context.Context, chatID string, listings []model.Listing) error
-    NotifyRaw(ctx context.Context, chatID string, message string) error
+    Connect(ctx context.Context) error
+    Notify(ctx context.Context, recipient string, listings []model.Listing, lang locale.Lang) error
+    NotifyRaw(ctx context.Context, recipient string, message string) error
+    Disconnect() error
 }
 ```
 
@@ -300,7 +303,7 @@ CREATE TABLE notification_channels (
 
 ### Improvements:
 
-1. **Cache key should include source.** Currently, a Yad2 cache entry could theoretically be returned for a WinWin request if they share the same manufacturer/model/year/price/page params. In practice this doesn't happen because fetchers are separate instances, but the abstraction is leaky.
+1. ~~**Cache key should include source.**~~ **Resolved** — the caching layer now keys entries per fetcher instance, so Yad2 and WinWin cache entries cannot collide.
 
 2. **Warm cache on startup.** After restart, the first cycle has 0% cache hit rate and hammers Yad2 with all groups at once. Consider persisting cache to SQLite or a file.
 

@@ -99,7 +99,8 @@ vm-restart: vm-check-env
 
 vm-deploy: vm-check-env
 	$(SSH) "docker pull ghcr.io/danielsio/carwatch:latest \
-		&& docker stop carwatch 2>/dev/null; docker rm carwatch 2>/dev/null \
+		&& (docker stop carwatch >/dev/null 2>&1 || true) \
+		&& (docker rm carwatch >/dev/null 2>&1 || true) \
 		&& docker run -d --name carwatch --restart unless-stopped \
 			--label com.centurylinklabs.watchtower.enable=true \
 			--network carwatch-net \

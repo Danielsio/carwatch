@@ -132,7 +132,7 @@ Use Meta's Cloud API directly (no BSP). The Go library [`piusalfred/whatsapp`](h
 
 ### Webhook Endpoint
 
-Add `/webhook/whatsapp` to the existing HTTP mux (same port as `/healthz` and `/dashboard`). No separate port needed for a single-instance SQLite app.
+Add `/webhook/whatsapp` to the existing HTTP mux (same port as `/healthz` and `/api/v1/`). No separate port needed for a single-instance SQLite app.
 
 ### Pricing Impact
 
