@@ -353,7 +353,7 @@ CREATE TABLE notification_channels (
    - `carwatch_cycle_duration_seconds` — histogram
 
 2. **Alerting.** Watchtower handles deployment, but there's no alerting for:
-   - Health status degraded > 30 minutes
+   - Health status degraded > 2 hours
    - Zero listings found for 3+ consecutive cycles
    - Error rate > 50%
    - Database size > threshold
