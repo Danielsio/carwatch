@@ -264,7 +264,7 @@ func (b *Bot) sweepStaleMaps() {
 		stale := seen > 0 && seen < cutoff
 		rl.mu.Unlock()
 		if stale {
-			b.rateLimiter.Delete(key)
+			b.rateLimiter.CompareAndDelete(key, value)
 		}
 		return true
 	})
@@ -278,7 +278,7 @@ func (b *Bot) sweepStaleMaps() {
 		stale := used > 0 && used < cutoff
 		entry.mu.Unlock()
 		if stale {
-			b.chatMu.Delete(key)
+			b.chatMu.CompareAndDelete(key, value)
 		}
 		return true
 	})
