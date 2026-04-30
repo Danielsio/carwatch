@@ -6,3 +6,14 @@ config.yaml
 .coverage/
 web/node_modules/
 web/dist/
+
+# Credentials — never commit these
+firebase-service-account*.json
+*-adminsdk-*.json
+*.pem
+*.env
+*.env.local
+*.env.*.local
+web/.env
+web/.env.local
+web/.env.*.local

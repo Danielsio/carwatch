@@ -7,8 +7,10 @@ import {
   Bookmark,
   Clock,
   Bell,
+  LogOut,
 } from "lucide-react";
 import { useNotificationCount } from "@/hooks/useNotifications";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -24,12 +26,12 @@ export function Shell() {
   const location = useLocation();
   const { data: notifCount } = useNotificationCount();
   const unread = notifCount?.count ?? 0;
+  const { user, signOut } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 right-0 z-50 hidden w-64 border-l border-border/50 bg-card/80 backdrop-blur-xl md:block">
-        <div className="flex h-16 items-center gap-3 border-b border-border/50 px-6">
+      <aside className="fixed inset-y-0 right-0 z-50 hidden w-64 flex-col border-l border-border/50 bg-card/80 backdrop-blur-xl md:flex">
+        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border/50 px-6">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
             <Car className="h-4.5 w-4.5 text-primary" />
           </div>
@@ -38,7 +40,7 @@ export function Shell() {
           </span>
         </div>
 
-        <nav className="flex flex-col gap-1 p-3 mt-2">
+        <nav className="mt-2 flex flex-1 flex-col gap-1 overflow-y-auto p-3">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -74,6 +76,26 @@ export function Shell() {
             );
           })}
         </nav>
+
+        <div className="shrink-0 border-t border-border/50 p-4">
+          <p
+            className="mb-3 truncate text-xs text-muted-foreground"
+            title={user?.email ?? undefined}
+          >
+            {user?.email ?? ""}
+          </p>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className={cn(
+              "flex w-full items-center justify-center gap-2 rounded-xl border border-border/60 bg-secondary/50 px-3 py-2.5 text-sm font-medium text-foreground transition-colors",
+              "hover:bg-secondary hover:border-border",
+            )}
+          >
+            <LogOut className="h-4 w-4 text-muted-foreground" aria-hidden />
+            התנתק
+          </button>
+        </div>
       </aside>
 
       {/* Main content */}

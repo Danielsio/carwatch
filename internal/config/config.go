@@ -13,13 +13,20 @@ import (
 )
 
 type Config struct {
-	Polling  PollingConfig  `yaml:"polling"`
-	Telegram TelegramConfig `yaml:"telegram"`
-	Storage  StorageConfig  `yaml:"storage"`
-	HTTP     HTTPConfig     `yaml:"http"`
-	API      APIConfig      `yaml:"api"`
-	LogLevel  string         `yaml:"log_level"`
-	LogFormat string         `yaml:"log_format"`
+	Polling   PollingConfig   `yaml:"polling"`
+	Telegram  TelegramConfig  `yaml:"telegram"`
+	Storage   StorageConfig   `yaml:"storage"`
+	HTTP      HTTPConfig      `yaml:"http"`
+	API       APIConfig       `yaml:"api"`
+	Firebase  FirebaseConfig  `yaml:"firebase"`
+	LogLevel  string          `yaml:"log_level"`
+	LogFormat string          `yaml:"log_format"`
+}
+
+type FirebaseConfig struct {
+	CredentialsFile string `yaml:"credentials_file"`
+	CredentialsJSON string `yaml:"credentials_json"`
+	ProjectID       string `yaml:"project_id"`
 }
 
 type APIConfig struct {
@@ -143,6 +150,15 @@ func applyDefaults(cfg *Config) {
 }
 
 func validate(cfg *Config) error {
+	fb := cfg.Firebase
+	hasCreds := fb.CredentialsFile != "" || fb.CredentialsJSON != ""
+	if fb.ProjectID == "" && hasCreds {
+		return fmt.Errorf("firebase.project_id is required when credentials are set")
+	}
+	if fb.ProjectID != "" && !hasCreds {
+		return fmt.Errorf("firebase.credentials_file or firebase.credentials_json is required when project_id is set")
+	}
+
 	if ah := cfg.Polling.ActiveHours; ah != nil {
 		if _, err := parseTimeOfDay(ah.Start); err != nil {
 			return fmt.Errorf("active_hours.start %q: must be HH:MM format", ah.Start)

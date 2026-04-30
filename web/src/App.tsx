@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router";
 import { Shell } from "./components/layout/Shell";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import { SearchesPage } from "./pages/SearchesPage";
 import { NewSearchPage } from "./pages/NewSearchPage";
 import { ListingsPage } from "./pages/ListingsPage";
@@ -8,19 +9,25 @@ import { AdminPage } from "./pages/AdminPage";
 import { SavedPage } from "./pages/SavedPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { LoginPage } from "./pages/LoginPage";
+import { SignupPage } from "./pages/SignupPage";
 
 export default function App() {
   return (
     <Routes>
-      <Route element={<Shell />}>
-        <Route path="/" element={<SearchesPage />} />
-        <Route path="/searches/new" element={<NewSearchPage />} />
-        <Route path="/searches/:id/listings" element={<ListingsPage />} />
-        <Route path="/listings/:token" element={<ListingDetailPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/saved" element={<SavedPage />} />
-        <Route path="/history" element={<HistoryPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<Shell />}>
+          <Route path="/" element={<SearchesPage />} />
+          <Route path="/searches/new" element={<NewSearchPage />} />
+          <Route path="/searches/:id/listings" element={<ListingsPage />} />
+          <Route path="/listings/:token" element={<ListingDetailPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/saved" element={<SavedPage />} />
+          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+        </Route>
       </Route>
     </Routes>
   );

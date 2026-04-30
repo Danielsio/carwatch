@@ -109,6 +109,43 @@ func TestUpsertWhatsAppUser(t *testing.T) {
 	}
 }
 
+func TestUpsertWebUser(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	id1, err := store.UpsertWebUser(ctx, "firebase-uid-1", "a@example.com")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if id1 < 2_000_000_000_000 {
+		t.Errorf("Web ID = %d, want >= 2T", id1)
+	}
+
+	id2, err := store.UpsertWebUser(ctx, "firebase-uid-1", "a@example.com")
+	if err != nil {
+		t.Fatalf("idempotent: %v", err)
+	}
+	if id2 != id1 {
+		t.Errorf("idempotent call returned different ID: %d vs %d", id2, id1)
+	}
+
+	id3, err := store.UpsertWebUser(ctx, "firebase-uid-2", "b@example.com")
+	if err != nil {
+		t.Fatalf("second user: %v", err)
+	}
+	if id3 == id1 {
+		t.Error("different firebase UIDs should get different IDs")
+	}
+
+	u, err := store.GetUser(ctx, id1)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if u.Channel != "web" || u.ChannelID != "firebase-uid-1" || u.Username != "a@example.com" {
+		t.Errorf("user = %+v", u)
+	}
+}
+
 func TestGetUserByChannelID(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
