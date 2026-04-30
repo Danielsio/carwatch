@@ -10,6 +10,10 @@ func Handler(distFS fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(distFS))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
 		path := strings.TrimPrefix(r.URL.Path, "/")
 
 		if path != "" {
