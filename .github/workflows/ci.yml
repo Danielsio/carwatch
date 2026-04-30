@@ -14,11 +14,12 @@ on:
       - 'web/**'
 
 concurrency:
-  group: ci-${{ github.head_ref || github.ref }}
+  group: ci-pr-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   changes:
