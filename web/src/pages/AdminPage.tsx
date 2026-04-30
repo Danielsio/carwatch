@@ -8,9 +8,15 @@ const TABLE_LABELS: Record<string, string> = {
   listing_history: "מודעות",
   price_history: "היסטוריית מחירים",
   dedup_seen: "מודעות שזוהו",
+  seen_listings: "מודעות שנצפו",
   notifications: "התראות",
+  pending_notifications: "התראות ממתינות",
   market_cache: "מטמון שוק",
   catalog: "קטלוג",
+  catalog_cache: "מטמון קטלוג",
+  saved_listings: "מודעות שמורות",
+  hidden_listings: "מודעות מוסתרות",
+  pending_digest: "תקצירים ממתינים",
 };
 
 export function AdminPage() {
@@ -72,7 +78,7 @@ export function AdminPage() {
             ({data.db.file_size_bytes.toLocaleString("he-IL")} bytes)
           </span>
         </div>
-        <StorageBar sizeBytes={data.db.file_size_bytes} />
+        <StorageIndicator sizeBytes={data.db.file_size_bytes} />
       </div>
 
       {/* Table sizes */}
@@ -130,31 +136,24 @@ export function AdminPage() {
   );
 }
 
-function StorageBar({ sizeBytes }: { sizeBytes: number }) {
-  const maxBytes = 500 * 1024 * 1024;
-  const percent = Math.min((sizeBytes / maxBytes) * 100, 100);
-
+function StorageIndicator({ sizeBytes }: { sizeBytes: number }) {
+  const mb = sizeBytes / (1024 * 1024);
   const color =
-    percent > 80
-      ? "bg-destructive shadow-[0_0_8px_rgba(239,68,68,0.4)]"
-      : percent > 50
-        ? "bg-score-good shadow-[0_0_8px_rgba(245,158,11,0.3)]"
-        : "bg-score-great shadow-[0_0_8px_rgba(16,185,129,0.3)]";
+    mb > 400
+      ? "bg-destructive"
+      : mb > 200
+        ? "bg-score-good"
+        : "bg-score-great";
 
   return (
-    <div>
-      <div className="h-2.5 w-full rounded-full bg-secondary overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-700 ease-out ${color}`}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-      <p
-        className="text-xs text-muted-foreground mt-1.5 text-left tabular-nums"
-        dir="ltr"
-      >
-        {percent.toFixed(1)}% of 500 MB
-      </p>
+    <div className="flex items-center gap-2">
+      <span
+        className={`inline-block h-2.5 w-2.5 rounded-full ${color}`}
+        aria-hidden
+      />
+      <span className="text-xs text-muted-foreground tabular-nums" dir="ltr">
+        {mb.toFixed(1)} MB
+      </span>
     </div>
   );
 }
