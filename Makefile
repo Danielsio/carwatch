@@ -107,7 +107,7 @@ vm-deploy: vm-check-env
 			--label com.centurylinklabs.watchtower.enable=true \
 			--network carwatch-net \
 			-v carwatch_carwatch-data:/data \
-			-v /home/ubuntu/carwatch/config.yaml:/config.yaml:ro \
-			-v /home/ubuntu/carwatch/firebase-sa.json:/config/firebase-sa.json:ro \
+			-v /home/$(VM_USER)/carwatch/config.yaml:/config.yaml:ro \
+			-v /home/$(VM_USER)/carwatch/firebase-sa.json:/config/firebase-sa.json:ro \
 			ghcr.io/danielsio/carwatch:latest \
 		&& sleep 3 && docker exec carwatch /bot -version"
