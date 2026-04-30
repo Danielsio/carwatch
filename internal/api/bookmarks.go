@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -56,8 +57,13 @@ func (s *Server) listSaved(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	savedMap := make(map[string]bool, len(listings))
+	for _, l := range listings {
+		savedMap[l.Token] = true
+	}
+
 	writeJSON(w, http.StatusOK, listingsPageResponse{
-		Items:  toListingResponses(listings),
+		Items:  toListingResponses(listings, savedMap),
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,
@@ -114,17 +120,39 @@ func (s *Server) listHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	savedMap := s.savedLookupForRecords(r.Context(), chatID, listings)
+
 	writeJSON(w, http.StatusOK, listingsPageResponse{
-		Items:  toListingResponses(listings),
+		Items:  toListingResponses(listings, savedMap),
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,
 	})
 }
 
-func toListingResponses(records []storage.ListingRecord) []listingResponse {
+func (s *Server) savedLookupForRecords(ctx context.Context, chatID int64, records []storage.ListingRecord) map[string]bool {
+	if s.saved == nil || len(records) == 0 {
+		return nil
+	}
+	tokens := make([]string, len(records))
+	for i, l := range records {
+		tokens[i] = l.Token
+	}
+	m, err := s.saved.SavedAmong(ctx, chatID, tokens)
+	if err != nil {
+		s.logger.Error("saved among", "error", err)
+		return nil
+	}
+	return m
+}
+
+func toListingResponses(records []storage.ListingRecord, saved map[string]bool) []listingResponse {
 	items := make([]listingResponse, 0, len(records))
 	for _, l := range records {
+		savedFlag := false
+		if saved != nil && saved[l.Token] {
+			savedFlag = true
+		}
 		items = append(items, listingResponse{
 			Token:        l.Token,
 			SearchName:   l.SearchName,
@@ -139,6 +167,7 @@ func toListingResponses(records []storage.ListingRecord) []listingResponse {
 			ImageURL:     l.ImageURL,
 			FitnessScore: l.FitnessScore,
 			FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
+			Saved:        savedFlag,
 		})
 	}
 	return items

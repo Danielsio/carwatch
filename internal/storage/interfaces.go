@@ -150,6 +150,10 @@ type SavedListingStore interface {
 	RemoveBookmark(ctx context.Context, chatID int64, token string) error
 	ListSaved(ctx context.Context, chatID int64, limit, offset int) ([]ListingRecord, error)
 	CountSaved(ctx context.Context, chatID int64) (int64, error)
+	// IsSaved reports whether the token is bookmarked for chatID.
+	IsSaved(ctx context.Context, chatID int64, token string) (bool, error)
+	// SavedAmong returns, for each token in tokens that is bookmarked for chatID, an entry set to true.
+	SavedAmong(ctx context.Context, chatID int64, tokens []string) (map[string]bool, error)
 }
 
 type HiddenListingStore interface {

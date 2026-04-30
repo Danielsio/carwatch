@@ -111,6 +111,7 @@ function HistoryCard({ listing }: { listing: Listing }) {
     <ListingCardBody
       listing={listing}
       hoverScale={!!href}
+      showBookmarkOverlay={!!listing.saved}
       actions={
         href ? (
           <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors duration-200" />

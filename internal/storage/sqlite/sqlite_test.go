@@ -1590,6 +1590,55 @@ func TestCountSaved_CrossUserIsolation(t *testing.T) {
 	}
 }
 
+func TestIsSaved(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	saved, err := store.IsSaved(ctx, 100, "tok1")
+	if err != nil {
+		t.Fatalf("IsSaved: %v", err)
+	}
+	if saved {
+		t.Fatal("expected not saved")
+	}
+	if err := store.SaveBookmark(ctx, 100, "tok1"); err != nil {
+		t.Fatal(err)
+	}
+	saved, err = store.IsSaved(ctx, 100, "tok1")
+	if err != nil {
+		t.Fatalf("IsSaved: %v", err)
+	}
+	if !saved {
+		t.Fatal("expected saved")
+	}
+}
+
+func TestSavedAmong(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	m, err := store.SavedAmong(ctx, 100, nil)
+	if err != nil {
+		t.Fatalf("SavedAmong: %v", err)
+	}
+	if m != nil {
+		t.Fatalf("expected nil map for empty tokens, got %v", m)
+	}
+
+	_ = store.SaveBookmark(ctx, 100, "a")
+	_ = store.SaveBookmark(ctx, 100, "c")
+
+	m, err = store.SavedAmong(ctx, 100, []string{"a", "b", "c", "a"})
+	if err != nil {
+		t.Fatalf("SavedAmong: %v", err)
+	}
+	if len(m) != 2 || !m["a"] || !m["c"] || m["b"] {
+		t.Fatalf("map = %v, want a and c true only", m)
+	}
+}
+
 // --- HiddenListingStore Tests ---
 
 func TestHideListing(t *testing.T) {

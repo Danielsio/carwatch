@@ -12,7 +12,12 @@ export function useSaveBookmark() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (token: string) => api.saved.save(token),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["saved"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["saved"] });
+      qc.invalidateQueries({ queryKey: ["listings"] });
+      qc.invalidateQueries({ queryKey: ["history"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
   });
 }
 
@@ -20,7 +25,12 @@ export function useRemoveBookmark() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (token: string) => api.saved.remove(token),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["saved"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["saved"] });
+      qc.invalidateQueries({ queryKey: ["listings"] });
+      qc.invalidateQueries({ queryKey: ["history"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
   });
 }
 

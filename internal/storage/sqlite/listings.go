@@ -289,6 +289,69 @@ func (s *Store) CountSaved(ctx context.Context, chatID int64) (int64, error) {
 	return count, err
 }
 
+func (s *Store) IsSaved(ctx context.Context, chatID int64, token string) (bool, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM saved_listings WHERE chat_id = ? AND token = ?",
+		chatID, token).Scan(&n)
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+func (s *Store) SavedAmong(ctx context.Context, chatID int64, tokens []string) (map[string]bool, error) {
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+	seen := make(map[string]struct{})
+	uniq := make([]string, 0, len(tokens))
+	for _, t := range tokens {
+		if t == "" {
+			continue
+		}
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		uniq = append(uniq, t)
+	}
+	if len(uniq) == 0 {
+		return nil, nil
+	}
+
+	args := make([]interface{}, 0, 1+len(uniq))
+	args = append(args, chatID)
+	for _, t := range uniq {
+		args = append(args, t)
+	}
+	placeholders := ""
+	for i := range uniq {
+		if i > 0 {
+			placeholders += ", "
+		}
+		placeholders += "?"
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT token FROM saved_listings WHERE chat_id = ? AND token IN ("+placeholders+")",
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[string]bool)
+	for rows.Next() {
+		var tok string
+		if err := rows.Scan(&tok); err != nil {
+			return nil, err
+		}
+		out[tok] = true
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) HideListing(ctx context.Context, chatID int64, token string) error {
 	_, err := s.db.ExecContext(ctx,
 		"INSERT OR IGNORE INTO hidden_listings (chat_id, token) VALUES (?, ?)",

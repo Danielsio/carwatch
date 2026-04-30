@@ -127,9 +127,10 @@ function SavedCard({
 
   return (
     <div className="rounded-2xl border border-border/50 bg-card overflow-hidden transition-all duration-300 hover:border-border hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
-      <ListingCardBody
-        listing={listing}
-        actions={
+    <ListingCardBody
+      listing={listing}
+      showBookmarkOverlay
+      actions={
           <>
             <button
               onClick={onRemove}
