@@ -567,12 +567,20 @@ func TestSweepStaleMaps(t *testing.T) {
 	fresh := now.UnixNano()
 
 	// Populate rateLimiter with stale and fresh entries.
-	tb.bot.rateLimiter.Store(int64(1), &userRateLimit{lastSeen: stale, tokens: 5, lastTick: now})
-	tb.bot.rateLimiter.Store(int64(2), &userRateLimit{lastSeen: fresh, tokens: 5, lastTick: now})
+	staleRL := &userRateLimit{tokens: 5, lastTick: now}
+	staleRL.lastSeen.Store(stale)
+	tb.bot.rateLimiter.Store(int64(1), staleRL)
+	freshRL := &userRateLimit{tokens: 5, lastTick: now}
+	freshRL.lastSeen.Store(fresh)
+	tb.bot.rateLimiter.Store(int64(2), freshRL)
 
 	// Populate chatMu with stale and fresh entries.
-	tb.bot.chatMu.Store(int64(10), &chatMuEntry{lastUsed: stale})
-	tb.bot.chatMu.Store(int64(20), &chatMuEntry{lastUsed: fresh})
+	staleMu := &chatMuEntry{}
+	staleMu.lastUsed.Store(stale)
+	tb.bot.chatMu.Store(int64(10), staleMu)
+	freshMu := &chatMuEntry{}
+	freshMu.lastUsed.Store(fresh)
+	tb.bot.chatMu.Store(int64(20), freshMu)
 
 	tb.bot.sweepStaleMaps()
 
