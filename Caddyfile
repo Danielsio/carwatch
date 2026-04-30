@@ -1,0 +1,3 @@
+{$CARWATCH_DOMAIN:localhost} {
+	reverse_proxy carwatch:8080
+}
