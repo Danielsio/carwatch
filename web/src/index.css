@@ -38,6 +38,7 @@
   --color-surface-hover: #1E2233;
   --color-glow-primary: rgba(59, 130, 246, 0.15);
   --color-glow-success: rgba(16, 185, 129, 0.15);
+  --color-glow-chart-purple: rgba(167, 139, 250, 0.25);
 
   --radius-lg: 0.75rem;
   --radius-md: 0.5rem;

@@ -140,6 +140,8 @@ jobs:
     name: Deploy to VM
     runs-on: ubuntu-latest
     needs: release
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -183,5 +185,5 @@ jobs:
             done
 
             echo "==> Health check failed after 60s"
-            docker logs carwatch --tail 30
+            docker inspect carwatch --format 'status={{.State.Status}} exit={{.State.ExitCode}} started={{.State.StartedAt}}'
             exit 1

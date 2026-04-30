@@ -140,7 +140,7 @@ export function SearchesPage() {
             value: totalSearches,
             color: "text-chart-purple",
             bg: "bg-chart-purple/12",
-            glow: "shadow-[0_0_24px_-4px_rgba(167,139,250,0.25)]",
+            glow: "shadow-[0_0_24px_-4px_var(--color-glow-chart-purple)]",
           },
         ].map((stat, i) => (
           <motion.div

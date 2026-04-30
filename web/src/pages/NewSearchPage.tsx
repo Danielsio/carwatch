@@ -16,7 +16,6 @@ interface FormData {
   model: number;
   yearMin: number;
   yearMax: number;
-  priceMin: number;
   priceMax: number;
   maxKm: number;
   maxHand: number;
@@ -37,7 +36,6 @@ export function NewSearchPage() {
     model: 0,
     yearMin: 2018,
     yearMax: new Date().getFullYear(),
-    priceMin: 0,
     priceMax: 0,
     maxKm: 0,
     maxHand: 0,
@@ -180,37 +178,20 @@ export function NewSearchPage() {
       <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
         <h2 className="text-sm font-semibold text-foreground">מחיר וק&quot;מ</h2>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField
-            label="מחיר מינימום (₪)"
-            htmlFor="priceMin"
-            hint={form.priceMin > 0 ? formatPrice(form.priceMin) : undefined}
-          >
-            <Input
-              id="priceMin"
-              type="number"
-              value={form.priceMin || ""}
-              onChange={(e) => set("priceMin", Number(e.target.value))}
-              placeholder="ללא הגבלה"
-              className="tabular-nums"
-            />
-          </FormField>
-
-          <FormField
-            label="מחיר מקסימום (₪)"
-            htmlFor="priceMax"
-            hint={form.priceMax > 0 ? formatPrice(form.priceMax) : undefined}
-          >
-            <Input
-              id="priceMax"
-              type="number"
-              value={form.priceMax || ""}
-              onChange={(e) => set("priceMax", Number(e.target.value))}
-              placeholder="ללא הגבלה"
-              className="tabular-nums"
-            />
-          </FormField>
-        </div>
+        <FormField
+          label="מחיר מקסימום (₪)"
+          htmlFor="priceMax"
+          hint={form.priceMax > 0 ? formatPrice(form.priceMax) : undefined}
+        >
+          <Input
+            id="priceMax"
+            type="number"
+            value={form.priceMax || ""}
+            onChange={(e) => set("priceMax", Number(e.target.value))}
+            placeholder="ללא הגבלה"
+            className="tabular-nums"
+          />
+        </FormField>
 
         <FormField label='ק"מ מקסימלי'>
           <div className="flex flex-wrap gap-2">
@@ -303,10 +284,11 @@ function ChipButton({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={selected}
       className={cn(
         "rounded-xl border px-3.5 py-2 text-sm transition-all duration-200 active:scale-[0.97]",
         selected
-          ? "border-primary bg-primary/10 text-primary shadow-[0_0_12px_rgba(59,130,246,0.15)]"
+          ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/20"
           : "border-border/50 bg-card hover:border-border hover:bg-surface-hover text-secondary-foreground",
       )}
     >
