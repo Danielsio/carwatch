@@ -1,6 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type CreateSearchRequest } from "@/lib/api";
 
+export function useSearch(id: number) {
+  return useQuery({
+    queryKey: ["searches", id],
+    queryFn: () => api.searches.get(id),
+    enabled: id > 0,
+  });
+}
+
+export function useUpdateSearch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<CreateSearchRequest> }) =>
+      api.searches.update(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["searches"] }),
+  });
+}
+
 export function useSearches() {
   return useQuery({
     queryKey: ["searches"],

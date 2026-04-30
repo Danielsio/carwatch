@@ -6,6 +6,7 @@ import {
   Pause,
   Trash2,
   List,
+  Pencil,
   Search as SearchIcon,
   Activity,
   Bell,
@@ -354,6 +355,16 @@ function SearchCard({
         >
           <List className="h-3.5 w-3.5" />
           תוצאות
+        </Button>
+
+        <Button
+          as={Link}
+          to={`/searches/${search.id}/edit`}
+          variant="secondary"
+          size="sm"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          ערוך
         </Button>
 
         {search.active ? (

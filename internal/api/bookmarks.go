@@ -127,6 +127,7 @@ func toListingResponses(records []storage.ListingRecord) []listingResponse {
 	for _, l := range records {
 		items = append(items, listingResponse{
 			Token:        l.Token,
+			SearchName:   l.SearchName,
 			Manufacturer: l.Manufacturer,
 			Model:        l.Model,
 			Year:         l.Year,

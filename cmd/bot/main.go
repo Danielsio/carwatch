@@ -162,6 +162,7 @@ func run(configPath string, logger *slog.Logger) error {
 		firebaseAuth = v
 	}
 
+	cfg.API.AdminChatID = cfg.Telegram.AdminChatID
 	apiServer := api.New(api.Config{
 		Catalog:  dynCatalog,
 		Searches: store,

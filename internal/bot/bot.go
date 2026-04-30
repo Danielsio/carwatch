@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tgbot "github.com/go-telegram/bot"
@@ -45,14 +46,14 @@ type Bot struct {
 
 type chatMuEntry struct {
 	mu       sync.Mutex
-	lastUsed int64 // UnixNano for atomic-safe reads during sweep
+	lastUsed atomic.Int64
 }
 
 type userRateLimit struct {
 	mu       sync.Mutex
 	tokens   int
 	lastTick time.Time
-	lastSeen int64 // UnixNano for atomic-safe reads during sweep
+	lastSeen atomic.Int64
 }
 
 const (
@@ -81,7 +82,7 @@ func (b *Bot) isRateLimited(chatID int64) bool {
 		return true
 	}
 	rl.tokens--
-	rl.lastSeen = now.UnixNano()
+	rl.lastSeen.Store(now.UnixNano())
 	return false
 }
 
@@ -227,7 +228,7 @@ func (b *Bot) lockChat(chatID int64) func() {
 	v, _ := b.chatMu.LoadOrStore(chatID, &chatMuEntry{})
 	entry := v.(*chatMuEntry)
 	entry.mu.Lock()
-	entry.lastUsed = time.Now().UnixNano()
+	entry.lastUsed.Store(time.Now().UnixNano())
 	return entry.mu.Unlock
 }
 
@@ -256,22 +257,28 @@ func (b *Bot) sweepStaleMaps() {
 
 	b.rateLimiter.Range(func(key, value any) bool {
 		rl := value.(*userRateLimit)
-		rl.mu.Lock()
-		seen := rl.lastSeen
+		if !rl.mu.TryLock() {
+			return true
+		}
+		seen := rl.lastSeen.Load()
+		stale := seen > 0 && seen < cutoff
 		rl.mu.Unlock()
-		if seen > 0 && seen < cutoff {
-			b.rateLimiter.Delete(key)
+		if stale {
+			b.rateLimiter.CompareAndDelete(key, value)
 		}
 		return true
 	})
 
 	b.chatMu.Range(func(key, value any) bool {
 		entry := value.(*chatMuEntry)
-		entry.mu.Lock()
-		used := entry.lastUsed
+		if !entry.mu.TryLock() {
+			return true
+		}
+		used := entry.lastUsed.Load()
+		stale := used > 0 && used < cutoff
 		entry.mu.Unlock()
-		if used > 0 && used < cutoff {
-			b.chatMu.Delete(key)
+		if stale {
+			b.chatMu.CompareAndDelete(key, value)
 		}
 		return true
 	})

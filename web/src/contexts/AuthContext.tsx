@@ -17,7 +17,7 @@ type AuthContextValue = {
   user: User | null;
   loading: boolean;
   signOut: () => Promise<void>;
-  getIdToken: () => Promise<string | null>;
+  getIdToken: (forceRefresh?: boolean) => Promise<string | null>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -41,10 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setAuthTokenGetter(async () => {
+    setAuthTokenGetter(async (forceRefresh?: boolean) => {
       const u = auth.currentUser;
       if (!u) return null;
-      return u.getIdToken();
+      return u.getIdToken(forceRefresh);
     });
     return () => {
       setAuthTokenGetter(async () => null);
@@ -60,10 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => firebaseSignOut(auth), []);
 
-  const getIdToken = useCallback(async () => {
+  const getIdToken = useCallback(async (forceRefresh?: boolean) => {
     const u = auth.currentUser;
     if (!u) return null;
-    return u.getIdToken();
+    return u.getIdToken(forceRefresh);
   }, []);
 
   const value = useMemo(
