@@ -25,7 +25,7 @@ func newTestBotFull(t *testing.T) *testBot {
 	if err != nil {
 		t.Fatalf("create store: %v", err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { _ = store.Close() })
 
 	mm := &mockMessenger{}
 	logger := slog.New(slog.NewTextHandler(&discardWriter{}, &slog.HandlerOptions{Level: slog.LevelError}))

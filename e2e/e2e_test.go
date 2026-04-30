@@ -61,7 +61,7 @@ func TestE2E_FullPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	ctx := context.Background()
 
 	if err := store.UpsertUser(ctx, 100, "testuser"); err != nil {
@@ -205,7 +205,7 @@ func TestE2E_CatalogStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	ctx := context.Background()
 
 	entries := []storage.CatalogEntry{
@@ -283,7 +283,7 @@ func TestE2E_DigestFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	ctx := context.Background()
 
 	if err := store.UpsertUser(ctx, 100, "digestuser"); err != nil {
@@ -344,7 +344,7 @@ func TestE2E_PriceTracking(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	ctx := context.Background()
 
 	_, changed, err := store.RecordPrice(ctx, "tok-1", 100000)

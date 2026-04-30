@@ -24,7 +24,7 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { _ = store.Close() })
 
 	cat := catalog.NewDynamic(store, slog.Default())
 	cat.Load(context.Background())
@@ -436,7 +436,7 @@ func TestAuthMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	cat := catalog.NewDynamic(store, slog.Default())
 

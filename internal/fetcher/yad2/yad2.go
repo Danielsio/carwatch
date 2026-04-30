@@ -110,7 +110,7 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 }
 
 func readResponseBody(resp *http.Response) ([]byte, error) {
-	var reader io.Reader = io.LimitReader(resp.Body, maxResponseSize)
+	reader := io.LimitReader(resp.Body, maxResponseSize)
 	if strings.Contains(resp.Header.Get("Content-Encoding"), "gzip") {
 		gr, err := gzip.NewReader(reader)
 		if err != nil {

@@ -14,7 +14,7 @@ func newTestStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { _ = store.Close() })
 	return store
 }
 
@@ -1930,7 +1930,7 @@ func TestDBFileSize_OnDisk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { _ = store.Close() })
 
 	ctx := context.Background()
 	if err := store.UpsertUser(ctx, 1, "test"); err != nil {
@@ -2270,7 +2270,7 @@ func TestNew_CreatesDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { _ = store.Close() })
 
 	if err := store.UpsertUser(context.Background(), 1, "test"); err != nil {
 		t.Fatalf("store should be usable: %v", err)

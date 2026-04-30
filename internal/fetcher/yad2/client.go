@@ -149,7 +149,7 @@ func (c *plainClient) Get(ctx context.Context, reqURL string) (*HTTPResult, erro
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := readResponseBody(resp)
 	if err != nil {

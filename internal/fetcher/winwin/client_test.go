@@ -53,7 +53,7 @@ func TestClient_Do_SetsHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do: %v", err)
 	}
-	resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if receivedHeaders.Get("User-Agent") != "TestAgent/1.0" {
 		t.Errorf("User-Agent = %q, want TestAgent/1.0", receivedHeaders.Get("User-Agent"))

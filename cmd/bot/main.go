@@ -73,7 +73,7 @@ func run(configPath string, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("create store: %w", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	var proxyPool *fetcher.ProxyPool
 	if len(cfg.HTTP.Proxies) > 0 {

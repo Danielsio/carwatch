@@ -17,8 +17,10 @@ func NewFirebaseVerifier(credentialsFile, credentialsJSON, projectID string) (To
 	var opts []option.ClientOption
 	switch {
 	case credentialsJSON != "":
+		//nolint:staticcheck // WithCredentialsJSON is the standard way to pass JSON credentials
 		opts = append(opts, option.WithCredentialsJSON([]byte(credentialsJSON)))
 	case credentialsFile != "":
+		//nolint:staticcheck // WithCredentialsFile is the standard way to pass credentials file path
 		opts = append(opts, option.WithCredentialsFile(credentialsFile))
 	}
 	conf := &firebase.Config{ProjectID: projectID}
