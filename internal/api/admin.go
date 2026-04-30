@@ -28,7 +28,12 @@ type runtimeStats struct {
 func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		chatID := chatIDFromContext(r.Context())
-		if s.cfg.AdminChatID == 0 || chatID != s.cfg.AdminChatID {
+		email := emailFromContext(r.Context())
+
+		isAdmin := (s.cfg.AdminChatID != 0 && chatID == s.cfg.AdminChatID) ||
+			(s.cfg.AdminEmail != "" && email != "" && email == s.cfg.AdminEmail)
+
+		if !isAdmin {
 			writeError(w, http.StatusForbidden, "admin access required")
 			return
 		}

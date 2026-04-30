@@ -34,6 +34,7 @@ type APIConfig struct {
 	DevChatID   int64    `yaml:"dev_chat_id"`
 	AuthToken   string   `yaml:"auth_token"`
 	AdminChatID int64    `yaml:"-"`
+	AdminEmail  string   `yaml:"admin_email"`
 }
 
 type PollingConfig struct {

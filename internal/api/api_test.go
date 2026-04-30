@@ -12,11 +12,29 @@ import (
 	"testing"
 	"time"
 
+	fbauth "firebase.google.com/go/v4/auth"
+
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
+
+type fakeTokenVerifier struct {
+	uid    string
+	email  string
+	err    error
+}
+
+func (f *fakeTokenVerifier) VerifyIDToken(_ context.Context, _ string) (*fbauth.Token, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &fbauth.Token{
+		UID:    f.uid,
+		Claims: map[string]interface{}{"email": f.email},
+	}, nil
+}
 
 func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 	t.Helper()
@@ -879,6 +897,74 @@ func TestAdminStats_NonAdmin(t *testing.T) {
 	w := doRequest(t, otherSrv, "GET", "/api/v1/admin/stats", nil)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 for non-admin, got %d", w.Code)
+	}
+}
+
+func TestAdminStats_FirebaseAdmin(t *testing.T) {
+	store, err := sqlite.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	cat := catalog.NewDynamic(store, slog.Default())
+	cat.Load(context.Background())
+
+	srv := New(Config{
+		Catalog:  cat,
+		Searches: store,
+		Listings: store,
+		Users:    store,
+		Prices:   store,
+		Admin:    store,
+		Logger:   slog.Default(),
+		FirebaseAuth: &fakeTokenVerifier{uid: "admin-uid", email: "admin@example.com"},
+		API: config.APIConfig{
+			CORSOrigins: []string{"http://localhost:5173"},
+			AdminEmail:  "admin@example.com",
+		},
+	})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/stats", nil)
+	req.Header.Set("Authorization", "Bearer fake-token")
+	w := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for Firebase admin, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminStats_FirebaseNonAdmin(t *testing.T) {
+	store, err := sqlite.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	cat := catalog.NewDynamic(store, slog.Default())
+	cat.Load(context.Background())
+
+	srv := New(Config{
+		Catalog:  cat,
+		Searches: store,
+		Listings: store,
+		Users:    store,
+		Prices:   store,
+		Admin:    store,
+		Logger:   slog.Default(),
+		FirebaseAuth: &fakeTokenVerifier{uid: "user-uid", email: "user@example.com"},
+		API: config.APIConfig{
+			CORSOrigins: []string{"http://localhost:5173"},
+			AdminEmail:  "admin@example.com",
+		},
+	})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/stats", nil)
+	req.Header.Set("Authorization", "Bearer fake-token")
+	w := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for Firebase non-admin, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

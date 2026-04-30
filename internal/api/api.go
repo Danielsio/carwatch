@@ -19,7 +19,10 @@ import (
 
 type contextKey string
 
-const chatIDKey contextKey = "chatID"
+const (
+	chatIDKey contextKey = "chatID"
+	emailKey  contextKey = "email"
+)
 
 type Server struct {
 	catalog       catalog.Catalog
@@ -35,6 +38,7 @@ type Server struct {
 	logger    *slog.Logger
 	cfg       config.APIConfig
 	startTime time.Time
+	rl        *rateLimiter
 }
 
 type Config struct {
@@ -67,6 +71,7 @@ func New(c Config) *Server {
 		logger:    c.Logger,
 		cfg:       c.API,
 		startTime: time.Now(),
+		rl:        newRateLimiter(context.Background(), 60, time.Second/60),
 	}
 }
 
@@ -106,7 +111,7 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/history", s.listHistory)
 	}
 
-	return s.corsMiddleware(s.authMiddleware(s.rateLimitMiddleware(mux)))
+	return s.corsMiddleware(s.authMiddleware(s.withRateLimit(mux)))
 }
 
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
@@ -141,14 +146,15 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 
 		var chatID int64
 
+		var userEmail string
 		if s.firebaseAuth != nil && bearer != "" {
 			tok, err := s.firebaseAuth.VerifyIDToken(r.Context(), bearer)
 			if err != nil {
 				writeError(w, http.StatusUnauthorized, "invalid or missing token")
 				return
 			}
-			email := emailFromClaims(tok)
-			id, err := s.users.UpsertWebUser(r.Context(), tok.UID, email)
+			userEmail = emailFromClaims(tok)
+			id, err := s.users.UpsertWebUser(r.Context(), tok.UID, userEmail)
 			if err != nil {
 				s.logger.Error("upsert web user", "error", err)
 				writeError(w, http.StatusInternalServerError, "internal error")
@@ -176,6 +182,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), chatIDKey, chatID)
+		ctx = context.WithValue(ctx, emailKey, userEmail)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -205,6 +212,11 @@ func emailFromClaims(tok *fbauth.Token) string {
 func chatIDFromContext(ctx context.Context) int64 {
 	id, _ := ctx.Value(chatIDKey).(int64)
 	return id
+}
+
+func emailFromContext(ctx context.Context) string {
+	e, _ := ctx.Value(emailKey).(string)
+	return e
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
