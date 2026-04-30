@@ -159,7 +159,6 @@ export function ListingDetailPage() {
           target="_blank"
           rel="noopener noreferrer"
           size="lg"
-          className="rounded-xl"
         >
           <ExternalLink className="h-4 w-4" />
           צפה במודעה המקורית
