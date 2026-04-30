@@ -111,7 +111,7 @@ export function ListingDetailPage() {
           </h1>
           <p className="text-muted-foreground mt-0.5">{listing.year}</p>
         </div>
-        <span className="text-2xl font-bold text-primary tabular-nums">
+        <span className="text-2xl font-bold text-amber-500 dark:text-amber-400 tabular-nums">
           {formatPrice(listing.price)}
         </span>
       </div>

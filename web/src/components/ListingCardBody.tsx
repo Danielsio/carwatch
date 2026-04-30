@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Bookmark } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 
@@ -12,15 +13,26 @@ export function ListingCardBody({
   listing,
   actions,
   hoverScale,
+  showBookmarkOverlay,
 }: {
   listing: Listing;
   actions?: ReactNode;
   hoverScale?: boolean;
+  /** When true, show a bookmark icon on the image (e.g. saved listing). */
+  showBookmarkOverlay?: boolean;
 }) {
   return (
     <>
       {listing.image_url ? (
-        <div className="aspect-video w-full overflow-hidden bg-secondary">
+        <div className="relative aspect-video w-full overflow-hidden bg-secondary">
+          {showBookmarkOverlay ? (
+            <div
+              className="absolute top-2 start-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-background/85 shadow-sm ring-1 ring-border/60 backdrop-blur-[2px]"
+              aria-hidden
+            >
+              <Bookmark className="h-4 w-4 fill-amber-500 text-amber-600 dark:text-amber-400 dark:fill-amber-400" />
+            </div>
+          ) : null}
           <img
             src={listing.image_url}
             alt={`${listing.manufacturer} ${listing.model}`}
@@ -47,7 +59,7 @@ export function ListingCardBody({
               {listing.year}
             </p>
           </div>
-          <span className="text-lg font-bold text-primary tabular-nums">
+          <span className="text-lg font-bold text-amber-500 dark:text-amber-400 tabular-nums">
             {formatPrice(listing.price)}
           </span>
         </div>
