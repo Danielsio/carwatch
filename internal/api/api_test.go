@@ -614,6 +614,9 @@ func TestGetListing_Success(t *testing.T) {
 	if resp.Manufacturer != "Toyota" {
 		t.Errorf("manufacturer = %q, want Toyota", resp.Manufacturer)
 	}
+	if resp.SearchName != "s1" {
+		t.Errorf("search_name = %q, want s1", resp.SearchName)
+	}
 }
 
 func TestGetListing_NotFound(t *testing.T) {
@@ -654,6 +657,9 @@ func TestBookmarkCRUD(t *testing.T) {
 	}
 	if savedResp.Items[0].Token != "tok-bm" {
 		t.Errorf("token = %q, want tok-bm", savedResp.Items[0].Token)
+	}
+	if savedResp.Items[0].SearchName != "test" {
+		t.Errorf("search_name = %q, want test", savedResp.Items[0].SearchName)
 	}
 
 	// Remove bookmark
