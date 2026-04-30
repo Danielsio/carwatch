@@ -32,14 +32,22 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const state = location.state as { from?: string } | undefined;
-  const redirectTo = state?.from;
-  const from =
-    redirectTo &&
+  const redirectTo =
+    typeof location.state === "object" &&
+    location.state !== null &&
+    "from" in location.state &&
+    typeof (location.state as { from?: unknown }).from === "string"
+      ? (location.state as { from: string }).from
+      : undefined;
+
+  const isSafePath =
+    !!redirectTo &&
+    redirectTo.startsWith("/") &&
+    !redirectTo.startsWith("//") &&
     redirectTo !== "/login" &&
-    redirectTo !== "/signup"
-      ? redirectTo
-      : "/";
+    redirectTo !== "/signup";
+
+  const from = isSafePath ? redirectTo : "/";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -93,7 +101,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background">
+    <div dir="rtl" className="relative min-h-screen overflow-hidden bg-background">
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(59,130,246,0.18),transparent)]"
         aria-hidden
