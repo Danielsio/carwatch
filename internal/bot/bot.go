@@ -257,8 +257,13 @@ func (b *Bot) sweepStaleMaps() {
 
 	b.rateLimiter.Range(func(key, value any) bool {
 		rl := value.(*userRateLimit)
+		if !rl.mu.TryLock() {
+			return true
+		}
 		seen := rl.lastSeen.Load()
-		if seen > 0 && seen < cutoff {
+		stale := seen > 0 && seen < cutoff
+		rl.mu.Unlock()
+		if stale {
 			b.rateLimiter.Delete(key)
 		}
 		return true
@@ -266,8 +271,13 @@ func (b *Bot) sweepStaleMaps() {
 
 	b.chatMu.Range(func(key, value any) bool {
 		entry := value.(*chatMuEntry)
+		if !entry.mu.TryLock() {
+			return true
+		}
 		used := entry.lastUsed.Load()
-		if used > 0 && used < cutoff {
+		stale := used > 0 && used < cutoff
+		entry.mu.Unlock()
+		if stale {
 			b.chatMu.Delete(key)
 		}
 		return true
