@@ -61,7 +61,7 @@ docker-build:
 	docker build -t carwatch .
 
 docker-run:
-	docker compose up -d
+	docker compose -f docker-compose.dev.yaml up -d
 
 # --- VM Management ---
 # Set these in your shell profile (~/.bashrc or ~/.zshrc):
@@ -98,4 +98,14 @@ vm-restart: vm-check-env
 	$(SSH) "docker restart carwatch"
 
 vm-deploy: vm-check-env
-	$(SSH) "docker pull ghcr.io/danielsio/carwatch:latest && docker stop carwatch && docker rm carwatch && docker run -d --name carwatch --restart unless-stopped -v carwatch_carwatch-data:/data -v /home/ubuntu/carwatch/config.yaml:/config.yaml:ro -p 8080:8080 ghcr.io/danielsio/carwatch:latest && sleep 3 && docker exec carwatch /bot -version"
+	$(SSH) "docker pull ghcr.io/danielsio/carwatch:latest \
+		&& docker stop carwatch 2>/dev/null; docker rm carwatch 2>/dev/null \
+		&& docker run -d --name carwatch --restart unless-stopped \
+			--label com.centurylinklabs.watchtower.enable=true \
+			--network carwatch-net \
+			-v carwatch_carwatch-data:/data \
+			-v /home/ubuntu/carwatch/config.yaml:/config.yaml:ro \
+			-v /home/ubuntu/carwatch/firebase-sa.json:/config/firebase-sa.json:ro \
+			-p 8080:8080 \
+			ghcr.io/danielsio/carwatch:latest \
+		&& sleep 3 && docker exec carwatch /bot -version"

@@ -117,22 +117,35 @@ All components communicate through interfaces, making each layer independently t
 carwatch/
 ├── cmd/bot/main.go              # Entry point, wiring
 ├── internal/
+│   ├── api/                     # REST API (Firebase auth, listings, searches)
+│   ├── bot/                     # Telegram bot handlers, wizards, callbacks
+│   ├── catalog/                 # Dynamic car catalog (make/model/submodel)
 │   ├── config/                  # YAML loading, validation, defaults
-│   ├── fetcher/                 # Fetcher interface + error sentinels
-│   │   └── yad2/                # Yad2 adapter (client, parser, fetcher)
+│   ├── fetcher/                 # Fetcher interface + circuit breaker, caching
+│   │   ├── yad2/                # Yad2 adapter (client, parser, fetcher)
+│   │   └── winwin/              # WinWin adapter
 │   ├── filter/                  # Stateless listing filter
+│   ├── format/                  # Number/price formatting
+│   ├── health/                  # Health check handler
+│   ├── locale/                  # Hebrew locale strings
 │   ├── model/                   # RawListing, Listing
-│   ├── notifier/                # Notifier interface + formatter
-│   │   └── whatsapp/            # WhatsApp adapter (stub)
+│   ├── notifier/                # Multi-notifier dispatch
+│   │   └── telegram/            # Telegram adapter
 │   ├── scheduler/               # Polling loop, retry, backoff
-│   └── storage/                 # DedupStore interface
+│   ├── scoring/                 # Listing quality scoring
+│   ├── spa/                     # SPA file server (serves web/dist)
+│   └── storage/                 # Store interfaces
 │       └── sqlite/              # SQLite adapter
+├── web/                         # React/Vite/TypeScript frontend (SPA)
+│   ├── src/pages/               # Login, Listings, Searches, Saved, Admin...
+│   └── public/                  # Icons, manifest
 ├── testdata/                    # HTML/JSON fixtures
-├── docs/                        # Architecture docs
+├── docs/                        # Architecture & design docs
 ├── config.example.yaml
-├── Dockerfile
-├── docker-compose.yaml
-└── Makefile
+├── Dockerfile                   # Multi-stage: frontend build → Go build → runtime
+├── docker-compose.dev.yaml      # Local development
+├── docker-compose.prod.yaml     # Production (carwatch + Caddy + Watchtower)
+└── Makefile                     # Build, test, lint, VM management
 ```
 
 ## Development
