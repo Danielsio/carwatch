@@ -143,7 +143,7 @@ func applyDefaults(cfg *Config) {
 	if cfg.LogFormat == "" {
 		cfg.LogFormat = "auto"
 	}
-	filtered := cfg.API.CORSOrigins[:0]
+	var filtered []string
 	for _, o := range cfg.API.CORSOrigins {
 		o = strings.TrimSpace(o)
 		if o != "" && o != "https://" && o != "http://" {
