@@ -19,7 +19,6 @@ import (
 	cwbot "github.com/dsionov/carwatch/internal/bot"
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
-	"github.com/dsionov/carwatch/internal/dashboard"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/fetcher/winwin"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
@@ -154,12 +153,6 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer func() { _ = multi.Disconnect() }()
 
-	dash := dashboard.NewHandler(store)
-	var dashHandler http.Handler = dash
-	if tok := cfg.HTTP.DashboardToken; tok != "" {
-		dashHandler = requireBearerToken(tok, dash)
-	}
-
 	var firebaseAuth api.TokenVerifier
 	if cfg.Firebase.ProjectID != "" {
 		v, err := api.NewFirebaseVerifier(cfg.Firebase.CredentialsFile, cfg.Firebase.CredentialsJSON, cfg.Firebase.ProjectID)
@@ -186,7 +179,6 @@ func run(configPath string, logger *slog.Logger) error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.Handler())
-	mux.Handle("/dashboard", dashHandler)
 	mux.Handle("/api/v1/", apiServer.Routes())
 	mux.Handle("/", spa.Handler(web.DistFS()))
 	srv := &http.Server{
@@ -235,7 +227,6 @@ func run(configPath string, logger *slog.Logger) error {
 	go tgNotif.Bot().Start(ctx)
 	logger.Info("bot started",
 		"health", "http://"+cfg.HTTP.Bind+"/healthz",
-		"dashboard", "http://"+cfg.HTTP.Bind+"/dashboard",
 	)
 
 	return sched.Run(ctx)
@@ -257,13 +248,3 @@ func newLogHandler(format string, level slog.Level) slog.Handler {
 	})
 }
 
-func requireBearerToken(token string, next http.Handler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		auth := r.Header.Get("Authorization")
-		if auth != "Bearer "+token {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-}

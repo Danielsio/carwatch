@@ -1,30 +1,56 @@
 services:
-  bot:
+  carwatch:
     image: ghcr.io/danielsio/carwatch:latest
     container_name: carwatch
+    networks:
+      - carwatch-net
+    expose:
+      - "8080"
     volumes:
       - carwatch-data:/data
       - ./config.yaml:/config.yaml:ro
+      - ./firebase-sa.json:/config/firebase-sa.json:ro
     environment:
       - TZ=Asia/Jerusalem
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    networks:
+      - carwatch-net
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
   watchtower:
     image: containrrr/watchtower:latest
     container_name: watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${HOME}/.docker/config.json:/config.json:ro
+      # Requires: docker login ghcr.io (creates ~/.docker/config.json)
+      - ${HOME}/.docker:/etc/watchtower-docker:ro
     environment:
+      - DOCKER_CONFIG=/etc/watchtower-docker
       - DOCKER_API_VERSION=1.45
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_POLL_INTERVAL=300
       - WATCHTOWER_LABEL_ENABLE=true
-      - WATCHTOWER_NOTIFICATIONS=shoutrrr
-      - WATCHTOWER_NOTIFICATION_URL=generic+https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${ADMIN_CHAT_ID}&text={{.}}
     restart: unless-stopped
+
+networks:
+  carwatch-net:
+    name: carwatch-net
 
 volumes:
   carwatch-data:
+    name: carwatch_carwatch-data
+  caddy-data:
+  caddy-config:

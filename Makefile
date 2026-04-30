@@ -1,5 +1,5 @@
 .PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
-       vm-check-env vm-ssh vm-logs vm-restart vm-stop vm-start vm-status vm-deploy \
+       vm-check-env vm-ssh vm-logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
        web-install web-dev web-build
 
 all: build
@@ -61,7 +61,7 @@ docker-build:
 	docker build -t carwatch .
 
 docker-run:
-	docker compose up -d
+	docker compose -f docker-compose.dev.yaml up -d
 
 # --- VM Management ---
 # Set these in your shell profile (~/.bashrc or ~/.zshrc):
@@ -97,5 +97,18 @@ vm-start: vm-check-env
 vm-restart: vm-check-env
 	$(SSH) "docker restart carwatch"
 
-vm-deploy: vm-check-env
-	$(SSH) "docker pull ghcr.io/danielsio/carwatch:latest && docker stop carwatch && docker rm carwatch && docker run -d --name carwatch --restart unless-stopped -v carwatch_carwatch-data:/data -v /home/ubuntu/carwatch/config.yaml:/config.yaml:ro -p 8080:8080 ghcr.io/danielsio/carwatch:latest && sleep 3 && docker exec carwatch /bot -version"
+SCP     := scp -i $(VM_KEY)
+VM_DIR  := /home/$(VM_USER)/carwatch
+VM_COMPOSE := cd $(VM_DIR) && docker compose -f docker-compose.prod.yaml
+
+vm-sync: vm-check-env
+	$(SSH) "mkdir -p $(VM_DIR)"
+	$(SCP) docker-compose.prod.yaml $(VM_USER)@$(VM_IP):$(VM_DIR)/docker-compose.prod.yaml
+
+vm-deploy: vm-sync
+	$(SSH) "$(VM_COMPOSE) pull carwatch && $(VM_COMPOSE) up -d --force-recreate carwatch \
+		&& sleep 3 && docker exec carwatch /bot -version"
+
+vm-deploy-all: vm-sync
+	$(SSH) "$(VM_COMPOSE) pull && $(VM_COMPOSE) up -d \
+		&& sleep 3 && docker exec carwatch /bot -version"

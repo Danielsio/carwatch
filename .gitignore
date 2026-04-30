@@ -2,6 +2,7 @@ data/
 config.yaml
 *.db
 /bot
+coverage.out
 .idea/
 .coverage/
 web/node_modules/
