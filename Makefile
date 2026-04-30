@@ -102,12 +102,13 @@ VM_DIR  := /home/$(VM_USER)/carwatch
 VM_COMPOSE := cd $(VM_DIR) && docker compose -f docker-compose.prod.yaml
 
 vm-sync: vm-check-env
+	$(SSH) "mkdir -p $(VM_DIR)"
 	$(SCP) docker-compose.prod.yaml $(VM_USER)@$(VM_IP):$(VM_DIR)/docker-compose.prod.yaml
 
-vm-deploy: vm-check-env
+vm-deploy: vm-sync
 	$(SSH) "$(VM_COMPOSE) pull carwatch && $(VM_COMPOSE) up -d --force-recreate carwatch \
 		&& sleep 3 && docker exec carwatch /bot -version"
 
-vm-deploy-all: vm-check-env
+vm-deploy-all: vm-sync
 	$(SSH) "$(VM_COMPOSE) pull && $(VM_COMPOSE) up -d \
 		&& sleep 3 && docker exec carwatch /bot -version"
