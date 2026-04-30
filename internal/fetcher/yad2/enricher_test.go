@@ -13,8 +13,8 @@ import (
 )
 
 func TestEnricher_FillsMissingKm(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
 {"props":{"pageProps":{"itemData":{"km":75000}}}}
 </script></html>`)
 	}))
