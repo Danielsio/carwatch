@@ -101,26 +101,8 @@ func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items := make([]listingResponse, 0, len(listings))
-	for _, l := range listings {
-		items = append(items, listingResponse{
-			Token:        l.Token,
-			Manufacturer: l.Manufacturer,
-			Model:        l.Model,
-			Year:         l.Year,
-			Price:        l.Price,
-			Km:           l.Km,
-			Hand:         l.Hand,
-			City:         l.City,
-			PageLink:     l.PageLink,
-			ImageURL:     l.ImageURL,
-			FitnessScore: l.FitnessScore,
-			FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
-		})
-	}
-
 	writeJSON(w, http.StatusOK, listingsPageResponse{
-		Items:  items,
+		Items:  toListingResponses(listings),
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,
