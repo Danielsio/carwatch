@@ -60,10 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => firebaseSignOut(auth), []);
 
-  const getIdToken = useCallback(async () => {
+  const getIdToken = useCallback(async (forceRefresh?: boolean) => {
     const u = auth.currentUser;
     if (!u) return null;
-    return u.getIdToken();
+    return u.getIdToken(forceRefresh);
   }, []);
 
   const value = useMemo(
