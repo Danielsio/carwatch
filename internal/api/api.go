@@ -155,12 +155,9 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 				return
 			}
 			chatID = id
-		} else if s.firebaseAuth != nil && bearer == "" && s.cfg.DevChatID != 0 {
-			if s.cfg.AuthToken != "" && authHdr != "Bearer "+s.cfg.AuthToken {
-				writeError(w, http.StatusUnauthorized, "invalid or missing token")
-				return
-			}
-			chatID = s.cfg.DevChatID
+		} else if s.firebaseAuth != nil && bearer == "" {
+			writeError(w, http.StatusUnauthorized, "invalid or missing token")
+			return
 		} else if s.firebaseAuth == nil {
 			if s.cfg.AuthToken != "" {
 				if authHdr != "Bearer "+s.cfg.AuthToken {

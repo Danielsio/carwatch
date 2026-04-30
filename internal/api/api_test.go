@@ -46,6 +46,7 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 		API: config.APIConfig{
 			CORSOrigins: []string{"http://localhost:5173"},
 			DevChatID:   999,
+			AdminChatID: 999,
 		},
 	})
 
@@ -857,6 +858,27 @@ func TestAdminStats(t *testing.T) {
 	}
 	if resp.Runtime.Uptime == "" {
 		t.Error("expected non-empty uptime")
+	}
+}
+
+func TestAdminStats_NonAdmin(t *testing.T) {
+	srv, store := setupTestServer(t)
+	if err := store.UpsertUser(context.Background(), 888, "other"); err != nil {
+		t.Fatal(err)
+	}
+	otherSrv := New(Config{
+		Catalog: srv.catalog, Searches: srv.searches, Listings: srv.listings,
+		Users: srv.users, Prices: srv.prices, Admin: srv.admin,
+		Logger: slog.Default(),
+		API: config.APIConfig{
+			CORSOrigins: []string{"http://localhost:5173"},
+			DevChatID:   888,
+			AdminChatID: 999,
+		},
+	})
+	w := doRequest(t, otherSrv, "GET", "/api/v1/admin/stats", nil)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for non-admin, got %d", w.Code)
 	}
 }
 
