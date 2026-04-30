@@ -2,6 +2,7 @@ package fetcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -83,10 +84,12 @@ func (cb *CircuitBreaker) Fetch(ctx context.Context, params model.SourceParams) 
 	defer cb.mu.Unlock()
 
 	if err != nil {
-		cb.failures++
-		if cb.failures >= cb.failureThreshold || cb.state == StateHalfOpen {
-			cb.state = StateOpen
-			cb.openedAt = time.Now()
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			cb.failures++
+			if cb.failures >= cb.failureThreshold || cb.state == StateHalfOpen {
+				cb.state = StateOpen
+				cb.openedAt = time.Now()
+			}
 		}
 		return nil, err
 	}
