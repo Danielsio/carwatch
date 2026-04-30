@@ -70,6 +70,44 @@ func (f *Yad2Fetcher) Close() {
 	}
 }
 
+// FetchItem fetches an individual listing page and returns enrichment details.
+func (f *Yad2Fetcher) FetchItem(ctx context.Context, token string) (ItemDetails, error) {
+	itemURL := fmt.Sprintf("https://www.yad2.co.il/item/%s", token)
+
+	client := f.client
+	var usedProxy string
+	if f.proxyPool != nil {
+		usedProxy = f.proxyPool.Next()
+		if f.clientPool != nil {
+			c, err := f.clientPool.Get(usedProxy)
+			if err != nil {
+				f.logger.Warn("failed to get pooled client for item fetch", "proxy", redactProxy(usedProxy), "error", err)
+			} else {
+				client = c
+			}
+		}
+	}
+
+	result, err := client.Get(ctx, itemURL)
+	if err != nil {
+		if f.clientPool != nil && usedProxy != "" {
+			f.clientPool.Evict(usedProxy)
+		}
+		return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, err)
+	}
+
+	if result.StatusCode != http.StatusOK {
+		return ItemDetails{}, fmt.Errorf("fetch item %s: status %d", token, result.StatusCode)
+	}
+
+	details, err := ParseItemPage(bytes.NewReader(result.Body))
+	if err != nil {
+		return ItemDetails{}, fmt.Errorf("parse item %s: %w", token, err)
+	}
+
+	return details, nil
+}
+
 func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]model.RawListing, error) {
 	client := f.client
 	var usedProxy string

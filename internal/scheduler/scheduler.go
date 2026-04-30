@@ -37,6 +37,11 @@ type CatalogIngester interface {
 	Flush(ctx context.Context)
 }
 
+// KmEnricher fills in missing km data by fetching individual listing pages.
+type KmEnricher interface {
+	Enrich(ctx context.Context, listings []model.RawListing) int
+}
+
 type Scheduler struct {
 	cfgMu             sync.RWMutex
 	cfg               *config.Config
@@ -59,6 +64,7 @@ type Scheduler struct {
 	digestStore       storage.DigestStore
 	hiddenStore       storage.HiddenListingStore
 	catalogIngester   CatalogIngester
+	kmEnricher        KmEnricher
 	marketStore       storage.MarketStore
 	dailyDigestStore  storage.DailyDigestStore
 	triggerCh         chan struct{}
@@ -84,6 +90,7 @@ type Options struct {
 	DigestStore     storage.DigestStore
 	HiddenStore      storage.HiddenListingStore
 	CatalogIngester  CatalogIngester
+	KmEnricher       KmEnricher
 	MarketStore      storage.MarketStore
 	DailyDigestStore storage.DailyDigestStore
 }
@@ -134,6 +141,7 @@ func NewWithOptions(
 		digestStore:       opts.DigestStore,
 		hiddenStore:       opts.HiddenStore,
 		catalogIngester:   opts.CatalogIngester,
+		kmEnricher:        opts.KmEnricher,
 		marketStore:       opts.MarketStore,
 		dailyDigestStore:  opts.DailyDigestStore,
 		triggerCh:         make(chan struct{}, 1),
@@ -604,6 +612,13 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 	if s.catalogIngester != nil {
 		for _, l := range raw {
 			s.catalogIngester.Ingest(ctx, l.ManufacturerID, l.Manufacturer, l.ModelID, l.Model)
+		}
+	}
+
+	if s.kmEnricher != nil {
+		enriched := s.kmEnricher.Enrich(ctx, raw)
+		if enriched > 0 {
+			s.logger.Info("km enrichment complete", "enriched", enriched)
 		}
 	}
 
