@@ -1,5 +1,5 @@
 .PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
-       vm-check-env vm-ssh vm-logs vm-restart vm-stop vm-start vm-status vm-deploy \
+       vm-check-env vm-ssh vm-logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
        web-install web-dev web-build
 
 all: build
@@ -97,17 +97,17 @@ vm-start: vm-check-env
 vm-restart: vm-check-env
 	$(SSH) "docker restart carwatch"
 
+SCP     := scp -i $(VM_KEY)
+VM_DIR  := /home/$(VM_USER)/carwatch
+VM_COMPOSE := cd $(VM_DIR) && docker compose -f docker-compose.prod.yaml
+
+vm-sync: vm-check-env
+	$(SCP) docker-compose.prod.yaml $(VM_USER)@$(VM_IP):$(VM_DIR)/docker-compose.prod.yaml
+
 vm-deploy: vm-check-env
-	$(SSH) "docker pull ghcr.io/danielsio/carwatch:latest \
-		&& (docker network create carwatch-net >/dev/null 2>&1 || true) \
-		&& (docker volume create carwatch_carwatch-data >/dev/null 2>&1 || true) \
-		&& (docker stop carwatch >/dev/null 2>&1 || true) \
-		&& (docker rm carwatch >/dev/null 2>&1 || true) \
-		&& docker run -d --name carwatch --restart unless-stopped \
-			--label com.centurylinklabs.watchtower.enable=true \
-			--network carwatch-net \
-			-v carwatch_carwatch-data:/data \
-			-v /home/$(VM_USER)/carwatch/config.yaml:/config.yaml:ro \
-			-v /home/$(VM_USER)/carwatch/firebase-sa.json:/config/firebase-sa.json:ro \
-			ghcr.io/danielsio/carwatch:latest \
+	$(SSH) "$(VM_COMPOSE) pull carwatch && $(VM_COMPOSE) up -d --force-recreate carwatch \
+		&& sleep 3 && docker exec carwatch /bot -version"
+
+vm-deploy-all: vm-check-env
+	$(SSH) "$(VM_COMPOSE) pull && $(VM_COMPOSE) up -d \
 		&& sleep 3 && docker exec carwatch /bot -version"
