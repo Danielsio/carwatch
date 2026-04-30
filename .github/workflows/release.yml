@@ -175,11 +175,15 @@ jobs:
             # Ensure the shared network exists
             docker network create carwatch-net 2>/dev/null || true
 
+            # Remove any manually-created container so compose can take over
+            docker stop carwatch 2>/dev/null || true
+            docker rm carwatch 2>/dev/null || true
+
             echo "==> Pulling latest image..."
             docker compose -f docker-compose.prod.yaml pull carwatch
 
             echo "==> Recreating container..."
-            docker compose -f docker-compose.prod.yaml up -d --force-recreate --no-deps carwatch
+            docker compose -f docker-compose.prod.yaml up -d --no-deps carwatch
 
             echo "==> Waiting for health check..."
             for i in $(seq 1 12); do
