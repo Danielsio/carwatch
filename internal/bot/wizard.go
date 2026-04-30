@@ -314,10 +314,6 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	}
 
 	chatID := update.Message.Chat.ID
-	if b.isRateLimited(chatID) {
-		b.logger.Warn("rate limited", "chat_id", chatID)
-		return
-	}
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 
 	user, err := b.users.GetUser(ctx, chatID)
