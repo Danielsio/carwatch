@@ -96,7 +96,7 @@ func newTestBot(t *testing.T) *testBot {
 		listings:    store,
 		catalog:     catalog.NewStatic(),
 		adminChatID: 999,
-		maxSearches: 3,
+		maxSearches: defaultMaxSearches,
 		botUsername:  "test_bot",
 		logger:      logger,
 	}
@@ -152,7 +152,7 @@ func newTestBotWithDigests(t *testing.T) *testBot {
 		digests:     store,
 		catalog:     catalog.NewStatic(),
 		adminChatID: 999,
-		maxSearches: 3,
+		maxSearches: defaultMaxSearches,
 		botUsername:  "test_bot",
 		logger:      logger,
 	}

@@ -485,10 +485,10 @@ func TestMaxSearchesDefault(t *testing.T) {
 	store := newBotTestStore(t)
 	logger := slog.Default()
 
-	// MaxSearches = 0 should default to 3.
+	// MaxSearches = 0 should default to defaultMaxSearches.
 	b := New(nil, store, store, Config{MaxSearches: 0}, logger)
-	if b.maxSearches != 3 {
-		t.Errorf("maxSearches = %d, want 3", b.maxSearches)
+	if b.maxSearches != defaultMaxSearches {
+		t.Errorf("maxSearches = %d, want %d", b.maxSearches, defaultMaxSearches)
 	}
 
 	// Explicit value should be preserved.

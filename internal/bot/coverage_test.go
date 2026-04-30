@@ -41,7 +41,7 @@ func newTestBotFull(t *testing.T) *testBot {
 		dailyDigests: store,
 		catalog:      catalog.NewStatic(),
 		adminChatID:  999,
-		maxSearches:  3,
+		maxSearches:  defaultMaxSearches,
 		botUsername:   "test_bot",
 		logger:       logger,
 	}
