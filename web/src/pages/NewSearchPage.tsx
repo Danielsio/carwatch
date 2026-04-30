@@ -52,6 +52,8 @@ export function NewSearchPage() {
   const canSubmit =
     form.manufacturer > 0 &&
     form.model > 0 &&
+    form.yearMin >= 2000 &&
+    form.yearMax >= 2000 &&
     form.yearMin <= form.yearMax &&
     !createSearch.isPending;
 
