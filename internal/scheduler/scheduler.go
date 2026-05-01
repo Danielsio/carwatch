@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
@@ -509,16 +510,17 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		go func(g CanonicalGroup) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			defer func() {
-				if r := recover(); r != nil {
-					s.logger.Error("panic in processGroup",
-						"manufacturer", g.Manufacturer,
-						"model", g.Model,
-						"panic", r,
-					)
-					s.observer.RecordError()
-				}
-			}()
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("panic in processGroup",
+					"manufacturer", g.Manufacturer,
+					"model", g.Model,
+					"panic", r,
+					"stack", string(debug.Stack()),
+				)
+				s.observer.RecordError()
+			}
+		}()
 
 			if err := s.processGroup(ctx, g, marketCache); err != nil {
 				s.logger.Error("group failed",

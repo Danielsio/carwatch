@@ -254,3 +254,46 @@ func TestStatus_NoSourcesBeforeFetch(t *testing.T) {
 		t.Error("sources should not be present before any RecordFetch calls")
 	}
 }
+
+func TestStatus_StartingDuringGracePeriod(t *testing.T) {
+	s := New()
+	s.RecordError()
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	w := httptest.NewRecorder()
+	s.Handler()(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 during grace period, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["status"] != "starting" {
+		t.Errorf("status = %q, want starting", resp["status"])
+	}
+}
+
+func TestStatus_DegradedAfterGracePeriod(t *testing.T) {
+	s := New()
+	s.startTime = time.Now().Add(-10 * time.Minute)
+	s.RecordError()
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	w := httptest.NewRecorder()
+	s.Handler()(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 after grace period, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["status"] != "degraded" {
+		t.Errorf("status = %q, want degraded", resp["status"])
+	}
+}
