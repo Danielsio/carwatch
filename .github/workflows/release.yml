@@ -197,7 +197,7 @@ jobs:
             done
 
             echo "==> Health check failed after 75s"
-            docker inspect carwatch --format 'status={{.State.Status}} exit={{.State.ExitCode}} started={{.State.StartedAt}}'
+            docker inspect carwatch --format 'status={{.State.Status}} exit={{.State.ExitCode}} started={{.State.StartedAt}}' || true
             echo "==> Container logs (last 80 lines):"
             docker logs carwatch --tail 80 2>&1 || true
             exit 1

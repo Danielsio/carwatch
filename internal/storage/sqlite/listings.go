@@ -14,8 +14,8 @@ func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error 
 		(token, chat_id, search_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, image_url, fitness_score, first_seen_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(token, chat_id) DO UPDATE SET
-			search_id = excluded.search_id,
-			search_name = excluded.search_name,
+			search_id = CASE WHEN excluded.search_id > 0 THEN excluded.search_id ELSE listing_history.search_id END,
+			search_name = CASE WHEN excluded.search_id > 0 THEN excluded.search_name ELSE listing_history.search_name END,
 			price = excluded.price,
 			km = excluded.km,
 			hand = excluded.hand,
@@ -59,8 +59,8 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 		(token, chat_id, search_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, image_url, fitness_score, first_seen_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(token, chat_id) DO UPDATE SET
-			search_id = excluded.search_id,
-			search_name = excluded.search_name,
+			search_id = CASE WHEN excluded.search_id > 0 THEN excluded.search_id ELSE listing_history.search_id END,
+			search_name = CASE WHEN excluded.search_id > 0 THEN excluded.search_name ELSE listing_history.search_name END,
 			price = excluded.price,
 			km = excluded.km,
 			hand = excluded.hand,
