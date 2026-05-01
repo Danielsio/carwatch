@@ -129,8 +129,13 @@ func (s *Status) Snapshot() map[string]any {
 	}
 
 	status := "ok"
+	uptime := time.Since(s.startTime)
 	if cycles > 0 && (lastSuccessNs == 0 || time.Since(lastSuccess) > 2*time.Hour) {
-		status = "degraded"
+		if uptime > 5*time.Minute {
+			status = "degraded"
+		} else {
+			status = "starting"
+		}
 	}
 
 	resp := map[string]any{
