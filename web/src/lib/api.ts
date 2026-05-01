@@ -80,6 +80,7 @@ export interface Search {
 }
 
 export interface CreateSearchRequest {
+  name?: string;
   source: string;
   manufacturer: number;
   model: number;

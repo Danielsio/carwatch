@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 
 interface FormData {
+  name: string;
   source: string;
   manufacturer: number;
   model: number;
@@ -40,6 +41,7 @@ export function NewSearchPage() {
   const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>({
+    name: "",
     source: "yad2",
     manufacturer: 0,
     model: 0,
@@ -71,6 +73,7 @@ export function NewSearchPage() {
     setError(null);
     createSearch.mutate(
       {
+        name: form.name || undefined,
         source: form.source,
         manufacturer: form.manufacturer,
         model: form.model,
@@ -110,6 +113,22 @@ export function NewSearchPage() {
           {error}
         </div>
       )}
+
+      {/* Section: Search Name */}
+      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
+        <FormField
+          label="שם החיפוש"
+          htmlFor="searchName"
+          hint="אופציונלי — ייווצר אוטומטית מהיצרן והדגם"
+        >
+          <Input
+            id="searchName"
+            value={form.name}
+            onChange={(e) => set("name", e.target.value)}
+            placeholder='לדוגמה: "טויוטה קורולה ידנית"'
+          />
+        </FormField>
+      </section>
 
       {/* Section: Source */}
       <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">

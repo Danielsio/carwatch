@@ -8,9 +8,12 @@ import {
   Clock,
   Bell,
   LogOut,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useNotificationCount } from "@/hooks/useNotifications";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -27,42 +30,38 @@ export function Shell() {
   const { data: notifCount } = useNotificationCount();
   const unread = notifCount?.count ?? 0;
   const { user, signOut } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const emailInitial =
-    user?.email?.trim().charAt(0)?.toLocaleUpperCase("he-IL") ?? "?";
+    user?.email?.trim().charAt(0)?.toLocaleUpperCase("he-IL") || "?";
 
   return (
     <div className="min-h-screen bg-background">
-      <aside className="fixed inset-y-0 right-0 z-50 hidden w-64 flex-col border-l border-border/40 bg-card/85 backdrop-blur-xl md:flex">
-        {/* Animated gradient accent on inner (left) edge */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-3 left-0 w-px overflow-hidden rounded-full"
-        >
-          <span className="absolute inset-y-0 left-0 w-[3px] -translate-x-px bg-gradient-to-b from-primary/70 via-primary/35 to-primary/60 opacity-80 blur-[0.5px]" />
-          <span className="absolute inset-0 motion-safe:animate-pulse bg-gradient-to-b from-transparent via-primary/50 to-transparent opacity-40 motion-safe:[animation-duration:3.25s]" />
-        </span>
-
-        <div className="relative shrink-0 bg-gradient-to-b from-primary/5 to-transparent">
-          <div className="flex h-20 shrink-0 items-center gap-3 px-6">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/12 ring-1 ring-primary/15 shadow-[0_0_20px_-4px_rgba(59,130,246,0.35)]">
-              <Car className="h-4.5 w-4.5 text-primary" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-lg font-semibold tracking-tight leading-tight">
-                CarWatch
-              </span>
-              <span className="text-[11px] text-muted-foreground leading-tight">
-                מעקב רכבים
-              </span>
-            </div>
+      <aside className="fixed inset-y-0 right-0 z-50 hidden w-64 flex-col border-l border-sidebar-border bg-sidebar md:flex">
+        <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
+          <div className="relative w-10 h-10 shrink-0 rounded-xl bg-sidebar-primary flex items-center justify-center shadow-lg shadow-sidebar-primary/40">
+            <Car className="w-5 h-5 text-white" />
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent" />
           </div>
-          <div
-            className="h-px w-full bg-gradient-to-l from-transparent via-primary/25 to-transparent opacity-80"
-            aria-hidden
-          />
+          <div className="flex-1 min-w-0">
+            <h1 className="font-bold text-base text-white leading-none tracking-tight">
+              CarWatch
+            </h1>
+            <p className="text-xs text-sidebar-foreground/60 mt-0.5">
+              מעקב רכבים חכם
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === "dark" ? "הפעל מצב בהיר" : "הפעל מצב כהה"}
+            className="w-7 h-7 shrink-0 rounded-lg bg-sidebar-accent flex items-center justify-center text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/80 transition-all"
+            title={theme === "dark" ? "מצב בהיר" : "מצב כהה"}
+          >
+            {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
         </div>
 
-        <nav className="mt-2 flex flex-1 flex-col gap-1 overflow-y-auto p-3">
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -76,48 +75,64 @@ export function Shell() {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                  "flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
                   isActive
-                    ? "bg-primary/[0.22] text-primary shadow-[inset_0_0_0_1px_rgba(59,130,246,0.28),0_1px_24px_-8px_rgba(59,130,246,0.25)]"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    ? "bg-sidebar-primary/15 text-white"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white",
                 )}
               >
+                <Icon
+                  size={17}
+                  className={cn(
+                    "shrink-0 transition-colors",
+                    isActive
+                      ? "text-sidebar-primary"
+                      : "text-sidebar-foreground/70",
+                  )}
+                />
                 <span className="relative">
-                  <Icon className="h-[18px] w-[18px]" />
+                  {item.label}
                   {showBadge && (
-                    <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white animate-pulse-soft">
+                    <span className="absolute -top-1.5 -right-4 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white animate-pulse-soft">
                       {unread > 99 ? "99+" : unread}
                     </span>
                   )}
                 </span>
-                {item.label}
                 {isActive && (
-                  <>
-                    <span
-                      className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_16px_4px_rgba(59,130,246,0.55),0_0_6px_2px_rgba(59,130,246,0.35)]"
-                      aria-hidden
-                    />
-                    <span
-                      className="absolute left-0 top-1/2 h-8 w-5 -translate-y-1/2 rounded-full bg-primary/20 blur-md"
-                      aria-hidden
-                    />
-                  </>
+                  <div className="mr-auto w-1.5 h-1.5 rounded-full bg-sidebar-primary shadow-sm shadow-sidebar-primary/60" />
                 )}
               </Link>
             );
           })}
         </nav>
 
-        <div className="relative shrink-0 border-t border-border/50 bg-gradient-to-t from-card/95 to-card/70 p-4 backdrop-blur-sm">
-          <div className="mb-3 flex items-center gap-3">
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 via-primary/10 to-primary/5 text-sm font-semibold text-primary shadow-inner ring-1 ring-primary/25"
-              aria-hidden
+        {unread > 0 && (
+          <div className="px-4 py-4 border-t border-sidebar-border">
+            <Link
+              to="/notifications"
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-sidebar-primary/10 border border-sidebar-primary/20 transition-colors hover:bg-sidebar-primary/15"
             >
+              <div className="relative">
+                <Bell className="w-4 h-4 text-sidebar-primary" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-sidebar-primary animate-pulse-soft" />
+              </div>
+              <span className="text-xs text-sidebar-primary font-medium">
+                התראות פעילות
+              </span>
+              <span className="mr-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-sidebar-primary px-1 text-xs font-bold text-white shadow shadow-sidebar-primary/30">
+                {unread > 99 ? "99+" : unread}
+              </span>
+            </Link>
+          </div>
+        )}
+
+        <div className="shrink-0 border-t border-sidebar-border p-4">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-foreground ring-1 ring-sidebar-border">
               {emailInitial}
             </div>
             <p
-              className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+              className="min-w-0 flex-1 truncate text-xs text-sidebar-foreground/60"
               title={user?.email ?? undefined}
             >
               {user?.email ?? ""}
@@ -126,12 +141,9 @@ export function Shell() {
           <button
             type="button"
             onClick={() => void signOut()}
-            className={cn(
-              "flex w-full items-center justify-center gap-2 rounded-xl border border-border/60 bg-secondary/50 px-3 py-2.5 text-sm font-medium text-foreground transition-colors",
-              "hover:bg-secondary hover:border-border",
-            )}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent/50 px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-white"
           >
-            <LogOut className="h-4 w-4 text-muted-foreground" aria-hidden />
+            <LogOut className="h-4 w-4" aria-hidden />
             התנתק
           </button>
         </div>
@@ -145,7 +157,7 @@ export function Shell() {
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.06] bg-card/55 shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/40 bg-card/80 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.15)] dark:shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 md:hidden">
         <div className="flex justify-around px-1 py-3">
           {navItems.filter((item) => item.mobile).map((item) => {
             const Icon = item.icon;
@@ -187,6 +199,23 @@ export function Shell() {
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === "dark" ? "הפעל מצב בהיר" : "הפעל מצב כהה"}
+            className="flex min-w-0 flex-1 flex-col items-center gap-1 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-all duration-200 active:scale-[0.94]"
+          >
+            <span className="flex flex-col items-center gap-1">
+              {theme === "dark" ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
+            </span>
+            <span className="line-clamp-1 text-center leading-tight">
+              {theme === "dark" ? "בהיר" : "כהה"}
+            </span>
+          </button>
         </div>
       </nav>
     </div>
