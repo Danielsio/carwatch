@@ -119,7 +119,7 @@ export function Shell() {
               <span className="text-xs text-sidebar-primary font-medium">
                 התראות פעילות
               </span>
-              <span className="mr-auto text-xs bg-sidebar-primary text-white rounded-full w-5 h-5 flex items-center justify-center font-bold shadow shadow-sidebar-primary/30">
+              <span className="mr-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-sidebar-primary px-1 text-xs font-bold text-white shadow shadow-sidebar-primary/30">
                 {unread > 99 ? "99+" : unread}
               </span>
             </Link>
@@ -199,6 +199,23 @@ export function Shell() {
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === "dark" ? "הפעל מצב בהיר" : "הפעל מצב כהה"}
+            className="flex min-w-0 flex-1 flex-col items-center gap-1 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-all duration-200 active:scale-[0.94]"
+          >
+            <span className="flex flex-col items-center gap-1">
+              {theme === "dark" ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
+            </span>
+            <span className="line-clamp-1 text-center leading-tight">
+              {theme === "dark" ? "בהיר" : "כהה"}
+            </span>
+          </button>
         </div>
       </nav>
     </div>
