@@ -339,6 +339,13 @@ func TestKmScore_UnknownIsNeutral(t *testing.T) {
 	}
 }
 
+func TestKmScore_NegativeIsNeutral(t *testing.T) {
+	got := kmScore(-1, 150000)
+	if got != 0.5 {
+		t.Errorf("kmScore(-1, 150000) = %.2f, want 0.5 (neutral for unknown)", got)
+	}
+}
+
 func TestKmScore_KnownLowBeatsUnknown(t *testing.T) {
 	low := kmScore(10000, 150000)
 	unknown := kmScore(0, 150000)
