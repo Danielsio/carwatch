@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
   Cpu,
@@ -222,6 +222,7 @@ function StatsTab({
                       <button
                         type="button"
                         onClick={() => setConfirmPurge(table)}
+                        aria-label={`מחק את כל ${TABLE_LABELS[table] ?? table}`}
                         className="rounded p-1 text-muted-foreground/50 transition-colors hover:text-destructive"
                         title={`מחק את כל ${TABLE_LABELS[table] ?? table}`}
                       >
@@ -304,6 +305,13 @@ function ListingsTab() {
 
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0;
 
+  useEffect(() => {
+    const maxPage = Math.max(0, totalPages - 1);
+    if (page > maxPage) {
+      setPage(maxPage);
+    }
+  }, [page, totalPages]);
+
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-border/50 bg-card p-6">
@@ -354,6 +362,7 @@ function ListingsTab() {
               type="button"
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
+              aria-label="עמוד קודם"
               className="rounded-lg border border-border p-2 transition-colors hover:bg-muted disabled:opacity-30"
             >
               <ChevronRight className="h-4 w-4" />
@@ -365,6 +374,7 @@ function ListingsTab() {
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={page >= totalPages - 1}
+              aria-label="עמוד הבא"
               className="rounded-lg border border-border p-2 transition-colors hover:bg-muted disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -422,6 +432,7 @@ function AdminListingRow({
           type="button"
           onClick={() => setConfirm(true)}
           disabled={deleting}
+          aria-label={`מחק מודעה ${listing.manufacturer} ${listing.model}`}
           className="rounded p-1 text-muted-foreground/50 transition-colors hover:text-destructive flex-shrink-0 disabled:opacity-30"
         >
           <Trash2 className="h-3.5 w-3.5" />
