@@ -14,6 +14,7 @@ import { SignupPage } from "./pages/SignupPage";
 import { EditSearchPage } from "./pages/EditSearchPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { LandingPage } from "./pages/LandingPage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/searches/:id/edit" element={<EditSearchPage />} />
           <Route path="/searches/:id/listings" element={<ListingsPage />} />
           <Route path="/listings/:token" element={<ListingDetailPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/saved" element={<SavedPage />} />
           <Route path="/history" element={<HistoryPage />} />

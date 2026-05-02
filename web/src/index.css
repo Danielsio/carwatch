@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant landscape (@media (orientation: landscape) and (max-height: 500px));
 
 @theme {
   --color-background: var(--bg);
@@ -30,6 +31,9 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: #3B82F6;
+
+  --color-price: #F59E0B;
+  --color-price-foreground: #D97706;
 
   --color-score-great: #10B981;
   --color-score-good: #F59E0B;
@@ -139,6 +143,14 @@ body {
 ::selection {
   background-color: rgba(59, 130, 246, 0.3);
   color: #fff;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+  border-color: transparent;
 }
 
 ::-webkit-scrollbar {

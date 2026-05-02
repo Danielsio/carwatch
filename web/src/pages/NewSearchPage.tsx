@@ -97,7 +97,7 @@ export function NewSearchPage() {
   }
 
   return (
-    <div className="space-y-6 pb-24 md:pb-8">
+    <div className="space-y-6 landscape:space-y-4 pb-24 md:pb-8">
       <PageHeader
         title="חיפוש חדש"
         subtitle="הגדר פילטרים למעקב אחר מודעות"
@@ -115,7 +115,7 @@ export function NewSearchPage() {
       )}
 
       {/* Section: Search Name */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
+      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
         <FormField
           label="שם החיפוש"
           htmlFor="searchName"
@@ -131,7 +131,7 @@ export function NewSearchPage() {
       </section>
 
       {/* Section: Source */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
+      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
         <h2 className="text-sm font-semibold text-foreground">מקור</h2>
         <div className="flex flex-wrap gap-2">
           {SOURCE_OPTIONS.map((src) => (
@@ -147,7 +147,7 @@ export function NewSearchPage() {
       </section>
 
       {/* Section: Vehicle filter */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
+      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
         <h2 className="text-sm font-semibold text-foreground">סינון לפי רכב</h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -223,7 +223,7 @@ export function NewSearchPage() {
       </section>
 
       {/* Section: Price & KM */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
+      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
         <h2 className="text-sm font-semibold text-foreground">מחיר וק&quot;מ</h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -288,7 +288,7 @@ export function NewSearchPage() {
       </section>
 
       {/* Section: Keywords */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
+      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
         <h2 className="text-sm font-semibold text-foreground">מילות מפתח</h2>
 
         <FormField
@@ -318,19 +318,21 @@ export function NewSearchPage() {
         </FormField>
       </section>
 
-      {/* Actions */}
-      <div className="flex items-center gap-3">
-        <Button onClick={handleSubmit} disabled={!canSubmit} size="lg">
-          {createSearch.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Search className="h-4 w-4" />
-          )}
-          צור חיפוש
-        </Button>
-        <Button variant="secondary" size="lg" asChild>
-          <Link to="/">ביטול</Link>
-        </Button>
+      {/* Actions — sticky on mobile */}
+      <div className="sticky bottom-[5.5rem] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0">
+        <div className="flex items-center gap-3">
+          <Button onClick={handleSubmit} disabled={!canSubmit} size="lg" className="flex-1 md:flex-none">
+            {createSearch.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
+            צור חיפוש
+          </Button>
+          <Button variant="secondary" size="lg" asChild className="md:flex-none">
+            <Link to="/">ביטול</Link>
+          </Button>
+        </div>
       </div>
     </div>
   );
