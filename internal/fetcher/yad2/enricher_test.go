@@ -161,16 +161,44 @@ func TestEnricher_AllHaveKm(t *testing.T) {
 	})
 
 	listings := []model.RawListing{
-		{Token: "a", Km: 10000},
-		{Token: "b", Km: 20000},
+		{Token: "a", Km: 10000, ImageURL: "https://img.yad2.co.il/a.jpg"},
+		{Token: "b", Km: 20000, ImageURL: "https://img.yad2.co.il/b.jpg"},
 	}
 
 	count := enricher.Enrich(context.Background(), listings)
 	if count != 0 {
-		t.Errorf("enriched = %d, want 0 (all have km)", count)
+		t.Errorf("enriched = %d, want 0 (all have km and image)", count)
 	}
 	if got := requestCount.Load(); got != 0 {
 		t.Errorf("requests = %d, want 0 (no fetches needed)", got)
+	}
+}
+
+func TestEnricher_FillsMissingImageOnly(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":50000,"coverImage":"https://img.yad2.co.il/test.jpg"}}}}
+</script></html>`)
+	})
+
+	enricher := newTestEnricher(t, handler, EnricherConfig{
+		Delay:       time.Millisecond,
+		MaxPerCycle: 10,
+	})
+
+	listings := []model.RawListing{
+		{Token: "a", Km: 50000, ImageURL: ""},
+	}
+
+	count := enricher.Enrich(context.Background(), listings)
+	if count != 1 {
+		t.Errorf("enriched = %d, want 1 (image only)", count)
+	}
+	if listings[0].ImageURL != "https://img.yad2.co.il/test.jpg" {
+		t.Errorf("listing[0].ImageURL = %q, want test.jpg URL", listings[0].ImageURL)
+	}
+	if listings[0].Km != 50000 {
+		t.Errorf("listing[0].Km = %d, want 50000 (unchanged)", listings[0].Km)
 	}
 }
 

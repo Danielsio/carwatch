@@ -204,6 +204,10 @@ type AdminStore interface {
 	DBFileSize() (int64, error)
 	CountAllListings(ctx context.Context) (int64, error)
 	TableSizes(ctx context.Context) (map[string]int64, error)
+	PurgeTable(ctx context.Context, table string) (int64, error)
+	AdminListListings(ctx context.Context, limit, offset int) ([]ListingRecord, int64, error)
+	AdminDeleteListing(ctx context.Context, token string, chatID int64) error
+	VacuumDB(ctx context.Context) error
 }
 
 type NotificationStore interface {

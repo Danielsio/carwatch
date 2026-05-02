@@ -297,6 +297,14 @@ export function LoginPage() {
                 הירשם
               </Link>
             </p>
+            <p className="mt-2 text-center text-xs text-muted-foreground/70">
+              <Link
+                to="/welcome"
+                className="underline-offset-4 hover:underline hover:text-muted-foreground"
+              >
+                מה זה CarWatch?
+              </Link>
+            </p>
           </div>
         </div>
       </div>

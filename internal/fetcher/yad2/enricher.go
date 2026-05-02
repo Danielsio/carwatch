@@ -10,7 +10,7 @@ import (
 
 const (
 	defaultEnrichDelay = 500 * time.Millisecond
-	defaultMaxEnrich   = 5
+	defaultMaxEnrich   = 15
 )
 
 // EnricherConfig controls the enrichment behavior.
@@ -39,17 +39,19 @@ func NewEnricher(fetcher *Yad2Fetcher, logger *slog.Logger, cfg EnricherConfig) 
 	return &Enricher{fetcher: fetcher, logger: logger, cfg: cfg}
 }
 
-// Enrich fills in Km for listings where it is zero.
+// Enrich fills in missing Km and ImageURL for listings.
 // It modifies the slice in place and returns the number of successfully enriched listings.
 func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int {
 	enriched := 0
 	attempts := 0
 	for i := range listings {
-		if listings[i].Km > 0 {
+		needsKm := listings[i].Km <= 0
+		needsImg := listings[i].ImageURL == ""
+		if !needsKm && !needsImg {
 			continue
 		}
 		if attempts >= e.cfg.MaxPerCycle {
-			e.logger.Info("km enrichment limit reached",
+			e.logger.Info("enrichment limit reached",
 				"enriched", enriched,
 				"attempts", attempts,
 				"remaining", countMissingKm(listings[i:]),
@@ -74,19 +76,28 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 		attempts++
 		details, err := e.fetcher.FetchItem(ctx, listings[i].Token)
 		if err != nil {
-			e.logger.Warn("km enrichment failed",
+			e.logger.Warn("enrichment failed",
 				"token", listings[i].Token,
 				"error", err,
 			)
 			continue
 		}
 
-		if details.Km > 0 {
+		changed := false
+		if needsKm && details.Km > 0 {
 			listings[i].Km = details.Km
+			changed = true
+		}
+		if needsImg && details.ImageURL != "" {
+			listings[i].ImageURL = details.ImageURL
+			changed = true
+		}
+		if changed {
 			enriched++
-			e.logger.Debug("enriched km",
+			e.logger.Debug("enriched listing",
 				"token", listings[i].Token,
 				"km", details.Km,
+				"image", details.ImageURL != "",
 			)
 		}
 	}

@@ -154,7 +154,6 @@ func (s *Status) Snapshot() map[string]any {
 		"listings_found":     s.listingsFound.Load(),
 		"notifications_sent": s.notificationsSent.Load(),
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 

@@ -12,7 +12,8 @@ var itemNextDataRe = regexp.MustCompile(`(?is)<script[^>]*\bid=["']__NEXT_DATA__
 
 // ItemDetails holds enrichment data parsed from an individual listing page.
 type ItemDetails struct {
-	Km int
+	Km       int
+	ImageURL string
 }
 
 // ParseItemPage extracts listing details (primarily km) from a Yad2 item page.
@@ -49,8 +50,9 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 	}
 
 	if envelope.Props.PageProps.ItemData != nil {
-		if km := effectiveKm(*envelope.Props.PageProps.ItemData); km > 0 {
-			return ItemDetails{Km: km}, nil
+		d := *envelope.Props.PageProps.ItemData
+		if details, ok := detailsFromPageData(d); ok {
+			return details, nil
 		}
 	}
 
@@ -75,8 +77,8 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 			}
 			var item itemPageData
 			if json.Unmarshal(q.State.Data, &item) == nil {
-				if km := effectiveKm(item); km > 0 {
-					return ItemDetails{Km: km}, nil
+				if details, ok := detailsFromPageData(item); ok {
+					return details, nil
 				}
 			}
 			var wrapper map[string]json.RawMessage
@@ -84,8 +86,8 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 				for _, v := range wrapper {
 					var nested itemPageData
 					if json.Unmarshal(v, &nested) == nil {
-						if km := effectiveKm(nested); km > 0 {
-							return ItemDetails{Km: km}, nil
+						if details, ok := detailsFromPageData(nested); ok {
+							return details, nil
 						}
 					}
 				}
@@ -93,12 +95,21 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 		}
 	}
 
-	return ItemDetails{}, fmt.Errorf("km not found in item page data")
+	return ItemDetails{}, fmt.Errorf("no enrichment data found in item page")
 }
 
 type itemPageData struct {
-	Km        int `json:"km"`
-	Kilometer int `json:"kilometer"`
+	Km         int    `json:"km"`
+	Kilometer  int    `json:"kilometer"`
+	CoverImage string `json:"coverImage"`
+}
+
+func detailsFromPageData(d itemPageData) (ItemDetails, bool) {
+	details := ItemDetails{
+		Km:       effectiveKm(d),
+		ImageURL: d.CoverImage,
+	}
+	return details, details.Km > 0 || details.ImageURL != ""
 }
 
 func effectiveKm(d itemPageData) int {

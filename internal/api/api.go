@@ -94,6 +94,10 @@ func (s *Server) Routes() http.Handler {
 
 	if s.admin != nil {
 		mux.HandleFunc("GET /api/v1/admin/stats", s.requireAdmin(s.adminStats))
+		mux.HandleFunc("GET /api/v1/admin/listings", s.requireAdmin(s.adminListListings))
+		mux.HandleFunc("DELETE /api/v1/admin/listings/{token}", s.requireAdmin(s.adminDeleteListing))
+		mux.HandleFunc("POST /api/v1/admin/purge", s.requireAdmin(s.adminPurgeTable))
+		mux.HandleFunc("POST /api/v1/admin/vacuum", s.requireAdmin(s.adminVacuum))
 	}
 
 	if s.notifs != nil {

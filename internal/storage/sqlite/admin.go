@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 func (s *Store) DBFileSize() (int64, error) {
@@ -62,4 +65,80 @@ func (s *Store) TableSizes(ctx context.Context) (map[string]int64, error) {
 		sizes[t] = count
 	}
 	return sizes, nil
+}
+
+var purgeable = map[string]bool{
+	"listing_history":       true,
+	"price_history":         true,
+	"dedup_seen":            true,
+	"seen_listings":         true,
+	"notifications":         true,
+	"pending_notifications": true,
+	"market_cache":          true,
+	"catalog_cache":         true,
+	"saved_listings":        true,
+	"hidden_listings":       true,
+	"pending_digest":        true,
+}
+
+func (s *Store) PurgeTable(ctx context.Context, table string) (int64, error) {
+	if !purgeable[table] {
+		return 0, fmt.Errorf("table %q is not purgeable", table)
+	}
+	result, err := s.db.ExecContext(ctx, "DELETE FROM \""+table+"\"")
+	if err != nil {
+		return 0, fmt.Errorf("purge %s: %w", table, err)
+	}
+	return result.RowsAffected()
+}
+
+func (s *Store) AdminListListings(ctx context.Context, limit, offset int) ([]storage.ListingRecord, int64, error) {
+	var total int64
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM listing_history").Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count listings: %w", err)
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT token, chat_id, search_id, search_name, manufacturer, model, year, price,
+			km, hand, city, page_link, image_url, fitness_score, first_seen_at
+		FROM listing_history
+		ORDER BY first_seen_at DESC
+		LIMIT ? OFFSET ?`, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query listings: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []storage.ListingRecord
+	for rows.Next() {
+		var r storage.ListingRecord
+		var score *float64
+		var firstSeen string
+		if err := rows.Scan(
+			&r.Token, &r.ChatID, &r.SearchID, &r.SearchName,
+			&r.Manufacturer, &r.Model, &r.Year, &r.Price,
+			&r.Km, &r.Hand, &r.City, &r.PageLink, &r.ImageURL,
+			&score, &firstSeen,
+		); err != nil {
+			return nil, 0, fmt.Errorf("scan listing: %w", err)
+		}
+		r.FitnessScore = score
+		parsed, parseErr := time.Parse("2006-01-02 15:04:05", firstSeen)
+		if parseErr != nil {
+			return nil, 0, fmt.Errorf("parse first_seen_at %q for token %s: %w", firstSeen, r.Token, parseErr)
+		}
+		r.FirstSeenAt = parsed
+		items = append(items, r)
+	}
+	return items, total, rows.Err()
+}
+
+func (s *Store) AdminDeleteListing(ctx context.Context, token string, chatID int64) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM listing_history WHERE token = ? AND chat_id = ?", token, chatID)
+	return err
+}
+
+func (s *Store) VacuumDB(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, "VACUUM")
+	return err
 }

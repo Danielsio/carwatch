@@ -20,6 +20,19 @@ type ToastRecord = {
   exiting: boolean;
 };
 
+let globalToastFn: ((message: string, type?: ToastType) => void) | null = null;
+const pendingToasts: Array<{ message: string; type: ToastType }> = [];
+
+/** Fire a toast from outside React (e.g. QueryCache onError). */
+export function showGlobalToast(message: string, type: ToastType = "info") {
+  if (globalToastFn) {
+    globalToastFn(message, type);
+  } else {
+    pendingToasts.push({ message, type });
+    console.warn("[toast]", type, message);
+  }
+}
+
 const EXIT_MS = 220;
 const AUTO_DISMISS_MS = 3000;
 
@@ -122,6 +135,14 @@ export function ToastProvider({ children }: ToastProviderProps) {
     },
     [beginExit],
   );
+
+  useEffect(() => {
+    globalToastFn = toast;
+    if (pendingToasts.length > 0) {
+      pendingToasts.splice(0).forEach(({ message, type }) => toast(message, type));
+    }
+    return () => { globalToastFn = null; };
+  }, [toast]);
 
   const value = useMemo(() => ({ toast }), [toast]);
 

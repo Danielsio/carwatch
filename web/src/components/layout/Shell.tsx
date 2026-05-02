@@ -15,6 +15,8 @@ import { useNotificationCount } from "@/hooks/useNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useHealthCheck } from "@/hooks/useHealthCheck";
+import { ConnectionBanner } from "@/components/ui/ConnectionBanner";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -33,11 +35,13 @@ export function Shell() {
   const { user, signOut } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const appVersion = useAppVersion();
+  const connectionStatus = useHealthCheck();
   const emailInitial =
     user?.email?.trim().charAt(0)?.toLocaleUpperCase("he-IL") || "?";
 
   return (
     <div className="min-h-screen bg-background">
+      <ConnectionBanner status={connectionStatus} />
       <aside className="fixed inset-y-0 right-0 z-50 hidden w-64 flex-col border-l border-sidebar-border bg-sidebar md:flex">
         <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
           <div className="relative w-10 h-10 shrink-0 rounded-xl bg-sidebar-primary flex items-center justify-center shadow-lg shadow-sidebar-primary/40">

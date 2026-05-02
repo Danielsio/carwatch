@@ -13,10 +13,12 @@ import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
 import { EditSearchPage } from "./pages/EditSearchPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { LandingPage } from "./pages/LandingPage";
 
 export default function App() {
   return (
     <Routes>
+      <Route path="/welcome" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route element={<ProtectedRoute />}>
