@@ -17,7 +17,10 @@ export function errorToHebrew(error: unknown): string {
     return error.message || "שגיאה בלתי צפויה";
   }
 
-  if (error instanceof TypeError && error.message === "Failed to fetch") {
+  if (
+    error instanceof TypeError &&
+    /failed to fetch|network|load failed/i.test(error.message)
+  ) {
     return "אין חיבור לשרת — בדוק את הרשת";
   }
 

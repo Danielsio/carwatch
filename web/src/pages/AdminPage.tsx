@@ -313,6 +313,9 @@ function ListingsTab() {
       toast("המודעה נמחקה", "success");
       void queryClient.invalidateQueries({ queryKey: ["admin"] });
     },
+    onError: () => {
+      toast("שגיאה במחיקת המודעה", "error");
+    },
   });
 
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0;

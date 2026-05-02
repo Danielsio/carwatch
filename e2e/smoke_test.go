@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -138,8 +139,12 @@ func TestSmoke_FullStack(t *testing.T) {
 			t.Errorf("status = %d, want 200", resp.StatusCode)
 		}
 		ct := resp.Header.Get("Content-Type")
-		if ct == "" {
-			t.Error("expected Content-Type header")
+		if !strings.Contains(ct, "text/html") {
+			t.Errorf("Content-Type = %q, want text/html", ct)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(body), "<!doctype html>") && !strings.Contains(string(body), "<!DOCTYPE html>") {
+			t.Error("response body does not contain <!doctype html>")
 		}
 	})
 
