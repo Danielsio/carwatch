@@ -12,7 +12,8 @@ var itemNextDataRe = regexp.MustCompile(`(?is)<script[^>]*\bid=["']__NEXT_DATA__
 
 // ItemDetails holds enrichment data parsed from an individual listing page.
 type ItemDetails struct {
-	Km int
+	Km       int
+	ImageURL string
 }
 
 // ParseItemPage extracts listing details (primarily km) from a Yad2 item page.
@@ -49,8 +50,9 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 	}
 
 	if envelope.Props.PageProps.ItemData != nil {
-		if km := effectiveKm(*envelope.Props.PageProps.ItemData); km > 0 {
-			return ItemDetails{Km: km}, nil
+		d := *envelope.Props.PageProps.ItemData
+		if km := effectiveKm(d); km > 0 {
+			return ItemDetails{Km: km, ImageURL: d.CoverImage}, nil
 		}
 	}
 
@@ -76,7 +78,7 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 			var item itemPageData
 			if json.Unmarshal(q.State.Data, &item) == nil {
 				if km := effectiveKm(item); km > 0 {
-					return ItemDetails{Km: km}, nil
+					return ItemDetails{Km: km, ImageURL: item.CoverImage}, nil
 				}
 			}
 			var wrapper map[string]json.RawMessage
@@ -85,7 +87,7 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 					var nested itemPageData
 					if json.Unmarshal(v, &nested) == nil {
 						if km := effectiveKm(nested); km > 0 {
-							return ItemDetails{Km: km}, nil
+							return ItemDetails{Km: km, ImageURL: nested.CoverImage}, nil
 						}
 					}
 				}
@@ -97,8 +99,9 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 }
 
 type itemPageData struct {
-	Km        int `json:"km"`
-	Kilometer int `json:"kilometer"`
+	Km         int    `json:"km"`
+	Kilometer  int    `json:"kilometer"`
+	CoverImage string `json:"coverImage"`
 }
 
 func effectiveKm(d itemPageData) int {

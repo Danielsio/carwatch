@@ -161,13 +161,13 @@ func TestEnricher_AllHaveKm(t *testing.T) {
 	})
 
 	listings := []model.RawListing{
-		{Token: "a", Km: 10000},
-		{Token: "b", Km: 20000},
+		{Token: "a", Km: 10000, ImageURL: "https://img.yad2.co.il/a.jpg"},
+		{Token: "b", Km: 20000, ImageURL: "https://img.yad2.co.il/b.jpg"},
 	}
 
 	count := enricher.Enrich(context.Background(), listings)
 	if count != 0 {
-		t.Errorf("enriched = %d, want 0 (all have km)", count)
+		t.Errorf("enriched = %d, want 0 (all have km and image)", count)
 	}
 	if got := requestCount.Load(); got != 0 {
 		t.Errorf("requests = %d, want 0 (no fetches needed)", got)
