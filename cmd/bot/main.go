@@ -116,6 +116,7 @@ func run(configPath string, logger *slog.Logger) error {
 	h.SetVersion(version)
 	h.SetUserCounter(store)
 	h.SetSearchCounter(store)
+	h.SetDBSizer(store)
 
 	botHandler := cwbot.New(nil, store, store, cwbot.Config{
 		AdminChatID:  cfg.Telegram.AdminChatID,

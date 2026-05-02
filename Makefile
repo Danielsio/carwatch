@@ -1,5 +1,6 @@
 .PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
        vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
+       vm-backup vm-backup-list \
        web-install web-dev web-build
 
 all: build
@@ -120,3 +121,10 @@ vm-deploy: vm-sync
 vm-deploy-all: vm-sync
 	$(SSH) "$(VM_COMPOSE) pull && $(VM_COMPOSE) up -d \
 		&& sleep 3 && docker exec carwatch /bot -version"
+
+vm-backup: vm-check-env
+	$(SSH) "docker exec carwatch sqlite3 /data/carwatch.db \".backup '/data/backups/carwatch-\$$(date +%Y%m%d-%H%M%S).db'\" \
+		&& echo 'Backup created' && ls -lh /data/backups/ 2>/dev/null || echo 'No backups dir outside container — use scripts/backup-db.sh on the VM'"
+
+vm-backup-list: vm-check-env
+	$(SSH) "docker exec carwatch ls -lhS /data/backups/ 2>/dev/null || echo 'No backups found'"
