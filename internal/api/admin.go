@@ -201,6 +201,12 @@ func (s *Server) adminDeleteListing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {
+	if !s.vacuumMu.TryLock() {
+		writeError(w, http.StatusConflict, "vacuum already in progress")
+		return
+	}
+	defer s.vacuumMu.Unlock()
+
 	if err := s.admin.VacuumDB(r.Context()); err != nil {
 		s.logger.Error("admin: vacuum", "error", err)
 		writeError(w, http.StatusInternalServerError, "vacuum failed")
