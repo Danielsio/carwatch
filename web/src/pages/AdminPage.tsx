@@ -421,7 +421,8 @@ function AdminListingRow({
         <button
           type="button"
           onClick={() => setConfirm(true)}
-          className="rounded p-1 text-muted-foreground/50 transition-colors hover:text-destructive flex-shrink-0"
+          disabled={deleting}
+          className="rounded p-1 text-muted-foreground/50 transition-colors hover:text-destructive flex-shrink-0 disabled:opacity-30"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

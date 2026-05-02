@@ -83,6 +83,7 @@ jobs:
       - name: Run tests
         run: make test
       - name: Run e2e tests
+        timeout-minutes: 5
         run: make test-e2e
       - name: Upload coverage
         if: always()

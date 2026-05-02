@@ -54,7 +54,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			e.logger.Info("enrichment limit reached",
 				"enriched", enriched,
 				"attempts", attempts,
-				"remaining_km", countMissingKm(listings[i:]),
+				"remaining", countMissingKm(listings[i:]),
 			)
 			break
 		}
