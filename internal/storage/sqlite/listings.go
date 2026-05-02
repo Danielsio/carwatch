@@ -17,8 +17,9 @@ func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error 
 			search_id = CASE WHEN excluded.search_id > 0 THEN excluded.search_id ELSE listing_history.search_id END,
 			search_name = CASE WHEN excluded.search_id > 0 THEN excluded.search_name ELSE listing_history.search_name END,
 			price = excluded.price,
-			km = excluded.km,
+			km = CASE WHEN excluded.km > 0 THEN excluded.km ELSE listing_history.km END,
 			hand = excluded.hand,
+			city = CASE WHEN excluded.city != '' THEN excluded.city ELSE listing_history.city END,
 			image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE listing_history.image_url END,
 			fitness_score = excluded.fitness_score`,
 		r.Token, r.ChatID, r.SearchID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
@@ -62,8 +63,9 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 			search_id = CASE WHEN excluded.search_id > 0 THEN excluded.search_id ELSE listing_history.search_id END,
 			search_name = CASE WHEN excluded.search_id > 0 THEN excluded.search_name ELSE listing_history.search_name END,
 			price = excluded.price,
-			km = excluded.km,
+			km = CASE WHEN excluded.km > 0 THEN excluded.km ELSE listing_history.km END,
 			hand = excluded.hand,
+			city = CASE WHEN excluded.city != '' THEN excluded.city ELSE listing_history.city END,
 			image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE listing_history.image_url END,
 			fitness_score = excluded.fitness_score`)
 	if err != nil {
