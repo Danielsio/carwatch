@@ -358,12 +358,13 @@ function SearchCard({
         {search.max_hand > 0 && <div>עד יד {search.max_hand}</div>}
       </div>
 
-      <div className="flex items-center gap-2 border-t border-border/50 pt-3">
+      <div className="flex items-center gap-1.5 border-t border-border/50 pt-3">
         <Button
           as={Link}
           to={`/searches/${search.id}/listings`}
-          variant="secondary"
+          variant="primary"
           size="sm"
+          className="flex-1 sm:flex-none"
         >
           <List className="h-3.5 w-3.5" />
           תוצאות
@@ -373,33 +374,36 @@ function SearchCard({
           as={Link}
           to={`/searches/${search.id}/edit`}
           variant="secondary"
-          size="sm"
+          size="icon"
+          className="h-8 w-8"
+          aria-label="ערוך חיפוש"
         >
           <Pencil className="h-3.5 w-3.5" />
-          ערוך
         </Button>
 
         {search.active ? (
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="icon"
+            className="h-8 w-8"
             onClick={onPause}
             disabled={disabled}
+            aria-label="השהה חיפוש"
           >
             <Pause className="h-3.5 w-3.5" />
-            השהה
           </Button>
         ) : (
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="icon"
+            className="h-8 w-8"
             onClick={onResume}
             disabled={disabled}
+            aria-label="חדש חיפוש"
           >
             <Play className="h-3.5 w-3.5" />
-            חדש
           </Button>
         )}
 
@@ -427,12 +431,13 @@ function SearchCard({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
+              size="icon"
+              className="h-8 w-8 text-destructive hover:bg-destructive/10"
               onClick={onDelete}
-              className="text-destructive hover:bg-destructive/10"
+              disabled={disabled}
+              aria-label="מחק חיפוש"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              מחק
             </Button>
           )}
         </div>
