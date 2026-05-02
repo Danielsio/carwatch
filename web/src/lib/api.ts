@@ -244,8 +244,8 @@ export interface PurgeResult {
 
 export interface VacuumResult {
   status: string;
-  size_after: string;
-  size_bytes: number;
+  size_after?: string;
+  size_bytes?: number;
 }
 
 export const adminApi = {

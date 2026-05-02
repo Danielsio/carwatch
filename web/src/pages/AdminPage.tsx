@@ -146,7 +146,7 @@ function StatsTab({
   const vacuumMutation = useMutation({
     mutationFn: () => adminApi.vacuum(),
     onSuccess: (result) => {
-      toast(`דחיסת מסד נתונים הושלמה — ${result.size_after}`, "success");
+      toast(`דחיסת מסד נתונים הושלמה${result.size_after ? ` — ${result.size_after}` : ""}`, "success");
       void queryClient.invalidateQueries({ queryKey: ["admin"] });
       onRefresh();
     },
