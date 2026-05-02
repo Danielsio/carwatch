@@ -12,6 +12,7 @@ import {
   Moon,
 } from "lucide-react";
 import { useNotificationCount } from "@/hooks/useNotifications";
+import { useAppVersion } from "@/hooks/useAppVersion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ export function Shell() {
   const unread = notifCount?.count ?? 0;
   const { user, signOut } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
+  const appVersion = useAppVersion();
   const emailInitial =
     user?.email?.trim().charAt(0)?.toLocaleUpperCase("he-IL") || "?";
 
@@ -146,6 +148,11 @@ export function Shell() {
             <LogOut className="h-4 w-4" aria-hidden />
             התנתק
           </button>
+          {appVersion && (
+            <p className="mt-2 text-center text-[10px] text-sidebar-foreground/30 tabular-nums">
+              v{appVersion}
+            </p>
+          )}
         </div>
       </aside>
 

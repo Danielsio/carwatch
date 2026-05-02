@@ -32,6 +32,7 @@ type SourceMetrics struct {
 
 type Status struct {
 	startTime         time.Time
+	version           string
 	cycleCount        atomic.Int64
 	errorCount        atomic.Int64
 	lastSuccessUnixNs atomic.Int64
@@ -51,6 +52,12 @@ func New() *Status {
 		startTime: time.Now(),
 		sources:   make(map[string]*SourceMetrics),
 	}
+}
+
+func (s *Status) SetVersion(v string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.version = v
 }
 
 func (s *Status) SetUserCounter(u UserCounter) {
@@ -152,8 +159,13 @@ func (s *Status) Snapshot() map[string]any {
 	defer cancel()
 
 	s.mu.RLock()
+	version := s.version
 	users, searches := s.users, s.searches
 	s.mu.RUnlock()
+
+	if version != "" {
+		resp["version"] = version
+	}
 
 	if users != nil {
 		if n, err := users.CountUsers(ctx); err == nil {
