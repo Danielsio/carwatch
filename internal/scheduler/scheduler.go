@@ -703,13 +703,13 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 					})
 					priceDropMessages = append(priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice, lang))
 					if s.listingStore != nil {
-						if err := s.listingStore.SaveListing(ctx, storage.ListingRecord{
-							Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
-							Manufacturer: l.Manufacturer, Model: l.Model,
-							Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
-							City: l.City, PageLink: l.PageLink,
-							FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
-						}); err != nil {
+					if err := s.listingStore.SaveListing(ctx, storage.ListingRecord{
+						Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
+						Manufacturer: l.Manufacturer, Model: l.Model,
+						Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
+						City: l.City, PageLink: l.PageLink, ImageURL: l.ImageURL,
+						FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
+					}); err != nil {
 							s.logger.Error("save price-drop listing failed",
 								"token", l.Token,
 								"chat_id", search.ChatID,
@@ -758,13 +758,13 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 			}
 			newListings = append(newListings, listing)
 
-			listingRecords = append(listingRecords, storage.ListingRecord{
-				Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
-				Manufacturer: l.Manufacturer, Model: l.Model,
-				Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
-				City: l.City, PageLink: l.PageLink,
-				FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
-			})
+		listingRecords = append(listingRecords, storage.ListingRecord{
+			Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
+			Manufacturer: l.Manufacturer, Model: l.Model,
+			Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
+			City: l.City, PageLink: l.PageLink, ImageURL: l.ImageURL,
+			FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
+		})
 		}
 
 		if s.listingStore != nil && len(listingRecords) > 0 {
