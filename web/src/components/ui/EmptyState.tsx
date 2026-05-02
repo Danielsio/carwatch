@@ -20,22 +20,26 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-2xl border border-border/50 bg-card/50 px-6 py-16 text-center dir-rtl",
+        "relative flex flex-col items-center justify-center gap-4 rounded-2xl border border-border/50 bg-card/50 px-6 py-20 text-center overflow-hidden",
         className,
       )}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <Icon className="h-6 w-6" aria-hidden />
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_40%,rgba(59,130,246,0.06),transparent)]"
+        aria-hidden
+      />
+      <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/8 text-primary ring-1 ring-primary/10">
+        <Icon className="h-7 w-7" aria-hidden />
       </div>
-      <div className="space-y-1">
-        <p className="text-base font-semibold text-foreground">{title}</p>
+      <div className="relative space-y-1.5">
+        <p className="text-lg font-semibold text-foreground">{title}</p>
         {description ? (
-          <p className="max-w-sm text-sm text-muted-foreground">
+          <p className="max-w-sm text-sm text-muted-foreground leading-relaxed">
             {description}
           </p>
         ) : null}
       </div>
-      {action ? <div className="pt-1">{action}</div> : null}
+      {action ? <div className="relative pt-2">{action}</div> : null}
     </div>
   );
 }

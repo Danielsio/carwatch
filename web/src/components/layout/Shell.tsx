@@ -4,6 +4,7 @@ import {
   Plus,
   Car,
   Settings,
+  Wrench,
   Bookmark,
   Clock,
   Bell,
@@ -25,7 +26,8 @@ const navItems = [
   { path: "/saved", label: "שמורים", icon: Bookmark, mobile: true },
   { path: "/history", label: "היסטוריה", icon: Clock, mobile: true },
   { path: "/notifications", label: "התראות", icon: Bell, badge: true, mobile: true },
-  { path: "/admin", label: "ניהול", icon: Settings, mobile: false },
+  { path: "/settings", label: "הגדרות", icon: Settings, mobile: true },
+  { path: "/admin", label: "ניהול", icon: Wrench, mobile: false },
 ];
 
 export function Shell() {
@@ -84,7 +86,7 @@ export function Shell() {
                   "flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
                   isActive
                     ? "bg-sidebar-primary/15 text-white"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white",
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white hover:translate-x-[-2px]",
                 )}
               >
                 <Icon
@@ -160,8 +162,8 @@ export function Shell() {
         </div>
       </aside>
 
-      <main className="h-[100dvh] overflow-y-auto scroll-smooth pb-[5.5rem] md:mr-64 md:pb-0">
-        <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="h-[100dvh] overflow-y-auto scroll-smooth pb-[5.5rem] landscape:pb-16 md:mr-64 md:pb-0">
+        <div className="mx-auto max-w-5xl px-4 py-8 landscape:py-4 sm:px-6 lg:px-8 md:py-8">
           <div key={location.pathname} className="animate-fade-in">
             <Outlet />
           </div>
@@ -169,7 +171,7 @@ export function Shell() {
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/40 bg-card/80 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.15)] dark:shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 md:hidden">
-        <div className="flex justify-around px-1 py-3">
+        <div className="flex justify-around px-1 py-3 landscape:py-1.5">
           {navItems.filter((item) => item.mobile).map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -183,14 +185,14 @@ export function Shell() {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  "group flex min-w-0 flex-1 flex-col items-center gap-1 px-2 py-1 text-[11px] font-medium transition-all duration-200",
+                  "group flex min-w-0 flex-1 flex-col items-center gap-1 landscape:gap-0.5 px-2 py-1 landscape:py-0.5 text-[11px] font-medium transition-all duration-200",
                   "active:scale-[0.94] motion-reduce:active:scale-100",
                   isActive ? "text-primary" : "text-muted-foreground",
                 )}
               >
-                <span className="flex flex-col items-center gap-1">
+                <span className="flex flex-col items-center gap-1 landscape:gap-0">
                   <span className="relative">
-                    <Icon className="h-5 w-5 transition-transform duration-200 group-active:scale-90" />
+                    <Icon className="h-5 w-5 landscape:h-4 landscape:w-4 transition-transform duration-200 group-active:scale-90" />
                     {showBadge && (
                       <span className="absolute -top-1 -right-2 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-destructive px-0.5 text-[9px] font-bold text-white animate-pulse-soft">
                         {unread > 99 ? "99+" : unread}
@@ -199,12 +201,12 @@ export function Shell() {
                   </span>
                   {isActive && (
                     <span
-                      className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_10px_2px_rgba(59,130,246,0.65)]"
+                      className="h-1.5 w-1.5 landscape:h-1 landscape:w-1 rounded-full bg-primary shadow-[0_0_10px_2px_rgba(59,130,246,0.65)]"
                       aria-hidden
                     />
                   )}
                 </span>
-                <span className="line-clamp-1 text-center leading-tight">
+                <span className="line-clamp-1 text-center leading-tight landscape:text-[10px]">
                   {item.label}
                 </span>
               </Link>
@@ -214,16 +216,16 @@ export function Shell() {
             type="button"
             onClick={toggleTheme}
             aria-label={theme === "dark" ? "הפעל מצב בהיר" : "הפעל מצב כהה"}
-            className="flex min-w-0 flex-1 flex-col items-center gap-1 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-all duration-200 active:scale-[0.94]"
+            className="flex min-w-0 flex-1 flex-col items-center gap-1 landscape:gap-0.5 px-2 py-1 landscape:py-0.5 text-[11px] font-medium text-muted-foreground transition-all duration-200 active:scale-[0.94]"
           >
-            <span className="flex flex-col items-center gap-1">
+            <span className="flex flex-col items-center gap-1 landscape:gap-0">
               {theme === "dark" ? (
-                <Sun className="h-5 w-5" />
+                <Sun className="h-5 w-5 landscape:h-4 landscape:w-4" />
               ) : (
-                <Moon className="h-5 w-5" />
+                <Moon className="h-5 w-5 landscape:h-4 landscape:w-4" />
               )}
             </span>
-            <span className="line-clamp-1 text-center leading-tight">
+            <span className="line-clamp-1 text-center leading-tight landscape:text-[10px]">
               {theme === "dark" ? "בהיר" : "כהה"}
             </span>
           </button>

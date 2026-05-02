@@ -134,7 +134,7 @@ export function LoginPage() {
           <div className="rounded-2xl border border-border/60 bg-card/80 p-6 shadow-[0_24px_64px_-16px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-8">
             {error && (
               <div
-                className="mb-5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive-foreground"
+                className="mb-5 rounded-xl border border-destructive/40 bg-destructive/15 px-4 py-3 text-sm font-medium text-destructive dark:text-red-400"
                 role="alert"
               >
                 {error}

@@ -65,20 +65,20 @@ export function SearchesPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-8 animate-fade-in">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
-            <Skeleton className="h-8 w-40 rounded-lg" />
-            <Skeleton className="h-4 w-56 rounded-md" />
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-4 w-56" />
           </div>
           <Skeleton className="h-10 w-36 rounded-xl" />
         </div>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-[100px] rounded-xl" />
           ))}
         </div>
-        <Skeleton className="h-5 w-32 rounded-md" />
+        <Skeleton className="h-5 w-32" />
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2].map((i) => (
             <Skeleton key={i} className="h-52 rounded-2xl" />
@@ -103,11 +103,11 @@ export function SearchesPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-4">
       <DashboardHeader />
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {[
           {
             icon: SearchIcon,
@@ -175,7 +175,7 @@ export function SearchesPage() {
             }
           />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className={cn("grid gap-4", searches.length > 1 && "sm:grid-cols-2")}>
             {searches.map((search, i) => (
               <motion.div
                 key={search.id}
@@ -282,22 +282,22 @@ function StatCard({
   return (
     <div
       className={cn(
-        "rounded-xl border border-border/50 bg-card p-5 transition-all duration-200 hover:border-border hover:-translate-y-0.5",
+        "rounded-xl border border-border/50 bg-card p-3 sm:p-5 transition-all duration-200 hover:border-border hover:-translate-y-0.5",
         glow,
       )}
     >
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm text-muted-foreground">{label}</span>
+      <div className="flex items-center justify-between mb-2 sm:mb-3">
+        <span className="text-xs sm:text-sm text-muted-foreground leading-tight">{label}</span>
         <div
           className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+            "flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg",
             bg,
           )}
         >
-          <Icon className={cn("h-[18px] w-[18px]", color)} />
+          <Icon className={cn("h-4 w-4 sm:h-[18px] sm:w-[18px]", color)} />
         </div>
       </div>
-      <p className="text-3xl font-bold tabular-nums text-foreground">{value}</p>
+      <p className="text-2xl sm:text-3xl font-bold tabular-nums text-foreground">{value}</p>
     </div>
   );
 }
@@ -331,10 +331,11 @@ function SearchCard({
         <div className="flex shrink-0 items-start gap-2">
           {(search.listings_count ?? 0) > 0 && (
             <span
-              className="inline-flex items-center rounded-full bg-muted/80 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-foreground ring-1 ring-border/50"
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold tabular-nums text-primary ring-1 ring-primary/20"
               title="מספר מודעות שנמצאו בחיפוש"
             >
-              {search.listings_count!.toLocaleString("he-IL")} מודעות
+              <Car className="h-3 w-3" />
+              {search.listings_count!.toLocaleString("he-IL")}
             </span>
           )}
           <Badge variant={search.active ? "success" : "warning"}>
