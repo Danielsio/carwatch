@@ -113,6 +113,7 @@ func run(configPath string, logger *slog.Logger) error {
 	fetcherFactory.Register("winwin", winwinCB)
 
 	h := health.New()
+	h.SetVersion(version)
 	h.SetUserCounter(store)
 	h.SetSearchCounter(store)
 
