@@ -226,8 +226,42 @@ export interface AdminStats {
   };
 }
 
+export interface AdminListingsResponse {
+  items: Listing[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface PurgeResult {
+  table: string;
+  deleted: number;
+}
+
+export interface VacuumResult {
+  status: string;
+  size_after: string;
+  size_bytes: number;
+}
+
 export const adminApi = {
   stats: () => fetchAPI<AdminStats>("/admin/stats"),
+  listings: (params?: ListingsParams) => {
+    const query = new URLSearchParams();
+    if (params?.limit !== undefined) query.set("limit", String(params.limit));
+    if (params?.offset !== undefined) query.set("offset", String(params.offset));
+    const qs = query.toString();
+    return fetchAPI<AdminListingsResponse>(`/admin/listings${qs ? `?${qs}` : ""}`);
+  },
+  deleteListing: (token: string) =>
+    fetchAPI<void>(`/admin/listings/${encodeURIComponent(token)}`, { method: "DELETE" }),
+  purgeTable: (table: string) =>
+    fetchAPI<PurgeResult>("/admin/purge", {
+      method: "POST",
+      body: JSON.stringify({ table }),
+    }),
+  vacuum: () =>
+    fetchAPI<VacuumResult>("/admin/vacuum", { method: "POST" }),
 };
 
 export { ApiError };

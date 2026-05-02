@@ -605,6 +605,22 @@ func (f *failingAdminStore) TableSizes(_ context.Context) (map[string]int64, err
 	return map[string]int64{}, nil
 }
 
+func (f *failingAdminStore) PurgeTable(_ context.Context, _ string) (int64, error) {
+	return 0, nil
+}
+
+func (f *failingAdminStore) AdminListListings(_ context.Context, _, _ int) ([]storage.ListingRecord, int64, error) {
+	return nil, 0, nil
+}
+
+func (f *failingAdminStore) AdminDeleteListing(_ context.Context, _ string) error {
+	return nil
+}
+
+func (f *failingAdminStore) VacuumDB(_ context.Context) error {
+	return nil
+}
+
 func TestAdminStats_DBFileSizeError(t *testing.T) {
 	srv, _ := setupTestServer(t)
 	srv.admin = &failingAdminStore{failDBFileSize: true}

@@ -1,9 +1,11 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"runtime"
+	"strconv"
 	"time"
 )
 
@@ -92,4 +94,96 @@ func humanBytes(b int64) string {
 	default:
 		return fmt.Sprintf("%d B", b)
 	}
+}
+
+func (s *Server) adminPurgeTable(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Table string `json:"table"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Table == "" {
+		writeError(w, http.StatusBadRequest, "table is required")
+		return
+	}
+
+	deleted, err := s.admin.PurgeTable(r.Context(), body.Table)
+	if err != nil {
+		s.logger.Error("admin: purge table", "table", body.Table, "error", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.logger.Info("admin: purged table", "table", body.Table, "deleted", deleted)
+	writeJSON(w, http.StatusOK, map[string]any{"table": body.Table, "deleted": deleted})
+}
+
+func (s *Server) adminListListings(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	items, total, err := s.admin.AdminListListings(r.Context(), limit, offset)
+	if err != nil {
+		s.logger.Error("admin: list listings", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to list listings")
+		return
+	}
+
+	resp := make([]listingResponse, 0, len(items))
+	for _, l := range items {
+		resp = append(resp, listingResponse{
+			Token:        l.Token,
+			SearchName:   l.SearchName,
+			Manufacturer: l.Manufacturer,
+			Model:        l.Model,
+			Year:         l.Year,
+			Price:        l.Price,
+			Km:           l.Km,
+			Hand:         l.Hand,
+			City:         l.City,
+			PageLink:     l.PageLink,
+			ImageURL:     l.ImageURL,
+			FitnessScore: l.FitnessScore,
+			FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  resp,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
+}
+
+func (s *Server) adminDeleteListing(w http.ResponseWriter, r *http.Request) {
+	token := r.PathValue("token")
+	if token == "" {
+		writeError(w, http.StatusBadRequest, "token is required")
+		return
+	}
+
+	if err := s.admin.AdminDeleteListing(r.Context(), token); err != nil {
+		s.logger.Error("admin: delete listing", "token", token, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to delete listing")
+		return
+	}
+	s.logger.Info("admin: deleted listing", "token", token)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {
+	if err := s.admin.VacuumDB(r.Context()); err != nil {
+		s.logger.Error("admin: vacuum", "error", err)
+		writeError(w, http.StatusInternalServerError, "vacuum failed")
+		return
+	}
+
+	fileSize, _ := s.admin.DBFileSize()
+	s.logger.Info("admin: vacuum complete", "size_after", humanBytes(fileSize))
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":     "ok",
+		"size_after": humanBytes(fileSize),
+		"size_bytes": fileSize,
+	})
 }
