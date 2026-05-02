@@ -217,6 +217,10 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, s.searchResponseWithListingCount(r.Context(), chatID, *created))
+
+	if s.poller != nil {
+		s.poller.TriggerPoll()
+	}
 }
 
 func (s *Server) getSearch(w http.ResponseWriter, r *http.Request) {

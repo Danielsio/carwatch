@@ -25,6 +25,10 @@ const (
 	emailKey  contextKey = "email"
 )
 
+type PollTrigger interface {
+	TriggerPoll()
+}
+
 type Server struct {
 	catalog       catalog.Catalog
 	searches      storage.SearchStore
@@ -36,11 +40,16 @@ type Server struct {
 	saved     storage.SavedListingStore
 	hidden    storage.HiddenListingStore
 	notifs    storage.NotificationStore
+	poller    PollTrigger
 	logger    *slog.Logger
 	cfg       config.APIConfig
 	startTime time.Time
 	rl        *rateLimiter
 	vacuumMu  sync.Mutex
+}
+
+func (s *Server) SetPollTrigger(p PollTrigger) {
+	s.poller = p
 }
 
 type Config struct {
