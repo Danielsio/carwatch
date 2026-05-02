@@ -341,13 +341,12 @@ func TestKmScore(t *testing.T) {
 	}{
 		{"zero km is neutral", 0, 150000, 0.5},
 		{"negative km is neutral", -1, 150000, 0.5},
-		{"low km scores high", 10000, 150000, -1},
-		{"at max km scores zero", 150000, 150000, -1},
+		{"at max km scores zero", 150000, 150000, 0.0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := kmScore(tt.km, tt.maxKm)
-			if tt.want >= 0 && got != tt.want {
+			if got != tt.want {
 				t.Errorf("kmScore(%d, %d) = %.2f, want %.2f", tt.km, tt.maxKm, got, tt.want)
 			}
 		})
