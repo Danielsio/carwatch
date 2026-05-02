@@ -5,9 +5,25 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
-	"strconv"
 	"time"
 )
+
+type adminListingResponse struct {
+	ChatID       int64    `json:"chat_id"`
+	Token        string   `json:"token"`
+	SearchName   string   `json:"search_name,omitempty"`
+	Manufacturer string   `json:"manufacturer"`
+	Model        string   `json:"model"`
+	Year         int      `json:"year"`
+	Price        int      `json:"price"`
+	Km           int      `json:"km"`
+	Hand         int      `json:"hand"`
+	City         string   `json:"city"`
+	PageLink     string   `json:"page_link"`
+	ImageURL     string   `json:"image_url,omitempty"`
+	FitnessScore *float64 `json:"fitness_score,omitempty"`
+	FirstSeenAt  string   `json:"first_seen_at"`
+}
 
 type adminStatsResponse struct {
 	DB      dbStats      `json:"db"`
@@ -116,10 +132,13 @@ func (s *Server) adminPurgeTable(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) adminListListings(w http.ResponseWriter, r *http.Request) {
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	if limit <= 0 || limit > 100 {
-		limit = 50
+	limit := parseIntParam(r, "limit", 50)
+	if limit > 100 {
+		limit = 100
+	}
+	offset := parseIntParam(r, "offset", 0)
+	if offset < 0 {
+		offset = 0
 	}
 
 	items, total, err := s.admin.AdminListListings(r.Context(), limit, offset)
@@ -129,9 +148,10 @@ func (s *Server) adminListListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := make([]listingResponse, 0, len(items))
+	resp := make([]adminListingResponse, 0, len(items))
 	for _, l := range items {
-		resp = append(resp, listingResponse{
+		resp = append(resp, adminListingResponse{
+			ChatID:       l.ChatID,
 			Token:        l.Token,
 			SearchName:   l.SearchName,
 			Manufacturer: l.Manufacturer,
@@ -163,12 +183,20 @@ func (s *Server) adminDeleteListing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.admin.AdminDeleteListing(r.Context(), token); err != nil {
-		s.logger.Error("admin: delete listing", "token", token, "error", err)
+	var body struct {
+		ChatID int64 `json:"chat_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ChatID == 0 {
+		writeError(w, http.StatusBadRequest, "chat_id is required in body")
+		return
+	}
+
+	if err := s.admin.AdminDeleteListing(r.Context(), token, body.ChatID); err != nil {
+		s.logger.Error("admin: delete listing", "token", token, "chat_id", body.ChatID, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to delete listing")
 		return
 	}
-	s.logger.Info("admin: deleted listing", "token", token)
+	s.logger.Info("admin: deleted listing", "token", token, "chat_id", body.ChatID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -179,7 +207,12 @@ func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fileSize, _ := s.admin.DBFileSize()
+	fileSize, err := s.admin.DBFileSize()
+	if err != nil {
+		s.logger.Warn("admin: vacuum succeeded but size read failed", "error", err)
+		writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+		return
+	}
 	s.logger.Info("admin: vacuum complete", "size_after", humanBytes(fileSize))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":     "ok",

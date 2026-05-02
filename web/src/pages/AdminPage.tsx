@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminStats } from "@/hooks/useAdmin";
-import { adminApi, type Listing } from "@/lib/api";
+import { adminApi, type AdminListing } from "@/lib/api";
 import { EmptyState, PageHeader, Skeleton } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
@@ -288,13 +288,14 @@ function ListingsTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["admin", "listings", page],
     queryFn: () => adminApi.listings({ limit: pageSize, offset: page * pageSize }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (token: string) => adminApi.deleteListing(token),
+    mutationFn: ({ token, chatId }: { token: string; chatId: number }) =>
+      adminApi.deleteListing(token, chatId),
     onSuccess: () => {
       toast("המודעה נמחקה", "success");
       void queryClient.invalidateQueries({ queryKey: ["admin"] });
@@ -326,17 +327,21 @@ function ListingsTab() {
               <Skeleton key={i} className="h-16 rounded-xl" />
             ))}
           </div>
+        ) : isError ? (
+          <p className="text-sm text-destructive text-center py-8">
+            שגיאה בטעינת המודעות
+          </p>
         ) : !data || data.items.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             אין מודעות
           </p>
         ) : (
           <div className="space-y-1.5">
-            {data.items.map((listing: Listing) => (
+            {data.items.map((listing) => (
               <AdminListingRow
-                key={listing.token}
+                key={`${listing.token}-${listing.chat_id}`}
                 listing={listing}
-                onDelete={(token) => deleteMutation.mutate(token)}
+                onDelete={(token, chatId) => deleteMutation.mutate({ token, chatId })}
                 deleting={deleteMutation.isPending}
               />
             ))}
@@ -376,8 +381,8 @@ function AdminListingRow({
   onDelete,
   deleting,
 }: {
-  listing: Listing;
-  onDelete: (token: string) => void;
+  listing: AdminListing;
+  onDelete: (token: string, chatId: number) => void;
   deleting: boolean;
 }) {
   const [confirm, setConfirm] = useState(false);
@@ -424,7 +429,7 @@ function AdminListingRow({
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <button
             type="button"
-            onClick={() => { onDelete(listing.token); setConfirm(false); }}
+            onClick={() => { onDelete(listing.token, listing.chat_id); setConfirm(false); }}
             disabled={deleting}
             className="rounded-md bg-destructive px-2 py-0.5 text-[11px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >

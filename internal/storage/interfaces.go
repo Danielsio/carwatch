@@ -206,7 +206,7 @@ type AdminStore interface {
 	TableSizes(ctx context.Context) (map[string]int64, error)
 	PurgeTable(ctx context.Context, table string) (int64, error)
 	AdminListListings(ctx context.Context, limit, offset int) ([]ListingRecord, int64, error)
-	AdminDeleteListing(ctx context.Context, token string) error
+	AdminDeleteListing(ctx context.Context, token string, chatID int64) error
 	VacuumDB(ctx context.Context) error
 }
 

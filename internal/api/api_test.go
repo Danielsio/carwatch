@@ -613,7 +613,7 @@ func (f *failingAdminStore) AdminListListings(_ context.Context, _, _ int) ([]st
 	return nil, 0, nil
 }
 
-func (f *failingAdminStore) AdminDeleteListing(_ context.Context, _ string) error {
+func (f *failingAdminStore) AdminDeleteListing(_ context.Context, _ string, _ int64) error {
 	return nil
 }
 

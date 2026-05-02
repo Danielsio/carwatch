@@ -226,8 +226,12 @@ export interface AdminStats {
   };
 }
 
+export interface AdminListing extends Listing {
+  chat_id: number;
+}
+
 export interface AdminListingsResponse {
-  items: Listing[];
+  items: AdminListing[];
   total: number;
   limit: number;
   offset: number;
@@ -253,8 +257,11 @@ export const adminApi = {
     const qs = query.toString();
     return fetchAPI<AdminListingsResponse>(`/admin/listings${qs ? `?${qs}` : ""}`);
   },
-  deleteListing: (token: string) =>
-    fetchAPI<void>(`/admin/listings/${encodeURIComponent(token)}`, { method: "DELETE" }),
+  deleteListing: (token: string, chatId: number) =>
+    fetchAPI<void>(`/admin/listings/${encodeURIComponent(token)}`, {
+      method: "DELETE",
+      body: JSON.stringify({ chat_id: chatId }),
+    }),
   purgeTable: (table: string) =>
     fetchAPI<PurgeResult>("/admin/purge", {
       method: "POST",

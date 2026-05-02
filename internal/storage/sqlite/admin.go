@@ -123,14 +123,18 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int) ([]sto
 			return nil, 0, fmt.Errorf("scan listing: %w", err)
 		}
 		r.FitnessScore = score
-		r.FirstSeenAt, _ = time.Parse("2006-01-02 15:04:05", firstSeen)
+		parsed, parseErr := time.Parse("2006-01-02 15:04:05", firstSeen)
+		if parseErr != nil {
+			return nil, 0, fmt.Errorf("parse first_seen_at %q for token %s: %w", firstSeen, r.Token, parseErr)
+		}
+		r.FirstSeenAt = parsed
 		items = append(items, r)
 	}
 	return items, total, rows.Err()
 }
 
-func (s *Store) AdminDeleteListing(ctx context.Context, token string) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM listing_history WHERE token = ?", token)
+func (s *Store) AdminDeleteListing(ctx context.Context, token string, chatID int64) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM listing_history WHERE token = ? AND chat_id = ?", token, chatID)
 	return err
 }
 
