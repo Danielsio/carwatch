@@ -434,6 +434,7 @@ function SearchCard({
               size="icon"
               className="h-8 w-8 text-destructive hover:bg-destructive/10"
               onClick={onDelete}
+              disabled={disabled}
               aria-label="מחק חיפוש"
             >
               <Trash2 className="h-3.5 w-3.5" />
