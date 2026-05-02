@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/api"
 	"github.com/dsionov/carwatch/internal/catalog"
@@ -78,8 +79,10 @@ func TestSmoke_FullStack(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
+	client := &http.Client{Timeout: 5 * time.Second}
+
 	t.Run("healthz returns 200", func(t *testing.T) {
-		resp, err := http.Get(srv.URL + "/healthz")
+		resp, err := client.Get(srv.URL + "/healthz")
 		if err != nil {
 			t.Fatalf("GET /healthz: %v", err)
 		}
@@ -103,7 +106,7 @@ func TestSmoke_FullStack(t *testing.T) {
 			return nil, err
 		}
 		req.Header.Set("Authorization", "Bearer "+testToken)
-		return http.DefaultClient.Do(req)
+		return client.Do(req)
 	}
 
 	t.Run("catalog manufacturers returns data", func(t *testing.T) {
@@ -126,7 +129,7 @@ func TestSmoke_FullStack(t *testing.T) {
 	})
 
 	t.Run("SPA serves index.html", func(t *testing.T) {
-		resp, err := http.Get(srv.URL + "/")
+		resp, err := client.Get(srv.URL + "/")
 		if err != nil {
 			t.Fatalf("GET /: %v", err)
 		}
@@ -141,7 +144,7 @@ func TestSmoke_FullStack(t *testing.T) {
 	})
 
 	t.Run("unauthenticated API returns 401", func(t *testing.T) {
-		resp, err := http.Get(srv.URL + "/api/v1/searches")
+		resp, err := client.Get(srv.URL + "/api/v1/searches")
 		if err != nil {
 			t.Fatalf("GET /api/v1/searches: %v", err)
 		}

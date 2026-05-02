@@ -12,6 +12,7 @@ export function useHealthCheck(): ConnectionStatus {
   useEffect(() => {
     let timer: number | undefined;
     let abortCtrl: AbortController | undefined;
+    let disposed = false;
 
     async function check() {
       abortCtrl = new AbortController();
@@ -22,12 +23,15 @@ export function useHealthCheck(): ConnectionStatus {
       try {
         const res = await fetch("/healthz", { signal: abortCtrl.signal });
         window.clearTimeout(timeout);
-        if (res.ok) {
-          const data = await res.json().catch(() => null);
+        if (disposed) return;
+
+        const data = await res.json().catch(() => null);
+        if (data?.status === "degraded") {
           consecutiveFailures.current = 0;
-          setStatus(
-            data?.status === "degraded" ? "degraded" : "connected",
-          );
+          setStatus("degraded");
+        } else if (res.ok) {
+          consecutiveFailures.current = 0;
+          setStatus("connected");
         } else {
           consecutiveFailures.current++;
           setStatus(
@@ -36,16 +40,20 @@ export function useHealthCheck(): ConnectionStatus {
         }
       } catch {
         window.clearTimeout(timeout);
+        if (disposed) return;
         consecutiveFailures.current++;
         setStatus(
           consecutiveFailures.current >= 2 ? "disconnected" : "degraded",
         );
       }
-      timer = window.setTimeout(check, POLL_INTERVAL_MS);
+      if (!disposed) {
+        timer = window.setTimeout(check, POLL_INTERVAL_MS);
+      }
     }
 
     check();
     return () => {
+      disposed = true;
       window.clearTimeout(timer);
       abortCtrl?.abort();
     };
