@@ -123,7 +123,7 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int) ([]sto
 			return nil, 0, fmt.Errorf("scan listing: %w", err)
 		}
 		r.FitnessScore = score
-		parsed, parseErr := time.Parse("2006-01-02 15:04:05", firstSeen)
+		parsed, parseErr := parseFlexibleTime(firstSeen)
 		if parseErr != nil {
 			return nil, 0, fmt.Errorf("parse first_seen_at %q for token %s: %w", firstSeen, r.Token, parseErr)
 		}
@@ -131,6 +131,22 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int) ([]sto
 		items = append(items, r)
 	}
 	return items, total, rows.Err()
+}
+
+var timeFormats = []string{
+	"2006-01-02 15:04:05",
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02T15:04:05",
+}
+
+func parseFlexibleTime(s string) (time.Time, error) {
+	for _, layout := range timeFormats {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unrecognized time format: %q", s)
 }
 
 func (s *Store) AdminDeleteListing(ctx context.Context, token string, chatID int64) error {

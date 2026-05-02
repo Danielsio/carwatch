@@ -1,0 +1,31 @@
+---
+description: Production VM access details for CarWatch deployment
+alwaysApply: true
+---
+
+# Production VM Access
+
+The CarWatch production server runs on an Oracle Cloud VM.
+
+- **IP:** 129.159.142.247
+- **User:** ubuntu
+- **SSH key:** ~/Downloads/ssh-key-2026-04-20.key
+- **App dir:** /home/ubuntu/carwatch
+- **Config:** /home/ubuntu/carwatch/config.yaml
+- **Domain:** carwatch.duckdns.org
+
+## Quick SSH
+
+```bash
+ssh -i ~/Downloads/ssh-key-2026-04-20.key ubuntu@129.159.142.247
+```
+
+## Makefile targets
+
+All `make vm-*` targets use the defaults above automatically:
+
+- `make vm-ssh` — interactive shell
+- `make vm-logs` — tail container logs
+- `make vm-restart` — restart the container
+- `make vm-status` — show container status
+- `make vm-deploy` — pull and recreate the container
