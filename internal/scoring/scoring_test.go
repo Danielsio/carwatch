@@ -332,26 +332,34 @@ func TestFitnessScoreDetailed_NoPriceDim(t *testing.T) {
 	}
 }
 
-func TestKmScore_UnknownIsNeutral(t *testing.T) {
-	got := kmScore(0, 150000)
-	if got != 0.5 {
-		t.Errorf("kmScore(0, 150000) = %.2f, want 0.5 (neutral for unknown)", got)
+func TestKmScore(t *testing.T) {
+	tests := []struct {
+		name  string
+		km    int
+		maxKm int
+		want  float64
+	}{
+		{"zero km is neutral", 0, 150000, 0.5},
+		{"negative km is neutral", -1, 150000, 0.5},
+		{"low km scores high", 10000, 150000, -1},
+		{"at max km scores zero", 150000, 150000, -1},
 	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := kmScore(tt.km, tt.maxKm)
+			if tt.want >= 0 && got != tt.want {
+				t.Errorf("kmScore(%d, %d) = %.2f, want %.2f", tt.km, tt.maxKm, got, tt.want)
+			}
+		})
+	}
 
-func TestKmScore_NegativeIsNeutral(t *testing.T) {
-	got := kmScore(-1, 150000)
-	if got != 0.5 {
-		t.Errorf("kmScore(-1, 150000) = %.2f, want 0.5 (neutral for unknown)", got)
-	}
-}
-
-func TestKmScore_KnownLowBeatsUnknown(t *testing.T) {
-	low := kmScore(10000, 150000)
-	unknown := kmScore(0, 150000)
-	if low <= unknown {
-		t.Errorf("low-km listing (%.3f) should score higher than unknown-km (%.3f)", low, unknown)
-	}
+	t.Run("known low beats unknown", func(t *testing.T) {
+		low := kmScore(10000, 150000)
+		unknown := kmScore(0, 150000)
+		if low <= unknown {
+			t.Errorf("low-km (%.3f) should score higher than unknown-km (%.3f)", low, unknown)
+		}
+	})
 }
 
 func TestFitnessScore_NonLinearKm(t *testing.T) {
