@@ -8,6 +8,8 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
+const firstSeenAtLayout = "2006-01-02 15:04:05.000000"
+
 func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO listing_history
@@ -22,7 +24,7 @@ func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error 
 			image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE listing_history.image_url END,
 			fitness_score = excluded.fitness_score`,
 		r.Token, r.ChatID, r.SearchID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
-		r.Km, r.Hand, r.City, r.PageLink, r.ImageURL, r.FitnessScore, r.FirstSeenAt.UTC().Format("2006-01-02 15:04:05.000000"))
+		r.Km, r.Hand, r.City, r.PageLink, r.ImageURL, r.FitnessScore, r.FirstSeenAt.UTC().Format(firstSeenAtLayout))
 	if err != nil {
 		return err
 	}
@@ -88,7 +90,7 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 	for _, r := range records {
 		if _, err := listingStmt.ExecContext(ctx,
 			r.Token, r.ChatID, r.SearchID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
-			r.Km, r.Hand, r.City, r.PageLink, r.ImageURL, r.FitnessScore, r.FirstSeenAt.UTC().Format("2006-01-02 15:04:05.000000")); err != nil {
+			r.Km, r.Hand, r.City, r.PageLink, r.ImageURL, r.FitnessScore, r.FirstSeenAt.UTC().Format(firstSeenAtLayout)); err != nil {
 			return err
 		}
 		if r.Manufacturer != "" && r.Model != "" && r.Year > 0 && r.Price > 0 {
