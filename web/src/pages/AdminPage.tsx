@@ -36,7 +36,19 @@ const TABLE_LABELS: Record<string, string> = {
   pending_digest: "תקצירים ממתינים",
 };
 
-const NON_PURGEABLE = new Set(["users", "searches", "catalog"]);
+const PURGEABLE = new Set([
+  "listing_history",
+  "price_history",
+  "dedup_seen",
+  "seen_listings",
+  "notifications",
+  "pending_notifications",
+  "market_cache",
+  "catalog_cache",
+  "saved_listings",
+  "hidden_listings",
+  "pending_digest",
+]);
 
 export function AdminPage() {
   const { data, isLoading, isError, dataUpdatedAt, refetch } = useAdminStats();
@@ -203,7 +215,7 @@ function StatsTab({
           {Object.entries(data.tables)
             .sort(([, a], [, b]) => b - a)
             .map(([table, count]) => {
-              const canPurge = !NON_PURGEABLE.has(table) && count > 0;
+              const canPurge = PURGEABLE.has(table) && count > 0;
               const isConfirming = confirmPurge === table;
 
               return (
