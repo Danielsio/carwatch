@@ -65,7 +65,7 @@ export function SearchesPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-8 animate-fade-in">
+      <div className="space-y-8 animate-fade-in motion-reduce:animate-none">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
             <Skeleton className="h-8 w-40" />
@@ -333,8 +333,9 @@ function SearchCard({
             <span
               className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold tabular-nums text-primary ring-1 ring-primary/20"
               title="מספר מודעות שנמצאו בחיפוש"
+              aria-label={`מספר מודעות: ${search.listings_count!.toLocaleString("he-IL")}`}
             >
-              <Car className="h-3 w-3" />
+              <Car className="h-3 w-3" aria-hidden />
               {search.listings_count!.toLocaleString("he-IL")}
             </span>
           )}
