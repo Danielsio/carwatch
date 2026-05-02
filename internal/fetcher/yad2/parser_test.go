@@ -245,6 +245,56 @@ func TestTextFromField_PrefersEnglish(t *testing.T) {
 	}
 }
 
+func TestParseNextData_CityEnglishTextFallback(t *testing.T) {
+	data := []byte(`{
+		"props": {"pageProps": {"dehydratedState": {"queries": [{"state": {"data": {
+			"private": [
+				{"token": "eng-city", "manufacturer": {"text": "Honda"}, "model": {"text": "Civic"}, "price": 50000, "hand": 1,
+				 "address": {"city": {"text": "", "english_text": "Tel Aviv", "id": 5000}, "area": {"text": "", "english_text": "Center", "id": 2}}}
+			]
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].City != "Tel Aviv" {
+		t.Errorf("city = %q, want 'Tel Aviv' (english_text fallback)", listings[0].City)
+	}
+	if listings[0].Area != "Center" {
+		t.Errorf("area = %q, want 'Center' (english_text fallback)", listings[0].Area)
+	}
+}
+
+func TestParseNextData_CityTextEngFallback(t *testing.T) {
+	data := []byte(`{
+		"props": {"pageProps": {"dehydratedState": {"queries": [{"state": {"data": {
+			"private": [
+				{"token": "eng2-city", "manufacturer": {"text": "Honda"}, "model": {"text": "Civic"}, "price": 50000, "hand": 1,
+				 "address": {"city": {"text": "", "textEng": "Haifa", "id": 4000}, "area": {"text": "", "textEng": "North", "id": 4}}}
+			]
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].City != "Haifa" {
+		t.Errorf("city = %q, want 'Haifa' (textEng fallback)", listings[0].City)
+	}
+	if listings[0].Area != "North" {
+		t.Errorf("area = %q, want 'North' (textEng fallback)", listings[0].Area)
+	}
+}
+
 func TestParseNextData_DeduplicatesAcrossBuckets(t *testing.T) {
 	data := []byte(`{
 		"props": {"pageProps": {"dehydratedState": {"queries": [{"state": {"data": {
