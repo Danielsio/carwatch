@@ -134,6 +134,8 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int) ([]sto
 }
 
 var timeFormats = []string{
+	"2006-01-02 15:04:05.999999999",
+	"2006-01-02 15:04:05.999999999-07:00",
 	"2006-01-02 15:04:05",
 	time.RFC3339Nano,
 	time.RFC3339,
