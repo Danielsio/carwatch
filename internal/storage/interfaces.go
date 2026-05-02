@@ -6,7 +6,12 @@ import (
 	"time"
 )
 
-var ErrNotFound = errors.New("not found")
+var (
+	ErrNotFound          = errors.New("not found")
+	ErrLinkTokenNotFound = errors.New("link token not found")
+	ErrLinkTokenExpired  = errors.New("link token expired")
+	ErrLinkTokenUsed     = errors.New("link token already used")
+)
 
 type User struct {
 	ChatID       int64
@@ -59,6 +64,13 @@ type UserStore interface {
 	SetUserTier(ctx context.Context, chatID int64, tier string, expires time.Time) error
 	GrantTrial(ctx context.Context, chatID int64, duration time.Duration) error
 	ListExpiredPremium(ctx context.Context) ([]User, error)
+	LinkTelegramToWeb(ctx context.Context, telegramChatID, webChatID int64) error
+	GetLinkedTelegramUser(ctx context.Context, webChatID int64) (*User, error)
+}
+
+type LinkTokenStore interface {
+	CreateLinkToken(ctx context.Context, webChatID int64) (string, error)
+	ConsumeLinkToken(ctx context.Context, token string) (int64, error)
 }
 
 type SearchStore interface {

@@ -129,6 +129,7 @@ func run(configPath string, logger *slog.Logger) error {
 		Hidden:       store,
 		DailyDigests: store,
 		Catalog:      dynCatalog,
+		LinkTokens:   store,
 	}, logger)
 
 	tgNotif, err := telegram.New(cfg.Telegram.Token, logger,
@@ -169,6 +170,7 @@ func run(configPath string, logger *slog.Logger) error {
 		Searches: store,
 		Listings: store,
 		Users:    store,
+		LinkTokens: store,
 		Prices:   store,
 		Admin:    store,
 		Saved:    store,
@@ -177,6 +179,7 @@ func run(configPath string, logger *slog.Logger) error {
 		Logger:   logger,
 		API:      cfg.API,
 		FirebaseAuth: firebaseAuth,
+		BotUsername:  cfg.Telegram.BotUsername,
 	})
 
 	mux := http.NewServeMux()

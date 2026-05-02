@@ -75,6 +75,10 @@ func (m *errUserStore) UpsertWhatsAppUser(_ context.Context, _ string) (int64, e
 }
 func (m *errUserStore) UpsertWebUser(_ context.Context, _, _ string) (int64, error) { return 0, nil }
 func (m *errUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error { return nil }
+func (m *errUserStore) LinkTelegramToWeb(_ context.Context, _, _ int64) error         { return nil }
+func (m *errUserStore) GetLinkedTelegramUser(_ context.Context, _ int64) (*storage.User, error) {
+	return nil, nil
+}
 
 // errSearchStore implements SearchStore and returns errors.
 type errSearchStore struct {

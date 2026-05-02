@@ -271,4 +271,20 @@ export const adminApi = {
     fetchAPI<VacuumResult>("/admin/vacuum", { method: "POST" }),
 };
 
+export interface TelegramLinkResponse {
+  link: string;
+  expires_in_seconds: number;
+}
+
+export interface TelegramStatus {
+  connected: boolean;
+  telegram_username: string | null;
+}
+
+export const telegramApi = {
+  status: () => fetchAPI<TelegramStatus>("/telegram/status"),
+  createLink: () =>
+    fetchAPI<TelegramLinkResponse>("/telegram/link", { method: "POST" }),
+};
+
 export { ApiError };

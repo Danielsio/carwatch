@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/format"
 	"github.com/dsionov/carwatch/internal/locale"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 // --- Command Handlers ---
@@ -24,6 +26,10 @@ func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) == 2 && strings.HasPrefix(parts[1], "share_") {
 		b.handleShareStart(ctx, chatID, parts[1])
+		return
+	}
+	if len(parts) == 2 && strings.HasPrefix(parts[1], "link_") {
+		b.handleLinkStart(ctx, chatID, parts[1])
 		return
 	}
 
@@ -118,6 +124,39 @@ func (b *Bot) handleShareStart(ctx context.Context, chatID int64, param string) 
 	}
 
 	b.sendWithKeyboard(ctx, chatID, summary, kb)
+}
+
+func (b *Bot) handleLinkStart(ctx context.Context, telegramChatID int64, param string) {
+	if b.linkTokens == nil {
+		b.logger.Warn("link deep link: link token store not configured")
+		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+		return
+	}
+
+	token := strings.TrimPrefix(param, "link_")
+	if len(token) == 0 || len(token) > 64 {
+		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+		return
+	}
+
+	webChatID, err := b.linkTokens.ConsumeLinkToken(ctx, token)
+	if err != nil {
+		if errors.Is(err, storage.ErrLinkTokenNotFound) || errors.Is(err, storage.ErrLinkTokenExpired) || errors.Is(err, storage.ErrLinkTokenUsed) {
+			b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+			return
+		}
+		b.logger.Error("consume link token", "error", err)
+		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+		return
+	}
+
+	if err := b.users.LinkTelegramToWeb(ctx, telegramChatID, webChatID); err != nil {
+		b.logger.Error("link telegram to web", "telegram_chat_id", telegramChatID, "web_chat_id", webChatID, "error", err)
+		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+		return
+	}
+
+	b.send(ctx, telegramChatID, "✅ חשבון הטלגרם חובר בהצלחה!")
 }
 
 func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {

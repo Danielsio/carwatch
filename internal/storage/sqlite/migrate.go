@@ -512,5 +512,29 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("create listing_history search_id index: %w", err)
 	}
 
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS link_tokens (
+			token       TEXT PRIMARY KEY,
+			web_chat_id INTEGER NOT NULL,
+			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+			expires_at  DATETIME NOT NULL,
+			used        INTEGER DEFAULT 0
+		)
+	`); err != nil {
+		return fmt.Errorf("create link_tokens: %w", err)
+	}
+
+	var hasLinkedWebID int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('users') WHERE name = 'linked_web_id'",
+	).Scan(&hasLinkedWebID); err != nil {
+		return fmt.Errorf("check users linked_web_id: %w", err)
+	}
+	if hasLinkedWebID == 0 {
+		if _, err := db.Exec("ALTER TABLE users ADD COLUMN linked_web_id INTEGER"); err != nil {
+			return fmt.Errorf("add linked_web_id column: %w", err)
+		}
+	}
+
 	return nil
 }
