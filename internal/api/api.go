@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	fbauth "firebase.google.com/go/v4/auth"
@@ -39,6 +40,7 @@ type Server struct {
 	cfg       config.APIConfig
 	startTime time.Time
 	rl        *rateLimiter
+	vacuumMu  sync.Mutex
 }
 
 type Config struct {

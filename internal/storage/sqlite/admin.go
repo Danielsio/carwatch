@@ -139,6 +139,14 @@ func (s *Store) AdminDeleteListing(ctx context.Context, token string, chatID int
 }
 
 func (s *Store) VacuumDB(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, "VACUUM")
-	return err
+	if _, err := s.db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return fmt.Errorf("wal checkpoint: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, "VACUUM"); err != nil {
+		return fmt.Errorf("vacuum: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return fmt.Errorf("post-vacuum wal checkpoint: %w", err)
+	}
+	return nil
 }
