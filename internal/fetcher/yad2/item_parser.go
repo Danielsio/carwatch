@@ -14,6 +14,8 @@ var itemNextDataRe = regexp.MustCompile(`(?is)<script[^>]*\bid=["']__NEXT_DATA__
 type ItemDetails struct {
 	Km       int
 	ImageURL string
+	City     string
+	Area     string
 }
 
 // ParseItemPage extracts listing details (primarily km) from a Yad2 item page.
@@ -102,14 +104,35 @@ type itemPageData struct {
 	Km         int    `json:"km"`
 	Kilometer  int    `json:"kilometer"`
 	CoverImage string `json:"coverImage"`
+	Address    struct {
+		City struct {
+			Text    string `json:"text"`
+			TextEng string `json:"textEng"`
+		} `json:"city"`
+		Area struct {
+			Text    string `json:"text"`
+			TextEng string `json:"textEng"`
+		} `json:"area"`
+	} `json:"address"`
 }
 
 func detailsFromPageData(d itemPageData) (ItemDetails, bool) {
 	details := ItemDetails{
 		Km:       effectiveKm(d),
 		ImageURL: d.CoverImage,
+		City:     firstNonEmpty(d.Address.City.TextEng, d.Address.City.Text),
+		Area:     firstNonEmpty(d.Address.Area.TextEng, d.Address.Area.Text),
 	}
-	return details, details.Km > 0 || details.ImageURL != ""
+	return details, details.Km > 0 || details.ImageURL != "" || details.City != ""
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func effectiveKm(d itemPageData) int {

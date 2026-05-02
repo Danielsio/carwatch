@@ -47,7 +47,8 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 	for i := range listings {
 		needsKm := listings[i].Km <= 0
 		needsImg := listings[i].ImageURL == ""
-		if !needsKm && !needsImg {
+		needsCity := listings[i].City == ""
+		if !needsKm && !needsImg && !needsCity {
 			continue
 		}
 		if attempts >= e.cfg.MaxPerCycle {
@@ -92,11 +93,19 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			listings[i].ImageURL = details.ImageURL
 			changed = true
 		}
+		if needsCity && details.City != "" {
+			listings[i].City = details.City
+			changed = true
+		}
+		if listings[i].Area == "" && details.Area != "" {
+			listings[i].Area = details.Area
+		}
 		if changed {
 			enriched++
 			e.logger.Debug("enriched listing",
 				"token", listings[i].Token,
 				"km", details.Km,
+				"city", details.City,
 				"image", details.ImageURL != "",
 			)
 		}

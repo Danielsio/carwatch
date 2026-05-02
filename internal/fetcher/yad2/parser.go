@@ -171,7 +171,7 @@ func itemToListing(raw json.RawMessage) (model.RawListing, error) {
 		Price:        item.Price,
 		Description:  item.MetaData.Description,
 		ImageURL:     item.MetaData.CoverImage,
-		PageLink:     fmt.Sprintf("https://www.yad2.co.il/item/%s", item.Token),
+		PageLink:     fmt.Sprintf("https://www.yad2.co.il/vehicles/item/%s", item.Token),
 	}
 
 	listing.City = textFromField(item.Address.City)

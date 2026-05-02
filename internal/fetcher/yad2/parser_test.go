@@ -63,7 +63,7 @@ func TestParseListingsPage_ValidHTML(t *testing.T) {
 	if l.Price != 95000 {
 		t.Errorf("price = %d, want 95000", l.Price)
 	}
-	if l.PageLink != "https://www.yad2.co.il/item/test-token-1" {
+	if l.PageLink != "https://www.yad2.co.il/vehicles/item/test-token-1" {
 		t.Errorf("link = %q", l.PageLink)
 	}
 }
@@ -292,6 +292,60 @@ func TestParseNextData_CityTextEngFallback(t *testing.T) {
 	}
 	if listings[0].Area != "North" {
 		t.Errorf("area = %q, want 'North' (textEng fallback)", listings[0].Area)
+	}
+}
+
+func TestParseNextData_NewFeedFormat(t *testing.T) {
+	data := []byte(`{
+		"props": {"pageProps": {"dehydratedState": {"queries": [{"state": {"data": {
+			"private": [
+				{"token": "new-fmt-1",
+				 "manufacturer": {"id": 17, "text": "הונדה"},
+				 "model": {"id": 10182, "text": "סיוויק"},
+				 "subModel": {"id": 103617, "text": "Sport אוט׳ 1.8"},
+				 "vehicleDates": {"yearOfProduction": 2010},
+				 "engineType": {"id": 1101, "text": "בנזין"},
+				 "engineVolume": 1799,
+				 "hand": {"id": 2, "text": "יד שניה"},
+				 "price": 16200,
+				 "address": {"area": {"id": 91, "text": "אזור נצרת"}},
+				 "metaData": {"coverImage": "https://img.yad2.co.il/test.jpg"}}
+			]
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+
+	l := listings[0]
+	if l.Manufacturer != "הונדה" {
+		t.Errorf("manufacturer = %q, want Hebrew fallback", l.Manufacturer)
+	}
+	if l.ManufacturerID != 17 {
+		t.Errorf("manufacturer_id = %d, want 17", l.ManufacturerID)
+	}
+	if l.Year != 2010 {
+		t.Errorf("year = %d, want 2010 (from vehicleDates)", l.Year)
+	}
+	if l.EngineVolume != 1799 {
+		t.Errorf("engine = %f, want 1799 (from engineVolume)", l.EngineVolume)
+	}
+	if l.Km != 0 {
+		t.Errorf("km = %d, want 0 (not in new feed format)", l.Km)
+	}
+	if l.Hand != 2 {
+		t.Errorf("hand = %d, want 2 (from field object)", l.Hand)
+	}
+	if l.City != "" {
+		t.Errorf("city = %q, want empty (not in feed)", l.City)
+	}
+	if l.Area != "אזור נצרת" {
+		t.Errorf("area = %q, want Hebrew area text", l.Area)
 	}
 }
 
