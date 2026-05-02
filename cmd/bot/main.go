@@ -227,6 +227,7 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 
 	botHandler.SetPollTrigger(sched)
+	apiServer.SetPollTrigger(sched)
 	botHandler.StartCleanup(ctx)
 
 	go tgNotif.Bot().Start(ctx)
