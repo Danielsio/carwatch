@@ -127,41 +127,43 @@ func (b *Bot) handleShareStart(ctx context.Context, chatID int64, param string) 
 }
 
 func (b *Bot) handleLinkStart(ctx context.Context, telegramChatID int64, param string) {
+	lang := b.getUserLang(ctx, telegramChatID)
+
 	if b.linkTokens == nil {
 		b.logger.Warn("link deep link: link token store not configured")
-		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+		b.send(ctx, telegramChatID, locale.T(lang, "link_expired"))
 		return
 	}
 	if telegramChatID <= 0 {
 		b.logger.Warn("link deep link: non-private chat", "chat_id", telegramChatID)
-		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+		b.send(ctx, telegramChatID, locale.T(lang, "link_expired"))
 		return
 	}
 
 	token := strings.TrimPrefix(param, "link_")
 	if len(token) != 32 || !isLowerHex(token) {
-		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+		b.send(ctx, telegramChatID, locale.T(lang, "link_expired"))
 		return
 	}
 
 	webChatID, err := b.linkTokens.ConsumeLinkToken(ctx, token)
 	if err != nil {
 		if errors.Is(err, storage.ErrLinkTokenNotFound) || errors.Is(err, storage.ErrLinkTokenExpired) || errors.Is(err, storage.ErrLinkTokenUsed) {
-			b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+			b.send(ctx, telegramChatID, locale.T(lang, "link_expired"))
 			return
 		}
 		b.logger.Error("consume link token", "error", err)
-		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+		b.send(ctx, telegramChatID, locale.T(lang, "link_expired"))
 		return
 	}
 
 	if err := b.users.LinkTelegramToWeb(ctx, telegramChatID, webChatID); err != nil {
 		b.logger.Error("link telegram to web", "telegram_chat_id", telegramChatID, "web_chat_id", webChatID, "error", err)
-		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+		b.send(ctx, telegramChatID, locale.T(lang, "link_expired"))
 		return
 	}
 
-	b.send(ctx, telegramChatID, "✅ חשבון הטלגרם חובר בהצלחה!")
+	b.send(ctx, telegramChatID, locale.T(lang, "link_success"))
 }
 
 func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {

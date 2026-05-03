@@ -13,7 +13,10 @@ const defaultBaseURL = "https://www.winwin.co.il/vehicles/cars"
 // TODO: Reverse-engineer the actual WinWin URL structure and query parameters.
 // The parameters below are placeholders based on common patterns.
 func buildURL(base string, params model.SourceParams) string {
-	u, _ := url.Parse(base)
+	u, err := url.Parse(base)
+	if err != nil {
+		u = &url.URL{Path: base}
+	}
 	v := url.Values{}
 
 	if params.Manufacturer > 0 {

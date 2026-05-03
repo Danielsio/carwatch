@@ -61,10 +61,10 @@ func migrate(db *sql.DB) error {
 		);
 
 		CREATE TABLE IF NOT EXISTS price_history (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			token TEXT NOT NULL,
 			price INTEGER NOT NULL,
-			observed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (token, price)
+			observed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 
 		CREATE TABLE IF NOT EXISTS listing_history (
@@ -387,6 +387,10 @@ func migrate(db *sql.DB) error {
 				return fmt.Errorf("scan search id: %w", err)
 			}
 			ids = append(ids, id)
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("iterate searches for share_token backfill: %w", err)
 		}
 		_ = rows.Close()
 		for _, id := range ids {

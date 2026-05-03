@@ -165,7 +165,7 @@ func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID i
 	case "price_desc":
 		orderBy = "price DESC, token DESC"
 	case "score":
-		orderBy = "fitness_score DESC NULLS LAST, token DESC"
+		orderBy = "CASE WHEN fitness_score IS NULL THEN 1 ELSE 0 END, fitness_score DESC, token DESC"
 	case "km":
 		orderBy = "km ASC, token DESC"
 	case "year":
