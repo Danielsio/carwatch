@@ -114,13 +114,21 @@ func (d *DynamicCatalog) rebuildSlices() {
 func (d *DynamicCatalog) Manufacturers() []Entry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.mfrs
+	result := make([]Entry, len(d.mfrs))
+	copy(result, d.mfrs)
+	return result
 }
 
 func (d *DynamicCatalog) Models(manufacturerID int) []Entry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.models[manufacturerID]
+	src := d.models[manufacturerID]
+	if src == nil {
+		return nil
+	}
+	result := make([]Entry, len(src))
+	copy(result, src)
+	return result
 }
 
 func (d *DynamicCatalog) ManufacturerName(id int) string {

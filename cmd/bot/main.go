@@ -76,6 +76,7 @@ func run(configPath string, logger *slog.Logger) error {
 
 	dynCatalog := catalog.NewDynamic(logger)
 	dynCatalog.Load(context.Background())
+	logger.Info("dynamic catalog loaded")
 
 	yad2Fetcher, cachingFetcher, fetcherFactory, err := buildFetchers(cfg, logger)
 	if err != nil {

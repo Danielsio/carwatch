@@ -175,7 +175,10 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 }
 
 func buildURL(base string, params model.SourceParams) string {
-	u, _ := url.Parse(base)
+	u, err := url.Parse(base)
+	if err != nil {
+		u = &url.URL{Path: base}
+	}
 	v := url.Values{}
 
 	if params.Manufacturer > 0 {

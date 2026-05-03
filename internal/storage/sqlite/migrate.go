@@ -61,10 +61,10 @@ func migrate(db *sql.DB) error {
 		);
 
 		CREATE TABLE IF NOT EXISTS price_history (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			token TEXT NOT NULL,
 			price INTEGER NOT NULL,
-			observed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (token, price)
+			observed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 
 		CREATE TABLE IF NOT EXISTS listing_history (
@@ -388,7 +388,15 @@ func migrate(db *sql.DB) error {
 			}
 			ids = append(ids, id)
 		}
-		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			if closeErr := rows.Close(); closeErr != nil {
+				return fmt.Errorf("close rows after iteration error: %w (iteration: %v)", closeErr, err)
+			}
+			return fmt.Errorf("iterate searches for share_token backfill: %w", err)
+		}
+		if err := rows.Close(); err != nil {
+			return fmt.Errorf("close rows after share_token backfill: %w", err)
+		}
 		for _, id := range ids {
 			token, err := generateShareToken()
 			if err != nil {
@@ -397,6 +405,31 @@ func migrate(db *sql.DB) error {
 			if _, err := db.Exec("UPDATE searches SET share_token = ? WHERE id = ?", token, id); err != nil {
 				return fmt.Errorf("backfill share_token for id %d: %w", id, err)
 			}
+		}
+	}
+
+	// Migrate price_history: rewrite table to use autoincrement PK instead of (token, price).
+	var hasPriceHistoryID int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('price_history') WHERE name = 'id'",
+	).Scan(&hasPriceHistoryID); err != nil {
+		return fmt.Errorf("check price_history id: %w", err)
+	}
+	if hasPriceHistoryID == 0 {
+		if _, err := db.Exec(`
+			CREATE TABLE price_history_v2 (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				token TEXT NOT NULL,
+				price INTEGER NOT NULL,
+				observed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			);
+			INSERT INTO price_history_v2 (token, price, observed_at)
+			SELECT token, price, observed_at
+			FROM price_history;
+			DROP TABLE price_history;
+			ALTER TABLE price_history_v2 RENAME TO price_history;
+		`); err != nil {
+			return fmt.Errorf("migrate price_history: %w", err)
 		}
 	}
 

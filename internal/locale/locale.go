@@ -163,6 +163,12 @@ var he = map[string]string{
 	"share_copy_failed":    "העתקת חיפוש נכשלה. אנא נסה שוב.",
 	"share_copy_success":   "חיפוש #%d נשמר! אבדוק %s כל %s ואשלח לך מודעות חדשות.\n\nהשתמש ב /list כדי לראות את החיפושים שלך.",
 	"share_copy_btn":       "העתק חיפוש זה",
+
+	// /start link_
+	"link_expired": "❌ הקישור פג תוקף. נסה שוב מהאתר.",
+	"link_error":   "❌ אירעה שגיאה. נסה שוב מאוחר יותר.",
+	"link_success": "✅ חשבון הטלגרם חובר בהצלחה!",
+
 	"share_summary": "*חיפוש משותף:*\n" +
 		"רכב: %s %s\n" +
 		"שנים: %d–%d\n" +
@@ -489,6 +495,12 @@ var en = map[string]string{
 	"share_copy_failed":    "Failed to copy search. Please try again.",
 	"share_copy_success":   "Search #%d saved! I'll check %s every %s and send you new listings.\n\nUse /list to see your searches.",
 	"share_copy_btn":       "Copy this search",
+
+	// /start link_
+	"link_expired": "❌ The link has expired. Try again from the website.",
+	"link_error":   "❌ An error occurred. Please try again later.",
+	"link_success": "✅ Telegram account linked successfully!",
+
 	"share_summary": "*Shared search:*\n" +
 		"Car: %s %s\n" +
 		"Year: %d–%d\n" +

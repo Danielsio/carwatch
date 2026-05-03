@@ -13,7 +13,7 @@ func (s *Store) MarketListings(ctx context.Context) ([]storage.MarketListing, er
 		WHERE manufacturer IS NOT NULL AND manufacturer != ''
 		  AND model IS NOT NULL AND model != ''
 		  AND year > 0 AND price > 0
-		GROUP BY token`)
+		  AND rowid IN (SELECT MAX(rowid) FROM listing_history GROUP BY token)`)
 	if err != nil {
 		return nil, err
 	}

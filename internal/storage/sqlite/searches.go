@@ -187,9 +187,8 @@ func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error 
 	if _, err := tx.ExecContext(ctx,
 		"DELETE FROM pending_notifications WHERE search_name = ? AND recipient = ?",
 		searchName, recipientStr); err != nil {
-		return fmt.Errorf("delete pending_notifications: %w", err)
+		return fmt.Errorf("delete pending_notifications by name: %w", err)
 	}
-
 	if _, err := tx.ExecContext(ctx,
 		"DELETE FROM searches WHERE id = ? AND chat_id = ?",
 		id, chatID); err != nil {

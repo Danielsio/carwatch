@@ -6,6 +6,8 @@ import (
 	"io"
 	"regexp"
 	"strings"
+
+	"github.com/dsionov/carwatch/internal/fetcher"
 )
 
 var itemNextDataRe = regexp.MustCompile(`(?is)<script[^>]*\bid=["']__NEXT_DATA__["'][^>]*>(.*?)</script>`)
@@ -27,7 +29,7 @@ func ParseItemPage(body io.Reader) (ItemDetails, error) {
 	html := string(raw)
 
 	if strings.Contains(html, challengeMarker) {
-		return ItemDetails{}, fmt.Errorf("yad2 item: challenge page")
+		return ItemDetails{}, fetcher.ErrChallenge
 	}
 
 	matches := itemNextDataRe.FindStringSubmatch(html)
