@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,12 +56,14 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 		Searches: store,
 		Listings: store,
 		Users:    store,
+		LinkTokens: store,
 		Prices:   store,
 		Admin:    store,
 		Saved:    store,
 		Hidden:   store,
 		Notifs:   store,
 		Logger:   slog.Default(),
+		BotUsername: "carwatch_test_bot",
 		API: config.APIConfig{
 			CORSOrigins: []string{"http://localhost:5173"},
 			DevChatID:   999,
@@ -73,6 +76,70 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 	}
 
 	return srv, store
+}
+
+func TestTelegramLinkAndStatus(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	w := doRequest(t, srv, "GET", "/api/v1/telegram/status", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", w.Code, w.Body.String())
+	}
+	var st map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &st); err != nil {
+		t.Fatal(err)
+	}
+	if connected, _ := st["connected"].(bool); connected {
+		t.Fatalf("expected not connected, got %v", st)
+	}
+
+	w = doRequest(t, srv, "POST", "/api/v1/telegram/link", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("link: %d %s", w.Code, w.Body.String())
+	}
+	var linkResp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &linkResp); err != nil {
+		t.Fatal(err)
+	}
+	link, _ := linkResp["link"].(string)
+	wantPrefix := "https://t.me/carwatch_test_bot?start=link_"
+	if !strings.HasPrefix(link, wantPrefix) {
+		t.Fatalf("link: %s", link)
+	}
+	if exp, ok := linkResp["expires_in_seconds"].(float64); !ok || int(exp) != 900 {
+		t.Fatalf("expires_in_seconds: %v", linkResp["expires_in_seconds"])
+	}
+
+	rawToken := strings.TrimPrefix(link, wantPrefix)
+	webID, err := store.ConsumeLinkToken(ctx, rawToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if webID != 999 {
+		t.Fatalf("web chat id: %d", webID)
+	}
+
+	if err := store.UpsertUser(ctx, 42, "tguser"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.LinkTelegramToWeb(ctx, 42, 999); err != nil {
+		t.Fatal(err)
+	}
+
+	w = doRequest(t, srv, "GET", "/api/v1/telegram/status", nil)
+	if w.Code != http.StatusOK {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &st); err != nil {
+		t.Fatal(err)
+	}
+	if connected, _ := st["connected"].(bool); !connected {
+		t.Fatalf("expected connected: %v", st)
+	}
+	if st["telegram_username"] != "tguser" {
+		t.Fatalf("username: %v", st)
+	}
 }
 
 func doRequest(t *testing.T, srv *Server, method, path string, body any) *httptest.ResponseRecorder {

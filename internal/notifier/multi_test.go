@@ -62,6 +62,12 @@ func (f *fakeUserStore) GetUser(_ context.Context, chatID int64) (*storage.User,
 	return u, nil
 }
 
+func (f *fakeUserStore) LinkTelegramToWeb(_ context.Context, _, _ int64) error { return nil }
+
+func (f *fakeUserStore) GetLinkedTelegramUser(_ context.Context, _ int64) (*storage.User, error) {
+	return nil, nil
+}
+
 func TestMultiNotifier_RoutesToCorrectChannel(t *testing.T) {
 	tg := &fakeNotifier{name: "telegram"}
 	wa := &fakeNotifier{name: "whatsapp"}

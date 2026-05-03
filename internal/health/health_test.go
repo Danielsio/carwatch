@@ -117,6 +117,37 @@ type stubSearchCounter struct{ n int64 }
 
 func (s *stubSearchCounter) CountAllSearches(_ context.Context) (int64, error) { return s.n, nil }
 
+type stubDBSizer struct{ n int64 }
+
+func (s *stubDBSizer) DBSizeBytes() (int64, error) { return s.n, nil }
+
+func TestStatus_WithDBSizer(t *testing.T) {
+	s := New()
+	s.SetDBSizer(&stubDBSizer{n: 41943040})
+	s.RecordSuccess()
+
+	snap := s.Snapshot()
+
+	if snap["db_size_bytes"].(int64) != 41943040 {
+		t.Errorf("db_size_bytes = %v, want 41943040", snap["db_size_bytes"])
+	}
+	mb := snap["db_size_mb"].(float64)
+	if mb < 39.9 || mb > 40.1 {
+		t.Errorf("db_size_mb = %v, want ~40.0", mb)
+	}
+}
+
+func TestStatus_WithoutDBSizer(t *testing.T) {
+	s := New()
+	s.RecordSuccess()
+
+	snap := s.Snapshot()
+
+	if _, ok := snap["db_size_bytes"]; ok {
+		t.Error("db_size_bytes should not be present without DBSizer")
+	}
+}
+
 func TestStatus_WithStoreCounters(t *testing.T) {
 	s := New()
 	s.SetUserCounter(&stubUserCounter{n: 42})

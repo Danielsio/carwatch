@@ -86,6 +86,7 @@ func run(configPath string, logger *slog.Logger) error {
 	h.SetVersion(version)
 	h.SetUserCounter(store)
 	h.SetSearchCounter(store)
+	h.SetDBSizer(store)
 
 	botHandler, tgNotif, multi, err := buildBot(cfg, store, dynCatalog, h, logger)
 	if err != nil {
@@ -201,6 +202,7 @@ func buildBot(cfg *config.Config, store *sqlite.Store, dynCatalog *catalog.Dynam
 		Hidden:       store,
 		DailyDigests: store,
 		Catalog:      dynCatalog,
+		LinkTokens:   store,
 	}, logger)
 
 	tgNotif, err := telegram.New(cfg.Telegram.Token, logger,
@@ -237,6 +239,7 @@ func buildAPI(cfg *config.Config, store *sqlite.Store, dynCatalog *catalog.Dynam
 		Searches:     store,
 		Listings:     store,
 		Users:        store,
+		LinkTokens:   store,
 		Prices:       store,
 		Admin:        store,
 		Saved:        store,
@@ -245,6 +248,7 @@ func buildAPI(cfg *config.Config, store *sqlite.Store, dynCatalog *catalog.Dynam
 		Logger:       logger,
 		API:          cfg.API,
 		FirebaseAuth: firebaseAuth,
+		BotUsername:  cfg.Telegram.BotUsername,
 	})
 
 	return apiServer, nil

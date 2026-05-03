@@ -26,6 +26,7 @@ type Bot struct {
 	bot          *tgbot.Bot
 	msg          messenger
 	users        storage.UserStore
+	linkTokens   storage.LinkTokenStore
 	searches     storage.SearchStore
 	listings     storage.ListingStore
 	digests      storage.DigestStore
@@ -98,6 +99,7 @@ type Config struct {
 	Hidden         storage.HiddenListingStore
 	DailyDigests   storage.DailyDigestStore
 	Catalog        catalog.Catalog
+	LinkTokens     storage.LinkTokenStore
 }
 
 func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cfg Config, logger *slog.Logger) *Bot {
@@ -119,6 +121,7 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		bot:          b,
 		msg:          msg,
 		users:        users,
+		linkTokens:   cfg.LinkTokens,
 		searches:     searches,
 		listings:     cfg.Listings,
 		digests:      cfg.Digests,
