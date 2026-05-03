@@ -24,8 +24,14 @@ func newTestEnricher(t *testing.T, handler http.Handler, cfg EnricherConfig) *En
 		t.Fatalf("create plain client: %v", err)
 	}
 
+	ic, err := newPlainClient([]string{"test-ua"}, "")
+	if err != nil {
+		t.Fatalf("create plain client (itemClient): %v", err)
+	}
+
 	fetcher := &Yad2Fetcher{
 		client:     client,
+		itemClient: ic,
 		baseURL:    srv.URL,
 		logger:     slog.Default(),
 		userAgents: []string{"test-ua"},
@@ -42,7 +48,7 @@ func itemPageHandler(km int) http.HandlerFunc {
 	}
 }
 
-func TestEnricher_UnlimitedEnrichesAllNeedingKm(t *testing.T) {
+func TestEnricher_HighLimitEnrichesAll(t *testing.T) {
 	var requestCount atomic.Int32
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requestCount.Add(1)
@@ -50,7 +56,7 @@ func TestEnricher_UnlimitedEnrichesAllNeedingKm(t *testing.T) {
 {"props":{"pageProps":{"itemData":{"km":42000}}}}
 </script></html>`)
 	})
-	enricher := newTestEnricher(t, handler, EnricherConfig{Delay: time.Millisecond})
+	enricher := newTestEnricher(t, handler, EnricherConfig{Delay: time.Millisecond, MaxPerCycle: 100})
 
 	listings := []model.RawListing{
 		{Token: "a", Km: 0}, {Token: "b", Km: 0}, {Token: "c", Km: 0},
@@ -61,12 +67,58 @@ func TestEnricher_UnlimitedEnrichesAllNeedingKm(t *testing.T) {
 		t.Errorf("enriched = %d, want 5", count)
 	}
 	if got := requestCount.Load(); got != 5 {
-		t.Errorf("requests = %d, want 5 (no per-cycle cap)", got)
+		t.Errorf("requests = %d, want 5", got)
 	}
 	for i, l := range listings {
 		if l.Km != 42000 {
 			t.Errorf("listing[%d].Km = %d, want 42000", i, l.Km)
 		}
+	}
+}
+
+func TestEnricher_DefaultMaxPerCycle(t *testing.T) {
+	var requestCount atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount.Add(1)
+		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":42000}}}}
+</script></html>`)
+	})
+	enricher := newTestEnricher(t, handler, EnricherConfig{Delay: time.Millisecond})
+
+	listings := make([]model.RawListing, 10)
+	for i := range listings {
+		listings[i] = model.RawListing{Token: fmt.Sprintf("tok-%d", i), Km: 0}
+	}
+	count := enricher.Enrich(context.Background(), listings)
+	if count != defaultMaxPerCycle {
+		t.Errorf("enriched = %d, want %d (defaultMaxPerCycle)", count, defaultMaxPerCycle)
+	}
+	if got := requestCount.Load(); got != int32(defaultMaxPerCycle) {
+		t.Errorf("requests = %d, want %d", got, defaultMaxPerCycle)
+	}
+}
+
+func TestEnricher_NegativeMaxPerCycleIsUnlimited(t *testing.T) {
+	var requestCount atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount.Add(1)
+		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":42000}}}}
+</script></html>`)
+	})
+	enricher := newTestEnricher(t, handler, EnricherConfig{Delay: time.Millisecond, MaxPerCycle: -1})
+
+	listings := make([]model.RawListing, 10)
+	for i := range listings {
+		listings[i] = model.RawListing{Token: fmt.Sprintf("tok-%d", i), Km: 0}
+	}
+	count := enricher.Enrich(context.Background(), listings)
+	if count != 10 {
+		t.Errorf("enriched = %d, want 10 (negative MaxPerCycle = unlimited)", count)
+	}
+	if got := requestCount.Load(); got != 10 {
+		t.Errorf("requests = %d, want 10", got)
 	}
 }
 

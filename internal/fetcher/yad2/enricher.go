@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	defaultEnrichDelay     = 500 * time.Millisecond
+	defaultEnrichDelay     = 2 * time.Second
+	defaultMaxPerCycle     = 5
 	maxConsecutiveFailures = 3
 )
 
@@ -20,7 +21,7 @@ type EnricherConfig struct {
 	// Delay between individual item fetches to avoid rate-limiting.
 	Delay time.Duration
 	// MaxPerCycle limits how many item-page fetches run per Enrich call.
-	// 0 means no limit (enrich every listing that still needs km/image/city).
+	// 0 (default) applies defaultMaxPerCycle. Negative means no limit.
 	MaxPerCycle int
 }
 
@@ -35,6 +36,9 @@ type Enricher struct {
 func NewEnricher(fetcher *Yad2Fetcher, logger *slog.Logger, cfg EnricherConfig) *Enricher {
 	if cfg.Delay == 0 {
 		cfg.Delay = defaultEnrichDelay
+	}
+	if cfg.MaxPerCycle == 0 {
+		cfg.MaxPerCycle = defaultMaxPerCycle
 	}
 	return &Enricher{fetcher: fetcher, logger: logger, cfg: cfg}
 }
@@ -56,7 +60,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			e.logger.Info("enrichment limit reached",
 				"enriched", enriched,
 				"attempts", attempts,
-				"remaining", countMissingKm(listings[i:]),
+				"remaining", countNeedingEnrichment(listings[i:]),
 			)
 			break
 		}
@@ -81,7 +85,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			if errors.Is(err, fetcher.ErrChallenge) {
 				e.logger.Warn("enrichment blocked by anti-bot protection, skipping remaining items",
 					"attempts", attempts,
-					"remaining", countMissingKm(listings[i:]),
+					"remaining", countNeedingEnrichment(listings[i:]),
 				)
 				return enriched
 			}
@@ -94,7 +98,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 				e.logger.Warn("enrichment aborted after consecutive failures",
 					"consecutive_failures", consecutiveFailures,
 					"attempts", attempts,
-					"remaining", countMissingKm(listings[i:]),
+					"remaining", countNeedingEnrichment(listings[i:]),
 				)
 				return enriched
 			}
@@ -131,10 +135,10 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 	return enriched
 }
 
-func countMissingKm(listings []model.RawListing) int {
+func countNeedingEnrichment(listings []model.RawListing) int {
 	n := 0
 	for _, l := range listings {
-		if l.Km <= 0 {
+		if l.Km <= 0 || l.ImageURL == "" || l.City == "" {
 			n++
 		}
 	}

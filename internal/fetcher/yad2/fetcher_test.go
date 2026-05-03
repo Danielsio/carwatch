@@ -30,7 +30,11 @@ func newTestFetcher(t *testing.T, serverURL string) *Yad2Fetcher {
 	if err != nil {
 		t.Fatalf("NewPlainClient: %v", err)
 	}
-	return &Yad2Fetcher{client: client, baseURL: serverURL, logger: discardLogger, userAgents: []string{"TestAgent/1.0"}}
+	ic, err := NewPlainClient([]string{"TestAgent/1.0"}, "")
+	if err != nil {
+		t.Fatalf("NewPlainClient (itemClient): %v", err)
+	}
+	return &Yad2Fetcher{client: client, itemClient: ic, baseURL: serverURL, logger: discardLogger, userAgents: []string{"TestAgent/1.0"}}
 }
 
 func TestNewFetcher(t *testing.T) {
@@ -134,7 +138,11 @@ func TestYad2Fetcher_Fetch_ServerDown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPlainClient: %v", err)
 	}
-	f := &Yad2Fetcher{client: client, baseURL: "http://127.0.0.1:1", logger: discardLogger, userAgents: []string{"TestAgent/1.0"}}
+	ic, err := NewPlainClient([]string{"TestAgent/1.0"}, "")
+	if err != nil {
+		t.Fatalf("NewPlainClient (itemClient): %v", err)
+	}
+	f := &Yad2Fetcher{client: client, itemClient: ic, baseURL: "http://127.0.0.1:1", logger: discardLogger, userAgents: []string{"TestAgent/1.0"}}
 
 	_, err = f.Fetch(context.Background(), defaultParams())
 	if err == nil {
@@ -256,29 +264,20 @@ func TestPlainClient_Get_SetsHeaders(t *testing.T) {
 	}
 }
 
-func TestYad2Fetcher_FetchItem_ReusesListingClient(t *testing.T) {
-	var listingReqs, itemReqs int
+func TestYad2Fetcher_FetchItem_UsesItemClient(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/vehicles/item/") {
-			itemReqs++
 			_, _ = w.Write([]byte(`<html><script id="__NEXT_DATA__" type="application/json">
 {"props":{"pageProps":{"itemData":{"km":55000,"address":{"city":{"text":"חיפה","textEng":"haifa"}}}}}}
 </script></html>`))
 			return
 		}
-		listingReqs++
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write([]byte(validPageHTML()))
 	}))
 	defer server.Close()
 
 	f := newTestFetcher(t, server.URL)
-	_, err := f.Fetch(context.Background(), defaultParams())
-	if err != nil {
-		t.Fatalf("Fetch: %v", err)
-	}
-
-	// After Fetch, lastFetchClient should be set. FetchItem should reuse it.
 	details, err := f.FetchItem(context.Background(), "tok-1")
 	if err != nil {
 		t.Fatalf("FetchItem: %v", err)
@@ -286,15 +285,9 @@ func TestYad2Fetcher_FetchItem_ReusesListingClient(t *testing.T) {
 	if details.Km != 55000 {
 		t.Errorf("Km = %d, want 55000", details.Km)
 	}
-	if listingReqs != 1 {
-		t.Errorf("listing requests = %d, want 1", listingReqs)
-	}
-	if itemReqs != 1 {
-		t.Errorf("item requests = %d, want 1", itemReqs)
-	}
 }
 
-func TestYad2Fetcher_FetchItem_FallsBackWithoutPriorFetch(t *testing.T) {
+func TestYad2Fetcher_FetchItem_ParsesCityAndKm(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<html><script id="__NEXT_DATA__" type="application/json">
 {"props":{"pageProps":{"itemData":{"km":30000,"address":{"city":{"text":"באר שבע","textEng":"beer_sheva"}}}}}}
@@ -303,10 +296,9 @@ func TestYad2Fetcher_FetchItem_FallsBackWithoutPriorFetch(t *testing.T) {
 	defer server.Close()
 
 	f := newTestFetcher(t, server.URL)
-	// No prior Fetch call — should fall back to f.client
 	details, err := f.FetchItem(context.Background(), "tok-2")
 	if err != nil {
-		t.Fatalf("FetchItem without prior Fetch: %v", err)
+		t.Fatalf("FetchItem: %v", err)
 	}
 	if details.Km != 30000 {
 		t.Errorf("Km = %d, want 30000", details.Km)
@@ -368,6 +360,109 @@ func TestLooksLikeBotProtection(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := looksLikeBotProtection([]byte(tc.body)); got != tc.want {
 				t.Errorf("looksLikeBotProtection(%q) = %v, want %v", tc.body, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestYad2Fetcher_FetchItem_DoesNotPoisonListingClient(t *testing.T) {
+	listingHandler := func(w http.ResponseWriter, r *http.Request) {
+		if _, err := r.Cookie("poison"); err == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`<html><head><title>400 Bad Request</title></head></html>`))
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(validPageHTML()))
+	}
+	itemHandler := func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "poison", Value: "bad"})
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`<html><head><title>400 Bad Request</title></head></html>`))
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/vehicles/item/") {
+			itemHandler(w, r)
+			return
+		}
+		listingHandler(w, r)
+	}))
+	defer server.Close()
+
+	f := newTestFetcher(t, server.URL)
+
+	listings, err := f.Fetch(context.Background(), defaultParams())
+	if err != nil {
+		t.Fatalf("Fetch before item: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+
+	_, err = f.FetchItem(context.Background(), "tok-1")
+	if err == nil {
+		t.Fatal("expected error for 400 item response")
+	}
+
+	listings, err = f.Fetch(context.Background(), defaultParams())
+	if err != nil {
+		t.Fatalf("Fetch after poisoned item should still succeed: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing after item failure, got %d", len(listings))
+	}
+}
+
+func TestYad2Fetcher_FetchItem_Generic400IsChallenge(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`<html><head><title>400 Bad Request</title></head><body><center><h1>400 Bad Request</h1></center><hr><center>nginx</center></body></html>`))
+	}))
+	defer server.Close()
+
+	f := newTestFetcher(t, server.URL)
+	_, err := f.FetchItem(context.Background(), "tok-generic400")
+	if err == nil {
+		t.Fatal("expected error for generic 400 response")
+	}
+	if !strings.Contains(err.Error(), "anti-bot challenge") {
+		t.Errorf("error should mention anti-bot challenge: %v", err)
+	}
+}
+
+func TestYad2Fetcher_FetchItem_Generic403IsChallenge(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`<html><head><title>403 Forbidden</title></head><body><center><h1>403 Forbidden</h1></center><hr><center>nginx</center></body></html>`))
+	}))
+	defer server.Close()
+
+	f := newTestFetcher(t, server.URL)
+	_, err := f.FetchItem(context.Background(), "tok-generic403")
+	if err == nil {
+		t.Fatal("expected error for generic 403 response")
+	}
+	if !strings.Contains(err.Error(), "anti-bot challenge") {
+		t.Errorf("error should mention anti-bot challenge: %v", err)
+	}
+}
+
+func TestLooksLikeGenericError(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"400 title", "<html><head><title>400 Bad Request</title></head></html>", true},
+		{"403 title", "<html><head><title>403 Forbidden</title></head></html>", true},
+		{"normal page", "<html><body>Normal content</body></html>", false},
+		{"empty", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := looksLikeGenericError([]byte(tc.body)); got != tc.want {
+				t.Errorf("looksLikeGenericError(%q) = %v, want %v", tc.body, got, tc.want)
 			}
 		})
 	}
