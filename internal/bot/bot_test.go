@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	tgbot "github.com/go-telegram/bot"
+	tgmodels "github.com/go-telegram/bot/models"
+
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
@@ -33,6 +36,84 @@ func TestIsRateLimited(t *testing.T) {
 	if tb.bot.isRateLimited(chatID + 1) {
 		t.Error("different user should not be rate limited")
 	}
+}
+
+func TestIsRateLimited_RefillsAfterInterval(t *testing.T) {
+	tb := newTestBot(t)
+	const chatID int64 = 901
+	for range rateLimitBurst {
+		if tb.bot.isRateLimited(chatID) {
+			t.Fatal("unexpected limit during burst")
+		}
+	}
+	if !tb.bot.isRateLimited(chatID) {
+		t.Fatal("expected limited after burst")
+	}
+	time.Sleep(rateLimitInterval + 60*time.Millisecond)
+	if tb.bot.isRateLimited(chatID) {
+		t.Error("expected a refilled token after one interval")
+	}
+}
+
+func TestRateLimitedMiddleware_AllowsWhenUnderLimit(t *testing.T) {
+	tb := newTestBot(t)
+	var called bool
+	next := func(context.Context, *tgbot.Bot, *tgmodels.Update) { called = true }
+	h := tb.bot.rateLimited(next)
+	ctx := context.Background()
+	h(ctx, nil, fakeMessage(91001, "/start"))
+	if !called {
+		t.Error("next handler should run when under limit")
+	}
+}
+
+func TestRateLimitedMiddleware_BlocksWhenOverLimit(t *testing.T) {
+	tb := newTestBot(t)
+	const chatID int64 = 91002
+	for range rateLimitBurst {
+		tb.bot.isRateLimited(chatID)
+	}
+	if !tb.bot.isRateLimited(chatID) {
+		t.Fatal("setup: should be rate limited")
+	}
+	var called bool
+	next := func(context.Context, *tgbot.Bot, *tgmodels.Update) { called = true }
+	h := tb.bot.rateLimited(next)
+	ctx := context.Background()
+	h(ctx, nil, fakeMessage(chatID, "/start"))
+	if called {
+		t.Error("next handler should not run when limited")
+	}
+}
+
+func TestStartCleanup_RemovesStaleRateLimitEntries(t *testing.T) {
+	old := cleanupTickerInterval
+	cleanupTickerInterval = 40 * time.Millisecond
+	defer func() { cleanupTickerInterval = old }()
+
+	tb := newTestBot(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tb.bot.StartCleanup(ctx)
+
+	chatID := int64(91003)
+	rl := &userRateLimit{tokens: 5, lastTick: time.Now()}
+	rl.lastSeen.Store(time.Now().Add(-3 * time.Hour).UnixNano())
+	tb.bot.rateLimiter.Store(chatID, rl)
+
+	deadline := time.After(300 * time.Millisecond)
+	for {
+		if _, ok := tb.bot.rateLimiter.Load(chatID); !ok {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("stale rate limiter entry was not swept")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	cancel()
+	time.Sleep(30 * time.Millisecond)
 }
 
 func TestWizardData_JSON(t *testing.T) {

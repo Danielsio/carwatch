@@ -242,14 +242,14 @@ func (b *Bot) lockChat(chatID int64) func() {
 	return entry.mu.Unlock
 }
 
-const (
-	cleanupInterval = 1 * time.Hour
-	staleThreshold  = 1 * time.Hour
-)
+const staleThreshold = 1 * time.Hour
+
+// cleanupTickerInterval is the time between sweeps in StartCleanup (overridable in tests).
+var cleanupTickerInterval = 1 * time.Hour
 
 func (b *Bot) StartCleanup(ctx context.Context) {
 	go func() {
-		ticker := time.NewTicker(cleanupInterval)
+		ticker := time.NewTicker(cleanupTickerInterval)
 		defer ticker.Stop()
 		for {
 			select {
