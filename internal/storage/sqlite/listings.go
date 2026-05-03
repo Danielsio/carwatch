@@ -292,6 +292,12 @@ func (s *Store) SavedAmong(ctx context.Context, chatID int64, tokens []string) (
 		return nil, nil
 	}
 
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("begin read tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	out := make(map[string]bool)
 	for start := 0; start < len(uniq); start += savedAmongBatchSize {
 		end := start + savedAmongBatchSize
@@ -313,7 +319,7 @@ func (s *Store) SavedAmong(ctx context.Context, chatID int64, tokens []string) (
 			placeholders += "?"
 		}
 
-		rows, err := s.db.QueryContext(ctx,
+		rows, err := tx.QueryContext(ctx,
 			"SELECT token FROM saved_listings WHERE chat_id = ? AND token IN ("+placeholders+")",
 			args...)
 		if err != nil {
@@ -334,7 +340,7 @@ func (s *Store) SavedAmong(ctx context.Context, chatID int64, tokens []string) (
 		}
 		_ = rows.Close()
 	}
-	return out, nil
+	return out, tx.Commit()
 }
 
 func (s *Store) HideListing(ctx context.Context, chatID int64, token string) error {

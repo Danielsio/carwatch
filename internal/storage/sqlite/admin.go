@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/dsionov/carwatch/internal/storage"
 )
+
+var ErrNotPurgeable = errors.New("table is not purgeable")
 
 func (s *Store) DBFileSize() (int64, error) {
 	if s.dbPath == ":memory:" || strings.HasPrefix(s.dbPath, "file::memory:") {
@@ -79,7 +82,7 @@ var purgeable = map[string]bool{
 
 func (s *Store) PurgeTable(ctx context.Context, table string) (int64, error) {
 	if !purgeable[table] {
-		return 0, fmt.Errorf("table %q is not purgeable", table)
+		return 0, fmt.Errorf("%w: %q", ErrNotPurgeable, table)
 	}
 	result, err := s.db.ExecContext(ctx, "DELETE FROM \""+table+"\"")
 	if err != nil {

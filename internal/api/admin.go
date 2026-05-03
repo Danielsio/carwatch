@@ -2,10 +2,13 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
 	"time"
+
+	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
 
 type adminListingResponse struct {
@@ -124,7 +127,11 @@ func (s *Server) adminPurgeTable(w http.ResponseWriter, r *http.Request) {
 	deleted, err := s.admin.PurgeTable(r.Context(), body.Table)
 	if err != nil {
 		s.logger.Error("admin: purge table", "table", body.Table, "error", err)
-		writeError(w, http.StatusBadRequest, "purge operation failed")
+		if errors.Is(err, sqlite.ErrNotPurgeable) {
+			writeError(w, http.StatusBadRequest, "purge operation failed")
+		} else {
+			writeError(w, http.StatusInternalServerError, "purge operation failed")
+		}
 		return
 	}
 	s.logger.Info("admin: purged table", "table", body.Table, "deleted", deleted)
