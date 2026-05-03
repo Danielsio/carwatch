@@ -27,12 +27,15 @@ import (
 const (
 	fetchTimeout    = 60 * time.Second
 	// kmEnrichTimeout bounds per-item mileage/city fetches after the list crawl.
-	kmEnrichTimeout = 25 * time.Minute
-	maxBackoff      = 4.0
-	minBackoff      = 1.0
-	pruneInterval   = 24 * time.Hour
-	maxRetries      = 3
-	retryBaseDelay  = 2 * time.Second
+	kmEnrichTimeout        = 25 * time.Minute
+	maxBackoff             = 4.0
+	minBackoff             = 1.0
+	pruneInterval          = 24 * time.Hour
+	maxRetries             = 3
+	retryBaseDelay         = 2 * time.Second
+	defaultConcurrency     = 4
+	notificationPruneAge   = 48 * time.Hour
+	priceHistoryRetention  = 90 * 24 * time.Hour
 )
 
 type CatalogIngester interface {
@@ -501,7 +504,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	concurrency := s.cfg.Polling.MaxConcurrentFetches
 	s.cfgMu.RUnlock()
 	if concurrency <= 0 {
-		concurrency = 4
+		concurrency = defaultConcurrency
 	}
 
 	sem := make(chan struct{}, concurrency)
@@ -592,7 +595,7 @@ func (s *Scheduler) pruneIfDue(ctx context.Context) {
 		}
 	}
 	if s.stores.Queue != nil {
-		pruned, err := s.stores.Queue.PruneNotifications(ctx, 48*time.Hour)
+		pruned, err := s.stores.Queue.PruneNotifications(ctx, notificationPruneAge)
 		if err != nil {
 			s.logger.Error("prune notifications failed", "error", err)
 		} else if pruned > 0 {
@@ -600,7 +603,7 @@ func (s *Scheduler) pruneIfDue(ctx context.Context) {
 		}
 	}
 	if s.stores.Prices != nil {
-		pruned, err := s.stores.Prices.PrunePrices(ctx, 90*24*time.Hour)
+		pruned, err := s.stores.Prices.PrunePrices(ctx, priceHistoryRetention)
 		if err != nil {
 			s.logger.Error("prune prices failed", "error", err)
 		} else if pruned > 0 {

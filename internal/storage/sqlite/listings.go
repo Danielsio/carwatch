@@ -10,6 +10,23 @@ import (
 
 const firstSeenAtLayout = "2006-01-02 15:04:05.000000"
 
+type listingScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanListingRow(sc listingScanner) (storage.ListingRecord, error) {
+	var l storage.ListingRecord
+	var fs sql.NullFloat64
+	if err := sc.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
+		&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.ImageURL, &fs, &l.FirstSeenAt); err != nil {
+		return l, err
+	}
+	if fs.Valid {
+		l.FitnessScore = &fs.Float64
+	}
+	return l, nil
+}
+
 func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO listing_history
@@ -69,24 +86,18 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 }
 
 func (s *Store) GetListing(ctx context.Context, chatID int64, token string) (*storage.ListingRecord, error) {
-	var l storage.ListingRecord
-	var fs sql.NullFloat64
-	err := s.db.QueryRowContext(ctx, `
+	row := s.db.QueryRowContext(ctx, `
 		SELECT token, search_name, manufacturer, model, year, price,
 			km, hand, city, page_link, image_url, fitness_score, first_seen_at
 		FROM listing_history
 		WHERE chat_id = ? AND token = ?
-		ORDER BY rowid DESC LIMIT 1`, chatID, token).
-		Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.ImageURL, &fs, &l.FirstSeenAt)
+		ORDER BY rowid DESC LIMIT 1`, chatID, token)
+	l, err := scanListingRow(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
-	}
-	if fs.Valid {
-		l.FitnessScore = &fs.Float64
 	}
 	return &l, nil
 }
@@ -106,14 +117,9 @@ func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offse
 
 	var listings []storage.ListingRecord
 	for rows.Next() {
-		var l storage.ListingRecord
-		var fs sql.NullFloat64
-		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.ImageURL, &fs, &l.FirstSeenAt); err != nil {
+		l, err := scanListingRow(rows)
+		if err != nil {
 			return nil, err
-		}
-		if fs.Valid {
-			l.FitnessScore = &fs.Float64
 		}
 		listings = append(listings, l)
 	}
@@ -141,14 +147,9 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 
 	var listings []storage.ListingRecord
 	for rows.Next() {
-		var l storage.ListingRecord
-		var fs sql.NullFloat64
-		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.ImageURL, &fs, &l.FirstSeenAt); err != nil {
+		l, err := scanListingRow(rows)
+		if err != nil {
 			return nil, err
-		}
-		if fs.Valid {
-			l.FitnessScore = &fs.Float64
 		}
 		listings = append(listings, l)
 	}
@@ -186,14 +187,9 @@ func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID i
 
 	var listings []storage.ListingRecord
 	for rows.Next() {
-		var l storage.ListingRecord
-		var fs sql.NullFloat64
-		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.ImageURL, &fs, &l.FirstSeenAt); err != nil {
+		l, err := scanListingRow(rows)
+		if err != nil {
 			return nil, err
-		}
-		if fs.Valid {
-			l.FitnessScore = &fs.Float64
 		}
 		listings = append(listings, l)
 	}
@@ -238,14 +234,9 @@ func (s *Store) ListSaved(ctx context.Context, chatID int64, limit, offset int) 
 
 	var listings []storage.ListingRecord
 	for rows.Next() {
-		var l storage.ListingRecord
-		var fs sql.NullFloat64
-		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.ImageURL, &fs, &l.FirstSeenAt); err != nil {
+		l, err := scanListingRow(rows)
+		if err != nil {
 			return nil, err
-		}
-		if fs.Valid {
-			l.FitnessScore = &fs.Float64
 		}
 		listings = append(listings, l)
 	}
