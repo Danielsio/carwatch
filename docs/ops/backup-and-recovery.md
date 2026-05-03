@@ -3,9 +3,11 @@
 ## Architecture
 
 CarWatch uses a single SQLite database stored at the path configured in
-`config.yaml` (`storage.db_path`). Local development defaults to
-`./data/carwatch.db` (see `config.example.yaml`); production compose mounts the
-named volume at `/data`, so the live DB is typically `/data/carwatch.db`.
+`config.yaml` (`storage.db_path`). If `db_path` is omitted, the binary defaults to
+`./data/dedup.db` (see `internal/config`). `config.example.yaml` uses
+`./data/carwatch.db`—substitute the path your config actually uses in the backup
+commands below. Production compose mounts the named volume at `/data`, so the
+live DB is typically `/data/carwatch.db`.
 
 In production the file lives inside a Docker named volume
 (`carwatch_carwatch-data` → `/data`). This volume persists across container
@@ -126,13 +128,19 @@ start again:
    make vm-deploy
    ```
 
-5. If you have an off-site backup, restore it into the running container:
+5. If you have an off-site backup, stop CarWatch before overwriting the DB file
+   (avoid restoring while SQLite has the file open), copy into the volume, then
+   start:
 
    ```bash
+   ssh <user>@<new-ip> 'docker stop carwatch'
    scp carwatch-backup.db <user>@<new-ip>:/tmp/
-   ssh <user>@<new-ip> 'docker cp /tmp/carwatch-backup.db carwatch:/data/carwatch.db && rm /tmp/carwatch-backup.db'
-   make vm-restart
+   ssh <user>@<new-ip> 'docker run --rm -v carwatch_carwatch-data:/data -v /tmp:/backup alpine sh -c "cp /backup/carwatch-backup.db /data/carwatch.db" && rm /tmp/carwatch-backup.db'
+   ssh <user>@<new-ip> 'docker start carwatch'
    ```
+
+   From your workstation you can use `make vm-stop` / `make vm-start` instead if
+   those targets match how you manage the VM.
 
 ### Scenario 4: No backup available
 
