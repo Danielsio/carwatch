@@ -471,7 +471,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		return fmt.Errorf("load searches: %w", err)
 	}
 
-	s.pruneIfDue(ctx)
+	s.pruneOldData(ctx)
 	s.processExpiredPremium(ctx)
 
 	if len(searches) == 0 {
@@ -479,28 +479,86 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		return nil
 	}
 
-	var marketCache *scoring.MarketCache
-	if s.stores.Market != nil {
-		listings, err := s.stores.Market.MarketListings(ctx)
-		if err != nil {
-			s.logger.Error("load market data failed", "error", err)
-		} else {
-			data := make([]scoring.ListingData, len(listings))
-			for i, l := range listings {
-				data[i] = scoring.ListingData{
-					Manufacturer: l.Manufacturer,
-					Model:        l.Model,
-					Year:         l.Year,
-					Price:        l.Price,
-				}
-			}
-			marketCache = scoring.NewMarketCache(data)
-		}
-	}
-
+	marketCache := s.buildMarketCache(ctx)
 	groups := GroupSearches(searches)
 	s.logger.Info("grouped searches", "groups", len(groups), "total_searches", len(searches))
 
+	allFailed := s.runFetchGroups(ctx, groups, marketCache)
+
+	if s.catalogIngester != nil {
+		s.catalogIngester.Flush(ctx)
+	}
+
+	s.processDigests(ctx)
+	s.processDailyDigests(ctx)
+
+	if allFailed && len(groups) > 0 {
+		s.observer.RecordError()
+		return fmt.Errorf("all %d groups failed", len(groups))
+	}
+
+	s.observer.RecordSuccess()
+	return nil
+}
+
+func (s *Scheduler) pruneOldData(ctx context.Context) {
+	if time.Since(s.lastPruneTime) <= pruneInterval {
+		return
+	}
+	s.cfgMu.RLock()
+	pruneAfter := s.cfg.Storage.PruneAfter
+	s.cfgMu.RUnlock()
+	if pruneAfter > 0 {
+		pruned, err := s.stores.Dedup.Prune(ctx, pruneAfter)
+		if err != nil {
+			s.logger.Error("prune failed", "error", err)
+		} else if pruned > 0 {
+			s.logger.Info("pruned old listings", "count", pruned)
+		}
+	}
+	if s.stores.Queue != nil {
+		pruned, err := s.stores.Queue.PruneNotifications(ctx, notificationPruneAge)
+		if err != nil {
+			s.logger.Error("prune notifications failed", "error", err)
+		} else if pruned > 0 {
+			s.logger.Info("pruned expired notifications", "count", pruned)
+		}
+	}
+	if s.stores.Prices != nil {
+		pruned, err := s.stores.Prices.PrunePrices(ctx, priceHistoryRetention)
+		if err != nil {
+			s.logger.Error("prune prices failed", "error", err)
+		} else if pruned > 0 {
+			s.logger.Info("pruned old price history", "count", pruned)
+		}
+	}
+	s.lastPruneTime = time.Now()
+}
+
+func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
+	if s.stores.Market == nil {
+		return nil
+	}
+	listings, err := s.stores.Market.MarketListings(ctx)
+	if err != nil {
+		s.logger.Error("load market data failed", "error", err)
+		return nil
+	}
+	data := make([]scoring.ListingData, len(listings))
+	for i, l := range listings {
+		data[i] = scoring.ListingData{
+			Manufacturer: l.Manufacturer,
+			Model:        l.Model,
+			Year:         l.Year,
+			Price:        l.Price,
+		}
+	}
+	return scoring.NewMarketCache(data)
+}
+
+// runFetchGroups runs processGroup for each canonical group with bounded concurrency.
+// It reports whether every group failed.
+func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup, marketCache *scoring.MarketCache) bool {
 	s.cfgMu.RLock()
 	concurrency := s.cfg.Polling.MaxConcurrentFetches
 	s.cfgMu.RUnlock()
@@ -535,8 +593,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 						"manufacturer", g.Manufacturer,
 						"model", g.Model,
 						"panic", r,
-						"stack", string(debug.Stack()),
-					)
+						"stack", string(debug.Stack()))
 					s.observer.RecordError()
 				}
 			}()
@@ -545,8 +602,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 				s.logger.Error("group failed",
 					"manufacturer", g.Manufacturer,
 					"model", g.Model,
-					"error", err,
-				)
+					"error", err)
 				if errors.Is(err, fetcher.ErrChallenge) {
 					s.boMu.Lock()
 					s.backoffMultiplier = min(s.backoffMultiplier*2, maxBackoff)
@@ -563,55 +619,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		}(group)
 	}
 	wg.Wait()
-
-	if s.catalogIngester != nil {
-		s.catalogIngester.Flush(ctx)
-	}
-
-	s.processDigests(ctx)
-	s.processDailyDigests(ctx)
-
-	if allFailed && len(groups) > 0 {
-		s.observer.RecordError()
-		return fmt.Errorf("all %d groups failed", len(groups))
-	}
-
-	s.observer.RecordSuccess()
-	return nil
-}
-
-func (s *Scheduler) pruneIfDue(ctx context.Context) {
-	if time.Since(s.lastPruneTime) <= pruneInterval {
-		return
-	}
-	s.cfgMu.RLock()
-	pruneAfter := s.cfg.Storage.PruneAfter
-	s.cfgMu.RUnlock()
-	if pruneAfter > 0 {
-		pruned, err := s.stores.Dedup.Prune(ctx, pruneAfter)
-		if err != nil {
-			s.logger.Error("prune failed", "error", err)
-		} else if pruned > 0 {
-			s.logger.Info("pruned old listings", "count", pruned)
-		}
-	}
-	if s.stores.Queue != nil {
-		pruned, err := s.stores.Queue.PruneNotifications(ctx, notificationPruneAge)
-		if err != nil {
-			s.logger.Error("prune notifications failed", "error", err)
-		} else if pruned > 0 {
-			s.logger.Info("pruned expired notifications", "count", pruned)
-		}
-	}
-	if s.stores.Prices != nil {
-		pruned, err := s.stores.Prices.PrunePrices(ctx, priceHistoryRetention)
-		if err != nil {
-			s.logger.Error("prune prices failed", "error", err)
-		} else if pruned > 0 {
-			s.logger.Info("pruned old price history", "count", pruned)
-		}
-	}
-	s.lastPruneTime = time.Now()
+	return allFailed
 }
 
 func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, marketCache *scoring.MarketCache) error {
@@ -704,113 +712,147 @@ func buildFilterCriteria(search storage.Search) model.FilterCriteria {
 	return criteria
 }
 
-func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Search, filtered []model.RawListing, marketCache *scoring.MarketCache, lang locale.Lang) searchResult {
-	var out searchResult
-
-	var hiddenTokens map[string]bool
-	if s.stores.Hidden != nil {
-		var err error
-		hiddenTokens, err = s.stores.Hidden.ListHiddenTokens(ctx, search.ChatID)
-		if err != nil {
-			s.logger.Error("load hidden tokens failed", "chat_id", search.ChatID, "error", err)
+func filterHiddenListings(filtered []model.RawListing, hidden map[string]bool) []model.RawListing {
+	if len(hidden) == 0 {
+		return filtered
+	}
+	out := make([]model.RawListing, 0, len(filtered))
+	for _, l := range filtered {
+		if !hidden[l.Token] {
+			out = append(out, l)
 		}
 	}
+	return out
+}
 
-	for _, l := range filtered {
-		if hiddenTokens[l.Token] {
-			continue
-		}
+func (s *Scheduler) loadHiddenTokens(ctx context.Context, chatID int64) map[string]bool {
+	if s.stores.Hidden == nil {
+		return nil
+	}
+	tokens, err := s.stores.Hidden.ListHiddenTokens(ctx, chatID)
+	if err != nil {
+		s.logger.Error("load hidden tokens failed", "chat_id", chatID, "error", err)
+		return nil
+	}
+	return tokens
+}
 
-		isNew, err := s.stores.Dedup.ClaimNew(ctx, l.Token, search.ChatID, search.ID)
-		if err != nil {
-			s.logger.Error("claim failed", "token", l.Token, "error", err)
-			continue
-		}
+func (s *Scheduler) deduplicateListings(ctx context.Context, token string, chatID, searchID int64) (isNew bool, ok bool) {
+	isNew, err := s.stores.Dedup.ClaimNew(ctx, token, chatID, searchID)
+	if err != nil {
+		s.logger.Error("claim failed", "token", token, "error", err)
+		return false, false
+	}
+	return isNew, true
+}
 
-		if s.stores.Prices != nil && l.Price > 0 {
-			oldPrice, changed, err := s.stores.Prices.RecordPrice(ctx, l.Token, l.Price)
-			if err != nil {
-				s.logger.Error("record price failed", "token", l.Token, "error", err)
-			} else if changed && l.Price < oldPrice {
-				s.logger.Info("price drop detected",
-					"token", l.Token,
-					"old_price", oldPrice,
-					"new_price", l.Price,
-				)
-				listing := model.Listing{RawListing: l, SearchName: search.Name}
-				listing.FitnessScore = scoring.FitnessScore(scoring.FitnessParams{
-					Price: l.Price, Km: l.Km, Hand: l.Hand, Year: l.Year,
-					EngineVolume: l.EngineVolume, PriceMax: search.PriceMax,
-					MaxKm: search.MaxKm, MaxHand: search.MaxHand,
-					YearMin: search.YearMin, YearMax: search.YearMax,
-					EngineMinCC: search.EngineMinCC,
-				})
-				out.priceDropMessages = append(out.priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice, lang))
-				if s.stores.Listings != nil {
-					if err := s.stores.Listings.SaveListing(ctx, storage.ListingRecord{
-						Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
-						Manufacturer: l.Manufacturer, Model: l.Model,
-						Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
-						City: l.City, PageLink: l.PageLink, ImageURL: l.ImageURL,
-						FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
-					}); err != nil {
-						s.logger.Error("save price-drop listing failed",
-							"token", l.Token,
-							"chat_id", search.ChatID,
-							"error", err,
-						)
-					}
-				}
-				continue
-			}
-		}
-
-		if !isNew {
-			continue
-		}
-
-		listing := model.Listing{RawListing: l, SearchName: search.Name}
-		detailed := scoring.FitnessScoreDetailed(scoring.FitnessParams{
-			Price:        l.Price,
-			Km:           l.Km,
-			Hand:         l.Hand,
-			Year:         l.Year,
-			EngineVolume: l.EngineVolume,
-			PriceMax:     search.PriceMax,
-			MaxKm:        search.MaxKm,
-			MaxHand:      search.MaxHand,
-			YearMin:      search.YearMin,
-			YearMax:      search.YearMax,
-			EngineMinCC:  search.EngineMinCC,
-		})
-		listing.FitnessScore = detailed.Total
-		listing.FitnessBreakdown = make([]model.FitnessDim, len(detailed.Dims))
-		for i, d := range detailed.Dims {
-			listing.FitnessBreakdown[i] = model.FitnessDim{
-				Name: d.Name, Score: d.Score, Weight: d.Weight,
-			}
-		}
-		if marketCache != nil && l.Price > 0 {
-			median, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
-			if ok {
-				listing.DealScore = &model.ScoreInfo{
-					Score:       scoring.Score(l.Price, median),
-					MedianPrice: median,
-					CohortSize:  cohort,
-				}
-			}
-		}
-		out.newListings = append(out.newListings, listing)
-
-		out.listingRecords = append(out.listingRecords, storage.ListingRecord{
+func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Search, l model.RawListing, lang locale.Lang, out *searchResult) bool {
+	if s.stores.Prices == nil || l.Price <= 0 {
+		return false
+	}
+	oldPrice, changed, err := s.stores.Prices.RecordPrice(ctx, l.Token, l.Price)
+	if err != nil {
+		s.logger.Error("record price failed", "token", l.Token, "error", err)
+		return false
+	}
+	if !changed || l.Price >= oldPrice {
+		return false
+	}
+	s.logger.Info("price drop detected",
+		"token", l.Token,
+		"old_price", oldPrice,
+		"new_price", l.Price,
+	)
+	listing := model.Listing{RawListing: l, SearchName: search.Name}
+	listing.FitnessScore = scoring.FitnessScore(scoring.FitnessParams{
+		Price: l.Price, Km: l.Km, Hand: l.Hand, Year: l.Year,
+		EngineVolume: l.EngineVolume, PriceMax: search.PriceMax,
+		MaxKm: search.MaxKm, MaxHand: search.MaxHand,
+		YearMin: search.YearMin, YearMax: search.YearMax,
+		EngineMinCC: search.EngineMinCC,
+	})
+	out.priceDropMessages = append(out.priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice, lang))
+	if s.stores.Listings != nil {
+		if err := s.stores.Listings.SaveListing(ctx, storage.ListingRecord{
 			Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
 			Manufacturer: l.Manufacturer, Model: l.Model,
 			Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 			City: l.City, PageLink: l.PageLink, ImageURL: l.ImageURL,
 			FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
-		})
+		}); err != nil {
+			s.logger.Error("save price-drop listing failed",
+				"token", l.Token,
+				"chat_id", search.ChatID,
+				"error", err,
+			)
+		}
 	}
+	return true
+}
 
+func (s *Scheduler) scoreAndRecordListings(search storage.Search, l model.RawListing, marketCache *scoring.MarketCache) model.Listing {
+	listing := model.Listing{RawListing: l, SearchName: search.Name}
+	detailed := scoring.FitnessScoreDetailed(scoring.FitnessParams{
+		Price:        l.Price,
+		Km:           l.Km,
+		Hand:         l.Hand,
+		Year:         l.Year,
+		EngineVolume: l.EngineVolume,
+		PriceMax:     search.PriceMax,
+		MaxKm:        search.MaxKm,
+		MaxHand:      search.MaxHand,
+		YearMin:      search.YearMin,
+		YearMax:      search.YearMax,
+		EngineMinCC:  search.EngineMinCC,
+	})
+	listing.FitnessScore = detailed.Total
+	listing.FitnessBreakdown = make([]model.FitnessDim, len(detailed.Dims))
+	for i, d := range detailed.Dims {
+		listing.FitnessBreakdown[i] = model.FitnessDim{
+			Name: d.Name, Score: d.Score, Weight: d.Weight,
+		}
+	}
+	if marketCache != nil && l.Price > 0 {
+		median, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
+		if ok {
+			listing.DealScore = &model.ScoreInfo{
+				Score:       scoring.Score(l.Price, median),
+				MedianPrice: median,
+				CohortSize:  cohort,
+			}
+		}
+	}
+	return listing
+}
+
+func buildNotifications(search storage.Search, listing model.Listing, out *searchResult) {
+	out.newListings = append(out.newListings, listing)
+	out.listingRecords = append(out.listingRecords, storage.ListingRecord{
+		Token: listing.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
+		Manufacturer: listing.Manufacturer, Model: listing.Model,
+		Year: listing.Year, Price: listing.Price, Km: listing.Km, Hand: listing.Hand,
+		City: listing.City, PageLink: listing.PageLink, ImageURL: listing.ImageURL,
+		FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
+	})
+}
+
+func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Search, filtered []model.RawListing, marketCache *scoring.MarketCache, lang locale.Lang) searchResult {
+	var out searchResult
+	hidden := s.loadHiddenTokens(ctx, search.ChatID)
+	for _, l := range filterHiddenListings(filtered, hidden) {
+		isNew, ok := s.deduplicateListings(ctx, l.Token, search.ChatID, search.ID)
+		if !ok {
+			continue
+		}
+		if s.tryPriceDropListing(ctx, search, l, lang, &out) {
+			continue
+		}
+		if !isNew {
+			continue
+		}
+		listing := s.scoreAndRecordListings(search, l, marketCache)
+		buildNotifications(search, listing, &out)
+	}
 	return out
 }
 

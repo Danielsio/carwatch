@@ -36,78 +36,7 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 		b.logger.Error("answer callback query failed", "chat_id", chatID, "error", err)
 	}
 
-	switch {
-	case strings.HasPrefix(data, cbPrefixSource):
-		b.onLegacySourceSelected(ctx, chatID, strings.TrimPrefix(data, cbPrefixSource))
-	case strings.HasPrefix(data, cbSourceToggle):
-		b.onSourceToggle(ctx, chatID, data)
-	case data == cbSourceDone:
-		b.onSourceDone(ctx, chatID)
-	case strings.HasPrefix(data, cbMfrPage):
-		b.onMfrPage(ctx, chatID, data)
-	case data == cbMfrSearch:
-		b.onMfrSearch(ctx, chatID)
-	case strings.HasPrefix(data, cbPrefixMfr):
-		b.onManufacturerSelected(ctx, chatID, data)
-	case strings.HasPrefix(data, cbMdlPage):
-		b.onMdlPage(ctx, chatID, data)
-	case data == cbMdlSearch:
-		b.onMdlSearch(ctx, chatID)
-	case strings.HasPrefix(data, cbPrefixModel):
-		b.onModelSelected(ctx, chatID, data)
-	case strings.HasPrefix(data, cbPrefixEngine):
-		b.onEngineSelected(ctx, chatID, data)
-	case strings.HasPrefix(data, cbPrefixMaxKm):
-		b.onMaxKmSelected(ctx, chatID, data)
-	case strings.HasPrefix(data, cbPrefixMaxHand):
-		b.onMaxHandSelected(ctx, chatID, data)
-	case data == cbSkipKeywords:
-		b.onSkipKeywords(ctx, chatID)
-	case data == cbSkipExcludeKeys:
-		b.onSkipExcludeKeys(ctx, chatID)
-	case data == cbConfirm:
-		b.onConfirm(ctx, chatID)
-	case data == cbEdit:
-		b.onEditRestart(ctx, chatID)
-	case data == cbCancel:
-		b.onCancelCallback(ctx, chatID)
-	case strings.HasPrefix(data, cbDeleteSearch):
-		b.onDeleteSearch(ctx, chatID, data)
-	case strings.HasPrefix(data, cbPrefixShareCopy):
-		b.onShareCopy(ctx, chatID, data)
-	case data == cbDigestOn:
-		b.onDigestOn(ctx, chatID)
-	case data == cbDigestOff:
-		b.onDigestOff(ctx, chatID)
-	case strings.HasPrefix(data, cbDigestInterval):
-		b.onDigestInterval(ctx, chatID, data)
-	case strings.HasPrefix(data, cbHistoryPage):
-		b.onHistoryPage(ctx, chatID, data)
-	case data == cbLangHe:
-		b.onLanguageSwitch(ctx, chatID, locale.Hebrew)
-	case data == cbLangEn:
-		b.onLanguageSwitch(ctx, chatID, locale.English)
-	case data == cbQuickStart:
-		b.onQuickStart(ctx, chatID)
-	case strings.HasPrefix(data, cbPrefixSave):
-		b.onSaveListing(ctx, chatID, data)
-	case strings.HasPrefix(data, cbPrefixHide):
-		b.onHideListing(ctx, chatID, data)
-	case strings.HasPrefix(data, cbSavedPage):
-		b.onSavedPage(ctx, chatID, data)
-	case strings.HasPrefix(data, cbHiddenPage):
-		b.onHiddenPage(ctx, chatID, data)
-	case data == cbHiddenClear:
-		b.onClearHidden(ctx, chatID)
-	case data == cbDailyDigestOn:
-		b.onDailyDigestOn(ctx, chatID)
-	case data == cbDailyDigestOff:
-		b.onDailyDigestOff(ctx, chatID)
-	case data == "watch":
-		b.onWatchFromCallback(ctx, chatID)
-	case data == "noop":
-		// page indicator button, do nothing
-	}
+	b.dispatchCallbackData(ctx, chatID, data)
 }
 
 func (b *Bot) onDeleteSearch(ctx context.Context, chatID int64, data string) {

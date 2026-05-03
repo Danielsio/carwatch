@@ -78,6 +78,34 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 	return srv, store
 }
 
+func TestValidateCreateSearchInput(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	ctx := context.Background()
+	chatID := int64(999)
+
+	t.Run("defaults source", func(t *testing.T) {
+		req := createSearchRequest{Manufacturer: 19, Model: 10226}
+		name, st, msg := srv.validateCreateSearchInput(ctx, chatID, &req)
+		if st != 0 || msg != "" {
+			t.Fatalf("st=%d msg=%q", st, msg)
+		}
+		if req.Source != "yad2" {
+			t.Fatalf("source: %q", req.Source)
+		}
+		if name == "" {
+			t.Fatal("expected generated name")
+		}
+	})
+
+	t.Run("invalid year range", func(t *testing.T) {
+		req := createSearchRequest{Manufacturer: 19, Model: 10226, YearMin: 2025, YearMax: 2020}
+		_, st, msg := srv.validateCreateSearchInput(ctx, chatID, &req)
+		if st != http.StatusBadRequest || msg == "" {
+			t.Fatalf("st=%d msg=%q", st, msg)
+		}
+	})
+}
+
 func TestTelegramLinkAndStatus(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()
