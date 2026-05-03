@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -2446,6 +2447,238 @@ func TestGetLastSeenAt(t *testing.T) {
 	}
 	if !lastSeen2.After(lastSeen) && !lastSeen2.Equal(lastSeen) {
 		t.Error("last_seen_at should be >= after UpdateLastSeenAt")
+	}
+}
+
+// --- Admin Tests ---
+
+func TestDBFileSize(t *testing.T) {
+	store := newTestStore(t)
+
+	size, err := store.DBFileSize()
+	if err != nil {
+		t.Fatalf("DBFileSize: %v", err)
+	}
+	if size != 0 {
+		t.Errorf("expected 0 for in-memory DB, got %d", size)
+	}
+}
+
+func TestDBSizeBytes(t *testing.T) {
+	store := newTestStore(t)
+
+	size, err := store.DBSizeBytes()
+	if err != nil {
+		t.Fatalf("DBSizeBytes: %v", err)
+	}
+	if size != 0 {
+		t.Errorf("expected 0 for in-memory DB, got %d", size)
+	}
+}
+
+func TestTableSizes_AllTables(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	sizes, err := store.TableSizes(ctx)
+	if err != nil {
+		t.Fatalf("TableSizes: %v", err)
+	}
+	if len(sizes) == 0 {
+		t.Fatal("expected at least one table")
+	}
+	for _, table := range []string{"users", "searches", "listing_history", "price_history"} {
+		if _, ok := sizes[table]; !ok {
+			t.Errorf("expected '%s' table in sizes", table)
+		}
+	}
+}
+
+func TestPurgeTable(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 100, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla",
+		Year: 2020, Price: 80000, FirstSeenAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	deleted, err := store.PurgeTable(ctx, "listing_history")
+	if err != nil {
+		t.Fatalf("PurgeTable: %v", err)
+	}
+	if deleted == 0 {
+		t.Error("expected at least 1 row deleted")
+	}
+
+	_, err = store.PurgeTable(ctx, "users")
+	if err == nil {
+		t.Error("expected error for non-purgeable table")
+	}
+}
+
+func TestAdminListListings(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	for i := 0; i < 3; i++ {
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token: fmt.Sprintf("tok%d", i), ChatID: 100, SearchName: "s1",
+			Manufacturer: "Toyota", Model: "Corolla",
+			Year: 2020, Price: 80000, FirstSeenAt: time.Now(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	items, total, err := store.AdminListListings(ctx, 2, 0)
+	if err != nil {
+		t.Fatalf("AdminListListings: %v", err)
+	}
+	if total != 3 {
+		t.Errorf("expected total 3, got %d", total)
+	}
+	if len(items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(items))
+	}
+}
+
+func TestAdminDeleteListing(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 100, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla",
+		Year: 2020, Price: 80000, FirstSeenAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.AdminDeleteListing(ctx, "tok1", 100); err != nil {
+		t.Fatalf("AdminDeleteListing: %v", err)
+	}
+
+	listing, err := store.GetListing(ctx, 100, "tok1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listing != nil {
+		t.Error("listing should be deleted")
+	}
+}
+
+func TestVacuumDB(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if err := store.VacuumDB(ctx); err != nil {
+		t.Fatalf("VacuumDB: %v", err)
+	}
+}
+
+func TestCountAllListings_InsertAndCount(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	count, err := store.CountAllListings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("expected 0 listings, got %d", count)
+	}
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 100, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla",
+		Year: 2020, Price: 80000, FirstSeenAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	count, err = store.CountAllListings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 listing, got %d", count)
+	}
+}
+
+func TestMarketListings_OnePerToken(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 100, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla",
+		Year: 2020, Price: 80000, FirstSeenAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	listings, err := store.MarketListings(ctx)
+	if err != nil {
+		t.Fatalf("MarketListings: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Errorf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].Manufacturer != "Toyota" {
+		t.Errorf("expected Toyota, got %s", listings[0].Manufacturer)
+	}
+}
+
+// --- Saved Among Batching Test ---
+
+func TestSavedAmong_LargeBatch(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	for i := 0; i < 5; i++ {
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token: fmt.Sprintf("tok%d", i), ChatID: 100, SearchName: "s1",
+			Manufacturer: "Toyota", Model: "Corolla",
+			Year: 2020, Price: 80000, FirstSeenAt: time.Now(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := store.SaveBookmark(ctx, 100, "tok1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveBookmark(ctx, 100, "tok3"); err != nil {
+		t.Fatal(err)
+	}
+
+	tokens := make([]string, 600)
+	for i := range tokens {
+		tokens[i] = fmt.Sprintf("tok%d", i)
+	}
+
+	result, err := store.SavedAmong(ctx, 100, tokens)
+	if err != nil {
+		t.Fatalf("SavedAmong: %v", err)
+	}
+	if !result["tok1"] {
+		t.Error("tok1 should be saved")
+	}
+	if !result["tok3"] {
+		t.Error("tok3 should be saved")
+	}
+	if result["tok0"] {
+		t.Error("tok0 should not be saved")
 	}
 }
 
