@@ -15,6 +15,7 @@ import (
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/dsionov/carwatch/internal/storage/sqlite"
 )
 
 type mockFetcher struct {
@@ -316,5 +317,118 @@ func TestIsActiveHours_WithinWindow(t *testing.T) {
 	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
 	if !s.isActiveHours() {
 		t.Error("should be active within 00:00-23:59")
+	}
+}
+
+func TestRunMultiTenantCycle_ObserverSuccessPath(t *testing.T) {
+	store, err := sqlite.New(":memory:")
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	ctx := context.Background()
+	if err := store.UpsertUser(ctx, 1, "alice"); err != nil {
+		t.Fatalf("upsert user: %v", err)
+	}
+	if _, err := store.CreateSearch(ctx, storage.Search{
+		ChatID:       1,
+		Name:         "s1",
+		Source:       "yad2",
+		Manufacturer: 19,
+		Model:        1,
+		YearMin:      2015,
+		YearMax:      2025,
+		PriceMax:     200_000,
+	}); err != nil {
+		t.Fatalf("create search: %v", err)
+	}
+
+	f := &mockFetcher{listings: []model.RawListing{{
+		Token:          "tok-observer-1",
+		ManufacturerID: 19,
+		ModelID:        1,
+		Manufacturer:   "Toyota",
+		Model:          "Corolla",
+		Year:           2018,
+		Price:          90_000,
+	}}}
+
+	cfg := testConfig()
+	obs := &countingObserver{}
+	n := &mockNotifier{}
+	s, err := NewWithOptions(cfg, f, store, n, testLogger(), Options{
+		Observer:     obs,
+		SearchStore:  store,
+		ListingStore: store,
+	})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	if err := s.runMultiTenantCycle(ctx); err != nil {
+		t.Fatalf("runMultiTenantCycle: %v", err)
+	}
+
+	if obs.fetches != 1 {
+		t.Errorf("RecordFetch calls = %d, want 1", obs.fetches)
+	}
+	if obs.listingsFound != 1 {
+		t.Errorf("listings aggregate = %d, want 1", obs.listingsFound)
+	}
+	if obs.notifications != 1 {
+		t.Errorf("notifications = %d, want 1", obs.notifications)
+	}
+	if obs.successes != 1 {
+		t.Errorf("successes = %d, want 1", obs.successes)
+	}
+	if obs.errors != 0 {
+		t.Errorf("errors = %d, want 0", obs.errors)
+	}
+}
+
+func TestRunMultiTenantCycle_ObserverErrorOnFetchFailure(t *testing.T) {
+	store, err := sqlite.New(":memory:")
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	ctx := context.Background()
+	if err := store.UpsertUser(ctx, 2, "bob"); err != nil {
+		t.Fatalf("upsert user: %v", err)
+	}
+	if _, err := store.CreateSearch(ctx, storage.Search{
+		ChatID:       2,
+		Name:         "s2",
+		Source:       "yad2",
+		Manufacturer: 27,
+		Model:        1,
+	}); err != nil {
+		t.Fatalf("create search: %v", err)
+	}
+
+	f := &mockFetcher{err: errors.New("fetch failed")}
+	cfg := testConfig()
+	obs := &countingObserver{}
+	s, err := NewWithOptions(cfg, f, store, &mockNotifier{}, testLogger(), Options{
+		Observer:    obs,
+		SearchStore: store,
+	})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	if err := s.runMultiTenantCycle(ctx); err == nil {
+		t.Fatal("expected error when all fetch groups fail")
+	}
+	if obs.errors != 1 {
+		t.Errorf("errors = %d, want 1", obs.errors)
+	}
+	if obs.fetches != 1 {
+		t.Errorf("fetches = %d, want 1", obs.fetches)
+	}
+	if obs.successes != 0 {
+		t.Errorf("successes = %d, want 0", obs.successes)
 	}
 }
