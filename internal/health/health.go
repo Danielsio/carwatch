@@ -56,7 +56,7 @@ type Status struct {
 }
 
 const (
-	degradedThreshold = 2 * time.Hour
+	degradedThreshold  = 2 * time.Hour
 	startupGracePeriod = 5 * time.Minute
 	snapshotTimeout    = 2 * time.Second
 )
@@ -147,7 +147,13 @@ func (s *Status) getSource(source string) *SourceMetrics {
 	return m
 }
 
-func (s *Status) Snapshot() map[string]any {
+func (s *Status) mergeMetricMaps(dst map[string]any, src map[string]any) {
+	for k, v := range src {
+		dst[k] = v
+	}
+}
+
+func (s *Status) coreMetrics() map[string]any {
 	cycles := s.cycleCount.Load()
 	lastSuccessNs := s.lastSuccessUnixNs.Load()
 	lastSuccess := time.Time{}
@@ -165,7 +171,7 @@ func (s *Status) Snapshot() map[string]any {
 		}
 	}
 
-	resp := map[string]any{
+	return map[string]any{
 		"status":             status,
 		"uptime":             time.Since(s.startTime).String(),
 		"cycles":             cycles,
@@ -174,9 +180,10 @@ func (s *Status) Snapshot() map[string]any {
 		"listings_found":     s.listingsFound.Load(),
 		"notifications_sent": s.notificationsSent.Load(),
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), snapshotTimeout)
-	defer cancel()
+}
 
+func (s *Status) dbMetrics(ctx context.Context) map[string]any {
+	out := make(map[string]any)
 	s.mu.RLock()
 	version := s.version
 	users, searches := s.users, s.searches
@@ -184,60 +191,74 @@ func (s *Status) Snapshot() map[string]any {
 	s.mu.RUnlock()
 
 	if version != "" {
-		resp["version"] = version
+		out["version"] = version
 	}
 
 	if users != nil {
 		if n, err := users.CountUsers(ctx); err == nil {
-			resp["active_users"] = n
+			out["active_users"] = n
 		}
 	}
 	if searches != nil {
 		if n, err := searches.CountAllSearches(ctx); err == nil {
-			resp["active_searches"] = n
+			out["active_searches"] = n
 		}
 	}
 	if dbSizer != nil {
 		if size, err := dbSizer.DBSizeBytes(); err == nil {
-			resp["db_size_bytes"] = size
-			resp["db_size_mb"] = float64(size) / (1024 * 1024)
+			out["db_size_bytes"] = size
+			out["db_size_mb"] = float64(size) / (1024 * 1024)
 		}
 	}
+	return out
+}
 
+func (s *Status) sourceMetrics() map[string]any {
+	out := make(map[string]any)
 	s.sourceMu.RLock()
-	if len(s.sources) > 0 {
-		srcMap := make(map[string]any, len(s.sources))
-		for name, m := range s.sources {
-			fetches := m.FetchCount.Load()
-			successes := m.SuccessCount.Load()
-			var avgMs int64
-			if fetches > 0 {
-				avgMs = m.TotalMs.Load() / fetches
-			}
-			var successRate float64
-			if fetches > 0 {
-				successRate = float64(successes) / float64(fetches)
-			}
-			entry := map[string]any{
-				"fetches":        fetches,
-				"successes":      successes,
-				"errors":         m.ErrorCount.Load(),
-				"challenges":     m.ChallengeCount.Load(),
-				"avg_latency_ms": avgMs,
-				"success_rate":   successRate,
-			}
-			if ns := m.LastSuccess.Load(); ns > 0 {
-				entry["last_success"] = time.Unix(0, ns)
-			}
-			if ns := m.LastError.Load(); ns > 0 {
-				entry["last_error"] = time.Unix(0, ns)
-			}
-			srcMap[name] = entry
-		}
-		resp["sources"] = srcMap
+	defer s.sourceMu.RUnlock()
+	if len(s.sources) == 0 {
+		return out
 	}
-	s.sourceMu.RUnlock()
+	srcMap := make(map[string]any, len(s.sources))
+	for name, m := range s.sources {
+		fetches := m.FetchCount.Load()
+		successes := m.SuccessCount.Load()
+		var avgMs int64
+		if fetches > 0 {
+			avgMs = m.TotalMs.Load() / fetches
+		}
+		var successRate float64
+		if fetches > 0 {
+			successRate = float64(successes) / float64(fetches)
+		}
+		entry := map[string]any{
+			"fetches":        fetches,
+			"successes":      successes,
+			"errors":         m.ErrorCount.Load(),
+			"challenges":     m.ChallengeCount.Load(),
+			"avg_latency_ms": avgMs,
+			"success_rate":   successRate,
+		}
+		if ns := m.LastSuccess.Load(); ns > 0 {
+			entry["last_success"] = time.Unix(0, ns)
+		}
+		if ns := m.LastError.Load(); ns > 0 {
+			entry["last_error"] = time.Unix(0, ns)
+		}
+		srcMap[name] = entry
+	}
+	out["sources"] = srcMap
+	return out
+}
 
+func (s *Status) Snapshot() map[string]any {
+	ctx, cancel := context.WithTimeout(context.Background(), snapshotTimeout)
+	defer cancel()
+
+	resp := s.coreMetrics()
+	s.mergeMetricMaps(resp, s.dbMetrics(ctx))
+	s.mergeMetricMaps(resp, s.sourceMetrics())
 	return resp
 }
 

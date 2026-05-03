@@ -137,21 +137,11 @@ func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
-	if !ok {
-		return
-	}
-
-	var req createSearchRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
+// validateCreateSearchInput checks catalog IDs, range validation, and duplicate names.
+// On success returns (name, 0, ""). On failure returns ("", HTTP status, error message).
+func (s *Server) validateCreateSearchInput(ctx context.Context, chatID int64, req *createSearchRequest) (string, int, string) {
 	if req.Manufacturer <= 0 || req.Model <= 0 {
-		writeError(w, http.StatusBadRequest, "manufacturer and model are required")
-		return
+		return "", http.StatusBadRequest, "manufacturer and model are required"
 	}
 
 	if req.Source == "" {
@@ -159,39 +149,37 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if msg := validateSearchRanges(req.YearMin, req.YearMax, req.PriceMax, req.MaxKm, req.MaxHand, req.EngineMinCC); msg != "" {
-		writeError(w, http.StatusBadRequest, msg)
-		return
+		return "", http.StatusBadRequest, msg
 	}
 
 	mfrName := s.catalog.ManufacturerName(req.Manufacturer)
 	if mfrName == "" {
-		writeError(w, http.StatusBadRequest, "unknown manufacturer id")
-		return
+		return "", http.StatusBadRequest, "unknown manufacturer id"
 	}
 	modelName := s.catalog.ModelName(req.Manufacturer, req.Model)
 	if modelName == "" {
-		writeError(w, http.StatusBadRequest, "unknown model id")
-		return
+		return "", http.StatusBadRequest, "unknown model id"
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		name = strings.ToLower(fmt.Sprintf("%s-%s", mfrName, modelName))
 	}
 
-	existing, err := s.searches.ListSearches(r.Context(), chatID)
+	existing, err := s.searches.ListSearches(ctx, chatID)
 	if err != nil {
 		s.logger.Error("list searches for duplicate check", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to validate search name")
-		return
+		return "", http.StatusInternalServerError, "failed to validate search name"
 	}
 	for _, ex := range existing {
 		if strings.EqualFold(strings.TrimSpace(ex.Name), name) {
-			writeError(w, http.StatusConflict, "search name already exists")
-			return
+			return "", http.StatusConflict, "search name already exists"
 		}
 	}
+	return name, 0, ""
+}
 
-	search := storage.Search{
+func createSearchRecord(chatID int64, name string, req createSearchRequest) storage.Search {
+	return storage.Search{
 		ChatID:       chatID,
 		Name:         name,
 		Source:       req.Source,
@@ -207,14 +195,9 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 		ExcludeKeys:  splitKeywords(req.ExcludeKeys),
 		Active:       true,
 	}
+}
 
-	id, err := s.searches.CreateSearch(r.Context(), search)
-	if err != nil {
-		s.logger.Error("create search", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to create search")
-		return
-	}
-
+func (s *Server) writeCreatedSearch(w http.ResponseWriter, r *http.Request, chatID, id int64) {
 	created, err := s.searches.GetSearch(r.Context(), id)
 	if err != nil || created == nil {
 		s.logger.Error("get created search", "error", err)
@@ -227,6 +210,34 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 	if s.poller != nil {
 		s.poller.TriggerPoll()
 	}
+}
+
+func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
+
+	var req createSearchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	name, st, msg := s.validateCreateSearchInput(r.Context(), chatID, &req)
+	if st != 0 {
+		writeError(w, st, msg)
+		return
+	}
+
+	id, err := s.searches.CreateSearch(r.Context(), createSearchRecord(chatID, name, req))
+	if err != nil {
+		s.logger.Error("create search", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to create search")
+		return
+	}
+
+	s.writeCreatedSearch(w, r, chatID, id)
 }
 
 func (s *Server) getSearch(w http.ResponseWriter, r *http.Request) {

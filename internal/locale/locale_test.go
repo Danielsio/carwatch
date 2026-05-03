@@ -37,6 +37,8 @@ func TestTf(t *testing.T) {
 }
 
 func TestAllEnglishKeysHaveHebrew(t *testing.T) {
+	he := mergeMaps(heWizard, heCommands, heScoring)
+	en := mergeMaps(enWizard, enCommands, enScoring)
 	for key := range en {
 		if _, ok := he[key]; !ok {
 			t.Errorf("English key %q missing from Hebrew translations", key)
@@ -45,9 +47,20 @@ func TestAllEnglishKeysHaveHebrew(t *testing.T) {
 }
 
 func TestAllHebrewKeysHaveEnglish(t *testing.T) {
+	he := mergeMaps(heWizard, heCommands, heScoring)
+	en := mergeMaps(enWizard, enCommands, enScoring)
 	for key := range he {
 		if _, ok := en[key]; !ok {
 			t.Errorf("Hebrew key %q missing from English translations", key)
 		}
+	}
+}
+
+func TestMergeMaps(t *testing.T) {
+	a := map[string]string{"x": "1"}
+	b := map[string]string{"y": "2"}
+	m := mergeMaps(a, b)
+	if len(m) != 2 || m["x"] != "1" || m["y"] != "2" {
+		t.Fatalf("mergeMaps: %v", m)
 	}
 }
