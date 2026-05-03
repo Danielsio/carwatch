@@ -13,6 +13,11 @@ In production the file lives inside a Docker named volume
 (`carwatch_carwatch-data` → `/data`). This volume persists across container
 restarts, image updates, and VM reboots.
 
+**Restore destination:** Commands below copy into `/data/carwatch.db` because that
+matches the default production compose layout. If your `storage.db_path` is
+different inside the container, use that path as the **target** of every `cp`
+(and adjust `sqlite3` paths in backups/cron the same way).
+
 ## Automated daily backup
 
 ### 1. Install the cron job on the VM
@@ -43,12 +48,16 @@ crontab -l    # should list the backup entry
 ### 3. Manual backup
 
 ```bash
-# From your workstation
+# From your workstation (runs over SSH via repo Makefile → vm-check-env + ssh)
 make vm-backup
 
 # Or from the VM
 docker exec carwatch sqlite3 /data/carwatch.db ".backup /data/backups/carwatch-manual.db"
 ```
+
+Targets `vm-backup` and `vm-backup-list` live in the **repository root**
+[`Makefile`](../../Makefile) alongside `vm-ssh` / `vm-deploy`; they are not
+shown in snippets elsewhere in this doc.
 
 ### 4. List existing backups
 
@@ -97,7 +106,8 @@ Stop CarWatch before overwriting the primary DB file so SQLite does not keep a
 stale WAL handle open, then copy the newest backup into the named volume and
 start again:
 
-1. Restore from the latest on-volume backup:
+1. Restore from the latest on-volume backup (adjust `/data/carwatch.db` if your
+   `storage.db_path` differs):
 
    ```bash
    make vm-ssh
@@ -130,7 +140,8 @@ start again:
 
 5. If you have an off-site backup, stop CarWatch before overwriting the DB file
    (avoid restoring while SQLite has the file open), copy into the volume, then
-   start:
+   start. Use your real `storage.db_path` inside the container instead of
+   `/data/carwatch.db` when it differs:
 
    ```bash
    ssh <user>@<new-ip> 'docker stop carwatch'
