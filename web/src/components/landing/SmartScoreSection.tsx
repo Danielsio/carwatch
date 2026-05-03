@@ -5,9 +5,8 @@ import { useInView } from "@/hooks/useInView";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import {
   scoreListingAgainstSearch,
-  scoreColor,
+  scoreHsl,
   scoreLabel,
-  scoreBarColor,
   type DemoListingInput,
 } from "@/lib/scoringAlgorithm";
 
@@ -110,9 +109,8 @@ function DemoCard({
 }) {
   const { ref, inView } = useInView();
   const { score, breakdown } = scoreListingAgainstSearch(listing, demoSearch);
-  const color = scoreColor(score);
+  const hsl = scoreHsl(score);
   const label = scoreLabel(score);
-  const bar = scoreBarColor(score);
 
   return (
     <motion.div
@@ -128,7 +126,7 @@ function DemoCard({
         <p className="truncate text-sm font-semibold text-foreground">
           {listing.title}
         </p>
-        <p className={`mt-0.5 text-xs font-medium ${color}`}>{label}</p>
+        <p className="mt-0.5 text-xs font-medium" style={{ color: hsl }}>{label}</p>
         <div className="mt-2 flex gap-2">
           {(
             [
@@ -141,8 +139,8 @@ function DemoCard({
             <div key={f.key} className="flex flex-1 flex-col items-center gap-0.5">
               <div className="h-1 w-full overflow-hidden rounded-full bg-secondary">
                 <div
-                  className={`h-full rounded-full ${bar}`}
-                  style={{ width: `${breakdown[f.key]}%` }}
+                  className="h-full rounded-full"
+                  style={{ width: `${breakdown[f.key]}%`, backgroundColor: hsl }}
                 />
               </div>
               <span className="text-[9px] text-muted-foreground">{f.label}</span>

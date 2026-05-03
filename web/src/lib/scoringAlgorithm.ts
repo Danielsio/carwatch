@@ -57,7 +57,7 @@ export function scoreListingAgainstSearch(
         ? 1
         : 0.55;
 
-  /* Weights match the “מה נכנס לחישוב?” copy on the landing page (30/30/20/20). */
+  /* Weights match the "מה נכנס לחישוב?" copy on the landing page (30/30/20/20). */
   const combined =
     0.3 * priceFactor +
     0.3 * mileageFactor +
@@ -77,17 +77,25 @@ export function scoreListingAgainstSearch(
   };
 }
 
-/** Tier colors: green (great) → amber (good) → red (low). */
-export function scoreColor(score: number): string {
-  if (score >= 8) return "text-emerald-400";
-  if (score >= 5) return "text-amber-400";
-  return "text-red-500";
+/**
+ * Continuous HSL gradient: red (0) → amber (5) → emerald-green (10).
+ * Returns raw HSL components so consumers can build color / bg / border.
+ */
+function scoreHue(score: number): number {
+  if (!Number.isFinite(score)) return 0;
+  const t = Math.max(0, Math.min(10, score)) / 10;
+  return Math.round(t * 160);
 }
 
-export function scoreBgColor(score: number): string {
-  if (score >= 8) return "bg-emerald-400/12 border-emerald-400/50";
-  if (score >= 5) return "bg-amber-400/12 border-amber-400/45";
-  return "bg-red-500/12 border-red-500/42";
+export function scoreHsl(score: number): string {
+  const hue = scoreHue(score);
+  return `hsl(${hue} 72% 55%)`;
+}
+
+export function scoreHslAlpha(score: number, alpha: number): string {
+  const hue = scoreHue(score);
+  const a = Math.max(0, Math.min(1, alpha));
+  return `hsl(${hue} 72% 55% / ${a})`;
 }
 
 export function scoreLabel(score: number): string {
@@ -95,10 +103,4 @@ export function scoreLabel(score: number): string {
   if (score >= 7) return "טוב מאוד";
   if (score >= 5.5) return "טוב";
   return "חלש";
-}
-
-export function scoreBarColor(score: number): string {
-  if (score >= 8) return "bg-emerald-400";
-  if (score >= 5) return "bg-amber-400";
-  return "bg-red-500";
 }
