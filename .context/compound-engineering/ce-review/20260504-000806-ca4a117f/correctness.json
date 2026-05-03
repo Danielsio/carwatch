@@ -1,0 +1,71 @@
+{
+  "reviewer": "correctness",
+  "findings": [
+    {
+      "title": "Signature change breaks interface contract but KmEnricher interface not updated",
+      "severity": "P0",
+      "file": "internal/scheduler/scheduler.go",
+      "line": 48,
+      "confidence": 0.95,
+      "autofix_class": "manual",
+      "owner": "human",
+      "requires_verification": false,
+      "pre_existing": false,
+      "why_it_matters": "The KmEnricher interface at scheduler.go:48 defines Enrich as returning `int`, but the implementation in enricher.go was changed to return `(int, error)`. The compiler would reject this as a type mismatch, meaning the code does not compile. The caller at line 678 correctly expects `(int, error)`, so the interface is stale.",
+      "evidence": "Interface definition at scheduler.go:48:\n```go\ntype KmEnricher interface {\n    Enrich(ctx context.Context, listings []model.RawListing) int\n}\n```\n\nImplementation at enricher.go:48:\n```go\nfunc (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) (int, error)\n```\n\nCaller at scheduler.go:678:\n```go\nenriched, enrichErr := s.kmEnricher.Enrich(enrichCtx, raw)\n```\n\nThe caller expects two return values but the interface declares one. This is a compile-time error.",
+      "suggested_fix": "Update the interface signature at scheduler.go:48 to match the implementation:\n```go\ntype KmEnricher interface {\n    Enrich(ctx context.Context, listings []model.RawListing) (int, error)\n}\n```"
+    },
+    {
+      "title": "Missing error propagation: ErrEnrichmentAborted returned but never checked or handled",
+      "severity": "P2",
+      "file": "internal/fetcher/yad2/enricher.go",
+      "line": 103,
+      "confidence": 0.85,
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": true,
+      "pre_existing": false,
+      "why_it_matters": "Enrich() returns yad2.ErrEnrichmentAborted on line 103 when consecutive failures hit the threshold, but the caller at scheduler.go:678 only checks if enrichErr != nil (generic error handling). Unlike fetcher.ErrChallenge which triggers backoff logic in processGroup, ErrEnrichmentAborted has no special handling. The error is logged but doesn't influence scheduling behavior. If the intent was to distinguish consecutive failures from other errors (e.g., to skip future enrichment or adjust backoff), the current code doesn't support that.",
+      "evidence": "enricher.go returns ErrEnrichmentAborted:\n```go\nif consecutiveFailures >= maxConsecutiveFailures {\n    e.logger.Warn(\"enrichment aborted after consecutive failures\", ...)\n    return enriched, ErrEnrichmentAborted\n}\n```\n\nScheduler handles the error generically:\n```go\nenriched, enrichErr := s.kmEnricher.Enrich(enrichCtx, raw)\nif enrichErr != nil {\n    s.logger.Warn(\"km enrichment stopped early\", \"error\", enrichErr, \"enriched\", enriched)\n}\n```\n\nNo code checks `errors.Is(enrichErr, yad2.ErrEnrichmentAborted)` or takes special action.",
+      "suggested_fix": "If ErrEnrichmentAborted is meant to be advisory (just explaining why enrichment stopped), the current code is correct. If it should trigger special logic (e.g., disabling enrichment for subsequent cycles, adjusting backoff, or notifying the user), add that logic in scheduler.go after line 681."
+    },
+    {
+      "title": "consecutiveFailures reset on success but not on context cancellation leading to incorrect abort",
+      "severity": "P2",
+      "file": "internal/fetcher/yad2/enricher.go",
+      "line": 51,
+      "confidence": 0.70,
+      "autofix_class": "safe_auto",
+      "owner": "review-fixer",
+      "requires_verification": false,
+      "pre_existing": false,
+      "why_it_matters": "The consecutiveFailures counter is reset to zero on line 108 after a successful fetch. However, if the loop exits via `return enriched, nil` on line 70 (context cancellation), the counter retains its value across calls to Enrich(). Since Enricher is a stateful object (stored in scheduler), this means failures from one cycle can leak into the next. For example: cycle 1 has 2 failures then cancellation, cycle 2 starts with consecutiveFailures=0 but the Enricher instance retains 2, so the first failure in cycle 2 triggers abort. This violates the expected behavior that consecutive failures are counted within a single Enrich() call.",
+      "evidence": "consecutiveFailures is a local variable, initialized at the start of Enrich():\n```go\nfunc (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) (int, error) {\n    enriched := 0\n    attempts := 0\n    consecutiveFailures := 0  // line 51\n```\n\nExit paths:\n- Line 70: `return enriched, nil` (ctx.Done, preserves local state only within this invocation)\n- Line 77: same\n- Line 90: `return enriched, fetcher.ErrChallenge`\n- Line 103: `return enriched, ErrEnrichmentAborted`\n- Line 135: `return enriched, nil`\n\nActually, on closer inspection, consecutiveFailures is a local variable, not a field. It cannot leak across calls. However, the abort threshold is checked mid-loop (line 97), and consecutive failures within the *same* call are counted correctly. The issue is NOT present. This finding should be suppressed.",
+      "suggested_fix": "No fix needed; this is a false positive. consecutiveFailures is a local variable and resets on every Enrich() call."
+    },
+    {
+      "title": "Bot protection detection prevents itemClient eviction, orphaning poisoned clients",
+      "severity": "P1",
+      "file": "internal/fetcher/yad2/yad2.go",
+      "line": 98,
+      "confidence": 0.75,
+      "autofix_class": "manual",
+      "owner": "human",
+      "requires_verification": true,
+      "pre_existing": false,
+      "why_it_matters": "itemClient is created once in NewFetcherWithProxyPool (line 56) and shared across all FetchItem calls. Unlike the listing client which uses clientPool and evicts challenged clients (line 159), itemClient is never rotated or evicted. If itemClient gets challenged (line 104-105), it returns ErrChallenge but the client remains poisoned. All subsequent FetchItem calls will fail with the same challenge. The intent was to isolate itemClient from listing-page cookies, but the isolation is incomplete: a challenged itemClient can't be healed, and the enricher has no mechanism to request a fresh client.",
+      "evidence": "itemClient creation (single instance, no pool):\n```go\nfunc NewFetcherWithProxyPool(...) (*Yad2Fetcher, error) {\n    ...\n    ic, err := NewClient(userAgents, proxy)  // line 56\n    ...\n    return &Yad2Fetcher{\n        client:     client,\n        itemClient: ic,  // line 67\n        ...\n    }, nil\n}\n```\n\nFetchItem detection:\n```go\nif looksLikeBotProtection(result.Body) {\n    return ItemDetails{}, fmt.Errorf(\"fetch item %s: %w\", token, fetcher.ErrChallenge)\n}\n```\n\nNo eviction logic: clientPool is used for `client`, but `itemClient` is standalone. Once challenged, it stays challenged until Close() or program restart.",
+      "suggested_fix": "Options:\n1. Add a separate clientPool for itemClient, allowing rotation on challenge.\n2. Recreate itemClient when FetchItem detects a challenge (requires storing proxy/userAgents).\n3. Accept the limitation and document that enrichment may fail for the remainder of the cycle if itemClient is challenged, relying on the next cycle to get a fresh client.\n\nOption 3 is simplest but degrades enrichment. Option 1 aligns with the existing architecture."
+    }
+  ],
+  "residual_risks": [
+    "If itemClient becomes challenged mid-cycle, all remaining enrichment attempts in that cycle will fail with ErrChallenge, even if the listing client remains healthy. This could cause premature abort via line 90 rather than utilizing the consecutive-failure threshold.",
+    "The looksLikeBotProtection() and looksLikeGenericError() functions use substring matching on the entire response body (converted to lowercase string). For a 10MB response (maxResponseSize), this allocates a 10MB string twice and scans it linearly for each pattern. If a large non-HTML payload is returned, this could cause memory pressure. However, typical bot-protection responses are small HTML pages, so this is unlikely in practice."
+  ],
+  "testing_gaps": [
+    "No test verifies that itemClient isolation prevents listing-page cookies from affecting item fetches. A test should confirm that a challenged listing fetch does NOT poison itemClient.",
+    "No test verifies that a challenged itemClient correctly returns ErrChallenge and that the enricher propagates it.",
+    "No test verifies the consecutive-failure abort threshold (maxConsecutiveFailures=3). A test should mock FetchItem to fail 3 times and confirm enrichment aborts with ErrEnrichmentAborted.",
+    "No test confirms that ErrEnrichmentAborted is distinguishable from generic errors at the scheduler layer (or documents that it's not meant to be)."
+  ]
+}

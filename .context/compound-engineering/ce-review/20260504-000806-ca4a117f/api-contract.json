@@ -1,0 +1,76 @@
+{
+  "reviewer": "api-contract",
+  "findings": [
+    {
+      "id": "api-contract-001",
+      "severity": "P2",
+      "confidence": 0.85,
+      "category": "undocumented-behavior-change",
+      "title": "Enrichment failures silently swallowed; caller cannot distinguish abort reasons",
+      "description": "The `Enricher.Enrich()` method returns early (with partial count) when it encounters `fetcher.ErrChallenge` or hits `maxConsecutiveFailures`, but the caller (scheduler.go:678) only receives an `int` count with no error or reason code. The scheduler cannot distinguish between:\n\n1. Normal completion (budget exhausted, all items processed)\n2. Aborted due to bot challenge\n3. Aborted due to consecutive failures\n4. Aborted due to context cancellation\n\nThe caller logs \"km enrichment complete\" for all cases, even when enrichment was forcibly aborted. This creates observability gaps: operators cannot tell if enrichment is systematically failing vs. naturally complete.",
+      "location": {
+        "file": "internal/fetcher/yad2/enricher.go",
+        "line": 48,
+        "symbol": "Enricher.Enrich"
+      },
+      "evidence": [
+        {
+          "file": "internal/fetcher/yad2/enricher.go",
+          "line_range": [85, 91],
+          "snippet": "if errors.Is(err, fetcher.ErrChallenge) {\n\te.logger.Warn(\"enrichment blocked by anti-bot protection, skipping remaining items\",\n\t\t\"attempts\", attempts,\n\t\t\"remaining\", countMissingKm(listings[i:]),\n\t)\n\treturn enriched\n}"
+        },
+        {
+          "file": "internal/scheduler/scheduler.go",
+          "line_range": [676, 682],
+          "snippet": "if source == \"yad2\" && s.kmEnricher != nil {\n\tenrichCtx, cancelEnrich := context.WithTimeout(ctx, kmEnrichTimeout)\n\tdefer cancelEnrich()\n\tenriched := s.kmEnricher.Enrich(enrichCtx, raw)\n\tif enriched > 0 {\n\t\ts.logger.Info(\"km enrichment complete\", \"enriched\", enriched)\n\t}\n}"
+        }
+      ],
+      "impact": "Operational blind spot: silently aborted enrichment cycles appear successful. Bot protection or network failures that block enrichment won't trigger alerts or backoff adjustments. The scheduler's backoff multiplier (line 608) only reacts to fetch-stage ErrChallenge, not enrichment-stage challenges.",
+      "recommendation": "Change `KmEnricher.Enrich` to return `(int, error)` with sentinel errors:\n- `ErrEnrichmentAborted` for consecutive failures\n- `fetcher.ErrChallenge` for bot protection\n- `nil` for normal completion/budget exhaustion\n\nUpdate scheduler.go:678 to:\n1. Handle `fetcher.ErrChallenge` by applying backoff (same as fetch stage)\n2. Log abort errors distinctly from successful completion\n3. Optionally retry enrichment with different proxy on challenge",
+      "pre_existing": false
+    },
+    {
+      "id": "api-contract-002",
+      "severity": "P3",
+      "confidence": 0.75,
+      "category": "inconsistent-error-handling",
+      "title": "Enrichment bot challenge does not trigger scheduler backoff, but fetch challenge does",
+      "description": "When `FetchItem()` returns `fetcher.ErrChallenge` during enrichment (enricher.go:85), the enricher aborts but does NOT propagate the error to the scheduler. The scheduler's backoff mechanism (scheduler.go:606-610) only reacts to `ErrChallenge` from the fetch stage, not the enrichment stage.\n\nThis creates an asymmetry: bot protection during listing fetch triggers exponential backoff, but bot protection during item enrichment is silent. Both access the same domain (yad2.co.il) and should trigger the same defensive response.",
+      "location": {
+        "file": "internal/scheduler/scheduler.go",
+        "line_range": [676, 682],
+        "symbol": "fetchAndEnrich"
+      },
+      "evidence": [
+        {
+          "file": "internal/scheduler/scheduler.go",
+          "line_range": [606, 610],
+          "snippet": "if errors.Is(err, fetcher.ErrChallenge) {\n\ts.boMu.Lock()\n\ts.backoffMultiplier = min(s.backoffMultiplier*2, maxBackoff)\n\ts.boMu.Unlock()\n}"
+        },
+        {
+          "file": "internal/scheduler/scheduler.go",
+          "line_range": [676, 682],
+          "snippet": "enriched := s.kmEnricher.Enrich(enrichCtx, raw)\nif enriched > 0 {\n\ts.logger.Info(\"km enrichment complete\", \"enriched\", enriched)\n}"
+        }
+      ],
+      "impact": "Inconsistent defensive behavior: bot challenges during enrichment don't reduce polling frequency, potentially accelerating detection and blocking. The system learns from fetch failures but not enrichment failures.",
+      "recommendation": "After implementing finding api-contract-001, ensure scheduler.go checks for `fetcher.ErrChallenge` from enrichment stage and applies the same backoff logic as fetch stage (lines 606-610).",
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [
+    {
+      "risk": "Proxy pool eviction on bot challenge",
+      "description": "The new `itemClient` field isolates enrichment sessions, which prevents cascading failures to listing fetches. However, if the proxy pool is shared and a proxy is evicted after an enrichment challenge, subsequent listing fetches may unnecessarily rotate proxies even though the listing client wasn't challenged. The code doesn't show proxy eviction happening in `FetchItem()`, only in `Fetch()` (yad2.go:159), so this may already be handled correctly.",
+      "likelihood": "Low",
+      "mitigation": "Current design appears sound: `itemClient` has an isolated session and doesn't evict proxies from the pool on challenge. Verify that `itemClient.Get()` implementation does not call `clientPool.Evict()`."
+    }
+  ],
+  "testing_gaps": [
+    {
+      "gap": "Scheduler enrichment error handling untested",
+      "description": "No tests verify scheduler behavior when `kmEnricher.Enrich()` encounters bot challenges or consecutive failures. The enricher tests (enricher_test.go) cover abort logic, but scheduler integration tests don't verify that enrichment failures are logged/handled appropriately.",
+      "recommendation": "Add scheduler test: when enrichment aborts due to ErrChallenge mid-cycle, verify that the scheduler continues to process other groups and doesn't treat the partial enrichment as a fatal error."
+    }
+  ]
+}

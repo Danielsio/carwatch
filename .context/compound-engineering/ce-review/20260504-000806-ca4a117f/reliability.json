@@ -1,0 +1,76 @@
+{
+  "reviewer": "reliability",
+  "findings": [
+    {
+      "severity": "P2",
+      "confidence": 0.85,
+      "category": "error_swallowing",
+      "title": "Enrichment errors swallowed: failures logged but not surfaced to scheduler cycle tracking",
+      "description": "scheduler.go fetchAndEnrich() changed KmEnricher.Enrich to return (int, error), but the enrichErr is logged as a warning (line 680) and never returned or propagated. This means:\n\n1. Scheduler processGroup never learns enrichment failed\n2. Backoff multiplier doesn't increase on bot-protection failures during enrichment\n3. Observer.RecordError() is never called for enrichment failures\n4. If enrichment consistently fails (e.g., all proxies blocked), scheduler silently continues without visibility\n\nThe contract changed (Enrich now returns error) but the caller still treats it as fire-and-forget. Enrichment abort errors should either be returned from fetchAndEnrich (propagating to processGroup for backoff) or at minimum tracked with a dedicated observer metric.",
+      "location": {
+        "file": "internal/scheduler/scheduler.go",
+        "line": 676,
+        "snippet": "if source == \"yad2\" && s.kmEnricher != nil {\n\tenrichCtx, cancelEnrich := context.WithTimeout(ctx, kmEnrichTimeout)\n\tdefer cancelEnrich()\n\tenriched := s.kmEnricher.Enrich(enrichCtx, raw)\n\tif enriched > 0 {\n\t\ts.logger.Info(\"km enrichment complete\", \"enriched\", enriched)\n\t}\n}"
+      },
+      "impact": "When bot-protection blocks enrichment (ErrChallenge returned from Enrich), scheduler doesn't back off or adjust polling strategy. This can lead to sustained enrichment failures without operator visibility or automatic mitigation. The backoff mechanism only reacts to listing fetch failures, not item-page failures.",
+      "recommendation": "Change fetchAndEnrich to return enrichment errors for ErrChallenge and ErrEnrichmentAborted cases, so processGroup can apply backoff. Alternatively, add observer.RecordEnrichmentFailure() to track enrichment reliability separately from fetch reliability. Current silent failure makes troubleshooting bot-protection issues harder."
+    },
+    {
+      "severity": "P3",
+      "confidence": 0.80,
+      "category": "missing_error_handling",
+      "title": "Context cancellation during enrichment treated as success (returns nil error)",
+      "description": "enricher.go Enrich() returns (enriched, nil) when ctx.Done() is hit (lines 69-70, 76-77). This is inconsistent:\n\n1. Partial work (some items enriched before cancellation) is silently truncated\n2. Scheduler has no way to distinguish 'enriched 0 because all had data' from 'enriched 0 because context canceled immediately'\n3. If enrichment timeout fires (kmEnrichTimeout), scheduler logs 'enriched 0' as if no items needed enrichment\n\nThe function contract is ambiguous: does nil error mean success, or does it mean 'stopped early but not an error condition'?",
+      "location": {
+        "file": "internal/fetcher/yad2/enricher.go",
+        "line": 68,
+        "snippet": "select {\ncase <-ctx.Done():\n\treturn enriched\ndefault:\n}"
+      },
+      "impact": "When kmEnrichTimeout fires mid-enrichment, scheduler silently loses partial work without visibility. Logs show 'enriched N' but don't indicate timeout. This makes it hard to tune kmEnrichTimeout or debug why enrichment coverage is low. Caller can't distinguish timeout from 'nothing to enrich'.",
+      "recommendation": "Return context.Cause(ctx) when ctx.Done() is detected, or add a sentinel error like ErrEnrichmentIncomplete. Scheduler should log differently for timeout vs completion. Alternatively, always log 'enrichment stopped: context canceled, enriched N of M' at the Enrich level."
+    },
+    {
+      "severity": "P3",
+      "confidence": 0.75,
+      "category": "cascading_failure_path",
+      "title": "Bot-protection detection may be incomplete: looksLikeBotProtection and looksLikeGenericError only check known patterns",
+      "description": "yad2.go FetchItem checks looksLikeBotProtection (line 104), then looksLikeGenericError for 400s (line 107), then returns a generic error for other non-200 responses (line 119). The detection relies on string matching against known bot-protection vendors (perfdrive, shieldsquare, cloudflare) and generic error page titles.\n\nIf yad2 changes bot-protection provider or the error page format, these checks will miss challenges and return generic errors. The consecutive-failure abort (maxConsecutiveFailures=3) will trigger, but:\n\n1. No proxy eviction (only happens on ErrChallenge)\n2. No backoff multiplier increase in scheduler (enrichErr not propagated)\n3. After 3 failures, enrichment aborts but listing fetch continues\n\nThis is a partial failure mode: enrichment silently degrades (all listings missing km/city/image) without triggering circuit-breaker behavior.",
+      "location": {
+        "file": "internal/fetcher/yad2/yad2.go",
+        "line": 103,
+        "snippet": "if result.StatusCode != http.StatusOK {\n\tif looksLikeBotProtection(result.Body) {\n\t\treturn ItemDetails{}, fmt.Errorf(\"fetch item %s: %w\", token, fetcher.ErrChallenge)\n\t}\n\tif result.StatusCode == http.StatusBadRequest && looksLikeGenericError(result.Body) {\n\t\treturn ItemDetails{}, fmt.Errorf(\"fetch item %s: %w\", token, fetcher.ErrChallenge)\n\t}\n\t// ... generic error\n}"
+      },
+      "impact": "If bot-protection detection fails to recognize a new challenge type, enrichment will hit 3 consecutive generic errors, abort, and never retry. Listings will be delivered with missing km/city/image until operator notices and updates detection logic. No automatic recovery or alerting.",
+      "recommendation": "Add a fallback heuristic: if non-200 status and body is HTML (not JSON), treat as potential bot-protection after consecutive failures. Or: log body snippet on consecutive failures to help identify new challenge patterns. Consider a 'strict mode' config flag that treats any non-200 item response as ErrChallenge during testing."
+    }
+  ],
+  "residual_risks": [
+    {
+      "category": "cascading_failure_path",
+      "description": "If itemClient.Get() hangs (slow server, no timeout), enrichment will block until kmEnrichTimeout (25 minutes). During this time, listings for all searches in the group are held in memory and not delivered. If multiple groups hit slow item pages concurrently, scheduler can consume memory holding undelivered listings across all groups.",
+      "mitigation": "itemClient is created via NewClient, which should set HTTP client timeout (needs verification in client.go). If not set, add explicit timeout to itemClient transport. Also consider per-item timeout (shorter than kmEnrichTimeout) to fail-fast on slow item pages."
+    },
+    {
+      "category": "error_propagation",
+      "description": "consecutiveFailures counter is local to Enrich(), resets between Enrich calls. If enrichment gets 2 failures in one cycle, then 2 in the next cycle, it never hits the 3-failure abort threshold. This means sustained ~50% enrichment failure rate can persist indefinitely without triggering abort.",
+      "mitigation": "Current design is intentional: each poll cycle starts fresh. If cross-cycle tracking is needed, move consecutiveFailures to Enricher struct and add ResetCounter() method called on successful listing fetch. Document that abort is per-cycle only."
+    }
+  ],
+  "testing_gaps": [
+    {
+      "area": "error_handling",
+      "description": "No test verifies scheduler behavior when Enrich returns error (e.g., how fetchAndEnrich handles enrichErr). Tests exist for enricher in isolation but not integration with scheduler error handling and backoff.",
+      "suggested_test": "Add scheduler test: enrichment returns ErrChallenge -> verify backoffMultiplier increases (or verify it doesn't, if that's intended design). Currently unclear if enrichment failures should affect polling backoff."
+    },
+    {
+      "area": "timeout_handling",
+      "description": "No test verifies Enrich behavior when kmEnrichTimeout fires mid-enrichment. Test suite uses very short delays but doesn't simulate timeout during enrichment loop.",
+      "suggested_test": "Add enricher test: set MaxPerCycle=10, context timeout after 3 items -> verify returns enriched=3 and check error (currently returns nil, is that correct?)"
+    },
+    {
+      "area": "resource_cleanup",
+      "description": "No test verifies itemClient.Close() is called when Yad2Fetcher.Close() is invoked. If Close order is wrong (client closed before itemClient), could leave connections open.",
+      "suggested_test": "Add test: mock HTTPDoer with Close() tracking -> verify Close called on both client and itemClient in correct order (clientPool, then itemClient, then client)."
+    }
+  ]
+}

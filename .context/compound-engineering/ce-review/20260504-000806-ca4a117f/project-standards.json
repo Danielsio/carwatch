@@ -1,0 +1,65 @@
+{
+  "reviewer": "project-standards",
+  "findings": [
+    {
+      "id": "ps-001",
+      "severity": "P2",
+      "confidence": 0.95,
+      "category": "commit-format",
+      "title": "Commit message contains prohibited Co-authored-by attribution",
+      "description": "CLAUDE.md §Git Identity specifies: 'Never add Co-Authored-By or any Claude Code / Cursor attribution trailers'. The commit message ends with 'Co-authored-by: Cursor <cursoragent@cursor.com>', which violates this rule. Only 'Assisted-By: Claude <model> <noreply@anthropic.com>' and 'Signed-off-by: Daniel Sionov <kingddd301@gmail.com>' are allowed.",
+      "location": {
+        "file": "commit message",
+        "line": "2f3cd37"
+      },
+      "evidence": {
+        "rule_citation": "CLAUDE.md lines 1-14: 'Never add Co-Authored-By or any Claude Code / Cursor attribution trailers'",
+        "violation": "Co-authored-by: Cursor <cursoragent@cursor.com>"
+      },
+      "recommendation": "Amend the commit to remove the 'Co-authored-by: Cursor' trailer. Only include 'Assisted-By: Claude opus 4.6 <noreply@anthropic.com>' and 'Signed-off-by: Daniel Sionov <kingddd301@gmail.com>'.",
+      "pre_existing": false
+    },
+    {
+      "id": "ps-002",
+      "severity": "P3",
+      "confidence": 0.85,
+      "category": "commit-format",
+      "title": "Commit prefix follows conventional format",
+      "description": "The commit message uses 'fix:' prefix, which correctly follows CLAUDE.md §Commit Format (Conventional Commits) requirements and will trigger a patch bump (1.0.X) as intended for this bug fix.",
+      "location": {
+        "file": "commit message",
+        "line": "2f3cd37"
+      },
+      "evidence": {
+        "rule_citation": "CLAUDE.md lines 16-24: 'PR titles and commit messages MUST use conventional commit prefixes. fix: → patch bump (1.0.X)'",
+        "violation": null
+      },
+      "recommendation": "No action required. The commit prefix is correct.",
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": [],
+  "analysis": {
+    "standards_reviewed": [
+      "/home/dsionov/daniel/carwatch/CLAUDE.md"
+    ],
+    "rules_applied": [
+      "Git Identity (commit sign-off)",
+      "Commit Format (Conventional Commits)",
+      "Test Coverage",
+      "Pre-Push Checks (linter)"
+    ],
+    "scope": "Reviewed commit 2f3cd37 against CLAUDE.md standards",
+    "notes": [
+      "Commit correctly uses 'fix:' prefix for conventional commits",
+      "Commit correctly uses 'Signed-off-by: Daniel Sionov <kingddd301@gmail.com>'",
+      "Commit correctly uses 'Assisted-By: Claude opus 4.6 <noreply@anthropic.com>'",
+      "VIOLATION: Commit incorrectly includes 'Co-authored-by: Cursor <cursoragent@cursor.com>' which is prohibited",
+      "Test coverage maintained at 82.2% (no decrease)",
+      "Tests added for new behavior (defaultMaxPerCycle, isolation, generic error detection)",
+      "Linter passes with no errors (golangci-lint run ./... produced no output)",
+      "All project standards checks passed except prohibited attribution trailer"
+    ]
+  }
+}

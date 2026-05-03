@@ -1,0 +1,79 @@
+{
+  "reviewer": "testing",
+  "findings": [
+    {
+      "title": "NewFetcher cleanup path untested when itemClient creation fails",
+      "severity": "P2",
+      "file": "internal/fetcher/yad2/yad2.go",
+      "line": 39,
+      "confidence": 0.85,
+      "autofix_class": "manual",
+      "owner": "human",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Add test case: TestNewFetcher_ItemClientFailure that verifies client.Close() is called when itemClient creation fails (e.g., via invalid proxy). Mock NewClient to fail on second call to verify cleanup."
+    },
+    {
+      "title": "NewFetcherWithProxyPool cleanup path untested when itemClient creation fails",
+      "severity": "P2",
+      "file": "internal/fetcher/yad2/yad2.go",
+      "line": 56,
+      "confidence": 0.85,
+      "autofix_class": "manual",
+      "owner": "human",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Add test case: TestNewFetcherWithProxyPool_ItemClientFailure that verifies client.Close() is called when itemClient creation fails. This mirrors the error path in NewFetcher."
+    },
+    {
+      "title": "itemClient.Close() failure mode untested in Yad2Fetcher.Close()",
+      "severity": "P3",
+      "file": "internal/fetcher/yad2/yad2.go",
+      "line": 77,
+      "confidence": 0.70,
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "While TestYad2Fetcher_Close_Idempotent exists, it doesn't verify itemClient cleanup specifically. Consider adding assertions that both client and itemClient are properly closed, though nil-checking makes this low risk."
+    },
+    {
+      "title": "Enrich consecutive failure reset boundary not fully tested",
+      "severity": "P2",
+      "file": "internal/fetcher/yad2/enricher.go",
+      "line": 108,
+      "confidence": 0.75,
+      "autofix_class": "manual",
+      "owner": "human",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "TestEnricher_ConsecutiveFailureResets tests failure-success-success pattern but not the exact boundary: 2 consecutive failures, success (reset), then 3 consecutive failures should abort on 4th request in second run. Add test verifying counter fully resets."
+    }
+  ],
+  "residual_risks": [
+    {
+      "description": "Client isolation effectiveness not verified end-to-end",
+      "likelihood": "low",
+      "impact": "moderate",
+      "mitigation": "TestYad2Fetcher_FetchItem_DoesNotPoisonListingClient verifies cookies don't leak between clients via HTTP round-trip test. Actual azuretls cookie jar isolation relies on library behavior (two separate Client instances)."
+    },
+    {
+      "description": "looksLikeGenericError may have false positives on legitimate 400/403 pages",
+      "likelihood": "low",
+      "impact": "low",
+      "mitigation": "Function checks for generic nginx/CDN error page HTML structure. TestLooksLikeGenericError covers happy/sad paths with specific HTML. Risk: legitimate Yad2 400 pages misclassified as bot protection."
+    }
+  ],
+  "testing_gaps": [
+    {
+      "area": "Error handling",
+      "description": "Resource cleanup when constructor fails mid-way",
+      "recommendation": "Add fault injection tests for both NewFetcher and NewFetcherWithProxyPool that fail itemClient creation and verify client cleanup. This is a standard constructor error path pattern."
+    },
+    {
+      "area": "Boundary conditions",
+      "description": "Consecutive failure counter reset at maxConsecutiveFailures boundary",
+      "recommendation": "Add test: 2 failures -> success -> 3 failures should abort after 3 more failures (6 total requests), verifying the counter fully resets to 0 on success, not just below threshold."
+    }
+  ]
+}
