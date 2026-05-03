@@ -25,12 +25,12 @@ import (
 )
 
 const (
-	fetchTimeout     = 60 * time.Second
-	maxBackoff       = 4.0
-	minBackoff       = 1.0
-	pruneInterval    = 24 * time.Hour
-	maxRetries       = 3
-	retryBaseDelay   = 2 * time.Second
+	fetchTimeout   = 60 * time.Second
+	maxBackoff     = 4.0
+	minBackoff     = 1.0
+	pruneInterval  = 24 * time.Hour
+	maxRetries     = 3
+	retryBaseDelay = 2 * time.Second
 )
 
 type CatalogIngester interface {
@@ -91,15 +91,15 @@ type searchResult struct {
 }
 
 type Options struct {
-	Observer        CycleObserver
-	Queue           storage.NotificationQueue
-	Prices          storage.PriceTracker
-	ConfigPath      string
-	FetcherFactory  *fetcher.Factory
-	ListingStore    storage.ListingStore
-	SearchStore     storage.SearchStore
-	UserStore       storage.UserStore
-	DigestStore     storage.DigestStore
+	Observer         CycleObserver
+	Queue            storage.NotificationQueue
+	Prices           storage.PriceTracker
+	ConfigPath       string
+	FetcherFactory   *fetcher.Factory
+	ListingStore     storage.ListingStore
+	SearchStore      storage.SearchStore
+	UserStore        storage.UserStore
+	DigestStore      storage.DigestStore
 	HiddenStore      storage.HiddenListingStore
 	CatalogIngester  CatalogIngester
 	KmEnricher       KmEnricher
@@ -135,9 +135,9 @@ func NewWithOptions(
 		obs = nopObserver{}
 	}
 	return &Scheduler{
-		cfg:               cfg,
-		configPath:        opts.ConfigPath,
-		fetcher:           f,
+		cfg:        cfg,
+		configPath: opts.ConfigPath,
+		fetcher:    f,
 		stores: Stores{
 			Dedup:        d,
 			Queue:        opts.Queue,
@@ -523,17 +523,17 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		go func(g CanonicalGroup) {
 			defer wg.Done()
 			defer func() { <-sem }()
-		defer func() {
-			if r := recover(); r != nil {
-				s.logger.Error("panic in processGroup",
-					"manufacturer", g.Manufacturer,
-					"model", g.Model,
-					"panic", r,
-					"stack", string(debug.Stack()),
-				)
-				s.observer.RecordError()
-			}
-		}()
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("panic in processGroup",
+						"manufacturer", g.Manufacturer,
+						"model", g.Model,
+						"panic", r,
+						"stack", string(debug.Stack()),
+					)
+					s.observer.RecordError()
+				}
+			}()
 
 			if err := s.processGroup(ctx, g, marketCache); err != nil {
 				s.logger.Error("group failed",
@@ -809,7 +809,8 @@ func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Se
 func (s *Scheduler) persistListings(ctx context.Context, records []storage.ListingRecord) error {
 	if err := s.stores.Listings.SaveListings(ctx, records); err != nil {
 		s.logger.Error("batch save listings failed", "error", err)
-		cleanupCtx := context.Background()
+		cleanupCtx, cleanupCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cleanupCancel()
 		for _, rec := range records {
 			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, rec.Token, rec.ChatID); relErr != nil {
 				s.logger.Error("release claim after batch save failure",
@@ -831,7 +832,12 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 					"chat_id", search.ChatID,
 				)
 				if s.stores.Users != nil {
-					_ = s.stores.Users.SetUserActive(context.Background(), search.ChatID, false)
+					if err := s.stores.Users.SetUserActive(ctx, search.ChatID, false); err != nil {
+						s.logger.Error("set user inactive after block (price drop)",
+							"chat_id", search.ChatID,
+							"error", err,
+						)
+					}
 				}
 				break
 			}
@@ -860,7 +866,12 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 				"chat_id", search.ChatID,
 			)
 			if s.stores.Users != nil {
-				_ = s.stores.Users.SetUserActive(context.Background(), search.ChatID, false)
+				if err := s.stores.Users.SetUserActive(ctx, search.ChatID, false); err != nil {
+					s.logger.Error("set user inactive after block (batch)",
+						"chat_id", search.ChatID,
+						"error", err,
+					)
+				}
 			}
 		} else {
 			s.logger.Error("delivery failed",
@@ -868,8 +879,14 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 				"error", err,
 			)
 		}
+		cleanupCtx, cleanupCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cleanupCancel()
 		for _, l := range sr.newListings {
-			_ = s.stores.Dedup.ReleaseClaim(context.Background(), l.Token, search.ChatID)
+			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, l.Token, search.ChatID); relErr != nil {
+				s.logger.Error("release claim after delivery failure",
+					"token", l.Token, "chat_id", search.ChatID, "error", relErr,
+				)
+			}
 		}
 	} else {
 		s.observer.RecordNotificationSent()
