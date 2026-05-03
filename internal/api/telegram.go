@@ -22,9 +22,8 @@ func (s *Server) postTelegramLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatID := chatIDFromContext(r.Context())
-	if chatID <= 0 {
-		writeError(w, http.StatusUnauthorized, "invalid or missing token")
+	chatID, ok := requireChatID(w, r)
+	if !ok {
 		return
 	}
 	token, err := s.linkTokens.CreateLinkToken(r.Context(), chatID)
@@ -42,9 +41,8 @@ func (s *Server) postTelegramLink(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getTelegramStatus(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
-	if chatID <= 0 {
-		writeError(w, http.StatusUnauthorized, "invalid or missing token")
+	chatID, ok := requireChatID(w, r)
+	if !ok {
 		return
 	}
 	tgUser, err := s.users.GetLinkedTelegramUser(r.Context(), chatID)

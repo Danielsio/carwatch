@@ -41,7 +41,7 @@ export function scoreListingAgainstSearch(
 
   const kmRatio =
     search.mileage_max > 0
-      ? clamp01(listing.mileage / search.mileage_max)
+      ? Math.max(0, listing.mileage/search.mileage_max)
       : 0;
   const mileageFactor = Math.exp(-kmRatio * 2.2);
 
@@ -77,18 +77,17 @@ export function scoreListingAgainstSearch(
   };
 }
 
+/** Tier colors aligned with landing Smart Match mock (gold / orange / red). */
 export function scoreColor(score: number): string {
-  if (score >= 8.2) return "text-emerald-500";
-  if (score >= 6.5) return "text-amber-500";
-  if (score >= 4.5) return "text-orange-500";
+  if (score >= 8) return "text-amber-400";
+  if (score >= 5) return "text-orange-500";
   return "text-red-500";
 }
 
 export function scoreBgColor(score: number): string {
-  if (score >= 8.2) return "bg-emerald-500/15 border-emerald-500/40";
-  if (score >= 6.5) return "bg-amber-500/15 border-amber-500/40";
-  if (score >= 4.5) return "bg-orange-500/15 border-orange-500/35";
-  return "bg-red-500/15 border-red-500/35";
+  if (score >= 8) return "bg-amber-400/12 border-amber-400/50";
+  if (score >= 5) return "bg-orange-500/12 border-orange-500/45";
+  return "bg-red-500/12 border-red-500/42";
 }
 
 export function scoreLabel(score: number): string {
@@ -99,8 +98,7 @@ export function scoreLabel(score: number): string {
 }
 
 export function scoreBarColor(score: number): string {
-  if (score >= 8.2) return "bg-emerald-500";
-  if (score >= 6.5) return "bg-amber-500";
-  if (score >= 4.5) return "bg-orange-500";
+  if (score >= 8) return "bg-amber-400";
+  if (score >= 5) return "bg-orange-500";
   return "bg-red-500";
 }

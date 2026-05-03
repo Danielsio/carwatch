@@ -33,7 +33,7 @@ export function LandingNav() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link to="/welcome" className="group flex items-center gap-2.5">
+        <Link to="/" className="group flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/40 transition-transform group-hover:scale-105">
             <Car size={16} className="text-white" />
           </div>

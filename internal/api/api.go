@@ -235,12 +235,12 @@ func emailFromClaims(tok *fbauth.Token) string {
 	return fmt.Sprint(v)
 }
 
-func chatIDFromContext(ctx context.Context) int64 {
+func chatIDFromContext(ctx context.Context) (int64, bool) {
 	id, ok := ctx.Value(chatIDKey).(int64)
-	if !ok {
-		return 0
+	if !ok || id <= 0 {
+		return 0, false
 	}
-	return id
+	return id, true
 }
 
 func emailFromContext(ctx context.Context) string {
@@ -249,6 +249,15 @@ func emailFromContext(ctx context.Context) string {
 		return ""
 	}
 	return e
+}
+
+func requireChatID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, ok := chatIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid user context")
+		return 0, false
+	}
+	return id, true
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

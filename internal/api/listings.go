@@ -29,7 +29,10 @@ type listingsPageResponse struct {
 }
 
 func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 	token := r.PathValue("token")
 	if token == "" {
 		writeError(w, http.StatusBadRequest, "missing token")
@@ -75,7 +78,10 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, okChat := requireChatID(w, r)
+	if !okChat {
+		return
+	}
 	id, ok := parsePathID(r)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid search id")

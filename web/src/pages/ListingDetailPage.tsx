@@ -10,11 +10,12 @@ import {
   Clock,
   Car,
 } from "lucide-react";
-import { formatPrice, formatKm, relativeTime, safeHref } from "@/lib/utils";
+import { formatPrice, formatKm, relativeTime, safeHref, cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
+import { scoreColor, scoreLabel } from "@/lib/scoringAlgorithm";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 
@@ -36,7 +37,7 @@ export function ListingDetailPage() {
     setListing(stateListingForToken);
     setError(false);
     setLoading(!stateListingForToken && !!token);
-  }, [token]);
+  }, [token, stateListingForToken]);
 
   useEffect(() => {
     if (listing || !token) return;
@@ -71,7 +72,7 @@ export function ListingDetailPage() {
         description="ניתן לגשת למודעה דרך רשימת התוצאות"
         action={
           <Button asChild>
-            <Link to="/">
+            <Link to="/dashboard">
               <ArrowRight className="h-4 w-4" />
               חזרה לחיפושים
             </Link>
@@ -104,15 +105,28 @@ export function ListingDetailPage() {
         </div>
       )}
 
-      {/* Title + Price */}
-      <div className="flex items-start justify-between">
-        <div>
+      {/* Title + score + Price (aligned with landing Smart Match row) */}
+      <div className="flex items-start gap-4">
+        {listing.fitness_score != null ? (
+          <MatchScoreBox score={listing.fitness_score} size="lg" />
+        ) : null}
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight">
             {listing.manufacturer} {listing.model}
           </h1>
-          <p className="text-muted-foreground mt-0.5">{listing.year}</p>
+          <p className="mt-0.5 text-muted-foreground">{listing.year}</p>
+          {listing.fitness_score != null ? (
+            <p
+              className={cn(
+                "mt-1 text-sm font-medium",
+                scoreColor(listing.fitness_score),
+              )}
+            >
+              {scoreLabel(listing.fitness_score)}
+            </p>
+          ) : null}
         </div>
-        <span className="text-2xl font-bold text-amber-500 dark:text-amber-400 tabular-nums">
+        <span className="shrink-0 text-2xl font-bold tabular-nums text-primary">
           {formatPrice(listing.price)}
         </span>
       </div>
@@ -129,28 +143,9 @@ export function ListingDetailPage() {
         />
       </div>
 
-      <div className="flex items-center gap-4">
-        {listing.fitness_score != null && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">ציון התאמה:</span>
-            <Badge
-              variant={
-                listing.fitness_score >= 7
-                  ? "success"
-                  : listing.fitness_score >= 5
-                    ? "warning"
-                    : "default"
-              }
-              className="text-sm tabular-nums"
-            >
-              {listing.fitness_score.toFixed(1)}
-            </Badge>
-          </div>
-        )}
-        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Clock className="h-4 w-4" />
-          {relativeTime(listing.first_seen_at)}
-        </div>
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Clock className="h-4 w-4" />
+        {relativeTime(listing.first_seen_at)}
       </div>
 
       {safeHref(listing.page_link) && (

@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { Bookmark } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
+import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
+import { scoreColor, scoreLabel } from "@/lib/scoringAlgorithm";
 
 /**
  * Shared card body for listing display. When `hoverScale` is true the image
@@ -51,16 +53,27 @@ export function ListingCardBody({
       )}
 
       <div className="p-4">
-        <div className="flex items-start justify-between mb-2">
-          <div>
+        <div className="mb-2 flex items-start gap-3">
+          {listing.fitness_score != null ? (
+            <MatchScoreBox score={listing.fitness_score} size="md" />
+          ) : null}
+          <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-card-foreground">
               {listing.manufacturer} {listing.model}
             </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {listing.year}
-            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{listing.year}</p>
+            {listing.fitness_score != null ? (
+              <p
+                className={cn(
+                  "mt-0.5 text-xs font-medium",
+                  scoreColor(listing.fitness_score),
+                )}
+              >
+                {scoreLabel(listing.fitness_score)}
+              </p>
+            ) : null}
           </div>
-          <span className="text-lg font-bold text-amber-500 dark:text-amber-400 tabular-nums">
+          <span className="shrink-0 text-lg font-bold tabular-nums text-primary">
             {formatPrice(listing.price)}
           </span>
         </div>
@@ -78,38 +91,12 @@ export function ListingCardBody({
         </div>
 
         <div className="flex items-center gap-2">
-          {listing.fitness_score != null && (
-            <FitnessChip score={listing.fitness_score} />
-          )}
-          <span className="text-xs text-muted-foreground mr-auto">
+          <span className="mr-auto text-xs text-muted-foreground">
             {relativeTime(listing.first_seen_at)}
           </span>
           {actions}
         </div>
       </div>
     </>
-  );
-}
-
-function FitnessChip({ score }: { score: number }) {
-  const tier =
-    score >= 7 ? "great" : score >= 5 ? "good" : "low";
-
-  const styles = {
-    great: "bg-score-great/15 text-score-great",
-    good: "bg-score-good/15 text-score-good",
-    low: "bg-score-low/15 text-score-low",
-  };
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums",
-        styles[tier],
-      )}
-    >
-      {score.toFixed(1)}
-      {tier === "great" && " ⭐"}
-    </span>
   );
 }

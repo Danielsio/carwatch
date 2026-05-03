@@ -18,4 +18,19 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("motion")) return "motion";
+          if (id.includes("firebase")) return "firebase";
+          if (id.includes("@tanstack/react-query")) return "rq";
+          if (id.includes("lucide-react")) return "icons";
+          return "vendor";
+        },
+      },
+    },
+  },
 });

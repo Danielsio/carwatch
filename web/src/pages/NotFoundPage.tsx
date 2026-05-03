@@ -15,7 +15,7 @@ export function NotFoundPage() {
         action={
           <button
             type="button"
-            onClick={() => void navigate("/")}
+            onClick={() => void navigate("/dashboard")}
             className="mt-4 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             חזרה לדף הבית

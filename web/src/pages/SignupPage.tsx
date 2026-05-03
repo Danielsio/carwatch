@@ -55,7 +55,7 @@ export function SignupPage() {
   });
 
   useEffect(() => {
-    if (user) navigate("/", { replace: true });
+    if (user) navigate("/dashboard", { replace: true });
   }, [user, navigate]);
 
   const emailErr =
@@ -85,7 +85,7 @@ export function SignupPage() {
     setBusy("email");
     try {
       await createUserWithEmailAndPassword(auth, email.trim(), password);
-      navigate("/", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(mapAuthError(firebaseAuthErrorCode(err)));
     } finally {
@@ -98,7 +98,7 @@ export function SignupPage() {
     setBusy("google");
     try {
       await signInWithPopup(auth, googleProvider);
-      navigate("/", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(mapAuthError(firebaseAuthErrorCode(err)));
     } finally {
@@ -231,7 +231,7 @@ export function SignupPage() {
                           className={cn(
                             "flex items-center gap-1.5 text-xs transition-colors",
                             pass
-                              ? "text-score-great"
+                              ? "text-success"
                               : "text-muted-foreground",
                           )}
                         >
@@ -298,7 +298,7 @@ export function SignupPage() {
                 {touched.confirm &&
                   confirm.length > 0 &&
                   confirm === password && (
-                    <p className="mt-1.5 flex items-center gap-1 text-xs text-score-great">
+                    <p className="mt-1.5 flex items-center gap-1 text-xs text-success">
                       <Check className="h-3 w-3" />
                       סיסמאות תואמות
                     </p>

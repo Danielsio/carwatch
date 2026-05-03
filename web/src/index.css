@@ -35,9 +35,10 @@
   --color-price: #F59E0B;
   --color-price-foreground: #D97706;
 
-  --color-score-great: #10B981;
-  --color-score-good: #F59E0B;
-  --color-score-low: #64748B;
+  /* Match landing Smart Match tiers: gold / orange / red */
+  --color-score-great: #FBBF24;
+  --color-score-good: #F97316;
+  --color-score-low: #EF4444;
 
   --color-success: #10B981;
   --color-warning: #F59E0B;
@@ -47,11 +48,15 @@
 
   --color-chart-purple: #A78BFA;
 
-  --color-sidebar: #0F1119;
-  --color-sidebar-foreground: #94A3B8;
-  --color-sidebar-border: #1A1D2B;
-  --color-sidebar-accent: #1A1D2B;
-  --color-sidebar-primary: #3B82F6;
+  /* Base44-style app sidebar (dark rail + blue accent) */
+  --color-sidebar: #0b0e14;
+  --color-sidebar-foreground: #94a3b8;
+  --color-sidebar-border: rgba(255, 255, 255, 0.06);
+  --color-sidebar-accent: rgba(255, 255, 255, 0.045);
+  --color-sidebar-accent-hover: rgba(255, 255, 255, 0.07);
+  --color-sidebar-primary: #3b82f6;
+  --color-sidebar-active-fade: rgba(59, 130, 246, 0.16);
+  --color-sidebar-active-edge: rgba(59, 130, 246, 0.22);
 
   --color-surface-hover: var(--surface-hover);
   --color-glow-primary: rgba(59, 130, 246, 0.15);
@@ -185,10 +190,6 @@
     linear-gradient(color-mix(in oklab, var(--fg) 5%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in oklab, var(--fg) 5%, transparent) 1px, transparent 1px);
   background-size: 32px 32px;
-}
-
-@utility nav-active-pill {
-  border-radius: var(--radius-lg);
 }
 
 body {

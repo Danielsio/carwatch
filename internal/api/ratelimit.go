@@ -61,8 +61,8 @@ func (rl *rateLimiter) allow(chatID int64) bool {
 
 func (s *Server) withRateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		chatID := chatIDFromContext(r.Context())
-		if chatID != 0 && !s.rl.allow(chatID) {
+		chatID, ok := chatIDFromContext(r.Context())
+		if ok && !s.rl.allow(chatID) {
 			writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
 			return
 		}

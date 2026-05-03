@@ -47,7 +47,7 @@ export function LoginPage() {
     redirectTo !== "/login" &&
     redirectTo !== "/signup";
 
-  const from = isSafePath ? redirectTo : "/";
+  const from = isSafePath && redirectTo ? redirectTo : "/dashboard";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -299,7 +299,7 @@ export function LoginPage() {
             </p>
             <p className="mt-2 text-center text-xs text-muted-foreground/70">
               <Link
-                to="/welcome"
+                to="/"
                 className="underline-offset-4 hover:underline hover:text-muted-foreground"
               >
                 מה זה CarWatch?

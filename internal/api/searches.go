@@ -119,7 +119,10 @@ func (s *Server) searchResponseWithListingCount(ctx context.Context, chatID int6
 }
 
 func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 	searches, err := s.searches.ListSearches(r.Context(), chatID)
 	if err != nil {
 		s.logger.Error("list searches", "error", err)
@@ -135,7 +138,10 @@ func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 
 	var req createSearchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -224,7 +230,10 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getSearch(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, okChat := requireChatID(w, r)
+	if !okChat {
+		return
+	}
 	id, ok := parsePathID(r)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid search id")
@@ -246,7 +255,10 @@ func (s *Server) getSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, okChat := requireChatID(w, r)
+	if !okChat {
+		return
+	}
 	id, ok := parsePathID(r)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid search id")
@@ -294,7 +306,10 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteSearch(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, okChat := requireChatID(w, r)
+	if !okChat {
+		return
+	}
 	id, ok := parsePathID(r)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid search id")
@@ -323,7 +338,10 @@ func (s *Server) resumeSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) setSearchActive(w http.ResponseWriter, r *http.Request, active bool) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, okChat := requireChatID(w, r)
+	if !okChat {
+		return
+	}
 	id, ok := parsePathID(r)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid search id")
