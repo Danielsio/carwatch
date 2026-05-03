@@ -104,7 +104,8 @@ func (f *Yad2Fetcher) FetchItem(ctx context.Context, token string) (ItemDetails,
 		if looksLikeBotProtection(result.Body) {
 			return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, fetcher.ErrChallenge)
 		}
-		if result.StatusCode == http.StatusBadRequest && looksLikeGenericError(result.Body) {
+		if (result.StatusCode == http.StatusBadRequest || result.StatusCode == http.StatusForbidden) &&
+			looksLikeGenericError(result.Body) {
 			return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, fetcher.ErrChallenge)
 		}
 		snippet := string(result.Body)

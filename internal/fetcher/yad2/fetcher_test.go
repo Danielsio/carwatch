@@ -426,6 +426,23 @@ func TestYad2Fetcher_FetchItem_Generic400IsChallenge(t *testing.T) {
 	}
 }
 
+func TestYad2Fetcher_FetchItem_Generic403IsChallenge(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`<html><head><title>403 Forbidden</title></head><body><center><h1>403 Forbidden</h1></center><hr><center>nginx</center></body></html>`))
+	}))
+	defer server.Close()
+
+	f := newTestFetcher(t, server.URL)
+	_, err := f.FetchItem(context.Background(), "tok-generic403")
+	if err == nil {
+		t.Fatal("expected error for generic 403 response")
+	}
+	if !strings.Contains(err.Error(), "anti-bot challenge") {
+		t.Errorf("error should mention anti-bot challenge: %v", err)
+	}
+}
+
 func TestLooksLikeGenericError(t *testing.T) {
 	cases := []struct {
 		name string

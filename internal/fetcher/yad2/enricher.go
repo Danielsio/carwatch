@@ -21,7 +21,7 @@ type EnricherConfig struct {
 	// Delay between individual item fetches to avoid rate-limiting.
 	Delay time.Duration
 	// MaxPerCycle limits how many item-page fetches run per Enrich call.
-	// 0 means no limit (enrich every listing that still needs km/image/city).
+	// 0 (default) applies defaultMaxPerCycle. Negative means no limit.
 	MaxPerCycle int
 }
 
