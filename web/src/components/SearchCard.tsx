@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 import {
   Play,
   Pause,
@@ -44,25 +44,24 @@ export function SearchCard({
     search.max_hand > 0 ? `עד יד ${search.max_hand}` : null,
   ].filter(Boolean) as string[];
 
+  const openCardClassName =
+    "rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary";
+
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <article
       className={cn(
-        "group card-hover cursor-pointer rounded-2xl border bg-card p-5 transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary",
+        "group card-hover rounded-2xl border bg-card p-5 transition-all duration-200",
         isActive ? "border-border" : "border-border/50 opacity-75",
       )}
-      onClick={() => navigate(listingsPath)}
-      onKeyDown={(e) => {
-        if (e.currentTarget !== e.target) return;
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          navigate(listingsPath);
-        }
-      }}
     >
-      <div className="mb-3 flex items-start justify-between">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <Link
+          to={listingsPath}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-3",
+            openCardClassName,
+          )}
+        >
           <div
             className={cn(
               "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl",
@@ -92,13 +91,9 @@ export function SearchCard({
               </span>
             </div>
           </div>
-        </div>
+        </Link>
 
-        <div
-          className="flex items-center gap-1"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
+        <div className="flex shrink-0 items-center gap-1">
           {isActive ? (
             <button
               type="button"
@@ -149,19 +144,30 @@ export function SearchCard({
       </div>
 
       {filterTags.length > 0 ? (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {filterTags.map((tag, i) => (
-            <span
-              key={i}
-              className="text-secondary-foreground rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
+        <Link
+          to={listingsPath}
+          className={cn("mb-3 block", openCardClassName)}
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {filterTags.map((tag, i) => (
+              <span
+                key={i}
+                className="text-secondary-foreground rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </Link>
       ) : null}
 
-      <div className="border-border/60 flex items-center justify-between border-t pt-3">
+      <Link
+        to={listingsPath}
+        className={cn(
+          "border-border/60 flex items-center justify-between border-t pt-3",
+          openCardClassName,
+        )}
+      >
         <div className="text-center">
           <div className="text-foreground text-base font-bold tabular-nums">
             {search.listings_count ?? 0}
@@ -176,14 +182,10 @@ export function SearchCard({
             aria-hidden
           />
         </div>
-      </div>
+      </Link>
 
       {isConfirmingDelete ? (
-        <div
-          className="border-border/60 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
+        <div className="border-border/60 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
           <Button
             type="button"
             variant="destructive"
@@ -203,6 +205,6 @@ export function SearchCard({
           </Button>
         </div>
       ) : null}
-    </div>
+    </article>
   );
 }

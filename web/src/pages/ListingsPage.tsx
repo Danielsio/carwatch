@@ -28,6 +28,15 @@ const SORT_OPTIONS = [
 
 const PAGE_SIZE = 20;
 
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return (
+    target.closest(
+      "button,a,input,select,textarea,[role='button']",
+    ) != null
+  );
+}
+
 export function ListingsPage() {
   const { id } = useParams();
   const searchId = Number(id);
@@ -173,11 +182,14 @@ function ListingCard({ listing }: { listing: Listing }) {
     <div
       role="button"
       tabIndex={0}
-      onClick={() =>
-        navigate(`/listings/${listing.token}`, { state: { listing } })
-      }
+      onClick={(e) => {
+        if (isInteractiveTarget(e.target)) return;
+        navigate(`/listings/${listing.token}`, { state: { listing } });
+      }}
       onKeyDown={(e) => {
+        if (isInteractiveTarget(e.target)) return;
         if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
           navigate(`/listings/${listing.token}`, { state: { listing } });
         }
       }}

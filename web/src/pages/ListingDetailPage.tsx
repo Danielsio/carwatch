@@ -37,7 +37,7 @@ export function ListingDetailPage() {
     setListing(stateListingForToken);
     setError(false);
     setLoading(!stateListingForToken && !!token);
-  }, [token]);
+  }, [token, stateListingForToken]);
 
   useEffect(() => {
     if (listing || !token) return;

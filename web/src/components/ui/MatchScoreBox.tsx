@@ -17,18 +17,23 @@ const sizeClass: Record<NonNullable<MatchScoreBoxProps["size"]>, string> = {
  * Rounded score tile matching the landing “Smart Match Score” demo (/10, tier border + fill).
  */
 export function MatchScoreBox({ score, size = "md", className }: MatchScoreBoxProps) {
+  const normalized = Number.isFinite(score)
+    ? Math.min(10, Math.max(0, score))
+    : 0;
+  const formatted = normalized.toFixed(1);
+
   return (
     <div
       className={cn(
         "flex shrink-0 flex-col items-center justify-center rounded-2xl border-2 font-bold leading-none",
-        scoreBgColor(score),
-        scoreColor(score),
+        scoreBgColor(normalized),
+        scoreColor(normalized),
         sizeClass[size],
         className,
       )}
-      aria-label={`ציון ${score.toFixed(1)} מתוך 10`}
+      aria-label={`ציון ${formatted} מתוך 10`}
     >
-      <span className="tabular-nums">{score.toFixed(1)}</span>
+      <span className="tabular-nums">{formatted}</span>
       <span className="denom mt-0.5 font-semibold opacity-65">/10</span>
     </div>
   );

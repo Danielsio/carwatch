@@ -8,7 +8,10 @@ import (
 )
 
 func (s *Server) saveListing(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 	token := r.PathValue("token")
 	if token == "" {
 		writeError(w, http.StatusBadRequest, "missing token")
@@ -24,7 +27,10 @@ func (s *Server) saveListing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) unsaveListing(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 	token := r.PathValue("token")
 	if token == "" {
 		writeError(w, http.StatusBadRequest, "missing token")
@@ -40,7 +46,10 @@ func (s *Server) unsaveListing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listSaved(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 	limit, offset := parsePagination(r)
 
 	listings, err := s.saved.ListSaved(r.Context(), chatID, limit, offset)
@@ -71,7 +80,10 @@ func (s *Server) listSaved(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) hideListing(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 	token := r.PathValue("token")
 	if token == "" {
 		writeError(w, http.StatusBadRequest, "missing token")
@@ -87,7 +99,10 @@ func (s *Server) hideListing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) unhideListing(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 	token := r.PathValue("token")
 	if token == "" {
 		writeError(w, http.StatusBadRequest, "missing token")
@@ -103,7 +118,10 @@ func (s *Server) unhideListing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listHistory(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 	limit, offset := parsePagination(r)
 
 	listings, err := s.listings.ListUserListings(r.Context(), chatID, limit, offset)

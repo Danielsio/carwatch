@@ -7,7 +7,10 @@ type notifCountResponse struct {
 }
 
 func (s *Server) notificationCount(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 
 	since, err := s.notifs.GetLastSeenAt(r.Context(), chatID)
 	if err != nil {
@@ -27,7 +30,10 @@ func (s *Server) notificationCount(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listNotifications(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 	limit, offset := parsePagination(r)
 
 	since, err := s.notifs.GetLastSeenAt(r.Context(), chatID)
@@ -62,7 +68,10 @@ func (s *Server) listNotifications(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) markNotificationsSeen(w http.ResponseWriter, r *http.Request) {
-	chatID := chatIDFromContext(r.Context())
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
 
 	if err := s.users.UpdateLastSeenAt(r.Context(), chatID); err != nil {
 		s.logger.Error("update last seen at", "error", err)

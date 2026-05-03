@@ -41,7 +41,7 @@ export function scoreListingAgainstSearch(
 
   const kmRatio =
     search.mileage_max > 0
-      ? clamp01(listing.mileage / search.mileage_max)
+      ? Math.max(0, listing.mileage/search.mileage_max)
       : 0;
   const mileageFactor = Math.exp(-kmRatio * 2.2);
 
