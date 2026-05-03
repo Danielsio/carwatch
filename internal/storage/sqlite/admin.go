@@ -74,8 +74,6 @@ var purgeable = map[string]bool{
 	"seen_listings":         true,
 	"notifications":         true,
 	"pending_notifications": true,
-	"market_cache":          true,
-	"catalog_cache":         true,
 	"saved_listings":        true,
 	"hidden_listings":       true,
 	"pending_digest":        true,

@@ -6,48 +6,29 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
-
-	"github.com/dsionov/carwatch/internal/storage"
 )
 
-const saveCooldown = 5 * time.Minute
-
 type DynamicCatalog struct {
-	mu        sync.RWMutex
-	mfrs      []Entry
-	models    map[int][]Entry
-	mfrMap    map[int]string
-	modelMap  map[int]map[int]string
-	dirty     bool
-	lastSave  time.Time
-	saveGen   int64
-	saveMu    sync.Mutex
-	store     storage.CatalogStore
-	fallback  Catalog
-	logger    *slog.Logger
+	mu       sync.RWMutex
+	mfrs     []Entry
+	models   map[int][]Entry
+	mfrMap   map[int]string
+	modelMap map[int]map[int]string
+	fallback Catalog
+	logger   *slog.Logger
 }
 
-func NewDynamic(store storage.CatalogStore, logger *slog.Logger) *DynamicCatalog {
+func NewDynamic(logger *slog.Logger) *DynamicCatalog {
 	return &DynamicCatalog{
 		models:   make(map[int][]Entry),
 		mfrMap:   make(map[int]string),
 		modelMap: make(map[int]map[int]string),
-		store:    store,
 		fallback: NewStatic(),
 		logger:   logger,
 	}
 }
 
-func (d *DynamicCatalog) Load(ctx context.Context) {
-	if d.store != nil {
-		if d.loadFromStore(ctx) {
-			d.logger.Info("catalog loaded from cache",
-				"manufacturers", len(d.mfrs))
-			return
-		}
-	}
-
+func (d *DynamicCatalog) Load(_ context.Context) {
 	d.logger.Info("seeding catalog from static fallback")
 	d.mu.Lock()
 	for _, m := range d.fallback.Manufacturers() {
@@ -63,18 +44,11 @@ func (d *DynamicCatalog) Load(ctx context.Context) {
 	d.mu.Unlock()
 }
 
-func (d *DynamicCatalog) Ingest(ctx context.Context, manufacturerID int, manufacturerName string, modelID int, modelName string) {
+func (d *DynamicCatalog) Ingest(_ context.Context, manufacturerID int, manufacturerName string, modelID int, modelName string) {
 	if manufacturerID == 0 || manufacturerName == "" {
 		return
 	}
 
-	entries, gen, shouldSave := d.ingestLocked(manufacturerID, manufacturerName, modelID, modelName)
-	if shouldSave {
-		d.persistEntries(ctx, entries, gen)
-	}
-}
-
-func (d *DynamicCatalog) ingestLocked(manufacturerID int, manufacturerName string, modelID int, modelName string) ([]storage.CatalogEntry, int64, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -95,35 +69,14 @@ func (d *DynamicCatalog) ingestLocked(manufacturerID int, manufacturerName strin
 		}
 	}
 
-	if !changed {
-		return nil, 0, false
+	if changed {
+		d.rebuildSlices()
 	}
-
-	d.rebuildSlices()
-	d.dirty = true
-	d.saveGen++
-	gen := d.saveGen
-
-	shouldSave := d.store != nil && time.Since(d.lastSave) > saveCooldown
-	var entries []storage.CatalogEntry
-	if shouldSave {
-		entries = d.buildEntries()
-	}
-	return entries, gen, shouldSave
 }
 
-func (d *DynamicCatalog) Flush(ctx context.Context) {
-	d.mu.Lock()
-	if !d.dirty || d.store == nil {
-		d.mu.Unlock()
-		return
-	}
-	entries := d.buildEntries()
-	d.saveGen++
-	gen := d.saveGen
-	d.mu.Unlock()
-
-	d.persistEntries(ctx, entries, gen)
+func (d *DynamicCatalog) Flush(_ context.Context) {
+	// No-op: catalog is now purely in-memory, seeded from static data
+	// and enriched via Ingest() during each scrape cycle.
 }
 
 func (d *DynamicCatalog) rebuildSlices() {
@@ -156,91 +109,6 @@ func (d *DynamicCatalog) rebuildSlices() {
 		models[mfrID] = list
 	}
 	d.models = models
-}
-
-func (d *DynamicCatalog) buildEntries() []storage.CatalogEntry {
-	var entries []storage.CatalogEntry
-	for mfrID, mfrName := range d.mfrMap {
-		mdls := d.modelMap[mfrID]
-		if len(mdls) == 0 {
-			entries = append(entries, storage.CatalogEntry{
-				ManufacturerID:   mfrID,
-				ManufacturerName: mfrName,
-			})
-			continue
-		}
-		for mdlID, mdlName := range mdls {
-			entries = append(entries, storage.CatalogEntry{
-				ManufacturerID:   mfrID,
-				ManufacturerName: mfrName,
-				ModelID:          mdlID,
-				ModelName:        mdlName,
-			})
-		}
-	}
-	return entries
-}
-
-func (d *DynamicCatalog) persistEntries(ctx context.Context, entries []storage.CatalogEntry, gen int64) {
-	d.saveMu.Lock()
-	defer d.saveMu.Unlock()
-
-	d.mu.RLock()
-	stale := gen != d.saveGen
-	d.mu.RUnlock()
-	if stale {
-		return
-	}
-
-	if err := d.store.SaveCatalogEntries(ctx, entries); err != nil {
-		d.logger.Error("catalog save failed", "error", err)
-		return
-	}
-	d.mu.Lock()
-	if d.saveGen == gen {
-		d.dirty = false
-	}
-	d.lastSave = time.Now()
-	d.mu.Unlock()
-	d.logger.Info("catalog saved", "entries", len(entries))
-}
-
-func (d *DynamicCatalog) loadFromStore(ctx context.Context) bool {
-	entries, err := d.store.LoadCatalogEntries(ctx)
-	if err != nil || len(entries) == 0 {
-		return false
-	}
-
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	for _, e := range entries {
-		d.mfrMap[e.ManufacturerID] = e.ManufacturerName
-		if d.modelMap[e.ManufacturerID] == nil {
-			d.modelMap[e.ManufacturerID] = make(map[int]string)
-		}
-		if e.ModelID != 0 {
-			d.modelMap[e.ManufacturerID][e.ModelID] = e.ModelName
-		}
-	}
-
-	// Merge static fallback entries that might be missing from cache
-	for _, m := range d.fallback.Manufacturers() {
-		if _, ok := d.mfrMap[m.ID]; !ok {
-			d.mfrMap[m.ID] = m.Name
-		}
-		if d.modelMap[m.ID] == nil {
-			d.modelMap[m.ID] = make(map[int]string)
-		}
-		for _, mdl := range d.fallback.Models(m.ID) {
-			if _, ok := d.modelMap[m.ID][mdl.ID]; !ok {
-				d.modelMap[m.ID][mdl.ID] = mdl.Name
-			}
-		}
-	}
-
-	d.rebuildSlices()
-	return true
 }
 
 func (d *DynamicCatalog) Manufacturers() []Entry {

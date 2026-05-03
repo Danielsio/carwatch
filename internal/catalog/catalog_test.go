@@ -101,7 +101,7 @@ func TestStaticCatalog_SearchModels(t *testing.T) {
 }
 
 func TestDynamicCatalog_LoadsFallback(t *testing.T) {
-	cat := NewDynamic(nil, slog.Default())
+	cat := NewDynamic(slog.Default())
 	cat.Load(context.Background())
 
 	mfrs := cat.Manufacturers()
@@ -115,7 +115,7 @@ func TestDynamicCatalog_LoadsFallback(t *testing.T) {
 }
 
 func TestDynamicCatalog_Ingest(t *testing.T) {
-	cat := NewDynamic(nil, slog.Default())
+	cat := NewDynamic(slog.Default())
 	cat.Load(context.Background())
 
 	before := len(cat.Manufacturers())

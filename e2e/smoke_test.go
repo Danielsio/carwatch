@@ -37,7 +37,7 @@ func TestSmoke_FullStack(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	cat := catalog.NewDynamic(store, logger)
+	cat := catalog.NewDynamic(logger)
 	cat.Load(ctx)
 	cat.Ingest(ctx, 19, "Toyota", 10226, "Corolla")
 	cat.Ingest(ctx, 27, "Mazda", 10332, "3")
