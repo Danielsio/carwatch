@@ -236,12 +236,18 @@ func emailFromClaims(tok *fbauth.Token) string {
 }
 
 func chatIDFromContext(ctx context.Context) int64 {
-	id, _ := ctx.Value(chatIDKey).(int64)
+	id, ok := ctx.Value(chatIDKey).(int64)
+	if !ok {
+		return 0
+	}
 	return id
 }
 
 func emailFromContext(ctx context.Context) string {
-	e, _ := ctx.Value(emailKey).(string)
+	e, ok := ctx.Value(emailKey).(string)
+	if !ok {
+		return ""
+	}
 	return e
 }
 

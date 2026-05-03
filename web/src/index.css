@@ -39,6 +39,12 @@
   --color-score-good: #F59E0B;
   --color-score-low: #64748B;
 
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-chart-2: #22C55E;
+  --color-chart-4: #A855F7;
+  --color-chart-5: #EC4899;
+
   --color-chart-purple: #A78BFA;
 
   --color-sidebar: #0F1119;
@@ -60,6 +66,7 @@
   --animate-fade-in: fade-in 0.4s ease-out;
   --animate-slide-up: slide-up 0.4s ease-out;
   --animate-pulse-soft: pulse-soft 2s ease-in-out infinite;
+  --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
 }
 
 /* Light mode (default) */
@@ -120,6 +127,17 @@
   50% { opacity: 0.6; }
 }
 
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-sidebar-primary) 45%, transparent);
+  }
+  50% {
+    opacity: 0.85;
+    box-shadow: 0 0 10px 2px color-mix(in oklab, var(--color-sidebar-primary) 35%, transparent);
+  }
+}
+
 @utility shimmer-skeleton {
   background: linear-gradient(
     90deg,
@@ -129,6 +147,48 @@
   );
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
+}
+
+@utility gradient-text {
+  background-image: linear-gradient(to left, var(--color-primary), #a855f7);
+  background-clip: text;
+  color: transparent;
+}
+
+@utility glass-card {
+  background-color: color-mix(in oklab, var(--color-card) 82%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+@utility card-hover {
+  transition-property: transform, box-shadow, border-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+
+  &:hover {
+    border-color: color-mix(in oklab, var(--color-primary) 28%, var(--color-border));
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px -18px color-mix(in oklab, var(--color-primary) 35%, transparent);
+  }
+}
+
+@utility landing-grid-bg {
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--fg) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--fg) 5%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+@utility landing-grid-bg-sm {
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--fg) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--fg) 5%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@utility nav-active-pill {
+  border-radius: var(--radius-lg);
 }
 
 body {

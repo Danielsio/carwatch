@@ -1,17 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import {
-  Plus,
-  Play,
-  Pause,
-  Trash2,
-  List,
-  Pencil,
-  Search as SearchIcon,
-  Activity,
-  Bell,
-  Car,
-} from "lucide-react";
+import { Plus, Search as SearchIcon, Activity, Bell, Car } from "lucide-react";
 import { motion } from "motion/react";
 import {
   useSearches,
@@ -23,11 +12,11 @@ import {
   useNotificationCount,
   useNotifications,
 } from "@/hooks/useNotifications";
-import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
-import type { Search, Listing } from "@/lib/api";
+import { formatPrice, relativeTime, cn } from "@/lib/utils";
+import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { SearchCard } from "@/components/SearchCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { useToast } from "@/components/ui/Toast";
@@ -298,150 +287,6 @@ function StatCard({
         </div>
       </div>
       <p className="text-2xl sm:text-3xl font-bold tabular-nums text-foreground">{value}</p>
-    </div>
-  );
-}
-
-function SearchCard({
-  search,
-  disabled,
-  onPause,
-  onResume,
-  onDelete,
-  isConfirmingDelete,
-  onCancelDelete,
-}: {
-  search: Search;
-  disabled: boolean;
-  onPause: () => void;
-  onResume: () => void;
-  onDelete: () => void;
-  isConfirmingDelete: boolean;
-  onCancelDelete: () => void;
-}) {
-  return (
-    <div className="group rounded-2xl border border-border/50 bg-card p-5 transition-all duration-200 hover:border-border hover:shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
-      <div className="flex items-start justify-between mb-3 gap-2">
-        <div className="min-w-0">
-          <h3 className="text-lg font-semibold">
-            {search.manufacturer_name} {search.model_name}
-          </h3>
-          <span className="text-xs text-muted-foreground">{search.source}</span>
-        </div>
-        <div className="flex shrink-0 items-start gap-2">
-          {(search.listings_count ?? 0) > 0 && (
-            <span
-              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold tabular-nums text-primary ring-1 ring-primary/20"
-              title="מספר מודעות שנמצאו בחיפוש"
-              aria-label={`מספר מודעות: ${search.listings_count!.toLocaleString("he-IL")}`}
-            >
-              <Car className="h-3 w-3" aria-hidden />
-              {search.listings_count!.toLocaleString("he-IL")}
-            </span>
-          )}
-          <Badge variant={search.active ? "success" : "warning"}>
-            {search.active ? "פעיל" : "מושהה"}
-          </Badge>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-4">
-        <div>
-          שנים: {search.year_min}–{search.year_max}
-        </div>
-        {search.price_max > 0 && (
-          <div className="tabular-nums">עד {formatPrice(search.price_max)}</div>
-        )}
-        {search.max_km > 0 && (
-          <div className="tabular-nums">עד {formatKm(search.max_km)}</div>
-        )}
-        {search.max_hand > 0 && <div>עד יד {search.max_hand}</div>}
-      </div>
-
-      <div className="flex items-center gap-1.5 border-t border-border/50 pt-3">
-        <Button
-          as={Link}
-          to={`/searches/${search.id}/listings`}
-          variant="primary"
-          size="sm"
-          className="flex-1 sm:flex-none"
-        >
-          <List className="h-3.5 w-3.5" />
-          תוצאות
-        </Button>
-
-        <Button
-          as={Link}
-          to={`/searches/${search.id}/edit`}
-          variant="secondary"
-          size="icon"
-          className="h-8 w-8"
-          aria-label="ערוך חיפוש"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-
-        {search.active ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="icon"
-            className="h-8 w-8"
-            onClick={onPause}
-            disabled={disabled}
-            aria-label="השהה חיפוש"
-          >
-            <Pause className="h-3.5 w-3.5" />
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="secondary"
-            size="icon"
-            className="h-8 w-8"
-            onClick={onResume}
-            disabled={disabled}
-            aria-label="חדש חיפוש"
-          >
-            <Play className="h-3.5 w-3.5" />
-          </Button>
-        )}
-
-        <div className="mr-auto">
-          {isConfirmingDelete ? (
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                onClick={onDelete}
-              >
-                אישור
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={onCancelDelete}
-              >
-                ביטול
-              </Button>
-            </div>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-destructive hover:bg-destructive/10"
-              onClick={onDelete}
-              disabled={disabled}
-              aria-label="מחק חיפוש"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
