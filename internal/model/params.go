@@ -9,6 +9,9 @@ type SourceParams struct {
 	PriceMin     int
 	PriceMax     int
 	Page         int
+	MaxKm        int
+	MaxHand      int
+	EngineMinCC  int
 }
 
 // FilterCriteria defines the criteria used to filter raw listings

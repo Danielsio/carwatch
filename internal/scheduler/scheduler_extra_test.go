@@ -217,8 +217,12 @@ func (m *mockNotificationQueue) PruneNotifications(_ context.Context, _ time.Dur
 // --- mockDailyDigestStore ---
 
 type mockDailyDigestStore struct {
-	mu       sync.Mutex
-	digests  map[int64]struct{ enabled bool; digestTime string; lastSent time.Time }
+	mu      sync.Mutex
+	digests map[int64]struct {
+		enabled    bool
+		digestTime string
+		lastSent   time.Time
+	}
 	stats    map[int64][]storage.DailySearchStats
 	updated  map[int64]bool
 	listErr  error
@@ -227,7 +231,11 @@ type mockDailyDigestStore struct {
 
 func newMockDailyDigestStore() *mockDailyDigestStore {
 	return &mockDailyDigestStore{
-		digests: make(map[int64]struct{ enabled bool; digestTime string; lastSent time.Time }),
+		digests: make(map[int64]struct {
+			enabled    bool
+			digestTime string
+			lastSent   time.Time
+		}),
 		stats:   make(map[int64][]storage.DailySearchStats),
 		updated: make(map[int64]bool),
 	}
@@ -236,7 +244,11 @@ func newMockDailyDigestStore() *mockDailyDigestStore {
 func (m *mockDailyDigestStore) SetDailyDigest(_ context.Context, chatID int64, enabled bool, digestTime string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.digests[chatID] = struct{ enabled bool; digestTime string; lastSent time.Time }{enabled, digestTime, m.digests[chatID].lastSent}
+	m.digests[chatID] = struct {
+		enabled    bool
+		digestTime string
+		lastSent   time.Time
+	}{enabled, digestTime, m.digests[chatID].lastSent}
 	return nil
 }
 
@@ -316,6 +328,51 @@ func TestProcessExpiredPremium_IsNoOp(t *testing.T) {
 	cfg := testConfig()
 	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
 	s.processExpiredPremium(context.Background())
+}
+
+type expiredPremiumUserStore struct {
+	*mockUserStore
+	expired []storage.User
+}
+
+func (e *expiredPremiumUserStore) ListExpiredPremium(_ context.Context) ([]storage.User, error) {
+	return e.expired, nil
+}
+
+func TestProcessExpiredPremium_DowngradesAndDeactivates(t *testing.T) {
+	cfg := testConfig()
+	cfg.Telegram.MaxSearches = 1
+	past := time.Now().Add(-time.Hour)
+	us := newMockUserStore()
+	_ = us.UpsertUser(context.Background(), 100, "u")
+	_ = us.SetUserTier(context.Background(), 100, "premium", past)
+	store := &expiredPremiumUserStore{
+		mockUserStore: us,
+		expired:       []storage.User{{ChatID: 100, Tier: "premium", TierExpires: past}},
+	}
+	ss := &mockSearchStoreWithTracking{
+		mockSearchStore: &mockSearchStore{
+			searches: []storage.Search{
+				{ID: 1, ChatID: 100, Active: true},
+				{ID: 2, ChatID: 100, Active: true},
+			},
+		},
+	}
+	s, err := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{
+		UserStore:   store,
+		SearchStore: ss,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.processExpiredPremium(context.Background())
+	u, _ := us.GetUser(context.Background(), 100)
+	if u == nil || u.Tier != "free" || !u.TierExpires.IsZero() {
+		t.Fatalf("user after downgrade: %+v", u)
+	}
+	if len(ss.deactivated) != 1 {
+		t.Fatalf("want 1 deactivated search, got %d", len(ss.deactivated))
+	}
 }
 
 // --- deactivateExcessSearches tests ---
@@ -406,7 +463,11 @@ func TestProcessDailyDigests_SendsWhenTimeMatches(t *testing.T) {
 	now := time.Now().In(time.UTC)
 	digestTime := fmt.Sprintf("%02d:%02d", now.Hour(), now.Minute())
 
-	dds.digests[100] = struct{ enabled bool; digestTime string; lastSent time.Time }{
+	dds.digests[100] = struct {
+		enabled    bool
+		digestTime string
+		lastSent   time.Time
+	}{
 		true, digestTime, time.Time{},
 	}
 	dds.stats[100] = []storage.DailySearchStats{
@@ -433,7 +494,11 @@ func TestProcessDailyDigests_SkipsOutsideWindow(t *testing.T) {
 	farHour := (now.Hour() + 6) % 24
 	digestTime := fmt.Sprintf("%02d:%02d", farHour, now.Minute())
 
-	dds.digests[100] = struct{ enabled bool; digestTime string; lastSent time.Time }{
+	dds.digests[100] = struct {
+		enabled    bool
+		digestTime string
+		lastSent   time.Time
+	}{
 		true, digestTime, time.Time{},
 	}
 
@@ -453,7 +518,11 @@ func TestProcessDailyDigests_SkipsAlreadySentToday(t *testing.T) {
 	now := time.Now().In(time.UTC)
 	digestTime := fmt.Sprintf("%02d:%02d", now.Hour(), now.Minute())
 
-	dds.digests[100] = struct{ enabled bool; digestTime string; lastSent time.Time }{
+	dds.digests[100] = struct {
+		enabled    bool
+		digestTime string
+		lastSent   time.Time
+	}{
 		true, digestTime, now,
 	}
 
@@ -544,11 +613,43 @@ func (m *mockNotifierWithRawErr) NotifyRaw(_ context.Context, _ string, _ string
 
 // --- isUserPremium tests ---
 
-func TestIsUserPremium_AlwaysTrue(t *testing.T) {
+func TestIsUserPremium_NilUserStore(t *testing.T) {
 	cfg := testConfig()
 	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
+	if s.isUserPremium(context.Background(), 100) {
+		t.Error("expected false when user store is nil")
+	}
+}
 
+func TestIsUserPremium_ActivePremium(t *testing.T) {
+	cfg := testConfig()
+	us := newMockUserStore()
+	_ = us.UpsertUser(context.Background(), 100, "u")
+	future := time.Now().Add(24 * time.Hour)
+	_ = us.SetUserTier(context.Background(), 100, "premium", future)
+	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{UserStore: us})
 	if !s.isUserPremium(context.Background(), 100) {
-		t.Error("expected true for all users (premium gating disabled)")
+		t.Fatal("expected premium")
+	}
+}
+
+func TestIsUserPremium_ExpiredTier(t *testing.T) {
+	cfg := testConfig()
+	us := newMockUserStore()
+	_ = us.UpsertUser(context.Background(), 100, "u")
+	_ = us.SetUserTier(context.Background(), 100, "premium", time.Now().Add(-time.Hour))
+	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{UserStore: us})
+	if s.isUserPremium(context.Background(), 100) {
+		t.Fatal("expected non-premium after expiry")
+	}
+}
+
+func TestIsUserPremium_FreeTier(t *testing.T) {
+	cfg := testConfig()
+	us := newMockUserStore()
+	_ = us.UpsertUser(context.Background(), 100, "u")
+	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{UserStore: us})
+	if s.isUserPremium(context.Background(), 100) {
+		t.Fatal("expected free user not premium")
 	}
 }

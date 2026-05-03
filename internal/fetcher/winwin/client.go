@@ -1,12 +1,25 @@
 package winwin
 
 import (
+	"compress/gzip"
+	"context"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
+
+const maxResponseSize = 10 * 1024 * 1024
+
+// HTTPResult holds the outcome of an HTTP GET request.
+type HTTPResult struct {
+	Body       []byte
+	StatusCode int
+	Header     http.Header
+}
 
 // Client wraps an HTTP client configured for WinWin requests.
 type Client struct {
@@ -53,4 +66,39 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	req.Header.Set("Cache-Control", "max-age=0")
 
 	return c.httpClient.Do(req)
+}
+
+func readResponseBody(resp *http.Response) ([]byte, error) {
+	reader := io.LimitReader(resp.Body, maxResponseSize)
+	if strings.Contains(strings.ToLower(resp.Header.Get("Content-Encoding")), "gzip") {
+		gr, err := gzip.NewReader(reader)
+		if err != nil {
+			return nil, fmt.Errorf("create gzip reader: %w", err)
+		}
+		defer func() { _ = gr.Close() }()
+		reader = gr
+	}
+	return io.ReadAll(reader)
+}
+
+// Get performs a GET and returns status, headers, and fully-read body.
+func (c *Client) Get(ctx context.Context, reqURL string) (*HTTPResult, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := readResponseBody(resp)
+	if err != nil {
+		return nil, err
+	}
+	header := make(http.Header, len(resp.Header))
+	for k, v := range resp.Header {
+		header[k] = append([]string(nil), v...)
+	}
+	return &HTTPResult{Body: body, StatusCode: resp.StatusCode, Header: header}, nil
 }
