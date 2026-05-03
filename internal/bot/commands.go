@@ -153,13 +153,13 @@ func (b *Bot) handleLinkStart(ctx context.Context, telegramChatID int64, param s
 			return
 		}
 		b.logger.Error("consume link token", "error", err)
-		b.send(ctx, telegramChatID, locale.T(lang, "link_expired"))
+		b.send(ctx, telegramChatID, locale.T(lang, "link_error"))
 		return
 	}
 
 	if err := b.users.LinkTelegramToWeb(ctx, telegramChatID, webChatID); err != nil {
 		b.logger.Error("link telegram to web", "telegram_chat_id", telegramChatID, "web_chat_id", webChatID, "error", err)
-		b.send(ctx, telegramChatID, locale.T(lang, "link_expired"))
+		b.send(ctx, telegramChatID, locale.T(lang, "link_error"))
 		return
 	}
 
