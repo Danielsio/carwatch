@@ -52,6 +52,16 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 	}
 
 	if logger != nil && len(items) > 0 {
+		var probe feedItem
+		if err := json.Unmarshal(items[0], &probe); err == nil {
+			logger.Info("yad2 feed item summary",
+				"token", probe.Token,
+				"km", probe.Km,
+				"has_city", strings.TrimSpace(textFromField(probe.Address.City)) != "",
+				"has_area", strings.TrimSpace(textFromField(probe.Address.Area)) != "",
+				"price", probe.Price,
+			)
+		}
 		logger.Info("raw feed item sample", "json", string(items[0]))
 	}
 

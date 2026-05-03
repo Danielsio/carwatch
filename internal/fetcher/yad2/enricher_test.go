@@ -41,6 +41,34 @@ func itemPageHandler(km int) http.HandlerFunc {
 	}
 }
 
+func TestEnricher_UnlimitedEnrichesAllNeedingKm(t *testing.T) {
+	var requestCount atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount.Add(1)
+		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":42000}}}}
+</script></html>`)
+	})
+	enricher := newTestEnricher(t, handler, EnricherConfig{Delay: time.Millisecond})
+
+	listings := []model.RawListing{
+		{Token: "a", Km: 0}, {Token: "b", Km: 0}, {Token: "c", Km: 0},
+		{Token: "d", Km: 0}, {Token: "e", Km: 0},
+	}
+	count := enricher.Enrich(context.Background(), listings)
+	if count != 5 {
+		t.Errorf("enriched = %d, want 5", count)
+	}
+	if got := requestCount.Load(); got != 5 {
+		t.Errorf("requests = %d, want 5 (no per-cycle cap)", got)
+	}
+	for i, l := range listings {
+		if l.Km != 42000 {
+			t.Errorf("listing[%d].Km = %d, want 42000", i, l.Km)
+		}
+	}
+}
+
 func TestEnricher_FillsMissingKm(t *testing.T) {
 	enricher := newTestEnricher(t, itemPageHandler(75000), EnricherConfig{
 		Delay:       time.Millisecond,
