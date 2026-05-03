@@ -546,5 +546,11 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("create linked_web_id index: %w", err)
 	}
 
+	if _, err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_users_active ON users(active)
+	`); err != nil {
+		return fmt.Errorf("create users active index: %w", err)
+	}
+
 	return nil
 }

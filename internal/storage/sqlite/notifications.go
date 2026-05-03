@@ -14,9 +14,12 @@ func (s *Store) EnqueueNotification(ctx context.Context, recipient, searchName, 
 	return err
 }
 
+const pendingNotificationsBatchSize = 500
+
 func (s *Store) PendingNotifications(ctx context.Context) ([]storage.PendingNotification, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, recipient, search_name, payload FROM pending_notifications ORDER BY created_at")
+		"SELECT id, recipient, search_name, payload FROM pending_notifications ORDER BY created_at LIMIT ?",
+		pendingNotificationsBatchSize)
 	if err != nil {
 		return nil, err
 	}

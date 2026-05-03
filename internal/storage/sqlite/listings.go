@@ -270,6 +270,8 @@ func (s *Store) IsSaved(ctx context.Context, chatID int64, token string) (bool, 
 	return n > 0, nil
 }
 
+const savedAmongBatchSize = 500
+
 func (s *Store) SavedAmong(ctx context.Context, chatID int64, tokens []string) (map[string]bool, error) {
 	if len(tokens) == 0 {
 		return nil, nil
@@ -290,36 +292,55 @@ func (s *Store) SavedAmong(ctx context.Context, chatID int64, tokens []string) (
 		return nil, nil
 	}
 
-	args := make([]interface{}, 0, 1+len(uniq))
-	args = append(args, chatID)
-	for _, t := range uniq {
-		args = append(args, t)
-	}
-	placeholders := ""
-	for i := range uniq {
-		if i > 0 {
-			placeholders += ", "
-		}
-		placeholders += "?"
-	}
-
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT token FROM saved_listings WHERE chat_id = ? AND token IN ("+placeholders+")",
-		args...)
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("begin read tx: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() { _ = tx.Rollback() }()
 
 	out := make(map[string]bool)
-	for rows.Next() {
-		var tok string
-		if err := rows.Scan(&tok); err != nil {
+	for start := 0; start < len(uniq); start += savedAmongBatchSize {
+		end := start + savedAmongBatchSize
+		if end > len(uniq) {
+			end = len(uniq)
+		}
+		batch := uniq[start:end]
+
+		args := make([]interface{}, 0, 1+len(batch))
+		args = append(args, chatID)
+		for _, t := range batch {
+			args = append(args, t)
+		}
+		placeholders := ""
+		for i := range batch {
+			if i > 0 {
+				placeholders += ", "
+			}
+			placeholders += "?"
+		}
+
+		rows, err := tx.QueryContext(ctx,
+			"SELECT token FROM saved_listings WHERE chat_id = ? AND token IN ("+placeholders+")",
+			args...)
+		if err != nil {
 			return nil, err
 		}
-		out[tok] = true
+
+		for rows.Next() {
+			var tok string
+			if err := rows.Scan(&tok); err != nil {
+				_ = rows.Close()
+				return nil, err
+			}
+			out[tok] = true
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		_ = rows.Close()
 	}
-	return out, rows.Err()
+	return out, tx.Commit()
 }
 
 func (s *Store) HideListing(ctx context.Context, chatID int64, token string) error {
