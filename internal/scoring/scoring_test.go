@@ -1,6 +1,8 @@
 package scoring
 
 import (
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -404,5 +406,62 @@ func TestFitnessScore_Range(t *testing.T) {
 		if s < 0 || s > 10 {
 			t.Errorf("FitnessScore out of range [0,10]: %.1f for %+v", s, p)
 		}
+	}
+}
+
+func TestDefaultDimensions(t *testing.T) {
+	dims := DefaultDimensions()
+	if len(dims) != 5 {
+		t.Fatalf("expected 5 dimensions, got %d", len(dims))
+	}
+	want := []struct {
+		name   string
+		weight float64
+	}{
+		{"price", weightPrice},
+		{"km", weightKm},
+		{"hand", weightHand},
+		{"year", weightYear},
+		{"engine", weightEngine},
+	}
+	for i := range want {
+		if dims[i].Name != want[i].name {
+			t.Errorf("dim %d name: got %q want %q", i, dims[i].Name, want[i].name)
+		}
+		if dims[i].Weight != want[i].weight {
+			t.Errorf("dim %d weight: got %v want %v", i, dims[i].Weight, want[i].weight)
+		}
+		if dims[i].Score == nil {
+			t.Errorf("dim %d Score is nil", i)
+		}
+	}
+}
+
+func TestMarketCache_LookupConcurrent(t *testing.T) {
+	var data []ListingData
+	for i := range 15 {
+		data = append(data, ListingData{
+			Manufacturer: "Toyota",
+			Model:        "Corolla",
+			Year:         2020,
+			Price:        90000 + i*2000,
+		})
+	}
+	mc := NewMarketCache(data)
+	var wg sync.WaitGroup
+	var bad atomic.Int32
+	for range 32 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			median, cohort, ok := mc.Lookup("Toyota", "Corolla", 2020)
+			if !ok || cohort != 15 || median != 104000 {
+				bad.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if bad.Load() != 0 {
+		t.Fatalf("concurrent lookups: %d mismatches", bad.Load())
 	}
 }

@@ -1,9 +1,12 @@
 package scoring
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strings"
+
+	"golang.org/x/sync/singleflight"
 )
 
 const MinCohortSize = 10
@@ -22,6 +25,7 @@ type entry struct {
 
 type MarketCache struct {
 	data map[string][]entry
+	sf   singleflight.Group
 }
 
 func NewMarketCache(listings []ListingData) *MarketCache {
@@ -33,7 +37,26 @@ func NewMarketCache(listings []ListingData) *MarketCache {
 	return &MarketCache{data: m}
 }
 
+type lookupResult struct {
+	median     int
+	cohortSize int
+	ok         bool
+}
+
+func cohortLookupKey(manufacturer, model string, year int) string {
+	return fmt.Sprintf("%s|%d", cacheKey(manufacturer, model), year)
+}
+
 func (mc *MarketCache) Lookup(manufacturer, model string, year int) (median int, cohortSize int, ok bool) {
+	key := cohortLookupKey(manufacturer, model, year)
+	v, _, _ := mc.sf.Do(key, func() (interface{}, error) {
+		return mc.lookupUnsynchronized(manufacturer, model, year), nil
+	})
+	res := v.(lookupResult)
+	return res.median, res.cohortSize, res.ok
+}
+
+func (mc *MarketCache) lookupUnsynchronized(manufacturer, model string, year int) lookupResult {
 	entries := mc.data[cacheKey(manufacturer, model)]
 	var prices []int
 	for _, e := range entries {
@@ -42,16 +65,17 @@ func (mc *MarketCache) Lookup(manufacturer, model string, year int) (median int,
 		}
 	}
 	if len(prices) < MinCohortSize {
-		return 0, len(prices), false
+		return lookupResult{cohortSize: len(prices)}
 	}
 	sort.Ints(prices)
 	n := len(prices)
+	var median int
 	if n%2 == 0 {
 		median = (prices[n/2-1] + prices[n/2]) / 2
 	} else {
 		median = prices[n/2]
 	}
-	return median, n, true
+	return lookupResult{median: median, cohortSize: n, ok: true}
 }
 
 func Score(listingPrice, medianPrice int) int {
@@ -119,6 +143,42 @@ type FitnessResult struct {
 	Dims  []DimScore
 }
 
+// Dimension defines one fitness scoring strategy (name, weight, score function).
+type Dimension struct {
+	Name   string
+	Weight float64
+	Score  func(p FitnessParams) float64
+}
+
+// DefaultDimensions returns the standard fitness dimensions (price, km, hand, year, engine).
+// A score function may return NaN to omit that dimension (used for price when unset).
+func DefaultDimensions() []Dimension {
+	return []Dimension{
+		{
+			Name:   "price",
+			Weight: weightPrice,
+			Score: func(p FitnessParams) float64 {
+				if p.PriceMax <= 0 || p.Price <= 0 {
+					return math.NaN()
+				}
+				return priceScore(p.Price, p.PriceMax)
+			},
+		},
+		{Name: "km", Weight: weightKm, Score: func(p FitnessParams) float64 { return kmScore(p.Km, p.MaxKm) }},
+		{Name: "hand", Weight: weightHand, Score: func(p FitnessParams) float64 { return handScore(p.Hand, p.MaxHand) }},
+		{Name: "year", Weight: weightYear, Score: func(p FitnessParams) float64 { return yearScore(p.Year, p.YearMin, p.YearMax) }},
+		{Name: "engine", Weight: weightEngine, Score: func(p FitnessParams) float64 {
+			return engineScore(p.EngineVolume, p.EngineMinCC)
+		}},
+	}
+}
+
+var defaultFitnessDimensions []Dimension
+
+func init() {
+	defaultFitnessDimensions = DefaultDimensions()
+}
+
 func FitnessScore(p FitnessParams) float64 {
 	return FitnessScoreDetailed(p).Total
 }
@@ -126,14 +186,13 @@ func FitnessScore(p FitnessParams) float64 {
 func FitnessScoreDetailed(p FitnessParams) FitnessResult {
 	dims := make([]DimScore, 0, 5)
 
-	if p.PriceMax > 0 && p.Price > 0 {
-		dims = append(dims, DimScore{"price", priceScore(p.Price, p.PriceMax), weightPrice})
+	for _, dim := range defaultFitnessDimensions {
+		s := dim.Score(p)
+		if math.IsNaN(s) {
+			continue
+		}
+		dims = append(dims, DimScore{Name: dim.Name, Score: s, Weight: dim.Weight})
 	}
-
-	dims = append(dims, DimScore{"km", kmScore(p.Km, p.MaxKm), weightKm})
-	dims = append(dims, DimScore{"hand", handScore(p.Hand, p.MaxHand), weightHand})
-	dims = append(dims, DimScore{"year", yearScore(p.Year, p.YearMin, p.YearMax), weightYear})
-	dims = append(dims, DimScore{"engine", engineScore(p.EngineVolume, p.EngineMinCC), weightEngine})
 
 	var totalWeight float64
 	for _, d := range dims {
