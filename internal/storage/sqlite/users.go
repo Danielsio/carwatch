@@ -83,13 +83,12 @@ func (s *Store) upsertChannelUser(ctx context.Context, channel, channelID, usern
 		return 0, fmt.Errorf("check existing %s user: %w", channel, err)
 	}
 
-	var maxID int64
+	var newID int64
 	if err := tx.QueryRowContext(ctx,
-		"SELECT COALESCE(MAX(chat_id), ?) FROM users WHERE chat_id >= ?",
-		idOffset-1, idOffset).Scan(&maxID); err != nil {
-		return 0, fmt.Errorf("select max %s user id: %w", channel, err)
+		"SELECT COALESCE(MAX(chat_id), ?) + 1 FROM users WHERE chat_id >= ?",
+		idOffset-1, idOffset).Scan(&newID); err != nil {
+		return 0, fmt.Errorf("next %s user id: %w", channel, err)
 	}
-	newID := maxID + 1
 
 	_, err = tx.ExecContext(ctx,
 		"INSERT INTO users (chat_id, username, channel, channel_id) VALUES (?, ?, ?, ?)",

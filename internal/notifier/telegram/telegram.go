@@ -24,6 +24,14 @@ const (
 	// API calls to avoid hitting rate limits.
 	defaultSendDelay = 50 * time.Millisecond
 
+	// telegramMaxRetries is the maximum number of extra attempts after a
+	// rate-limited (HTTP 429) sendMessage/sendPhoto failure.
+	telegramMaxRetries = 3
+
+	// telegramRetryBaseDelay is the initial backoff for exponential delay
+	// between rate-limit retries; grows as base * 2^n per attempt.
+	telegramRetryBaseDelay = 1 * time.Second
+
 	// retryAfterDefault is the fallback sleep duration when the API returns
 	// a 429 Too Many Requests error without a parseable retry-after value.
 	retryAfterDefault = 5 * time.Second
@@ -99,7 +107,7 @@ func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, list
 	}
 
 	if len([]rune(caption)) > maxCaptionLen {
-		_, err = n.bot.SendPhoto(ctx, &tgbot.SendPhotoParams{
+		err = n.sendPhotoWithRetry(ctx, chatID, &tgbot.SendPhotoParams{
 			ChatID: id,
 			Photo:  &tgmodels.InputFileString{Data: listing.ImageURL},
 		})
@@ -110,7 +118,7 @@ func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, list
 		return n.sendMessageMarkdown(ctx, chatID, caption)
 	}
 
-	_, err = n.bot.SendPhoto(ctx, &tgbot.SendPhotoParams{
+	err = n.sendPhotoWithRetry(ctx, chatID, &tgbot.SendPhotoParams{
 		ChatID:    id,
 		Photo:     &tgmodels.InputFileString{Data: listing.ImageURL},
 		Caption:   caption,
@@ -160,27 +168,79 @@ func (n *Notifier) sendMessageWithParseMode(ctx context.Context, chatID string, 
 		if parseMode != "" {
 			params.ParseMode = parseMode
 		}
-		_, err = n.bot.SendMessage(ctx, params)
+		err = n.sendMessageWithRetry(ctx, chatID, params)
 		if err != nil {
-			if isRateLimited(err) {
-				wait := parseRetryAfter(err)
-				n.logger.Warn("rate limited by telegram, retrying",
-					"chat_id", chatID, "wait", wait)
-				time.Sleep(wait)
-				_, err = n.bot.SendMessage(ctx, params)
-			}
-			if err != nil {
-				errMsg := strings.ToLower(err.Error())
-				if strings.Contains(errMsg, "bot was blocked by the user") ||
-					strings.Contains(errMsg, "user is deactivated") {
-					return fmt.Errorf("%w: %v", notifier.ErrRecipientBlocked, err)
-				}
-				return fmt.Errorf("telegram sendMessage: %w", err)
-			}
+			return err
 		}
 	}
 
 	n.logger.Info("sent telegram message", "chat_id", chatID, "chunks", len(chunks))
+	return nil
+}
+
+func (n *Notifier) sendMessageWithRetry(ctx context.Context, chatID string, params *tgbot.SendMessageParams) error {
+	var err error
+	for attempt := 0; ; attempt++ {
+		_, err = n.bot.SendMessage(ctx, params)
+		if err == nil {
+			return nil
+		}
+		if recErr := recipientBlockedError(err); recErr != nil {
+			return recErr
+		}
+		if !isRateLimited(err) || attempt >= telegramMaxRetries {
+			return fmt.Errorf("telegram sendMessage: %w", err)
+		}
+		delay := telegramRetryBaseDelay * time.Duration(1<<uint(attempt))
+		if w := parseRetryAfter(err); w > delay {
+			delay = w
+		}
+		n.logger.Warn("rate limited by telegram, retrying",
+			"chat_id", chatID, "attempt", attempt+1, "wait", delay)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+}
+
+func (n *Notifier) sendPhotoWithRetry(ctx context.Context, chatID string, params *tgbot.SendPhotoParams) error {
+	var err error
+	for attempt := 0; ; attempt++ {
+		_, err = n.bot.SendPhoto(ctx, params)
+		if err == nil {
+			return nil
+		}
+		if recErr := recipientBlockedError(err); recErr != nil {
+			return recErr
+		}
+		if !isRateLimited(err) || attempt >= telegramMaxRetries {
+			return err
+		}
+		delay := telegramRetryBaseDelay * time.Duration(1<<uint(attempt))
+		if w := parseRetryAfter(err); w > delay {
+			delay = w
+		}
+		n.logger.Warn("rate limited by telegram on sendPhoto, retrying",
+			"chat_id", chatID, "attempt", attempt+1, "wait", delay)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+}
+
+func recipientBlockedError(err error) error {
+	if err == nil {
+		return nil
+	}
+	errMsg := strings.ToLower(err.Error())
+	if strings.Contains(errMsg, "bot was blocked by the user") ||
+		strings.Contains(errMsg, "user is deactivated") {
+		return fmt.Errorf("%w: %v", notifier.ErrRecipientBlocked, err)
+	}
 	return nil
 }
 

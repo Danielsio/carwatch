@@ -307,7 +307,9 @@ func TestSendMessage_429_RetriesAndSucceeds(t *testing.T) {
 }
 
 func TestSendMessage_429_RetryAlsoFails(t *testing.T) {
+	var sendCalls atomic.Int32
 	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
+		sendCalls.Add(1)
 		w.WriteHeader(http.StatusTooManyRequests)
 		resp, _ := json.Marshal(map[string]any{
 			"ok":          false,
@@ -322,6 +324,10 @@ func TestSendMessage_429_RetryAlsoFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "telegram sendMessage") {
 		t.Errorf("expected 'telegram sendMessage' error, got: %v", err)
+	}
+	wantCalls := int32(telegramMaxRetries + 1)
+	if sendCalls.Load() != wantCalls {
+		t.Errorf("expected %d send attempts (initial + %d retries), got %d", wantCalls, telegramMaxRetries, sendCalls.Load())
 	}
 }
 
