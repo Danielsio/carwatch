@@ -3,71 +3,80 @@ import {
   Bell,
   TrendingDown,
   SlidersHorizontal,
-  Zap,
   Bookmark,
   BarChart3,
   Sparkles,
+  Layers,
+  CalendarSync,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useInView } from "@/hooks/useInView";
 
 const features = [
   {
+    icon: Layers,
+    title: "מעקב מקורות מרובים",
+    desc: "סריקה מקבילית של אתרי יד שנייה מובילים (למשל Yad2 ו-WinWin) — תמונה אחת משולבת של השוק, בלי לקפוץ בין כרטיסיות.",
+    color: "text-chart-4",
+    bg: "bg-chart-4/10",
+    border: "border-chart-4/20",
+  },
+  {
     icon: Bell,
-    title: "התראות מיידיות",
-    desc: "קבל התראה בטלגרם או בממשק תוך דקות מרגע שמודעה תואמת לחיפוש שלך.",
+    title: "התראות בזמן אמת",
+    desc: "מודעה חדשה שנכנסת לטווח שלך? תקבל התראה בממשק ובערוץ ההודעות שלך תוך דקות — קונים ראשונים נוגעים קודם במחיר.",
     color: "text-primary",
     bg: "bg-primary/10",
     border: "border-primary/20",
   },
   {
+    icon: Sparkles,
+    title: "Smart Match Score",
+    desc: "ציון 0–10 לכל מודעה לפי מחיר, ק״מ, שנה, יד ועוד — המודעות הכי רלוונטיות עולות למעלה כדי שלא תפספס עסקה טובה.",
+    color: "text-primary",
+    bg: "bg-primary/10",
+    border: "border-primary/35",
+    highlight: true,
+  },
+  {
+    icon: BarChart3,
+    title: "ניתוח שוק ומגמות",
+    desc: "הבן את טווח המחירים, כמות המודעות והפוזיציה של כל רכב ביחס לשוק — החלטות רגועות ומבוססות נתונים.",
+    color: "text-chart-2",
+    bg: "bg-chart-2/10",
+    border: "border-chart-2/20",
+  },
+  {
+    icon: Bookmark,
+    title: "חיפושים שמורים",
+    desc: "נהל עשרות חיפושים במקביל: השהה, חדש או מחק — כל פרופיל עם פילטרים משלו למציאת הרכב המדויק למשפחה, לעבודה או לפרויקט.",
+    color: "text-chart-5",
+    bg: "bg-chart-5/10",
+    border: "border-chart-5/20",
+  },
+  {
+    icon: CalendarSync,
+    title: "סיכום יומי (digest)",
+    desc: "קיבלו צפייה מהירה על מה שנוסף מאז אתמול — מושלם למי שרוצה לעקוב בלי הצטברות התראות ספאם לאורך היום.",
+    color: "text-warning",
+    bg: "bg-warning/10",
+    border: "border-warning/25",
+  },
+  {
     icon: TrendingDown,
-    title: "מעקב מחירים",
-    desc: "CarWatch עוקבת אחר שינויי מחיר — תדע מיד כשמוכר מוריד מחיר.",
+    title: "מעקב מחירים וירידות",
+    desc: "מודיעים כשמחיר יורד או כשמודעה חוזרת עם הצעה אגרסיבית יותר — ניהול משא ומתן חכם מהספה.",
     color: "text-success",
     bg: "bg-success/10",
     border: "border-success/20",
   },
   {
     icon: SlidersHorizontal,
-    title: "פילטרים חכמים",
-    desc: "סנן לפי יצרן, דגם, שנה, מחיר, קילומטרז, יד ועוד — מדויק לצרכים שלך.",
+    title: "פילטרים ואוטומציה",
+    desc: "שנה, דגם, תקציב, ק״מ, יד ועוד — הגדר פעם אחת ו-CarWatch ממשיכה לסרוק ברקע ומזהה שינויים, בלי ריענון ידני.",
     color: "text-chart-4",
     bg: "bg-chart-4/10",
-    border: "border-chart-4/20",
-  },
-  {
-    icon: Zap,
-    title: "סריקה אוטומטית",
-    desc: "המערכת סורקת את Yad2 ו-WinWin במקביל — ללא פעולה ידנית מצדך.",
-    color: "text-warning",
-    bg: "bg-warning/10",
-    border: "border-warning/20",
-  },
-  {
-    icon: Bookmark,
-    title: "מועדפים וארכיון",
-    desc: "שמור מודעות מעניינות לבדיקה מאוחרת, ועיין בהיסטוריית כל מה שנמצא.",
-    color: "text-chart-5",
-    bg: "bg-chart-5/10",
-    border: "border-chart-5/20",
-  },
-  {
-    icon: BarChart3,
-    title: "ניתוח שוק",
-    desc: "ראה כמה מודעות קיימות, מה הטווח הממוצע, ואיפה המחיר שאתה רואה ממוקם.",
-    color: "text-chart-2",
-    bg: "bg-chart-2/10",
-    border: "border-chart-2/20",
-  },
-  {
-    icon: Sparkles,
-    title: "Smart Match Score",
-    desc: "אלגוריתם חכם מדרג כל מודעה 0–10 לפי מחיר, ק\"מ, שנה ומצב — כדי שתראה קודם את הכי טוב.",
-    color: "text-primary",
-    bg: "bg-primary/10",
-    border: "border-primary/30",
-    highlight: true,
+    border: "border-chart-4/15",
   },
 ];
 
@@ -93,7 +102,7 @@ function FadeUp({
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="scroll-mt-24 px-6 py-24">
+    <section id="features" className="scroll-mt-28 px-4 py-24 sm:px-6">
       <div className="mx-auto max-w-5xl">
         <FadeUp>
           <div className="mb-16 text-center">
@@ -101,32 +110,35 @@ export function FeaturesSection() {
               יכולות
             </span>
             <h2 className="mb-4 text-3xl font-bold text-foreground md:text-4xl">
-              כל מה שצריך. כלום מיותר.
+              פלטפורמה מלאה למציאת רכב
             </h2>
-            <p className="mx-auto max-w-xl text-base text-muted-foreground">
-              כל הכלים שאתה צריך כדי למצוא את הרכב הבא שלך מהר יותר וחכם יותר.
+            <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground">
+              מאיסוף מודעות ועד דירוג חכם והתראות — הכל במקום אחד, מותאם לשוק הרכבים
+              הישראלי ולעבודה ב-RTL.
             </p>
           </div>
         </FadeUp>
 
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
           {features.map((f, i) => {
             const Icon = f.icon;
             return (
-              <FadeUp key={f.title} delay={i * 0.07}>
+              <FadeUp key={f.title} delay={i * 0.05}>
                 <div
-                  className={`card-hover group relative h-full overflow-hidden rounded-2xl border ${f.border} bg-card p-6 ${f.highlight ? "border-primary/40" : ""}`}
+                  className={`card-hover group relative flex h-full flex-col overflow-hidden rounded-2xl border ${f.border} bg-card p-6 ${f.highlight ? "border-primary/40 ring-1 ring-primary/10" : ""}`}
                 >
                   {f.highlight ? (
-                    <div className="pointer-events-none absolute inset-0 bg-primary/3" />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.06] via-transparent to-purple-500/[0.04]" />
                   ) : null}
                   <div
-                    className={`mb-4 flex h-11 w-11 items-center justify-center rounded-2xl ${f.bg} transition-transform group-hover:scale-110`}
+                    className={`relative mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${f.bg} transition-transform duration-300 group-hover:scale-110`}
                   >
-                    <Icon size={20} className={f.color} />
+                    <Icon size={22} className={f.color} aria-hidden />
                   </div>
-                  <h3 className="mb-2 font-bold text-foreground">{f.title}</h3>
-                  <p className="text-sm leading-relaxed text-muted-foreground">
+                  <h3 className="relative mb-2 text-base font-bold text-foreground md:text-lg">
+                    {f.title}
+                  </h3>
+                  <p className="relative text-sm leading-relaxed text-muted-foreground">
                     {f.desc}
                   </p>
                 </div>

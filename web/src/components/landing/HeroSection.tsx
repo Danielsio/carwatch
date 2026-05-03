@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { ArrowLeft, Bell, TrendingDown } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 
 function FloatingCard({
   className,
@@ -12,11 +12,16 @@ function FloatingCard({
   children: ReactNode;
   delay?: number;
 }) {
+  const reduceMotion = useReducedMotion();
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: reduceMotion ? 0 : 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.6, ease: "easeOut" }}
+      transition={{
+        delay: reduceMotion ? 0 : delay,
+        duration: reduceMotion ? 0.15 : 0.6,
+        ease: "easeOut",
+      }}
       className={`glass-card absolute rounded-2xl p-3.5 shadow-xl ${className ?? ""}`}
     >
       {children}
@@ -25,24 +30,26 @@ function FloatingCard({
 }
 
 export function HeroSection() {
+  const reduceMotion = useReducedMotion();
   return (
     <section className="relative flex min-h-screen items-center justify-center overflow-hidden pt-16">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-1/4 right-1/4 h-96 w-96 rounded-full bg-primary/10 blur-[120px]" />
-        <div className="absolute bottom-1/3 left-1/4 h-72 w-72 rounded-full bg-purple-500/8 blur-[100px]" />
-        <div className="absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[150px]" />
+        <div className="absolute top-1/4 end-1/4 h-96 w-96 rounded-full bg-primary/10 blur-[120px]" />
+        <div className="absolute bottom-1/3 start-1/4 h-72 w-72 rounded-full bg-purple-500/8 blur-[100px]" />
+        <div className="absolute top-1/2 start-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[150px]" />
       </div>
 
       <div className="landing-grid-bg pointer-events-none absolute inset-0 opacity-[0.03]" />
 
-      <div className="relative z-10 mx-auto max-w-5xl px-6 text-center">
+      <div className="relative z-10 mx-auto max-w-5xl px-4 text-center sm:px-6">
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
+          lang="he"
           className="mb-8 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary"
         >
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
           מעקב רכבים חכם בישראל
         </motion.div>
 
@@ -50,21 +57,33 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.7 }}
-          className="mb-6 text-5xl leading-tight font-bold text-foreground md:text-7xl"
+          lang="he"
+          className="mb-6 text-4xl leading-[1.12] font-bold text-foreground sm:text-5xl md:text-6xl lg:text-7xl"
         >
-          עקוב אחר רכבים.
+          עקוב אחרי המודעות
           <br />
-          <span className="gradient-text">קבל התראה ראשון.</span>
+          <span className="gradient-text">וקנה לפני שכולם הספיקו.</span>
         </motion.h1>
 
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.7 }}
-          className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed text-muted-foreground md:text-xl"
+          lang="he"
+          className="mx-auto mb-2 max-w-2xl text-lg leading-relaxed text-muted-foreground md:text-xl"
         >
-          CarWatch סורקת אלפי מודעות רכב בישראל ומתריאה לך מיד כשמופיע הרכב שחיפשת
-          — במחיר שתוכל להרשות לעצמך.
+          CarWatch סורקת מקורות מרובים בישראל, מדרגת מודעות בציון חכם ושולחת התראות
+          בזמן אמת — כדי שתאסוף את הרכב הנכון במחיר הנכון.
+        </motion.p>
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25, duration: 0.6 }}
+          className="mx-auto mb-10 max-w-2xl text-sm font-medium text-muted-foreground/90 md:text-base"
+          lang="en"
+          dir="ltr"
+        >
+          Multi-source monitoring · Smart Match Score · Real-time alerts
         </motion.p>
 
         <motion.div
@@ -94,17 +113,22 @@ export function HeroSection() {
           transition={{ delay: 0.4, duration: 0.8, ease: "easeOut" }}
           className="relative mx-auto max-w-3xl"
         >
-          <div className="glass-card rounded-3xl border border-border/80 p-6 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
+          <div className="glass-card rounded-3xl border border-border/80 p-5 shadow-2xl sm:p-6">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 animate-pulse rounded-full bg-success" />
+                <div className="h-2 w-2 animate-pulse rounded-full bg-success motion-reduce:animate-none" />
                 <span className="text-xs font-medium text-muted-foreground">
-                  3 חיפושים פעילים
+                  לוח בקרה · 3 חיפושים פעילים
                 </span>
               </div>
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                עדכון אחרון: כרגע
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
+                  Yad2 · WinWin
+                </span>
+                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                  סנכרון: לפני רגע
+                </span>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -114,33 +138,50 @@ export function HeroSection() {
                   count: 47,
                   new: 3,
                   price: "עד ₪120,000",
+                  score: "8.6",
+                  tag: null as string | null,
                 },
                 {
                   title: "קיה ספורטאג׳ יד 2",
                   count: 31,
                   new: 1,
                   price: "עד ₪180,000",
+                  score: "7.9",
+                  tag: "ירידת מחיר",
                 },
                 {
                   title: "מזדה 3 אוטומט",
                   count: 22,
                   new: 0,
                   price: "עד ₪140,000",
+                  score: "7.2",
+                  tag: null as string | null,
                 },
               ].map((item, i) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between rounded-xl bg-secondary/50 px-4 py-3"
+                  className="flex flex-col gap-3 rounded-xl border border-border/40 bg-secondary/40 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
                 >
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-foreground">
-                      {item.title}
-                    </p>
+                  <div className="min-w-0 flex-1 text-right">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <p className="text-sm font-semibold text-foreground">
+                        {item.title}
+                      </p>
+                      {item.tag ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-success/15 px-2 py-0.5 text-[10px] font-bold text-success ring-1 ring-success/20">
+                          <TrendingDown className="h-3 w-3" aria-hidden />
+                          {item.tag}
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {item.price}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3">
+                    <span className="rounded-lg bg-card/80 px-2 py-1 text-[10px] font-bold tabular-nums text-primary ring-1 ring-primary/15">
+                      ציון {item.score}
+                    </span>
                     <span className="text-xs text-muted-foreground">
                       {item.count} מודעות
                     </span>
@@ -148,19 +189,36 @@ export function HeroSection() {
                       <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-bold text-white">
                         {item.new} חדשות
                       </span>
-                    ) : null}
+                    ) : (
+                      <span className="rounded-full bg-muted/80 px-2 py-0.5 text-[10px] text-muted-foreground">
+                        עדכני
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-dashed border-primary/25 bg-primary/5 px-3 py-2.5">
+              <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                <Bell className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+                <span>סיכום יומי · 08:00 — 6 התאמות חדשות מאתמול</span>
+              </div>
+              <span className="text-[10px] font-semibold text-primary/90" lang="en" dir="ltr">
+                digest
+              </span>
+            </div>
           </div>
 
-          <FloatingCard className="-top-5 -left-8 max-w-xs md:-left-14" delay={0.8}>
+          <FloatingCard
+            className="-top-5 max-w-[min(18rem,calc(100vw-3rem))] sm:-start-8 md:-start-14"
+            delay={0.8}
+          >
             <div className="flex items-start gap-2.5">
               <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/20">
                 <Bell size={13} className="text-primary" />
               </div>
-              <div>
+              <div className="text-right">
                 <p className="text-xs font-semibold text-foreground">
                   התראה חדשה!
                 </p>
@@ -174,15 +232,12 @@ export function HeroSection() {
             </div>
           </FloatingCard>
 
-          <FloatingCard
-            className="-bottom-5 -right-8 md:-right-14"
-            delay={1.0}
-          >
+          <FloatingCard className="-bottom-5 sm:-end-8 md:-end-14" delay={1.0}>
             <div className="flex items-center gap-2.5">
               <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-success/20">
                 <TrendingDown size={13} className="text-success" />
               </div>
-              <div>
+              <div className="text-right">
                 <p className="text-xs font-semibold text-foreground">ירידת מחיר</p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
                   מ-₪135,000 → ₪119,000
@@ -196,14 +251,18 @@ export function HeroSection() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.5 }}
-        className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5"
+        transition={{ delay: reduceMotion ? 0 : 1.5 }}
+        className="absolute bottom-8 start-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5"
       >
         <span className="text-xs text-muted-foreground/50">גלול למטה</span>
         <div className="flex h-8 w-5 items-start justify-center rounded-full border-2 border-border/50 p-1">
           <motion.div
-            animate={{ y: [0, 10, 0] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            animate={reduceMotion ? { y: 0 } : { y: [0, 10, 0] }}
+            transition={{
+              duration: 1.5,
+              repeat: reduceMotion ? 0 : Infinity,
+              ease: "easeInOut",
+            }}
             className="h-1.5 w-1 rounded-full bg-muted-foreground/50"
           />
         </div>
