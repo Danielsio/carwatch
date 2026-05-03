@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { Car } from "lucide-react";
 
 export function LandingFooter({ version }: { version?: string | null }) {
+  const year = new Date().getFullYear();
   return (
     <footer className="border-border border-t px-6 py-10">
       <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 md:flex-row">
@@ -12,7 +13,7 @@ export function LandingFooter({ version }: { version?: string | null }) {
           <span className="text-sm font-bold text-foreground">CarWatch</span>
         </Link>
         <p className="text-center text-xs text-muted-foreground md:text-start">
-          © 2026 CarWatch · מעקב רכבים חכם בישראל
+          © {year} CarWatch · מעקב רכבים חכם בישראל
           {version ? ` · גרסה ${version}` : ""}
         </p>
         <Link

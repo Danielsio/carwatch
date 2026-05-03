@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { motion } from "motion/react";
-import { Sparkles, TrendingUp, Gauge, Calendar, Users, BadgeCheck } from "lucide-react";
+import { Sparkles, TrendingUp, Gauge, Calendar, Users } from "lucide-react";
 import { useInView } from "@/hooks/useInView";
 import {
   scoreListingAgainstSearch,
@@ -65,7 +65,7 @@ const factors = [
     icon: Gauge,
     label: "קילומטרז",
     desc: "פחות ק\"מ = עייפות פחותה = ציון גבוה יותר",
-    weight: "25%",
+    weight: "30%",
   },
   {
     icon: Calendar,
@@ -77,13 +77,7 @@ const factors = [
     icon: Users,
     label: "מספר ידיים",
     desc: "בעלים ראשון שווה ציון גבוה משמעותית",
-    weight: "15%",
-  },
-  {
-    icon: BadgeCheck,
-    label: "מצב כללי",
-    desc: "שקלול סינרגטי של גיל, שימוש, ובלאי כולל",
-    weight: "10%",
+    weight: "20%",
   },
 ];
 

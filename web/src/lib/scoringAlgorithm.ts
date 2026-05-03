@@ -57,15 +57,12 @@ export function scoreListingAgainstSearch(
         ? 1
         : 0.55;
 
-  const conditionFactor =
-    mileageFactor * 0.45 + yearFactor * 0.35 + handFactor * 0.2;
-
+  /* Weights match the “מה נכנס לחישוב?” copy on the landing page (30/30/20/20). */
   const combined =
     0.3 * priceFactor +
-    0.25 * mileageFactor +
+    0.3 * mileageFactor +
     0.2 * yearFactor +
-    0.15 * handFactor +
-    0.1 * conditionFactor;
+    0.2 * handFactor;
 
   const score = clamp01(combined) * 10;
 

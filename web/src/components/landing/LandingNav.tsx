@@ -11,6 +11,7 @@ export function LandingNav() {
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20);
+    fn();
     window.addEventListener("scroll", fn);
     return () => window.removeEventListener("scroll", fn);
   }, []);

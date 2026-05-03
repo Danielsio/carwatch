@@ -52,6 +52,7 @@ export function SearchCard({
       )}
       onClick={() => navigate(listingsPath)}
       onKeyDown={(e) => {
+        if (e.currentTarget !== e.target) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           navigate(listingsPath);
