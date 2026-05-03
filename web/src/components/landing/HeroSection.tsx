@@ -32,8 +32,8 @@ function FloatingCard({
 export function HeroSection() {
   const reduceMotion = useReducedMotion();
   return (
-    <section className="relative flex min-h-screen items-center justify-center overflow-hidden pt-16">
-      <div className="pointer-events-none absolute inset-0">
+    <section className="relative flex min-h-screen items-center justify-center pt-16">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 end-1/4 h-96 w-96 rounded-full bg-primary/10 blur-[120px]" />
         <div className="absolute bottom-1/3 start-1/4 h-72 w-72 rounded-full bg-purple-500/8 blur-[100px]" />
         <div className="absolute top-1/2 start-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[150px]" />
@@ -111,7 +111,7 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 40, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ delay: 0.4, duration: 0.8, ease: "easeOut" }}
-          className="relative mx-auto max-w-3xl"
+          className="relative mx-auto max-w-3xl pb-10"
         >
           <div className="glass-card rounded-3xl border border-border/80 p-5 shadow-2xl sm:p-6">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
