@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link } from "react-router";
 import { Car, Sun, Moon, Menu, X } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 export function LandingNav() {
   const { theme, toggle } = useTheme();
+  const mobileMenuId = useId();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -71,35 +72,41 @@ export function LandingNav() {
             onClick={() => setMobileOpen((o) => !o)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:hidden"
             aria-label={mobileOpen ? "סגור תפריט" : "פתח תפריט"}
+            aria-expanded={mobileOpen}
+            aria-controls={mobileMenuId}
           >
             {mobileOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>
       </div>
 
-      {mobileOpen ? (
-        <div className="border-border border-b bg-background/95 px-6 py-4 backdrop-blur-xl md:hidden">
-          <div className="space-y-3">
-            {links.map((l) => (
-              <a
-                key={l.href}
-                href={l.href}
-                onClick={() => setMobileOpen(false)}
-                className="block py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {l.label}
-              </a>
-            ))}
-            <Link
-              to="/signup"
+      <div
+        id={mobileMenuId}
+        role="navigation"
+        aria-label="ניווט ראשי — נייד"
+        hidden={!mobileOpen}
+        className="border-border border-b bg-background/95 px-6 py-4 backdrop-blur-xl md:hidden"
+      >
+        <div className="space-y-3">
+          {links.map((l) => (
+            <a
+              key={l.href}
+              href={l.href}
               onClick={() => setMobileOpen(false)}
-              className="mt-2 block w-full rounded-xl bg-primary py-2.5 text-center text-sm font-semibold text-white"
+              className="block py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              התחל עכשיו
-            </Link>
-          </div>
+              {l.label}
+            </a>
+          ))}
+          <Link
+            to="/signup"
+            onClick={() => setMobileOpen(false)}
+            className="mt-2 block w-full rounded-xl bg-primary py-2.5 text-center text-sm font-semibold text-white"
+          >
+            התחל עכשיו
+          </Link>
         </div>
-      ) : null}
+      </div>
     </header>
   );
 }

@@ -95,6 +95,7 @@ export function SearchCard({
         <div
           className="flex items-center gap-1"
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
         >
           {isActive ? (
             <button
@@ -179,6 +180,7 @@ export function SearchCard({
         <div
           className="border-border/60 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3"
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
         >
           <Button
             type="button"
