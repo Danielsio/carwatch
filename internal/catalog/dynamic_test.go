@@ -152,3 +152,87 @@ func TestDynamicCatalog_ModelName(t *testing.T) {
 		t.Errorf("ModelName(999,1) = %q, want Unknown", name)
 	}
 }
+
+func TestDynamicCatalog_SearchManufacturers(t *testing.T) {
+	d := NewDynamic(testLogger)
+	d.Load(context.Background())
+	d.Ingest(context.Background(), 9000, "AlphaCar", 100, "A3")
+
+	results := d.SearchManufacturers("alpha")
+	if len(results) == 0 {
+		t.Fatal("expected at least one result for 'alpha'")
+	}
+	found := false
+	for _, r := range results {
+		if r.ID == 9000 && r.Name == "AlphaCar" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("SearchManufacturers should find AlphaCar")
+	}
+
+	noResults := d.SearchManufacturers("zzzznonexistent")
+	if len(noResults) != 0 {
+		t.Errorf("expected 0 results for nonexistent query, got %d", len(noResults))
+	}
+}
+
+func TestDynamicCatalog_SearchModels(t *testing.T) {
+	d := NewDynamic(testLogger)
+	d.Load(context.Background())
+	d.Ingest(context.Background(), 9000, "AlphaCar", 100, "BetaModel")
+	d.Ingest(context.Background(), 9000, "AlphaCar", 101, "GammaModel")
+
+	results := d.SearchModels(9000, "beta")
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for 'beta', got %d", len(results))
+	}
+	if results[0].Name != "BetaModel" {
+		t.Errorf("expected BetaModel, got %s", results[0].Name)
+	}
+
+	noResults := d.SearchModels(9000, "zzzznonexistent")
+	if len(noResults) != 0 {
+		t.Errorf("expected 0 results for nonexistent query, got %d", len(noResults))
+	}
+
+	noMfr := d.SearchModels(99999, "any")
+	if len(noMfr) != 0 {
+		t.Errorf("expected 0 results for unknown manufacturer, got %d", len(noMfr))
+	}
+}
+
+func TestDynamicCatalog_Manufacturers_DefensiveCopy(t *testing.T) {
+	d := NewDynamic(testLogger)
+	d.Load(context.Background())
+
+	mfrs1 := d.Manufacturers()
+	mfrs2 := d.Manufacturers()
+
+	if len(mfrs1) == 0 {
+		t.Fatal("expected manufacturers")
+	}
+	mfrs1[0].Name = "MUTATED"
+	if mfrs2[0].Name == "MUTATED" {
+		t.Error("Manufacturers() should return defensive copy")
+	}
+}
+
+func TestDynamicCatalog_Models_DefensiveCopy(t *testing.T) {
+	d := NewDynamic(testLogger)
+	d.Load(context.Background())
+	d.Ingest(context.Background(), 9000, "TestBrand", 100, "ModelA")
+
+	models1 := d.Models(9000)
+	models2 := d.Models(9000)
+
+	if len(models1) == 0 {
+		t.Fatal("expected models")
+	}
+	models1[0].Name = "MUTATED"
+	if models2[0].Name == "MUTATED" {
+		t.Error("Models() should return defensive copy")
+	}
+}

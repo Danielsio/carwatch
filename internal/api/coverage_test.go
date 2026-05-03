@@ -663,3 +663,98 @@ func TestListListings_WithAllFields(t *testing.T) {
 		t.Errorf("fitness_score = %v, want 9.2", item.FitnessScore)
 	}
 }
+
+// --- Admin endpoint tests ---
+
+func TestAdminStats_Coverage(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/stats", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp adminStatsResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if resp.Runtime.Goroutines <= 0 {
+		t.Error("goroutines should be > 0")
+	}
+}
+
+func TestAdminListListings(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "admin-tok1", ChatID: 999, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla",
+		Year: 2020, Price: 80000, FirstSeenAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/listings?limit=10", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminPurgeTable(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.EnqueueNotification(ctx, "999", "test", "{}"); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "POST", "/api/v1/admin/purge", map[string]string{"table": "pending_notifications"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequest(t, srv, "POST", "/api/v1/admin/purge", map[string]string{"table": "users"})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for non-purgeable table, got %d", w.Code)
+	}
+}
+
+func TestAdminDeleteListing(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "del-tok1", ChatID: 999, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla",
+		Year: 2020, Price: 80000, FirstSeenAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "DELETE", "/api/v1/admin/listings/del-tok1", map[string]any{"chat_id": 999})
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminVacuum(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "POST", "/api/v1/admin/vacuum", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminStats_NonAdminDevUser(t *testing.T) {
+	srv, store := setupTestServer(t)
+	srv.cfg.AdminChatID = 888
+
+	if err := store.UpsertUser(context.Background(), 888, "admin"); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/stats", nil)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for non-admin, got %d", w.Code)
+	}
+}
