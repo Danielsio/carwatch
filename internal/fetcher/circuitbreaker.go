@@ -91,6 +91,9 @@ func (cb *CircuitBreaker) Fetch(ctx context.Context, params model.SourceParams) 
 				cb.openedAt = time.Now()
 			}
 		}
+		if errors.Is(err, ErrPartialResults) && len(listings) > 0 {
+			return listings, err
+		}
 		return nil, err
 	}
 

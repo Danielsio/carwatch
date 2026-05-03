@@ -67,7 +67,10 @@ func (b *Bot) isRateLimited(chatID int64) bool {
 		tokens:   rateLimitBurst,
 		lastTick: time.Now(),
 	})
-	rl := v.(*userRateLimit)
+	rl, ok := v.(*userRateLimit)
+	if !ok {
+		return false
+	}
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
