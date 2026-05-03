@@ -7,18 +7,14 @@ import (
 	"github.com/dsionov/carwatch/internal/model"
 )
 
-const defaultBaseURL = "https://www.winwin.co.il/vehicles/cars"
+const defaultBaseURL = "https://www.winwin.co.il/vehicles/cars-for-sale"
 
-// buildURL constructs a WinWin search URL from the given parameters.
-// TODO: Reverse-engineer the actual WinWin URL structure and query parameters.
-// The parameters below are placeholders based on common patterns.
 func buildURL(base string, params model.SourceParams) string {
 	u, err := url.Parse(base)
 	if err != nil {
 		u = &url.URL{Path: base}
 	}
 	v := url.Values{}
-
 	if params.Manufacturer > 0 {
 		v.Set("manufacturer", strconv.Itoa(params.Manufacturer))
 	}
@@ -37,10 +33,18 @@ func buildURL(base string, params model.SourceParams) string {
 	if params.PriceMax > 0 {
 		v.Set("priceTo", strconv.Itoa(params.PriceMax))
 	}
+	if params.MaxKm > 0 {
+		v.Set("km", strconv.Itoa(params.MaxKm))
+	}
+	if params.MaxHand > 0 {
+		v.Set("hand", strconv.Itoa(params.MaxHand))
+	}
+	if params.EngineMinCC > 0 {
+		v.Set("engineVolume", strconv.Itoa(params.EngineMinCC))
+	}
 	if params.Page > 0 {
 		v.Set("page", strconv.Itoa(params.Page))
 	}
-
 	u.RawQuery = v.Encode()
 	return u.String()
 }

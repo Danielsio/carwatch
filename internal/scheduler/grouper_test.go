@@ -161,3 +161,20 @@ func TestGroupSearches_EmptySourceMergesWithExplicit(t *testing.T) {
 		t.Errorf("yad2 group should have 2 searches (empty + explicit), got %d", len(yad2Group.Searches))
 	}
 }
+
+func TestGroupSearches_MergesFilters(t *testing.T) {
+	searches := []storage.Search{
+		{ID: 1, ChatID: 100, Source: "winwin", Manufacturer: 27, Model: 10332,
+			MaxKm: 100000, MaxHand: 2, EngineMinCC: 2000},
+		{ID: 2, ChatID: 200, Source: "winwin", Manufacturer: 27, Model: 10332,
+			MaxKm: 150000, MaxHand: 3, EngineMinCC: 1600},
+	}
+	groups := GroupSearches(searches)
+	if len(groups) != 1 {
+		t.Fatalf("want 1 group, got %d", len(groups))
+	}
+	par := groups[0].Params
+	if par.MaxKm != 150000 || par.MaxHand != 3 || par.EngineMinCC != 1600 {
+		t.Fatalf("merged params: %+v", par)
+	}
+}

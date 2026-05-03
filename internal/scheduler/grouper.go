@@ -40,6 +40,9 @@ func GroupSearches(searches []storage.Search) []CanonicalGroup {
 						YearMin:      s.YearMin,
 						YearMax:      s.YearMax,
 						PriceMax:     s.PriceMax,
+						MaxKm:        s.MaxKm,
+						MaxHand:      s.MaxHand,
+						EngineMinCC:  s.EngineMinCC,
 					},
 				}
 				grouped[key] = g
@@ -55,6 +58,24 @@ func GroupSearches(searches []storage.Search) []CanonicalGroup {
 				g.Params.PriceMax = 0
 			} else if s.PriceMax > g.Params.PriceMax {
 				g.Params.PriceMax = s.PriceMax
+			}
+
+			if s.MaxKm == 0 || g.Params.MaxKm == 0 {
+				g.Params.MaxKm = 0
+			} else if s.MaxKm > g.Params.MaxKm {
+				g.Params.MaxKm = s.MaxKm
+			}
+
+			if s.MaxHand == 0 || g.Params.MaxHand == 0 {
+				g.Params.MaxHand = 0
+			} else if s.MaxHand > g.Params.MaxHand {
+				g.Params.MaxHand = s.MaxHand
+			}
+
+			if s.EngineMinCC == 0 || g.Params.EngineMinCC == 0 {
+				g.Params.EngineMinCC = 0
+			} else if s.EngineMinCC < g.Params.EngineMinCC {
+				g.Params.EngineMinCC = s.EngineMinCC
 			}
 
 			g.Searches = append(g.Searches, s)

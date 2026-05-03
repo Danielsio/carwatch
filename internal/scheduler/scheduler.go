@@ -25,17 +25,17 @@ import (
 )
 
 const (
-	fetchTimeout    = 60 * time.Second
+	fetchTimeout = 60 * time.Second
 	// kmEnrichTimeout bounds per-item mileage/city fetches after the list crawl.
-	kmEnrichTimeout        = 25 * time.Minute
-	maxBackoff             = 4.0
-	minBackoff             = 1.0
-	pruneInterval          = 24 * time.Hour
-	maxRetries             = 3
-	retryBaseDelay         = 2 * time.Second
-	defaultConcurrency     = 4
-	notificationPruneAge   = 48 * time.Hour
-	priceHistoryRetention  = 90 * 24 * time.Hour
+	kmEnrichTimeout       = 25 * time.Minute
+	maxBackoff            = 4.0
+	minBackoff            = 1.0
+	pruneInterval         = 24 * time.Hour
+	maxRetries            = 3
+	retryBaseDelay        = 2 * time.Second
+	defaultConcurrency    = 4
+	notificationPruneAge  = 48 * time.Hour
+	priceHistoryRetention = 90 * 24 * time.Hour
 )
 
 type CatalogIngester interface {
@@ -472,6 +472,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	}
 
 	s.pruneIfDue(ctx)
+	s.processExpiredPremium(ctx)
 
 	if len(searches) == 0 {
 		s.logger.Info("no active searches")
@@ -1082,11 +1083,51 @@ func (s *Scheduler) deactivateExcessSearches(ctx context.Context, chatID int64, 
 		"chat_id", chatID, "paused", len(active)-maxActive, "kept", maxActive)
 }
 
-func (s *Scheduler) isUserPremium(_ context.Context, _ int64) bool {
-	return true
+func (s *Scheduler) isUserPremium(ctx context.Context, chatID int64) bool {
+	if s.stores.Users == nil {
+		return false
+	}
+	user, err := s.stores.Users.GetUser(ctx, chatID)
+	if err != nil || user == nil {
+		return false
+	}
+	if user.Tier != "premium" {
+		return false
+	}
+	if user.TierExpires.IsZero() {
+		return false
+	}
+	return time.Now().Before(user.TierExpires)
 }
 
-func (s *Scheduler) processExpiredPremium(_ context.Context) {
+func (s *Scheduler) processExpiredPremium(ctx context.Context) {
+	if s.stores.Users == nil {
+		return
+	}
+	expired, err := s.stores.Users.ListExpiredPremium(ctx)
+	if err != nil {
+		s.logger.Error("list expired premium users failed", "error", err)
+		return
+	}
+	if len(expired) == 0 {
+		return
+	}
+	s.cfgMu.RLock()
+	maxSearches := s.cfg.Telegram.MaxSearches
+	s.cfgMu.RUnlock()
+	for _, u := range expired {
+		if err := s.stores.Users.SetUserTier(ctx, u.ChatID, "free", time.Time{}); err != nil {
+			s.logger.Error("downgrade expired premium user failed",
+				"chat_id", u.ChatID,
+				"error", err,
+			)
+			continue
+		}
+		s.deactivateExcessSearches(ctx, u.ChatID, maxSearches)
+		s.logger.Info("premium subscription expired, user downgraded to free",
+			"chat_id", u.ChatID,
+		)
+	}
 }
 
 func (s *Scheduler) userLang(ctx context.Context, chatID int64) locale.Lang {
