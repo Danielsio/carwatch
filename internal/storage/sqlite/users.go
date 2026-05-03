@@ -3,7 +3,9 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -64,7 +66,11 @@ func (s *Store) upsertChannelUser(ctx context.Context, channel, channelID, usern
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			slog.Error("rollback upsert channel user tx", "error", err)
+		}
+	}()
 
 	var existingID int64
 	err = tx.QueryRowContext(ctx,

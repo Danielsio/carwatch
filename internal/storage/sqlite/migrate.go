@@ -536,5 +536,13 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	if _, err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_linked_web_id
+			ON users(linked_web_id)
+			WHERE channel = 'telegram' AND linked_web_id IS NOT NULL
+	`); err != nil {
+		return fmt.Errorf("create linked_web_id index: %w", err)
+	}
+
 	return nil
 }

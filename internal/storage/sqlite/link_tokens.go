@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -45,7 +47,11 @@ func (s *Store) ConsumeLinkToken(ctx context.Context, token string) (int64, erro
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			slog.Error("rollback link token tx", "error", err)
+		}
+	}()
 
 	var webChatID int64
 	var used int
@@ -66,7 +72,11 @@ func (s *Store) ConsumeLinkToken(ctx context.Context, token string) (int64, erro
 		return 0, storage.ErrLinkTokenExpired
 	}
 
-	res, err := tx.ExecContext(ctx, `UPDATE link_tokens SET used = 1 WHERE token = ? AND used = 0`, token)
+	res, err := tx.ExecContext(ctx, `
+		UPDATE link_tokens
+		SET used = 1
+		WHERE token = ? AND used = 0 AND expires_at > ?`,
+		token, time.Now().UTC())
 	if err != nil {
 		return 0, fmt.Errorf("update link token: %w", err)
 	}

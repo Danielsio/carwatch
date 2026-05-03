@@ -23,6 +23,10 @@ func (s *Server) postTelegramLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chatID := chatIDFromContext(r.Context())
+	if chatID <= 0 {
+		writeError(w, http.StatusUnauthorized, "invalid or missing token")
+		return
+	}
 	token, err := s.linkTokens.CreateLinkToken(r.Context(), chatID)
 	if err != nil {
 		s.logger.Error("create link token", "error", err)
@@ -32,13 +36,17 @@ func (s *Server) postTelegramLink(w http.ResponseWriter, r *http.Request) {
 
 	link := fmt.Sprintf("https://t.me/%s?start=link_%s", botUser, token)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"link":                 link,
-		"expires_in_seconds":  900,
+		"link":               link,
+		"expires_in_seconds": 900,
 	})
 }
 
 func (s *Server) getTelegramStatus(w http.ResponseWriter, r *http.Request) {
 	chatID := chatIDFromContext(r.Context())
+	if chatID <= 0 {
+		writeError(w, http.StatusUnauthorized, "invalid or missing token")
+		return
+	}
 	tgUser, err := s.users.GetLinkedTelegramUser(r.Context(), chatID)
 	if err != nil {
 		s.logger.Error("get linked telegram user", "error", err)

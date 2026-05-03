@@ -134,7 +134,7 @@ func (b *Bot) handleLinkStart(ctx context.Context, telegramChatID int64, param s
 	}
 
 	token := strings.TrimPrefix(param, "link_")
-	if len(token) == 0 || len(token) > 64 {
+	if len(token) != 32 || !isLowerHex(token) {
 		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
 		return
 	}
@@ -510,3 +510,11 @@ func (b *Bot) handleUpgrade(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	b.sendMarkdown(ctx, chatID, locale.T(lang, "upgrade_disabled"))
 }
 
+func isLowerHex(s string) bool {
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
