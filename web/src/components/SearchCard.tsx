@@ -36,7 +36,9 @@ export function SearchCard({
 
   const filterTags = [
     `${search.manufacturer_name} ${search.model_name}`.trim(),
-    `${search.year_min}–${search.year_max}`,
+    search.year_min !== 0 || search.year_max !== 0
+      ? `${search.year_min}–${search.year_max}`
+      : null,
     search.price_max > 0 ? `עד ${formatPrice(search.price_max)}` : null,
     search.max_km > 0 ? `עד ${formatKm(search.max_km)}` : null,
     search.max_hand > 0 ? `עד יד ${search.max_hand}` : null,
