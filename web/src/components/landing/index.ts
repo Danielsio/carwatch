@@ -1,0 +1,9 @@
+export { LandingNav } from "./LandingNav";
+export { HeroSection } from "./HeroSection";
+export { ProblemSolution } from "./ProblemSolution";
+export { FeaturesSection } from "./FeaturesSection";
+export { SmartScoreSection } from "./SmartScoreSection";
+export { HowItWorks } from "./HowItWorks";
+export { StatsSection } from "./StatsSection";
+export { FinalCTA } from "./FinalCTA";
+export { LandingFooter } from "./LandingFooter";
