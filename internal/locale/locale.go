@@ -166,6 +166,7 @@ var he = map[string]string{
 
 	// /start link_
 	"link_expired": "❌ הקישור פג תוקף. נסה שוב מהאתר.",
+	"link_error":   "❌ אירעה שגיאה. נסה שוב מאוחר יותר.",
 	"link_success": "✅ חשבון הטלגרם חובר בהצלחה!",
 
 	"share_summary": "*חיפוש משותף:*\n" +
@@ -497,6 +498,7 @@ var en = map[string]string{
 
 	// /start link_
 	"link_expired": "❌ The link has expired. Try again from the website.",
+	"link_error":   "❌ An error occurred. Please try again later.",
 	"link_success": "✅ Telegram account linked successfully!",
 
 	"share_summary": "*Shared search:*\n" +

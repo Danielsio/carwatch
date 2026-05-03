@@ -190,12 +190,6 @@ func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error 
 		return fmt.Errorf("delete pending_notifications by name: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
-		"DELETE FROM pending_digest WHERE chat_id = ?",
-		chatID); err != nil {
-		return fmt.Errorf("delete pending_digest: %w", err)
-	}
-
-	if _, err := tx.ExecContext(ctx,
 		"DELETE FROM searches WHERE id = ? AND chat_id = ?",
 		id, chatID); err != nil {
 		return fmt.Errorf("delete search: %w", err)

@@ -69,7 +69,11 @@ func (b *Bot) isRateLimited(chatID int64) bool {
 	})
 	rl, ok := v.(*userRateLimit)
 	if !ok {
-		return false
+		rl = &userRateLimit{
+			tokens:   rateLimitBurst,
+			lastTick: time.Now(),
+		}
+		b.rateLimiter.Store(chatID, rl)
 	}
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -262,7 +266,11 @@ func (b *Bot) sweepStaleMaps() {
 	cutoff := time.Now().Add(-staleThreshold).UnixNano()
 
 	b.rateLimiter.Range(func(key, value any) bool {
-		rl := value.(*userRateLimit)
+		rl, ok := value.(*userRateLimit)
+		if !ok {
+			b.rateLimiter.CompareAndDelete(key, value)
+			return true
+		}
 		if !rl.mu.TryLock() {
 			return true
 		}
