@@ -256,6 +256,123 @@ func TestPlainClient_Get_SetsHeaders(t *testing.T) {
 	}
 }
 
+func TestYad2Fetcher_FetchItem_ReusesListingClient(t *testing.T) {
+	var listingReqs, itemReqs int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/vehicles/item/") {
+			itemReqs++
+			_, _ = w.Write([]byte(`<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":55000,"address":{"city":{"text":"חיפה","textEng":"haifa"}}}}}}
+</script></html>`))
+			return
+		}
+		listingReqs++
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(validPageHTML()))
+	}))
+	defer server.Close()
+
+	f := newTestFetcher(t, server.URL)
+	_, err := f.Fetch(context.Background(), defaultParams())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+
+	// After Fetch, lastFetchClient should be set. FetchItem should reuse it.
+	details, err := f.FetchItem(context.Background(), "tok-1")
+	if err != nil {
+		t.Fatalf("FetchItem: %v", err)
+	}
+	if details.Km != 55000 {
+		t.Errorf("Km = %d, want 55000", details.Km)
+	}
+	if listingReqs != 1 {
+		t.Errorf("listing requests = %d, want 1", listingReqs)
+	}
+	if itemReqs != 1 {
+		t.Errorf("item requests = %d, want 1", itemReqs)
+	}
+}
+
+func TestYad2Fetcher_FetchItem_FallsBackWithoutPriorFetch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":30000,"address":{"city":{"text":"באר שבע","textEng":"beer_sheva"}}}}}}
+</script></html>`))
+	}))
+	defer server.Close()
+
+	f := newTestFetcher(t, server.URL)
+	// No prior Fetch call — should fall back to f.client
+	details, err := f.FetchItem(context.Background(), "tok-2")
+	if err != nil {
+		t.Fatalf("FetchItem without prior Fetch: %v", err)
+	}
+	if details.Km != 30000 {
+		t.Errorf("Km = %d, want 30000", details.Km)
+	}
+	if details.City != "beer_sheva" {
+		t.Errorf("City = %q, want beer_sheva", details.City)
+	}
+}
+
+func TestYad2Fetcher_FetchItem_BotProtection(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`<html>validate.perfdrive.com challenge</html>`))
+	}))
+	defer server.Close()
+
+	f := newTestFetcher(t, server.URL)
+	_, err := f.FetchItem(context.Background(), "tok-blocked")
+	if err == nil {
+		t.Fatal("expected error for bot protection response")
+	}
+	if !strings.Contains(err.Error(), "anti-bot challenge") {
+		t.Errorf("error should mention anti-bot challenge: %v", err)
+	}
+}
+
+func TestYad2Fetcher_Fetch_BotProtection(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`<html>ShieldSquare captcha page</html>`))
+	}))
+	defer server.Close()
+
+	f := newTestFetcher(t, server.URL)
+	_, err := f.Fetch(context.Background(), defaultParams())
+	if err == nil {
+		t.Fatal("expected error for bot protection response")
+	}
+	if !strings.Contains(err.Error(), "anti-bot challenge") {
+		t.Errorf("error should mention anti-bot challenge: %v", err)
+	}
+}
+
+func TestLooksLikeBotProtection(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"perfdrive", "<html>validate.perfdrive.com</html>", true},
+		{"shieldsquare", "<html>ShieldSquare captcha</html>", true},
+		{"are you for real", "<html>Are you for real?</html>", true},
+		{"cf-browser", "<html>cf-browser-verification</html>", true},
+		{"captcha", "<html>Please complete the CAPTCHA</html>", true},
+		{"normal page", "<html><body>Normal content</body></html>", false},
+		{"empty", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := looksLikeBotProtection([]byte(tc.body)); got != tc.want {
+				t.Errorf("looksLikeBotProtection(%q) = %v, want %v", tc.body, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestYad2Fetcher_Close_Idempotent(t *testing.T) {
 	f, err := NewFetcher([]string{"TestAgent/1.0"}, "", discardLogger)
 	if err != nil {
