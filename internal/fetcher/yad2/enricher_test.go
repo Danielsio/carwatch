@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -272,6 +273,105 @@ func TestEnricher_FillsKmAndCity(t *testing.T) {
 	}
 	if listings[0].City != "tel_aviv" {
 		t.Errorf("listing[0].City = %q, want tel_aviv", listings[0].City)
+	}
+}
+
+func TestEnricher_AbortsOnBotChallenge(t *testing.T) {
+	var requestCount atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		if strings.Contains(r.URL.Path, "tok-b") {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = fmt.Fprint(w, `<html>validate.perfdrive.com - Are you for real?</html>`)
+			return
+		}
+		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":10000}}}}
+</script></html>`)
+	})
+
+	enricher := newTestEnricher(t, handler, EnricherConfig{Delay: time.Millisecond})
+
+	listings := []model.RawListing{
+		{Token: "tok-a", Km: 0},
+		{Token: "tok-b", Km: 0},
+		{Token: "tok-c", Km: 0},
+		{Token: "tok-d", Km: 0},
+	}
+
+	count := enricher.Enrich(context.Background(), listings)
+	if count != 1 {
+		t.Errorf("enriched = %d, want 1 (should stop after challenge on tok-b)", count)
+	}
+	if got := requestCount.Load(); got != 2 {
+		t.Errorf("requests = %d, want 2 (tok-a success, tok-b challenge, then abort)", got)
+	}
+	if listings[0].Km != 10000 {
+		t.Errorf("listing[0].Km = %d, want 10000", listings[0].Km)
+	}
+	if listings[2].Km != 0 {
+		t.Errorf("listing[2].Km = %d, want 0 (skipped)", listings[2].Km)
+	}
+}
+
+func TestEnricher_AbortsAfterConsecutiveFailures(t *testing.T) {
+	var requestCount atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+
+	enricher := newTestEnricher(t, handler, EnricherConfig{Delay: time.Millisecond})
+
+	listings := []model.RawListing{
+		{Token: "a", Km: 0},
+		{Token: "b", Km: 0},
+		{Token: "c", Km: 0},
+		{Token: "d", Km: 0},
+		{Token: "e", Km: 0},
+	}
+
+	count := enricher.Enrich(context.Background(), listings)
+	if count != 0 {
+		t.Errorf("enriched = %d, want 0 (all failed)", count)
+	}
+	if got := requestCount.Load(); got != int32(maxConsecutiveFailures) {
+		t.Errorf("requests = %d, want %d (abort after consecutive failures)", got, maxConsecutiveFailures)
+	}
+}
+
+func TestEnricher_ConsecutiveFailureResets(t *testing.T) {
+	var requestCount atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := requestCount.Add(1)
+		// Fail on requests 2 and 3, succeed on 1 and 4+
+		if n == 2 || n == 3 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":50000}}}}
+</script></html>`)
+	})
+
+	enricher := newTestEnricher(t, handler, EnricherConfig{Delay: time.Millisecond})
+
+	listings := []model.RawListing{
+		{Token: "a", Km: 0},
+		{Token: "b", Km: 0},
+		{Token: "c", Km: 0},
+		{Token: "d", Km: 0},
+		{Token: "e", Km: 0},
+	}
+
+	count := enricher.Enrich(context.Background(), listings)
+	// Request 1 (tok-a): success, Request 2 (tok-b): fail, Request 3 (tok-c): fail,
+	// Request 4 (tok-d): success (resets counter), Request 5 (tok-e): success
+	if count != 3 {
+		t.Errorf("enriched = %d, want 3 (success resets consecutive failure counter)", count)
+	}
+	if got := requestCount.Load(); got != 5 {
+		t.Errorf("requests = %d, want 5 (all processed, counter reset by success)", got)
 	}
 }
 

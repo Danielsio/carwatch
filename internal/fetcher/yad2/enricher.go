@@ -2,14 +2,17 @@ package yad2
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
+	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
 const (
-	defaultEnrichDelay = 500 * time.Millisecond
+	defaultEnrichDelay     = 500 * time.Millisecond
+	maxConsecutiveFailures = 3
 )
 
 // EnricherConfig controls the enrichment behavior.
@@ -41,6 +44,7 @@ func NewEnricher(fetcher *Yad2Fetcher, logger *slog.Logger, cfg EnricherConfig) 
 func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int {
 	enriched := 0
 	attempts := 0
+	consecutiveFailures := 0
 	for i := range listings {
 		needsKm := listings[i].Km <= 0
 		needsImg := listings[i].ImageURL == ""
@@ -74,13 +78,30 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 		attempts++
 		details, err := e.fetcher.FetchItem(ctx, listings[i].Token)
 		if err != nil {
+			if errors.Is(err, fetcher.ErrChallenge) {
+				e.logger.Warn("enrichment blocked by anti-bot protection, skipping remaining items",
+					"attempts", attempts,
+					"remaining", countMissingKm(listings[i:]),
+				)
+				return enriched
+			}
+			consecutiveFailures++
 			e.logger.Warn("enrichment failed",
 				"token", listings[i].Token,
 				"error", err,
 			)
+			if consecutiveFailures >= maxConsecutiveFailures {
+				e.logger.Warn("enrichment aborted after consecutive failures",
+					"consecutive_failures", consecutiveFailures,
+					"attempts", attempts,
+					"remaining", countMissingKm(listings[i:]),
+				)
+				return enriched
+			}
 			continue
 		}
 
+		consecutiveFailures = 0
 		changed := false
 		if needsKm && details.Km > 0 {
 			listings[i].Km = details.Km

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
@@ -28,6 +29,9 @@ type Yad2Fetcher struct {
 	userAgents []string
 	proxyPool  *fetcher.ProxyPool
 	clientPool *ClientPool
+
+	lastFetchMu     sync.Mutex
+	lastFetchClient HTTPDoer
 }
 
 func NewFetcher(userAgents []string, proxy string, logger *slog.Logger) (*Yad2Fetcher, error) {
@@ -80,29 +84,33 @@ func (f *Yad2Fetcher) FetchItem(ctx context.Context, token string) (ItemDetails,
 	base.RawQuery = ""
 	itemURL := base.String()
 
-	client := f.client
-	var usedProxy string
-	if f.proxyPool != nil {
-		usedProxy = f.proxyPool.Next()
-		if f.clientPool != nil {
-			c, err := f.clientPool.Get(usedProxy)
-			if err != nil {
-				f.logger.Warn("failed to get pooled client for item fetch", "proxy", redactProxy(usedProxy), "error", err)
-			} else {
-				client = c
-			}
-		}
+	// Prefer the client that last fetched a listing page; its session
+	// carries the perfdrive validation cookies for yad2.co.il.
+	f.lastFetchMu.Lock()
+	client := f.lastFetchClient
+	f.lastFetchMu.Unlock()
+	if client == nil {
+		client = f.client
 	}
 
 	result, err := client.Get(ctx, itemURL)
 	if err != nil {
-		if f.clientPool != nil && usedProxy != "" {
-			f.clientPool.Evict(usedProxy)
-		}
 		return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, err)
 	}
 
 	if result.StatusCode != http.StatusOK {
+		if looksLikeBotProtection(result.Body) {
+			return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, fetcher.ErrChallenge)
+		}
+		snippet := string(result.Body)
+		if len(snippet) > 200 {
+			snippet = snippet[:200]
+		}
+		f.logger.Debug("item fetch non-200 response",
+			"token", token,
+			"status", result.StatusCode,
+			"body_preview", snippet,
+		)
 		return ItemDetails{}, fmt.Errorf("fetch item %s: status %d", token, result.StatusCode)
 	}
 
@@ -149,6 +157,9 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 	}
 
 	if result.StatusCode != http.StatusOK {
+		if looksLikeBotProtection(result.Body) {
+			return nil, fmt.Errorf("yad2: %w", fetcher.ErrChallenge)
+		}
 		return nil, fmt.Errorf("unexpected status: %d", result.StatusCode)
 	}
 
@@ -156,6 +167,11 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 	if err != nil {
 		return nil, fmt.Errorf("parse page: %w", err)
 	}
+
+	// Remember this client so FetchItem reuses its session cookies.
+	f.lastFetchMu.Lock()
+	f.lastFetchClient = client
+	f.lastFetchMu.Unlock()
 
 	f.logger.Info("fetched listings", "count", len(listings))
 	return listings, nil
@@ -213,4 +229,14 @@ func buildURL(base string, params model.SourceParams) string {
 
 	u.RawQuery = v.Encode()
 	return u.String()
+}
+
+func looksLikeBotProtection(body []byte) bool {
+	h := strings.ToLower(string(body))
+	return strings.Contains(h, "perfdrive") ||
+		strings.Contains(h, "shieldsquare") ||
+		strings.Contains(h, "validate.perfdrive.com") ||
+		strings.Contains(h, "are you for real") ||
+		strings.Contains(h, "cf-browser-verification") ||
+		strings.Contains(h, "captcha")
 }
