@@ -367,6 +367,11 @@ func TestLooksLikeBotProtection(t *testing.T) {
 
 func TestYad2Fetcher_FetchItem_DoesNotPoisonListingClient(t *testing.T) {
 	listingHandler := func(w http.ResponseWriter, r *http.Request) {
+		if _, err := r.Cookie("poison"); err == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`<html><head><title>400 Bad Request</title></head></html>`))
+			return
+		}
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write([]byte(validPageHTML()))
 	}
