@@ -132,6 +132,11 @@ func (b *Bot) handleLinkStart(ctx context.Context, telegramChatID int64, param s
 		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
 		return
 	}
+	if telegramChatID <= 0 {
+		b.logger.Warn("link deep link: non-private chat", "chat_id", telegramChatID)
+		b.send(ctx, telegramChatID, "❌ הקישור פג תוקף. נסה שוב מהאתר.")
+		return
+	}
 
 	token := strings.TrimPrefix(param, "link_")
 	if len(token) != 32 || !isLowerHex(token) {
