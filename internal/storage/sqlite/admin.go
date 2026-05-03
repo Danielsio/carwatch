@@ -70,9 +70,7 @@ func (s *Store) TableSizes(ctx context.Context) (map[string]int64, error) {
 var purgeable = map[string]bool{
 	"listing_history":       true,
 	"price_history":         true,
-	"dedup_seen":            true,
 	"seen_listings":         true,
-	"notifications":         true,
 	"pending_notifications": true,
 	"saved_listings":        true,
 	"hidden_listings":       true,

@@ -124,7 +124,7 @@ func (s *Server) adminPurgeTable(w http.ResponseWriter, r *http.Request) {
 	deleted, err := s.admin.PurgeTable(r.Context(), body.Table)
 	if err != nil {
 		s.logger.Error("admin: purge table", "table", body.Table, "error", err)
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, "purge operation failed")
 		return
 	}
 	s.logger.Info("admin: purged table", "table", body.Table, "deleted", deleted)
