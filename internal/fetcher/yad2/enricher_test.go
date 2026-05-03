@@ -36,7 +36,7 @@ func newTestEnricher(t *testing.T, handler http.Handler, cfg EnricherConfig) *En
 func itemPageHandler(km int) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
-{"props":{"pageProps":{"itemData":{"km":%d}}}}
+{"props":{"pageProps":{"itemData":{"km":%d,"address":{"city":{"text":"תל אביב","textEng":"tel_aviv"},"area":{"text":"מרכז","textEng":"center"}}}}}}
 </script></html>`, km)
 	}
 }
@@ -48,7 +48,7 @@ func TestEnricher_FillsMissingKm(t *testing.T) {
 	})
 
 	listings := []model.RawListing{
-		{Token: "a", Km: 50000},
+		{Token: "a", Km: 50000, City: "Haifa"},
 		{Token: "b", Km: 0},
 		{Token: "c", Km: 0},
 	}
@@ -161,13 +161,13 @@ func TestEnricher_AllHaveKm(t *testing.T) {
 	})
 
 	listings := []model.RawListing{
-		{Token: "a", Km: 10000, ImageURL: "https://img.yad2.co.il/a.jpg"},
-		{Token: "b", Km: 20000, ImageURL: "https://img.yad2.co.il/b.jpg"},
+		{Token: "a", Km: 10000, ImageURL: "https://img.yad2.co.il/a.jpg", City: "Tel Aviv"},
+		{Token: "b", Km: 20000, ImageURL: "https://img.yad2.co.il/b.jpg", City: "Haifa"},
 	}
 
 	count := enricher.Enrich(context.Background(), listings)
 	if count != 0 {
-		t.Errorf("enriched = %d, want 0 (all have km and image)", count)
+		t.Errorf("enriched = %d, want 0 (all have km, image, and city)", count)
 	}
 	if got := requestCount.Load(); got != 0 {
 		t.Errorf("requests = %d, want 0 (no fetches needed)", got)
@@ -177,7 +177,7 @@ func TestEnricher_AllHaveKm(t *testing.T) {
 func TestEnricher_FillsMissingImageOnly(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
-{"props":{"pageProps":{"itemData":{"km":50000,"coverImage":"https://img.yad2.co.il/test.jpg"}}}}
+{"props":{"pageProps":{"itemData":{"km":50000,"coverImage":"https://img.yad2.co.il/test.jpg","address":{"city":{"text":"חיפה","textEng":"haifa"}}}}}}
 </script></html>`)
 	})
 
@@ -187,7 +187,7 @@ func TestEnricher_FillsMissingImageOnly(t *testing.T) {
 	})
 
 	listings := []model.RawListing{
-		{Token: "a", Km: 50000, ImageURL: ""},
+		{Token: "a", Km: 50000, ImageURL: "", City: "Haifa"},
 	}
 
 	count := enricher.Enrich(context.Background(), listings)
@@ -199,6 +199,51 @@ func TestEnricher_FillsMissingImageOnly(t *testing.T) {
 	}
 	if listings[0].Km != 50000 {
 		t.Errorf("listing[0].Km = %d, want 50000 (unchanged)", listings[0].Km)
+	}
+}
+
+func TestEnricher_FillsMissingCity(t *testing.T) {
+	enricher := newTestEnricher(t, itemPageHandler(75000), EnricherConfig{
+		Delay:       time.Millisecond,
+		MaxPerCycle: 10,
+	})
+
+	listings := []model.RawListing{
+		{Token: "a", Km: 50000, ImageURL: "https://img.yad2.co.il/a.jpg", City: ""},
+		{Token: "b", Km: 50000, ImageURL: "https://img.yad2.co.il/b.jpg", City: "Haifa"},
+	}
+
+	count := enricher.Enrich(context.Background(), listings)
+	if count != 1 {
+		t.Errorf("enriched = %d, want 1 (only first needs city)", count)
+	}
+	if listings[0].City != "tel_aviv" {
+		t.Errorf("listing[0].City = %q, want tel_aviv", listings[0].City)
+	}
+	if listings[1].City != "Haifa" {
+		t.Errorf("listing[1].City = %q, want Haifa (unchanged)", listings[1].City)
+	}
+}
+
+func TestEnricher_FillsKmAndCity(t *testing.T) {
+	enricher := newTestEnricher(t, itemPageHandler(90000), EnricherConfig{
+		Delay:       time.Millisecond,
+		MaxPerCycle: 10,
+	})
+
+	listings := []model.RawListing{
+		{Token: "a", Km: 0, City: ""},
+	}
+
+	count := enricher.Enrich(context.Background(), listings)
+	if count != 1 {
+		t.Errorf("enriched = %d, want 1", count)
+	}
+	if listings[0].Km != 90000 {
+		t.Errorf("listing[0].Km = %d, want 90000", listings[0].Km)
+	}
+	if listings[0].City != "tel_aviv" {
+		t.Errorf("listing[0].City = %q, want tel_aviv", listings[0].City)
 	}
 }
 

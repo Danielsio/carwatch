@@ -59,6 +59,58 @@ func TestParseItemPage_NoScript(t *testing.T) {
 	}
 }
 
+func TestParseItemPage_WithAddress(t *testing.T) {
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "km": 237000,
+  "coverImage": "https://img.yad2.co.il/test.jpg",
+  "address": {
+    "city": {"id": "1724", "text": "נצרת", "textEng": "nazareth"},
+    "area": {"id": 91, "text": "אזור נצרת", "textEng": "nazareth_area"}
+  }
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.Km != 237000 {
+		t.Errorf("km = %d, want 237000", details.Km)
+	}
+	if details.City != "nazareth" {
+		t.Errorf("city = %q, want nazareth (textEng preferred)", details.City)
+	}
+	if details.Area != "nazareth_area" {
+		t.Errorf("area = %q, want nazareth_area", details.Area)
+	}
+}
+
+func TestParseItemPage_AddressHebrewFallback(t *testing.T) {
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "km": 100000,
+  "address": {
+    "city": {"id": "5000", "text": "תל אביב"},
+    "area": {"id": 2, "text": "מרכז"}
+  }
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.City != "תל אביב" {
+		t.Errorf("city = %q, want Hebrew fallback", details.City)
+	}
+	if details.Area != "מרכז" {
+		t.Errorf("area = %q, want Hebrew fallback", details.Area)
+	}
+}
+
 func TestParseItemPage_NoKm(t *testing.T) {
 	html := `<html><body>
 <script id="__NEXT_DATA__" type="application/json">

@@ -76,7 +76,7 @@ func (f *Yad2Fetcher) FetchItem(ctx context.Context, token string) (ItemDetails,
 	if err != nil {
 		return ItemDetails{}, fmt.Errorf("parse base URL: %w", err)
 	}
-	base.Path = "/item/" + url.PathEscape(token)
+	base.Path = "/vehicles/item/" + url.PathEscape(token)
 	base.RawQuery = ""
 	itemURL := base.String()
 
