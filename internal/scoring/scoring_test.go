@@ -169,7 +169,7 @@ func TestFitnessScore(t *testing.T) {
 		{
 			name: "perfect listing",
 			p: FitnessParams{
-				Price: 50000, Km: 0, Hand: 1, Year: 2024, EngineVolume: 3000,
+				Price: 50000, Km: 1000, Hand: 1, Year: 2024, EngineVolume: 3000,
 				PriceMax: 200000, MaxKm: 150000, MaxHand: 4, YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
 			},
 			min: 9.0, max: 10.0,
@@ -247,12 +247,12 @@ func TestFitnessScore(t *testing.T) {
 			min: 6.0, max: 9.0,
 		},
 		{
-			name: "brand new car with zero km",
+			name: "unknown km gets neutral score",
 			p: FitnessParams{
 				Price: 150000, Km: 0, Hand: 1, Year: 2024, EngineVolume: 2000,
 				PriceMax: 200000, MaxKm: 100000, MaxHand: 3, YearMin: 2020, YearMax: 2024, EngineMinCC: 1500,
 			},
-			min: 6.5, max: 9.5,
+			min: 5.0, max: 8.0,
 		},
 		{
 			name: "price exactly at max",
@@ -260,7 +260,7 @@ func TestFitnessScore(t *testing.T) {
 				Price: 200000, Km: 0, Hand: 1, Year: 2024, EngineVolume: 2000,
 				PriceMax: 200000, MaxKm: 100000, MaxHand: 3, YearMin: 2020, YearMax: 2024, EngineMinCC: 1500,
 			},
-			min: 5.5, max: 7.5,
+			min: 4.0, max: 6.5,
 		},
 	}
 
@@ -330,6 +330,35 @@ func TestFitnessScoreDetailed_NoPriceDim(t *testing.T) {
 	if len(result.Dims) != 4 {
 		t.Errorf("expected 4 dimensions without price, got %d", len(result.Dims))
 	}
+}
+
+func TestKmScore(t *testing.T) {
+	tests := []struct {
+		name  string
+		km    int
+		maxKm int
+		want  float64
+	}{
+		{"zero km is neutral", 0, 150000, 0.5},
+		{"negative km is neutral", -1, 150000, 0.5},
+		{"at max km scores zero", 150000, 150000, 0.0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := kmScore(tt.km, tt.maxKm)
+			if got != tt.want {
+				t.Errorf("kmScore(%d, %d) = %.2f, want %.2f", tt.km, tt.maxKm, got, tt.want)
+			}
+		})
+	}
+
+	t.Run("known low beats unknown", func(t *testing.T) {
+		low := kmScore(10000, 150000)
+		unknown := kmScore(0, 150000)
+		if low <= unknown {
+			t.Errorf("low-km (%.3f) should score higher than unknown-km (%.3f)", low, unknown)
+		}
+	})
 }
 
 func TestFitnessScore_NonLinearKm(t *testing.T) {

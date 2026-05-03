@@ -174,12 +174,8 @@ func itemToListing(raw json.RawMessage) (model.RawListing, error) {
 		PageLink:     fmt.Sprintf("https://www.yad2.co.il/item/%s", item.Token),
 	}
 
-	if item.Address.City.Text != "" {
-		listing.City = item.Address.City.Text
-	}
-	if item.Address.Area.Text != "" {
-		listing.Area = item.Address.Area.Text
-	}
+	listing.City = textFromField(item.Address.City)
+	listing.Area = textFromField(item.Address.Area)
 
 	createdAt := item.Dates.CreatedAt
 	if createdAt == "" {

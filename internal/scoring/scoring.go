@@ -165,7 +165,7 @@ func priceScore(price, priceMax int) float64 {
 
 func kmScore(km, maxKm int) float64 {
 	if km <= 0 {
-		return 1.0
+		return 0.5
 	}
 	ref := maxKm
 	if ref <= 0 {
