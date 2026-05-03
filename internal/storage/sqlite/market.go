@@ -10,10 +10,10 @@ func (s *Store) MarketListings(ctx context.Context) ([]storage.MarketListing, er
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT manufacturer, model, year, price
 		FROM listing_history
-		WHERE rowid IN (SELECT MAX(rowid) FROM listing_history GROUP BY token)
-		  AND manufacturer IS NOT NULL AND manufacturer != ''
+		WHERE manufacturer IS NOT NULL AND manufacturer != ''
 		  AND model IS NOT NULL AND model != ''
-		  AND year > 0 AND price > 0`)
+		  AND year > 0 AND price > 0
+		GROUP BY token`)
 	if err != nil {
 		return nil, err
 	}
