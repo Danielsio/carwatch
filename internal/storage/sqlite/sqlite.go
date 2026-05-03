@@ -49,6 +49,21 @@ func (s *Store) Checkpoint() error {
 	return err
 }
 
+func (s *Store) DBSizeBytes() (int64, error) {
+	if s.dbPath == ":memory:" || strings.HasPrefix(s.dbPath, "file::memory:") {
+		return 0, nil
+	}
+	info, err := os.Stat(s.dbPath)
+	if err != nil {
+		return 0, err
+	}
+	total := info.Size()
+	if walInfo, err := os.Stat(s.dbPath + "-wal"); err == nil {
+		total += walInfo.Size()
+	}
+	return total, nil
+}
+
 func (s *Store) Close() error {
 	cpErr := s.Checkpoint()
 	closeErr := s.db.Close()

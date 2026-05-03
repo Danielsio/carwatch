@@ -86,6 +86,7 @@ func run(configPath string, logger *slog.Logger) error {
 	h.SetVersion(version)
 	h.SetUserCounter(store)
 	h.SetSearchCounter(store)
+	h.SetDBSizer(store)
 
 	botHandler, tgNotif, multi, err := buildBot(cfg, store, dynCatalog, h, logger)
 	if err != nil {

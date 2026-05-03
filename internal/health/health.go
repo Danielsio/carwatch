@@ -20,6 +20,11 @@ type SearchCounter interface {
 	CountAllSearches(ctx context.Context) (int64, error)
 }
 
+// DBSizer returns the DB file size in bytes (optional dependency).
+type DBSizer interface {
+	DBSizeBytes() (int64, error)
+}
+
 type SourceMetrics struct {
 	FetchCount     atomic.Int64
 	SuccessCount   atomic.Int64
@@ -45,6 +50,7 @@ type Status struct {
 	mu       sync.RWMutex
 	users    UserCounter
 	searches SearchCounter
+	dbSizer  DBSizer
 }
 
 func New() *Status {
@@ -70,6 +76,12 @@ func (s *Status) SetSearchCounter(sc SearchCounter) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.searches = sc
+}
+
+func (s *Status) SetDBSizer(d DBSizer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dbSizer = d
 }
 
 func (s *Status) RecordSuccess() {
@@ -160,6 +172,7 @@ func (s *Status) Snapshot() map[string]any {
 	s.mu.RLock()
 	version := s.version
 	users, searches := s.users, s.searches
+	dbSizer := s.dbSizer
 	s.mu.RUnlock()
 
 	if version != "" {
@@ -174,6 +187,12 @@ func (s *Status) Snapshot() map[string]any {
 	if searches != nil {
 		if n, err := searches.CountAllSearches(ctx); err == nil {
 			resp["active_searches"] = n
+		}
+	}
+	if dbSizer != nil {
+		if size, err := dbSizer.DBSizeBytes(); err == nil {
+			resp["db_size_bytes"] = size
+			resp["db_size_mb"] = float64(size) / (1024 * 1024)
 		}
 	}
 
