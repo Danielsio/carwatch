@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	defaultEnrichDelay     = 500 * time.Millisecond
+	defaultEnrichDelay     = 2 * time.Second
+	defaultMaxPerCycle     = 5
 	maxConsecutiveFailures = 3
 )
 
@@ -35,6 +36,9 @@ type Enricher struct {
 func NewEnricher(fetcher *Yad2Fetcher, logger *slog.Logger, cfg EnricherConfig) *Enricher {
 	if cfg.Delay == 0 {
 		cfg.Delay = defaultEnrichDelay
+	}
+	if cfg.MaxPerCycle == 0 {
+		cfg.MaxPerCycle = defaultMaxPerCycle
 	}
 	return &Enricher{fetcher: fetcher, logger: logger, cfg: cfg}
 }

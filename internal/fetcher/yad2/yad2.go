@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
@@ -23,15 +22,13 @@ const (
 )
 
 type Yad2Fetcher struct {
-	client     HTTPDoer
+	client     HTTPDoer // listing pages only
+	itemClient HTTPDoer // item pages only (isolated cookie jar)
 	baseURL    string
 	logger     *slog.Logger
 	userAgents []string
 	proxyPool  *fetcher.ProxyPool
 	clientPool *ClientPool
-
-	lastFetchMu     sync.Mutex
-	lastFetchClient HTTPDoer
 }
 
 func NewFetcher(userAgents []string, proxy string, logger *slog.Logger) (*Yad2Fetcher, error) {
@@ -39,7 +36,12 @@ func NewFetcher(userAgents []string, proxy string, logger *slog.Logger) (*Yad2Fe
 	if err != nil {
 		return nil, err
 	}
-	return &Yad2Fetcher{client: client, baseURL: defaultBaseURL, logger: logger, userAgents: userAgents}, nil
+	ic, err := NewClient(userAgents, proxy)
+	if err != nil {
+		client.Close()
+		return nil, err
+	}
+	return &Yad2Fetcher{client: client, itemClient: ic, baseURL: defaultBaseURL, logger: logger, userAgents: userAgents}, nil
 }
 
 func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logger *slog.Logger) (*Yad2Fetcher, error) {
@@ -51,12 +53,18 @@ func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logge
 	if err != nil {
 		return nil, err
 	}
+	ic, err := NewClient(userAgents, proxy)
+	if err != nil {
+		client.Close()
+		return nil, err
+	}
 	var cp *ClientPool
 	if pool != nil {
 		cp = NewClientPool(userAgents, logger)
 	}
 	return &Yad2Fetcher{
 		client:     client,
+		itemClient: ic,
 		baseURL:    defaultBaseURL,
 		logger:     logger,
 		userAgents: userAgents,
@@ -68,6 +76,9 @@ func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logge
 func (f *Yad2Fetcher) Close() {
 	if f.clientPool != nil {
 		f.clientPool.Close()
+	}
+	if f.itemClient != nil {
+		f.itemClient.Close()
 	}
 	if f.client != nil {
 		f.client.Close()
@@ -84,22 +95,16 @@ func (f *Yad2Fetcher) FetchItem(ctx context.Context, token string) (ItemDetails,
 	base.RawQuery = ""
 	itemURL := base.String()
 
-	// Prefer the client that last fetched a listing page; its session
-	// carries the perfdrive validation cookies for yad2.co.il.
-	f.lastFetchMu.Lock()
-	client := f.lastFetchClient
-	f.lastFetchMu.Unlock()
-	if client == nil {
-		client = f.client
-	}
-
-	result, err := client.Get(ctx, itemURL)
+	result, err := f.itemClient.Get(ctx, itemURL)
 	if err != nil {
 		return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, err)
 	}
 
 	if result.StatusCode != http.StatusOK {
 		if looksLikeBotProtection(result.Body) {
+			return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, fetcher.ErrChallenge)
+		}
+		if result.StatusCode == http.StatusBadRequest && looksLikeGenericError(result.Body) {
 			return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, fetcher.ErrChallenge)
 		}
 		snippet := string(result.Body)
@@ -168,11 +173,6 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 		return nil, fmt.Errorf("parse page: %w", err)
 	}
 
-	// Remember this client so FetchItem reuses its session cookies.
-	f.lastFetchMu.Lock()
-	f.lastFetchClient = client
-	f.lastFetchMu.Unlock()
-
 	f.logger.Info("fetched listings", "count", len(listings))
 	return listings, nil
 }
@@ -229,6 +229,14 @@ func buildURL(base string, params model.SourceParams) string {
 
 	u.RawQuery = v.Encode()
 	return u.String()
+}
+
+// looksLikeGenericError detects generic nginx/CDN error pages that don't
+// contain explicit bot-protection markers but are still anti-bot responses.
+func looksLikeGenericError(body []byte) bool {
+	h := strings.ToLower(string(body))
+	return strings.Contains(h, "<title>400 bad request</title>") ||
+		strings.Contains(h, "<title>403 forbidden</title>")
 }
 
 func looksLikeBotProtection(body []byte) bool {
