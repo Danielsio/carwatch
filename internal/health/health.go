@@ -3,11 +3,13 @@ package health
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/dsionov/carwatch/internal/fetcher"
 )
 
 // UserCounter counts active users (optional dependency).
@@ -52,6 +54,12 @@ type Status struct {
 	searches SearchCounter
 	dbSizer  DBSizer
 }
+
+const (
+	degradedThreshold = 2 * time.Hour
+	startupGracePeriod = 5 * time.Minute
+	snapshotTimeout    = 2 * time.Second
+)
 
 func New() *Status {
 	return &Status{
@@ -112,7 +120,7 @@ func (s *Status) RecordFetch(source string, duration time.Duration, err error) {
 	} else {
 		m.ErrorCount.Add(1)
 		m.LastError.Store(time.Now().UnixNano())
-		if strings.Contains(err.Error(), "challenge") {
+		if errors.Is(err, fetcher.ErrChallenge) {
 			m.ChallengeCount.Add(1)
 		}
 	}
@@ -149,8 +157,8 @@ func (s *Status) Snapshot() map[string]any {
 
 	status := "ok"
 	uptime := time.Since(s.startTime)
-	if cycles > 0 && (lastSuccessNs == 0 || time.Since(lastSuccess) > 2*time.Hour) {
-		if uptime > 5*time.Minute {
+	if cycles > 0 && (lastSuccessNs == 0 || time.Since(lastSuccess) > degradedThreshold) {
+		if uptime > startupGracePeriod {
 			status = "degraded"
 		} else {
 			status = "starting"
@@ -166,7 +174,7 @@ func (s *Status) Snapshot() map[string]any {
 		"listings_found":     s.listingsFound.Load(),
 		"notifications_sent": s.notificationsSent.Load(),
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), snapshotTimeout)
 	defer cancel()
 
 	s.mu.RLock()

@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/dsionov/carwatch/internal/fetcher"
 )
 
 func TestStatus_OK(t *testing.T) {
@@ -207,7 +210,7 @@ func TestStatus_RecordFetch(t *testing.T) {
 	s.RecordFetch("yad2", 100*time.Millisecond, nil)
 	s.RecordFetch("yad2", 200*time.Millisecond, nil)
 	s.RecordFetch("yad2", 300*time.Millisecond, errors.New("timeout"))
-	s.RecordFetch("yad2", 150*time.Millisecond, errors.New("anti-bot challenge detected"))
+	s.RecordFetch("yad2", 150*time.Millisecond, fmt.Errorf("yad2: %w", fetcher.ErrChallenge))
 	s.RecordFetch("winwin", 50*time.Millisecond, nil)
 
 	snap := s.Snapshot()

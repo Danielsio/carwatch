@@ -3,6 +3,7 @@ package fetcher
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/dsionov/carwatch/internal/model"
 )
@@ -17,6 +18,7 @@ type Fetcher interface {
 }
 
 type Factory struct {
+	mu       sync.RWMutex
 	fetchers map[string]Fetcher
 }
 
@@ -25,10 +27,14 @@ func NewFactory() *Factory {
 }
 
 func (f *Factory) Register(source string, fetcher Fetcher) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.fetchers[source] = fetcher
 }
 
 func (f *Factory) Get(source string) (Fetcher, bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	fetcher, ok := f.fetchers[source]
 	return fetcher, ok
 }
