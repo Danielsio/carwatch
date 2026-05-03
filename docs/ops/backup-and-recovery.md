@@ -70,7 +70,7 @@ Monitor this value and set an alert if it approaches your disk limit.
 
 ```bash
 make vm-ssh
-df -h /data
+docker exec carwatch df -h /data
 ```
 
 ## Disaster recovery
@@ -108,16 +108,18 @@ make vm-deploy
    scp config.yaml firebase-sa.json <user>@<new-ip>:~/carwatch/
    ```
 
-4. Restore the DB from an off-site backup (if available):
-
-   ```bash
-   scp carwatch-backup.db <user>@<new-ip>:~/carwatch/data/carwatch.db
-   ```
-
-5. Start:
+4. Start the container (creates the named volume with an empty DB):
 
    ```bash
    make vm-deploy
+   ```
+
+5. If you have an off-site backup, restore it into the running container:
+
+   ```bash
+   scp carwatch-backup.db <user>@<new-ip>:/tmp/
+   ssh <user>@<new-ip> 'docker cp /tmp/carwatch-backup.db carwatch:/data/carwatch.db && rm /tmp/carwatch-backup.db'
+   make vm-restart
    ```
 
 ### Scenario 4: No backup available
