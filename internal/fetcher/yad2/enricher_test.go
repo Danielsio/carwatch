@@ -99,6 +99,29 @@ func TestEnricher_DefaultMaxPerCycle(t *testing.T) {
 	}
 }
 
+func TestEnricher_NegativeMaxPerCycleIsUnlimited(t *testing.T) {
+	var requestCount atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount.Add(1)
+		_, _ = fmt.Fprintf(w, `<html><script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"itemData":{"km":42000}}}}
+</script></html>`)
+	})
+	enricher := newTestEnricher(t, handler, EnricherConfig{Delay: time.Millisecond, MaxPerCycle: -1})
+
+	listings := make([]model.RawListing, 10)
+	for i := range listings {
+		listings[i] = model.RawListing{Token: fmt.Sprintf("tok-%d", i), Km: 0}
+	}
+	count := enricher.Enrich(context.Background(), listings)
+	if count != 10 {
+		t.Errorf("enriched = %d, want 10 (negative MaxPerCycle = unlimited)", count)
+	}
+	if got := requestCount.Load(); got != 10 {
+		t.Errorf("requests = %d, want 10", got)
+	}
+}
+
 func TestEnricher_FillsMissingKm(t *testing.T) {
 	enricher := newTestEnricher(t, itemPageHandler(75000), EnricherConfig{
 		Delay:       time.Millisecond,
