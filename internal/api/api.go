@@ -34,6 +34,7 @@ type Server struct {
 	searches      storage.SearchStore
 	listings      storage.ListingStore
 	users         storage.UserStore
+	linkTokens    storage.LinkTokenStore
 	firebaseAuth  TokenVerifier
 	prices        storage.PriceTracker
 	admin     storage.AdminStore
@@ -43,6 +44,7 @@ type Server struct {
 	poller    PollTrigger
 	logger    *slog.Logger
 	cfg       config.APIConfig
+	botUsername string
 	startTime time.Time
 	rl        *rateLimiter
 	vacuumMu  sync.Mutex
@@ -57,6 +59,7 @@ type Config struct {
 	Searches storage.SearchStore
 	Listings storage.ListingStore
 	Users    storage.UserStore
+	LinkTokens storage.LinkTokenStore
 	Prices   storage.PriceTracker
 	Admin    storage.AdminStore
 	Saved    storage.SavedListingStore
@@ -65,6 +68,7 @@ type Config struct {
 	Logger       *slog.Logger
 	API          config.APIConfig
 	FirebaseAuth TokenVerifier
+	BotUsername  string
 }
 
 func New(c Config) *Server {
@@ -73,6 +77,7 @@ func New(c Config) *Server {
 		searches:     c.Searches,
 		listings:     c.Listings,
 		users:        c.Users,
+		linkTokens:   c.LinkTokens,
 		firebaseAuth: c.FirebaseAuth,
 		prices:       c.Prices,
 		admin:     c.Admin,
@@ -81,6 +86,7 @@ func New(c Config) *Server {
 		notifs:    c.Notifs,
 		logger:    c.Logger,
 		cfg:       c.API,
+		botUsername: c.BotUsername,
 		startTime: time.Now(),
 		rl:        newRateLimiter(context.Background(), 60, time.Second/60),
 	}
@@ -115,6 +121,11 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/notifications", s.listNotifications)
 		mux.HandleFunc("GET /api/v1/notifications/count", s.notificationCount)
 		mux.HandleFunc("POST /api/v1/notifications/seen", s.markNotificationsSeen)
+	}
+
+	mux.HandleFunc("GET /api/v1/telegram/status", s.getTelegramStatus)
+	if s.linkTokens != nil {
+		mux.HandleFunc("POST /api/v1/telegram/link", s.postTelegramLink)
 	}
 
 	if s.saved != nil && s.hidden != nil {

@@ -3,7 +3,9 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -64,7 +66,11 @@ func (s *Store) upsertChannelUser(ctx context.Context, channel, channelID, usern
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			slog.Error("rollback upsert channel user tx", "error", err)
+		}
+	}()
 
 	var existingID int64
 	err = tx.QueryRowContext(ctx,
@@ -195,6 +201,60 @@ func (s *Store) GrantTrial(ctx context.Context, chatID int64, duration time.Dura
 		return storage.ErrNotFound
 	}
 	return nil
+}
+
+func (s *Store) LinkTelegramToWeb(ctx context.Context, telegramChatID, webChatID int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE users SET linked_web_id = NULL
+		WHERE linked_web_id = ? AND channel = 'telegram' AND chat_id != ?`,
+		webChatID, telegramChatID); err != nil {
+		return fmt.Errorf("clear previous telegram link: %w", err)
+	}
+
+	res, err := tx.ExecContext(ctx, `
+		UPDATE users SET linked_web_id = ?
+		WHERE chat_id = ? AND channel = 'telegram'`,
+		webChatID, telegramChatID)
+	if err != nil {
+		return fmt.Errorf("link telegram user: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return storage.ErrNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) GetLinkedTelegramUser(ctx context.Context, webChatID int64) (*storage.User, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used, channel, channel_id
+		FROM users
+		WHERE linked_web_id = ? AND channel = 'telegram'
+		LIMIT 1`,
+		webChatID)
+
+	var u storage.User
+	err := row.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language,
+		&u.Tier, &u.TierExpires, &u.TrialUsed, &u.Channel, &u.ChannelID)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
 }
 
 func (s *Store) ListExpiredPremium(ctx context.Context) ([]storage.User, error) {
