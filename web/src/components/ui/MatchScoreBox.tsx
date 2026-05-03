@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { scoreBgColor, scoreColor } from "@/lib/scoringAlgorithm";
+import { scoreHsl, scoreHslAlpha } from "@/lib/scoringAlgorithm";
 
 export type MatchScoreBoxProps = {
   score: number;
@@ -13,9 +13,6 @@ const sizeClass: Record<NonNullable<MatchScoreBoxProps["size"]>, string> = {
   lg: "h-16 w-16 text-2xl [&_.denom]:text-[10px]",
 };
 
-/**
- * Rounded score tile matching the landing “Smart Match Score” demo (/10, tier border + fill).
- */
 export function MatchScoreBox({ score, size = "md", className }: MatchScoreBoxProps) {
   const normalized = Number.isFinite(score)
     ? Math.min(10, Math.max(0, score))
@@ -26,11 +23,14 @@ export function MatchScoreBox({ score, size = "md", className }: MatchScoreBoxPr
     <div
       className={cn(
         "flex shrink-0 flex-col items-center justify-center rounded-2xl border-2 font-bold leading-none",
-        scoreBgColor(normalized),
-        scoreColor(normalized),
         sizeClass[size],
         className,
       )}
+      style={{
+        color: scoreHsl(normalized),
+        backgroundColor: scoreHslAlpha(normalized, 0.12),
+        borderColor: scoreHslAlpha(normalized, 0.5),
+      }}
       aria-label={`ציון ${formatted} מתוך 10`}
     >
       <span className="tabular-nums">{formatted}</span>

@@ -3,7 +3,7 @@ import { Bookmark } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
-import { scoreColor, scoreLabel } from "@/lib/scoringAlgorithm";
+import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
 
 /**
  * Shared card body for listing display. When `hoverScale` is true the image
@@ -64,10 +64,8 @@ export function ListingCardBody({
             <p className="mt-0.5 text-xs text-muted-foreground">{listing.year}</p>
             {listing.fitness_score != null ? (
               <p
-                className={cn(
-                  "mt-0.5 text-xs font-medium",
-                  scoreColor(listing.fitness_score),
-                )}
+                className="mt-0.5 text-xs font-medium"
+                style={{ color: scoreHsl(listing.fitness_score) }}
               >
                 {scoreLabel(listing.fitness_score)}
               </p>

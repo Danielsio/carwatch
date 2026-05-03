@@ -10,12 +10,12 @@ import {
   Clock,
   Car,
 } from "lucide-react";
-import { formatPrice, formatKm, relativeTime, safeHref, cn } from "@/lib/utils";
+import { formatPrice, formatKm, relativeTime, safeHref } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
-import { scoreColor, scoreLabel } from "@/lib/scoringAlgorithm";
+import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 
@@ -117,10 +117,8 @@ export function ListingDetailPage() {
           <p className="mt-0.5 text-muted-foreground">{listing.year}</p>
           {listing.fitness_score != null ? (
             <p
-              className={cn(
-                "mt-1 text-sm font-medium",
-                scoreColor(listing.fitness_score),
-              )}
+              className="mt-1 text-sm font-medium"
+              style={{ color: scoreHsl(listing.fitness_score) }}
             >
               {scoreLabel(listing.fitness_score)}
             </p>
