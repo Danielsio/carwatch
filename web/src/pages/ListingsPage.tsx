@@ -30,11 +30,7 @@ const PAGE_SIZE = 20;
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
-  return (
-    target.closest(
-      "button,a,input,select,textarea,[role='button']",
-    ) != null
-  );
+  return target.closest("button,a,input,select,textarea") != null;
 }
 
 export function ListingsPage() {

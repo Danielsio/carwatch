@@ -77,16 +77,16 @@ export function scoreListingAgainstSearch(
   };
 }
 
-/** Tier colors aligned with landing Smart Match mock (gold / orange / red). */
+/** Tier colors: green (great) → amber (good) → red (low). */
 export function scoreColor(score: number): string {
-  if (score >= 8) return "text-amber-400";
-  if (score >= 5) return "text-orange-500";
+  if (score >= 8) return "text-emerald-400";
+  if (score >= 5) return "text-amber-400";
   return "text-red-500";
 }
 
 export function scoreBgColor(score: number): string {
-  if (score >= 8) return "bg-amber-400/12 border-amber-400/50";
-  if (score >= 5) return "bg-orange-500/12 border-orange-500/45";
+  if (score >= 8) return "bg-emerald-400/12 border-emerald-400/50";
+  if (score >= 5) return "bg-amber-400/12 border-amber-400/45";
   return "bg-red-500/12 border-red-500/42";
 }
 
@@ -98,7 +98,7 @@ export function scoreLabel(score: number): string {
 }
 
 export function scoreBarColor(score: number): string {
-  if (score >= 8) return "bg-amber-400";
-  if (score >= 5) return "bg-orange-500";
+  if (score >= 8) return "bg-emerald-400";
+  if (score >= 5) return "bg-amber-400";
   return "bg-red-500";
 }

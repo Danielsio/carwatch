@@ -232,7 +232,7 @@ export function HeroSection() {
             </div>
           </FloatingCard>
 
-          <FloatingCard className="-bottom-5 sm:-end-8 md:-end-14" delay={1.0}>
+          <FloatingCard className="-bottom-5 max-w-[min(18rem,calc(100vw-3rem))] sm:-end-8 md:-end-14" delay={1.0}>
             <div className="flex items-center gap-2.5">
               <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-success/20">
                 <TrendingDown size={13} className="text-success" />
