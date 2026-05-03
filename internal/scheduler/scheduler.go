@@ -25,12 +25,14 @@ import (
 )
 
 const (
-	fetchTimeout   = 60 * time.Second
-	maxBackoff     = 4.0
-	minBackoff     = 1.0
-	pruneInterval  = 24 * time.Hour
-	maxRetries     = 3
-	retryBaseDelay = 2 * time.Second
+	fetchTimeout    = 60 * time.Second
+	// kmEnrichTimeout bounds per-item mileage/city fetches after the list crawl.
+	kmEnrichTimeout = 25 * time.Minute
+	maxBackoff      = 4.0
+	minBackoff      = 1.0
+	pruneInterval   = 24 * time.Hour
+	maxRetries      = 3
+	retryBaseDelay  = 2 * time.Second
 )
 
 type CatalogIngester interface {
@@ -637,8 +639,8 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 }
 
 func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup) ([]model.RawListing, string, error) {
-	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
-	defer cancel()
+	listCtx, cancelList := context.WithTimeout(ctx, fetchTimeout)
+	defer cancelList()
 
 	source := group.Source
 	if source == "" {
@@ -646,7 +648,7 @@ func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup) ([
 	}
 	activeFetcher := s.fetcherForSource(source)
 	fetchStart := time.Now()
-	raw, err := s.fetchWithRetryUsing(fetchCtx, activeFetcher, group.Params)
+	raw, err := s.fetchWithRetryUsing(listCtx, activeFetcher, group.Params)
 	s.observer.RecordFetch(source, time.Since(fetchStart), err)
 	if err != nil {
 		return nil, source, err
@@ -659,7 +661,9 @@ func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup) ([
 	}
 
 	if source == "yad2" && s.kmEnricher != nil {
-		enriched := s.kmEnricher.Enrich(fetchCtx, raw)
+		enrichCtx, cancelEnrich := context.WithTimeout(ctx, kmEnrichTimeout)
+		defer cancelEnrich()
+		enriched := s.kmEnricher.Enrich(enrichCtx, raw)
 		if enriched > 0 {
 			s.logger.Info("km enrichment complete", "enriched", enriched)
 		}

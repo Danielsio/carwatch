@@ -10,14 +10,14 @@ import (
 
 const (
 	defaultEnrichDelay = 500 * time.Millisecond
-	defaultMaxEnrich   = 15
 )
 
 // EnricherConfig controls the enrichment behavior.
 type EnricherConfig struct {
 	// Delay between individual item fetches to avoid rate-limiting.
 	Delay time.Duration
-	// MaxPerCycle limits how many listings are enriched per poll cycle.
+	// MaxPerCycle limits how many item-page fetches run per Enrich call.
+	// 0 means no limit (enrich every listing that still needs km/image/city).
 	MaxPerCycle int
 }
 
@@ -32,9 +32,6 @@ type Enricher struct {
 func NewEnricher(fetcher *Yad2Fetcher, logger *slog.Logger, cfg EnricherConfig) *Enricher {
 	if cfg.Delay == 0 {
 		cfg.Delay = defaultEnrichDelay
-	}
-	if cfg.MaxPerCycle <= 0 {
-		cfg.MaxPerCycle = defaultMaxEnrich
 	}
 	return &Enricher{fetcher: fetcher, logger: logger, cfg: cfg}
 }
@@ -51,7 +48,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 		if !needsKm && !needsImg && !needsCity {
 			continue
 		}
-		if attempts >= e.cfg.MaxPerCycle {
+		if e.cfg.MaxPerCycle > 0 && attempts >= e.cfg.MaxPerCycle {
 			e.logger.Info("enrichment limit reached",
 				"enriched", enriched,
 				"attempts", attempts,

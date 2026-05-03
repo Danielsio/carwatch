@@ -111,6 +111,14 @@ func (f *Yad2Fetcher) FetchItem(ctx context.Context, token string) (ItemDetails,
 		return ItemDetails{}, fmt.Errorf("parse item %s: %w", token, err)
 	}
 
+	f.logger.Info("yad2 item page parsed",
+		"token", token,
+		"km", details.Km,
+		"city", details.City,
+		"area", details.Area,
+		"has_cover_image", details.ImageURL != "",
+	)
+
 	return details, nil
 }
 
