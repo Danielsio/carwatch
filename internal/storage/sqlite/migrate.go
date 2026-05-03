@@ -90,14 +90,6 @@ func migrate(db *sql.DB) error {
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 
-		CREATE TABLE IF NOT EXISTS catalog_cache (
-			manufacturer_id   INTEGER NOT NULL,
-			manufacturer_name TEXT NOT NULL,
-			model_id          INTEGER NOT NULL,
-			model_name        TEXT NOT NULL,
-			updated_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (manufacturer_id, model_id)
-		);
 
 		CREATE TABLE IF NOT EXISTS saved_listings (
 			chat_id   INTEGER NOT NULL,
@@ -322,35 +314,12 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("create performance indexes: %w", err)
 	}
 
-	if _, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS market_cache (
-			token        TEXT PRIMARY KEY,
-			manufacturer TEXT NOT NULL,
-			model        TEXT NOT NULL,
-			year         INTEGER NOT NULL,
-			price        INTEGER NOT NULL,
-			updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)
-	`); err != nil {
-		return fmt.Errorf("create market_cache: %w", err)
+	if _, err := db.Exec("DROP TABLE IF EXISTS market_cache"); err != nil {
+		return fmt.Errorf("drop market_cache: %w", err)
 	}
 
-	var cacheCount int
-	if err := db.QueryRow("SELECT COUNT(*) FROM market_cache").Scan(&cacheCount); err != nil {
-		return fmt.Errorf("count market_cache: %w", err)
-	}
-	if cacheCount == 0 {
-		if _, err := db.Exec(`
-			INSERT OR IGNORE INTO market_cache (token, manufacturer, model, year, price)
-			SELECT token, MAX(manufacturer), MAX(model), MAX(year), MAX(price)
-			FROM listing_history
-			WHERE manufacturer IS NOT NULL AND manufacturer != ''
-			  AND model IS NOT NULL AND model != ''
-			  AND year > 0 AND price > 0
-			GROUP BY token
-		`); err != nil {
-			return fmt.Errorf("backfill market_cache: %w", err)
-		}
+	if _, err := db.Exec("DROP TABLE IF EXISTS catalog_cache"); err != nil {
+		return fmt.Errorf("drop catalog_cache: %w", err)
 	}
 
 	for _, col := range []struct {

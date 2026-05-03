@@ -199,42 +199,6 @@ func TestE2E_FullPipeline(t *testing.T) {
 	}
 }
 
-// TestE2E_CatalogStore tests catalog persistence round-trip
-func TestE2E_CatalogStore(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatalf("create store: %v", err)
-	}
-	defer func() { _ = store.Close() }()
-	ctx := context.Background()
-
-	entries := []storage.CatalogEntry{
-		{ManufacturerID: 27, ManufacturerName: "Mazda", ModelID: 10332, ModelName: "3"},
-		{ManufacturerID: 27, ManufacturerName: "Mazda", ModelID: 10342, ModelName: "CX-5"},
-		{ManufacturerID: 19, ManufacturerName: "Toyota", ModelID: 10226, ModelName: "Corolla"},
-	}
-
-	if err := store.SaveCatalogEntries(ctx, entries); err != nil {
-		t.Fatalf("save: %v", err)
-	}
-
-	loaded, err := store.LoadCatalogEntries(ctx)
-	if err != nil {
-		t.Fatalf("load: %v", err)
-	}
-	if len(loaded) != 3 {
-		t.Fatalf("expected 3 entries, got %d", len(loaded))
-	}
-
-	age, err := store.CatalogAge(ctx)
-	if err != nil {
-		t.Fatalf("age: %v", err)
-	}
-	if age > 5*time.Second {
-		t.Errorf("catalog age should be < 5s, got %v", age)
-	}
-}
-
 // TestE2E_StaticCatalog verifies the static catalog contains expected data
 func TestE2E_StaticCatalog(t *testing.T) {
 	cat := catalog.NewStatic()

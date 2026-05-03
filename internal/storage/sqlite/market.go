@@ -9,9 +9,11 @@ import (
 func (s *Store) MarketListings(ctx context.Context) ([]storage.MarketListing, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT manufacturer, model, year, price
-		FROM market_cache
-		WHERE manufacturer != '' AND model != ''
-		  AND year > 0 AND price > 0`)
+		FROM listing_history
+		WHERE manufacturer IS NOT NULL AND manufacturer != ''
+		  AND model IS NOT NULL AND model != ''
+		  AND year > 0 AND price > 0
+		GROUP BY token`)
 	if err != nil {
 		return nil, err
 	}

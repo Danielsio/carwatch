@@ -45,7 +45,7 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	cat := catalog.NewDynamic(store, slog.Default())
+	cat := catalog.NewDynamic(slog.Default())
 	cat.Load(context.Background())
 
 	cat.Ingest(context.Background(), 19, "Toyota", 10226, "Corolla")
@@ -535,7 +535,7 @@ func TestPauseResumeForeignSearch(t *testing.T) {
 	if err := store.UpsertUser(context.Background(), 888, "other"); err != nil {
 		t.Fatal(err)
 	}
-	cat := catalog.NewDynamic(store, slog.Default())
+	cat := catalog.NewDynamic(slog.Default())
 	cat.Load(context.Background())
 	otherSrv := New(Config{
 		Catalog: cat, Searches: store, Listings: store,
@@ -562,7 +562,7 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	cat := catalog.NewDynamic(store, slog.Default())
+	cat := catalog.NewDynamic(slog.Default())
 
 	srv := New(Config{
 		Catalog:  cat,
@@ -1047,7 +1047,7 @@ func TestAdminStats_FirebaseAdmin(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	cat := catalog.NewDynamic(store, slog.Default())
+	cat := catalog.NewDynamic(slog.Default())
 	cat.Load(context.Background())
 
 	srv := New(Config{
@@ -1081,7 +1081,7 @@ func TestAdminStats_FirebaseNonAdmin(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	cat := catalog.NewDynamic(store, slog.Default())
+	cat := catalog.NewDynamic(slog.Default())
 	cat.Load(context.Background())
 
 	srv := New(Config{

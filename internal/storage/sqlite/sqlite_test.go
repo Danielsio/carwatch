@@ -1226,15 +1226,6 @@ func TestSaveListings_Batch(t *testing.T) {
 	if len(listings) != 3 {
 		t.Errorf("expected 3 listings, got %d", len(listings))
 	}
-
-	// Verify market_cache was populated.
-	marketListings, err := store.MarketListings(ctx)
-	if err != nil {
-		t.Fatalf("market listings: %v", err)
-	}
-	if len(marketListings) != 3 {
-		t.Errorf("expected 3 market listings, got %d", len(marketListings))
-	}
 }
 
 func TestSaveListings_Empty(t *testing.T) {
@@ -1365,7 +1356,8 @@ func TestMarketListings(t *testing.T) {
 	seedUser(t, store, 100)
 	seedUser(t, store, 200)
 
-	// Insert listings for two users with same token (should deduplicate)
+	// Insert listings for two users with same token — MarketListings deduplicates
+	// by picking the latest rowid per token from listing_history.
 	for _, chatID := range []int64{100, 200} {
 		_ = store.SaveListing(ctx, storage.ListingRecord{
 			Token: "tok1", ChatID: chatID, SearchName: "toyota-corolla",
@@ -1373,13 +1365,12 @@ func TestMarketListings(t *testing.T) {
 			Price: 100000, FirstSeenAt: time.Now(),
 		})
 	}
-	// Another listing
 	_ = store.SaveListing(ctx, storage.ListingRecord{
 		Token: "tok2", ChatID: 100, SearchName: "toyota-corolla",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
 		Price: 110000, FirstSeenAt: time.Now(),
 	})
-	// Listing with empty manufacturer (should be excluded)
+	// Empty manufacturer should be excluded.
 	_ = store.SaveListing(ctx, storage.ListingRecord{
 		Token: "tok3", ChatID: 100, SearchName: "test",
 		Manufacturer: "", Model: "X", Year: 2020,
@@ -1390,7 +1381,6 @@ func TestMarketListings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarketListings: %v", err)
 	}
-	// tok1 should appear once (deduplicated), tok2 once, tok3 excluded
 	if len(listings) != 2 {
 		t.Errorf("expected 2 deduplicated listings, got %d", len(listings))
 	}

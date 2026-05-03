@@ -74,7 +74,7 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer func() { _ = store.Close() }()
 
-	dynCatalog := catalog.NewDynamic(store, logger)
+	dynCatalog := catalog.NewDynamic(logger)
 	dynCatalog.Load(context.Background())
 
 	yad2Fetcher, cachingFetcher, fetcherFactory, err := buildFetchers(cfg, logger)

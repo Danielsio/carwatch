@@ -26,24 +26,7 @@ func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error 
 			fitness_score = excluded.fitness_score`,
 		r.Token, r.ChatID, r.SearchID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
 		r.Km, r.Hand, r.City, r.PageLink, r.ImageURL, r.FitnessScore, r.FirstSeenAt.UTC().Format(firstSeenAtLayout))
-	if err != nil {
-		return err
-	}
-	if r.Manufacturer != "" && r.Model != "" && r.Year > 0 && r.Price > 0 {
-		if _, err := s.db.ExecContext(ctx, `
-			INSERT INTO market_cache (token, manufacturer, model, year, price)
-			VALUES (?, ?, ?, ?, ?)
-			ON CONFLICT(token) DO UPDATE SET
-				manufacturer = excluded.manufacturer,
-				model = excluded.model,
-				year = excluded.year,
-				price = excluded.price,
-				updated_at = CURRENT_TIMESTAMP`,
-			r.Token, r.Manufacturer, r.Model, r.Year, r.Price); err != nil {
-			return fmt.Errorf("upsert market_cache: %w", err)
-		}
-	}
-	return nil
+	return err
 }
 
 func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecord) error {
@@ -75,31 +58,11 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 	}
 	defer func() { _ = listingStmt.Close() }()
 
-	marketStmt, err := tx.PrepareContext(ctx, `
-		INSERT INTO market_cache (token, manufacturer, model, year, price)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT(token) DO UPDATE SET
-			manufacturer = excluded.manufacturer,
-			model = excluded.model,
-			year = excluded.year,
-			price = excluded.price,
-			updated_at = CURRENT_TIMESTAMP`)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = marketStmt.Close() }()
-
 	for _, r := range records {
 		if _, err := listingStmt.ExecContext(ctx,
 			r.Token, r.ChatID, r.SearchID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
 			r.Km, r.Hand, r.City, r.PageLink, r.ImageURL, r.FitnessScore, r.FirstSeenAt.UTC().Format(firstSeenAtLayout)); err != nil {
 			return err
-		}
-		if r.Manufacturer != "" && r.Model != "" && r.Year > 0 && r.Price > 0 {
-			if _, err := marketStmt.ExecContext(ctx,
-				r.Token, r.Manufacturer, r.Model, r.Year, r.Price); err != nil {
-				return fmt.Errorf("upsert market_cache: %w", err)
-			}
 		}
 	}
 	return tx.Commit()

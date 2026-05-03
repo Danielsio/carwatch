@@ -228,15 +228,3 @@ type NotificationStore interface {
 	GetLastSeenAt(ctx context.Context, chatID int64) (time.Time, error)
 }
 
-type CatalogEntry struct {
-	ManufacturerID   int
-	ManufacturerName string
-	ModelID          int
-	ModelName        string
-}
-
-type CatalogStore interface {
-	SaveCatalogEntries(ctx context.Context, entries []CatalogEntry) error
-	LoadCatalogEntries(ctx context.Context) ([]CatalogEntry, error)
-	CatalogAge(ctx context.Context) (time.Duration, error)
-}
