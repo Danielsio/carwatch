@@ -123,7 +123,7 @@ func detailsFromPageData(d itemPageData) (ItemDetails, bool) {
 		City:     firstNonEmpty(d.Address.City.TextEng, d.Address.City.Text),
 		Area:     firstNonEmpty(d.Address.Area.TextEng, d.Address.Area.Text),
 	}
-	return details, details.Km > 0 || details.ImageURL != "" || details.City != ""
+	return details, details.Km > 0 || details.ImageURL != "" || details.City != "" || details.Area != ""
 }
 
 func firstNonEmpty(values ...string) string {
