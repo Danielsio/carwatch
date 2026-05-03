@@ -55,7 +55,7 @@ export function SignupPage() {
   });
 
   useEffect(() => {
-    if (user) navigate("/", { replace: true });
+    if (user) navigate("/dashboard", { replace: true });
   }, [user, navigate]);
 
   const emailErr =
@@ -85,7 +85,7 @@ export function SignupPage() {
     setBusy("email");
     try {
       await createUserWithEmailAndPassword(auth, email.trim(), password);
-      navigate("/", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(mapAuthError(firebaseAuthErrorCode(err)));
     } finally {
@@ -98,7 +98,7 @@ export function SignupPage() {
     setBusy("google");
     try {
       await signInWithPopup(auth, googleProvider);
-      navigate("/", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(mapAuthError(firebaseAuthErrorCode(err)));
     } finally {

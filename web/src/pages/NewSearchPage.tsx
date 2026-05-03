@@ -89,7 +89,7 @@ export function NewSearchPage() {
       {
         onSuccess: () => {
           toast("החיפוש נוצר בהצלחה!", "success");
-          navigate("/");
+          navigate("/dashboard");
         },
         onError: () => setError("שגיאה ביצירת החיפוש, נסה שוב"),
       },
@@ -101,7 +101,7 @@ export function NewSearchPage() {
       <PageHeader
         title="חיפוש חדש"
         subtitle="הגדר פילטרים למעקב אחר מודעות"
-        backTo="/"
+        backTo="/dashboard"
         backLabel="חזרה"
       />
 
@@ -330,7 +330,7 @@ export function NewSearchPage() {
             צור חיפוש
           </Button>
           <Button variant="secondary" size="lg" asChild className="md:flex-none">
-            <Link to="/">ביטול</Link>
+            <Link to="/dashboard">ביטול</Link>
           </Button>
         </div>
       </div>

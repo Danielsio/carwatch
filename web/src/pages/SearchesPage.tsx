@@ -110,9 +110,9 @@ export function SearchesPage() {
             icon: Car,
             label: "מודעות שנמצאו",
             value: recentListings?.total ?? 0,
-            color: "text-score-great",
-            bg: "bg-score-great/12",
-            glow: "shadow-[0_0_24px_-4px_rgba(16,185,129,0.25)]",
+            color: "text-primary",
+            bg: "bg-primary/12",
+            glow: "shadow-[0_0_24px_-4px_rgba(59,130,246,0.25)]",
           },
           {
             icon: Bell,

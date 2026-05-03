@@ -81,7 +81,7 @@ export function EditSearchPage() {
       {
         onSuccess: () => {
           toast("החיפוש עודכן בהצלחה!", "success");
-          navigate("/");
+          navigate("/dashboard");
         },
         onError: () => setError("שגיאה בעדכון החיפוש, נסה שוב"),
       },
@@ -106,7 +106,7 @@ export function EditSearchPage() {
         description="ניתן לחזור לדף הראשי"
         action={
           <Button asChild>
-            <Link to="/">חזרה לחיפושים</Link>
+            <Link to="/dashboard">חזרה לחיפושים</Link>
           </Button>
         }
       />
@@ -118,7 +118,7 @@ export function EditSearchPage() {
       <PageHeader
         title={`עריכת ${search.manufacturer_name} ${search.model_name}`}
         subtitle={`מקור: ${search.source}`}
-        backTo="/"
+        backTo="/dashboard"
         backLabel="חזרה"
       />
 
@@ -274,7 +274,7 @@ export function EditSearchPage() {
             שמור שינויים
           </Button>
           <Button variant="secondary" size="lg" asChild className="md:flex-none">
-            <Link to="/">ביטול</Link>
+            <Link to="/dashboard">ביטול</Link>
           </Button>
         </div>
       </div>

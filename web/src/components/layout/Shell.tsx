@@ -21,7 +21,7 @@ import { ConnectionBanner } from "@/components/ui/ConnectionBanner";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { path: "/", label: "לוח בקרה", icon: LayoutDashboard, mobile: true },
+  { path: "/dashboard", label: "לוח בקרה", icon: LayoutDashboard, mobile: true },
   { path: "/searches/new", label: "חיפוש חדש", icon: Plus, mobile: true },
   { path: "/saved", label: "מועדפים", icon: Bookmark, mobile: true },
   { path: "/history", label: "היסטוריה", icon: History, mobile: true },
@@ -37,7 +37,7 @@ const navItems = [
 ];
 
 function isNavActive(pathname: string, path: string): boolean {
-  if (path === "/") return pathname === "/";
+  if (path === "/dashboard") return pathname === "/dashboard";
   return pathname === path || pathname.startsWith(`${path}/`);
 }
 
@@ -55,17 +55,17 @@ export function Shell() {
   return (
     <div className="min-h-screen bg-background">
       <ConnectionBanner status={connectionStatus} />
-      <aside className="border-sidebar-border bg-sidebar fixed inset-y-0 right-0 z-40 hidden h-full w-64 flex-col border-l md:flex">
-        <div className="border-sidebar-border flex items-center gap-3 border-b px-5 py-5">
-          <div className="bg-sidebar-primary relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-lg shadow-sidebar-primary/40">
-            <Car className="h-5 w-5 text-white" />
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent" />
+      <aside className="fixed inset-y-0 right-0 z-40 hidden h-full w-64 flex-col border-l border-[color-mix(in_srgb,var(--color-sidebar-border)_100%,transparent)] bg-sidebar md:flex">
+        {/* Base44-style header */}
+        <div className="flex items-center gap-3 border-b border-[color-mix(in_srgb,white_6%,transparent)] px-5 py-5">
+          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#3b82f6] via-[#3b82f6] to-[#2563eb] text-white shadow-[0_8px_28px_-6px_rgba(59,130,246,0.55),inset_0_1px_0_rgba(255,255,255,0.12)]">
+            <Car className="relative z-[1] h-5 w-5 text-white drop-shadow-sm" />
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-base leading-none font-bold tracking-tight text-white">
               CarWatch
             </h1>
-            <p className="mt-0.5 text-xs text-sidebar-foreground/60">
+            <p className="mt-0.5 text-xs text-[color-mix(in_srgb,var(--color-sidebar-foreground)_72%,transparent)]">
               מעקב רכבים חכם
             </p>
           </div>
@@ -73,14 +73,14 @@ export function Shell() {
             type="button"
             onClick={toggleTheme}
             aria-label={theme === "dark" ? "הפעל מצב בהיר" : "הפעל מצב כהה"}
-            className="bg-sidebar-accent text-sidebar-foreground/60 hover:bg-sidebar-accent/80 hover:text-sidebar-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,white_6%,transparent)] text-[color-mix(in_srgb,var(--color-sidebar-foreground)_85%,transparent)] transition-all duration-200 hover:bg-[color-mix(in_srgb,white_10%,transparent)] hover:text-white active:scale-[0.96] motion-reduce:active:scale-100"
             title={theme === "dark" ? "מצב בהיר" : "מצב כהה"}
           >
-            {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
           </button>
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-4">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isNavActive(location.pathname, item.path);
@@ -91,22 +91,33 @@ export function Shell() {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  "nav-active-pill flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all duration-150",
+                  "group relative flex items-center gap-3 rounded-xl py-2.5 pe-3 ps-4 text-sm font-medium outline-none transition-[background-color,color,box-shadow] duration-200 ease-out",
+                  "focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-sidebar-primary)_38%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
                   active
-                    ? "bg-sidebar-primary/15 text-white"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white",
+                    ? "text-white shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-sidebar-primary)_24%,transparent)] [background-image:linear-gradient(270deg,color-mix(in_oklab,var(--color-sidebar-primary)_20%,transparent)_0%,color-mix(in_oklab,var(--color-sidebar-primary)_6%,transparent)_55%,transparent_100%)]"
+                    : "text-sidebar-foreground hover:bg-[color-mix(in_srgb,white_4.5%,transparent)] hover:text-white",
                 )}
               >
+                {/* Accent rail — Base44-style strip toward main content */}
+                <span
+                  className={cn(
+                    "pointer-events-none absolute left-0 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-r-full transition-all duration-200 ease-out",
+                    active
+                      ? "bg-sidebar-primary shadow-[0_0_14px_rgba(59,130,246,0.55)]"
+                      : "bg-[color-mix(in_srgb,var(--color-sidebar-primary)_48%,transparent)] opacity-90 group-hover:bg-sidebar-primary group-hover:opacity-100 group-hover:shadow-[0_0_12px_rgba(59,130,246,0.38)]",
+                  )}
+                  aria-hidden
+                />
                 <Icon
                   size={17}
                   className={cn(
-                    "shrink-0 transition-colors",
+                    "relative z-[1] shrink-0 transition-colors duration-200",
                     active
-                      ? "text-sidebar-primary"
-                      : "text-sidebar-foreground/70",
+                      ? "text-sidebar-primary drop-shadow-[0_0_10px_rgba(59,130,246,0.35)]"
+                      : "text-[color-mix(in_srgb,var(--color-sidebar-foreground)_78%,transparent)] group-hover:text-sidebar-primary",
                   )}
                 />
-                <span className="relative">
+                <span className="relative z-[1]">
                   {item.label}
                   {showBadge ? (
                     <span className="absolute -top-1.5 -right-4 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white animate-pulse-soft">
@@ -115,7 +126,7 @@ export function Shell() {
                   ) : null}
                 </span>
                 {active ? (
-                  <div className="bg-sidebar-primary mr-auto h-1.5 w-1.5 rounded-full shadow-sm shadow-primary/60" />
+                  <div className="relative z-[1] mr-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary shadow-[0_0_12px_2px_rgba(59,130,246,0.65)]" />
                 ) : null}
               </Link>
             );
@@ -123,32 +134,32 @@ export function Shell() {
         </nav>
 
         {unread > 0 ? (
-          <div className="border-sidebar-border border-t px-4 py-4">
+          <div className="border-t border-[color-mix(in_srgb,white_6%,transparent)] px-3 py-4">
             <Link
               to="/notifications"
-              className="border-sidebar-primary/20 bg-sidebar-primary/10 hover:bg-sidebar-primary/15 flex items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-colors"
+              className="flex items-center gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--color-sidebar-primary)_28%,transparent)] bg-[linear-gradient(270deg,color-mix(in_oklab,var(--color-sidebar-primary)_14%,transparent),color-mix(in_oklab,var(--color-sidebar-primary)_6%,transparent))] px-3 py-2.5 shadow-[inset_0_1px_0_color-mix(in_srgb,white_8%,transparent)] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--color-sidebar-primary)_40%,transparent)] hover:bg-[linear-gradient(270deg,color-mix(in_oklab,var(--color-sidebar-primary)_20%,transparent),color-mix(in_oklab,var(--color-sidebar-primary)_9%,transparent))]"
             >
-              <div className="relative">
-                <Bell className="text-sidebar-primary h-4 w-4" />
-                <span className="bg-sidebar-primary absolute -top-1 -right-1 h-2 w-2 animate-pulse-glow rounded-full" />
+              <div className="relative shrink-0">
+                <Bell className="h-4 w-4 text-sidebar-primary" />
+                <span className="absolute -top-1 -right-1 h-2 w-2 animate-pulse-glow rounded-full bg-sidebar-primary" />
               </div>
-              <span className="text-sidebar-primary text-xs font-medium">
+              <span className="text-xs font-medium text-[#93c5fd]">
                 התראות פעילות
               </span>
-              <span className="bg-sidebar-primary mr-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-bold text-white shadow shadow-primary/30">
+              <span className="mr-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-sidebar-primary px-1 text-xs font-bold text-white shadow-[0_4px_14px_-4px_rgba(59,130,246,0.65)]">
                 {unread > 99 ? "99+" : unread}
               </span>
             </Link>
           </div>
         ) : null}
 
-        <div className="border-sidebar-border shrink-0 border-t p-4">
+        <div className="shrink-0 border-t border-[color-mix(in_srgb,white_6%,transparent)] p-4">
           <div className="mb-3 flex items-center gap-3">
-            <div className="bg-sidebar-accent text-sidebar-foreground ring-sidebar-border flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ring-1">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,white_6%,transparent)] text-sm font-semibold text-[color-mix(in_srgb,var(--color-sidebar-foreground)_92%,transparent)] ring-1 ring-[color-mix(in_srgb,white_10%,transparent)]">
               {emailInitial}
             </div>
             <p
-              className="text-sidebar-foreground/60 min-w-0 flex-1 truncate text-xs"
+              className="min-w-0 flex-1 truncate text-xs text-[color-mix(in_srgb,var(--color-sidebar-foreground)_68%,transparent)]"
               title={user?.email ?? undefined}
             >
               {user?.email ?? ""}
@@ -157,14 +168,14 @@ export function Shell() {
           <button
             type="button"
             onClick={() => void signOut()}
-            className="border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground hover:bg-sidebar-accent hover:text-white flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[color-mix(in_srgb,white_8%,transparent)] bg-[color-mix(in_srgb,white_3%,transparent)] px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-all duration-200 hover:border-[color-mix(in_srgb,white_14%,transparent)] hover:bg-[color-mix(in_srgb,white_7%,transparent)] hover:text-white active:scale-[0.99] motion-reduce:active:scale-100"
           >
             <LogOut className="h-4 w-4" aria-hidden />
             התנתק
           </button>
           {appVersion ? (
             <p
-              className="mt-3 rounded-lg bg-sidebar-accent/80 px-2 py-1.5 text-center text-sm font-semibold tracking-wide text-sidebar-primary tabular-nums ring-1 ring-sidebar-border"
+              className="mt-3 rounded-xl border border-[color-mix(in_srgb,var(--color-sidebar-primary)_22%,transparent)] bg-[color-mix(in_srgb,var(--color-sidebar-primary)_8%,transparent)] px-2 py-2 text-center text-sm font-semibold tracking-wide text-[#60a5fa] tabular-nums"
               title={`גרסה ${appVersion}`}
             >
               גרסה {appVersion}

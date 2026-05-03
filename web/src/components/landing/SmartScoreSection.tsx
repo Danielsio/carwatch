@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 import { motion } from "motion/react";
 import { Sparkles, TrendingUp, Gauge, Calendar, Users } from "lucide-react";
 import { useInView } from "@/hooks/useInView";
+import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import {
   scoreListingAgainstSearch,
   scoreColor,
-  scoreBgColor,
   scoreLabel,
   scoreBarColor,
   type DemoListingInput,
@@ -111,7 +111,6 @@ function DemoCard({
   const { ref, inView } = useInView();
   const { score, breakdown } = scoreListingAgainstSearch(listing, demoSearch);
   const color = scoreColor(score);
-  const bg = scoreBgColor(score);
   const label = scoreLabel(score);
   const bar = scoreBarColor(score);
 
@@ -123,12 +122,7 @@ function DemoCard({
       transition={{ delay, duration: 0.5 }}
       className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4"
     >
-      <div
-        className={`flex h-14 w-14 flex-shrink-0 flex-col items-center justify-center rounded-2xl border-2 font-bold ${bg} ${color}`}
-      >
-        <span className="text-xl leading-none">{score.toFixed(1)}</span>
-        <span className="mt-0.5 text-[9px] opacity-60">/10</span>
-      </div>
+      <MatchScoreBox score={score} size="md" />
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">
@@ -157,7 +151,7 @@ function DemoCard({
         </div>
       </div>
 
-      <div className="flex-shrink-0 text-sm font-bold text-primary">
+      <div className="shrink-0 text-sm font-bold tabular-nums text-primary">
         ₪{listing.price.toLocaleString("he-IL")}
       </div>
     </motion.div>

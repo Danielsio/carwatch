@@ -6,7 +6,7 @@ export function LandingFooter({ version }: { version?: string | null }) {
   return (
     <footer className="border-border border-t px-6 py-10">
       <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 md:flex-row">
-        <Link to="/welcome" className="flex items-center gap-2.5">
+        <Link to="/" className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary shadow shadow-primary/30">
             <Car size={13} className="text-white" />
           </div>

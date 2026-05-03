@@ -19,12 +19,12 @@ import { SettingsPage } from "./pages/SettingsPage";
 export default function App() {
   return (
     <Routes>
-      <Route path="/welcome" element={<LandingPage />} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<Shell />}>
-          <Route path="/" element={<SearchesPage />} />
+          <Route path="/dashboard" element={<SearchesPage />} />
           <Route path="/searches/new" element={<NewSearchPage />} />
           <Route path="/searches/:id/edit" element={<EditSearchPage />} />
           <Route path="/searches/:id/listings" element={<ListingsPage />} />
