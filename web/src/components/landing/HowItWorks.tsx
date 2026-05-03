@@ -55,7 +55,7 @@ function FadeUp({
 
 export function HowItWorks() {
   return (
-    <section id="how" className="relative scroll-mt-24 overflow-hidden px-6 py-24">
+    <section id="how" className="relative scroll-mt-28 overflow-hidden px-4 py-24 sm:px-6">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-secondary/15 to-transparent" />
       <div className="relative mx-auto max-w-5xl">
         <FadeUp>
@@ -70,7 +70,7 @@ export function HowItWorks() {
         </FadeUp>
 
         <div className="relative grid gap-6 md:grid-cols-3">
-          <div className="pointer-events-none absolute top-14 right-[16.5%] left-[16.5%] hidden h-px bg-gradient-to-l from-transparent via-border to-transparent md:block" />
+          <div className="pointer-events-none absolute top-14 end-[16.5%] start-[16.5%] hidden h-px bg-gradient-to-l from-transparent via-border to-transparent md:block" dir="ltr" />
 
           {steps.map((step, i) => {
             const Icon = step.icon;
@@ -83,7 +83,7 @@ export function HowItWorks() {
                     >
                       <Icon size={26} className={step.color} />
                     </div>
-                    <span className="absolute -top-2 -right-2 z-20 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background text-[10px] font-bold text-muted-foreground">
+                    <span className="absolute -top-2 -end-2 z-20 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background text-[10px] font-bold text-muted-foreground">
                       {step.num}
                     </span>
                   </div>

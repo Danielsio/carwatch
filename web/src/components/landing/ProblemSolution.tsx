@@ -39,7 +39,7 @@ function FadeUp({
 
 export function ProblemSolution() {
   return (
-    <section className="relative overflow-hidden px-6 py-24">
+    <section className="relative overflow-hidden px-4 py-24 sm:px-6">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-secondary/20 to-transparent" />
       <div className="mx-auto max-w-5xl">
         <FadeUp>
@@ -81,7 +81,7 @@ export function ProblemSolution() {
 
           <FadeUp delay={0.2}>
             <div className="relative overflow-hidden rounded-3xl border border-success/20 bg-success/5 p-7">
-              <div className="absolute top-0 right-0 h-32 w-32 translate-x-1/2 -translate-y-1/2 rounded-full bg-success/5" />
+              <div className="absolute top-0 end-0 h-32 w-32 translate-x-1/2 -translate-y-1/2 rounded-full bg-success/5" />
               <div className="mb-6 flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-success/15">
                   <Check size={16} className="text-success" />

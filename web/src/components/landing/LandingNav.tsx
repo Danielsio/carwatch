@@ -26,51 +26,56 @@ export function LandingNav() {
   return (
     <header
       className={cn(
-        "fixed top-0 right-0 left-0 z-50 transition-all duration-300",
+        "fixed inset-x-0 top-0 z-50 transition-all duration-300",
         scrolled
-          ? "border-border/50 border-b bg-background/80 shadow-sm backdrop-blur-xl"
+          ? "border-border/50 border-b bg-background/85 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] backdrop-blur-xl dark:shadow-[0_8px_40px_-16px_rgba(0,0,0,0.45)]"
           : "bg-transparent",
       )}
     >
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link to="/" className="group flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/40 transition-transform group-hover:scale-105">
-            <Car size={16} className="text-white" />
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+        <Link to="/" className="group flex min-w-0 items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/35 ring-1 ring-white/15 transition-transform group-hover:scale-[1.03]">
+            <Car size={17} className="text-white" />
           </div>
-          <span className="text-lg font-bold text-foreground">CarWatch</span>
+          <span className="truncate text-lg font-bold tracking-tight text-foreground">
+            CarWatch
+          </span>
         </Link>
 
-        <nav className="hidden items-center gap-6 md:flex">
+        <nav
+          className="hidden items-center gap-1 lg:flex"
+          aria-label="ניווט דף נחיתה"
+        >
           {links.map((l) => (
             <a
               key={l.href}
               href={l.href}
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/80 hover:text-foreground"
             >
               {l.label}
             </a>
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={toggle}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-all hover:bg-secondary hover:text-foreground"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-all hover:border-border/80 hover:bg-secondary hover:text-foreground"
             aria-label={theme === "dark" ? "מצב בהיר" : "מצב כהה"}
           >
-            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           <Link
             to="/signup"
-            className="hidden items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:active:translate-y-0 md:flex md:hover:-translate-y-px"
+            className="hidden items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary/25 ring-1 ring-primary/20 transition-all hover:bg-primary/92 hover:shadow-primary/35 hover:active:translate-y-0 sm:flex sm:hover:-translate-y-px"
           >
             התחל עכשיו
           </Link>
           <button
             type="button"
             onClick={() => setMobileOpen((o) => !o)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground lg:hidden"
             aria-label={mobileOpen ? "סגור תפריט" : "פתח תפריט"}
             aria-expanded={mobileOpen}
             aria-controls={mobileMenuId}
@@ -85,7 +90,7 @@ export function LandingNav() {
         role="navigation"
         aria-label="ניווט ראשי — נייד"
         hidden={!mobileOpen}
-        className="border-border border-b bg-background/95 px-6 py-4 backdrop-blur-xl md:hidden"
+        className="border-border border-b bg-background/95 px-6 py-4 backdrop-blur-xl lg:hidden"
       >
         <div className="space-y-3">
           {links.map((l) => (
