@@ -21,7 +21,7 @@ make vm-ssh
 docker exec carwatch mkdir -p /data/backups
 
 # Add a daily cron job (runs at 03:00 local time)
-(crontab -l 2>/dev/null; echo '0 3 * * * docker exec carwatch sqlite3 /data/carwatch.db ".backup /data/backups/carwatch-$(date +\%Y\%m\%d).db" && find /data/backups -name "carwatch-*.db" -mtime +7 -delete') | crontab -
+(crontab -l 2>/dev/null; echo '0 3 * * * docker exec carwatch sqlite3 /data/carwatch.db ".backup /data/backups/carwatch-$(date +\%Y\%m\%d).db" && docker exec carwatch find /data/backups -name "carwatch-*.db" -type f -mtime +7 -delete') | crontab -
 ```
 
 The backup uses SQLite's `.backup` command, which is safe to run while the
@@ -85,21 +85,17 @@ make vm-deploy
 
 ### Scenario 2: Corrupt database
 
-1. Stop the container:
-   ```bash
-   make vm-stop
-   ```
+1. Copy the latest backup over the corrupt database (requires the `carwatch` container running; use `make vm-start` if it was stopped).
 
-2. Copy the latest backup over the corrupt file:
    ```bash
    make vm-ssh
-   LATEST=$(ls -t /var/lib/docker/volumes/carwatch_carwatch-data/_data/backups/carwatch-*.db | head -1)
-   cp "$LATEST" /var/lib/docker/volumes/carwatch_carwatch-data/_data/carwatch.db
+   docker exec carwatch sh -c 'cp "$(ls -t /data/backups/carwatch-*.db | head -1)" /data/carwatch.db'
    ```
 
-3. Restart:
+2. Restart CarWatch so it reloads the file:
+
    ```bash
-   make vm-start
+   make vm-restart
    ```
 
 ### Scenario 3: VM destroyed (full rebuild)
@@ -107,14 +103,19 @@ make vm-deploy
 1. Provision a new VM and install Docker.
 2. Clone the repo and run `make vm-sync` to push the compose file.
 3. Create the config:
+
    ```bash
    scp config.yaml firebase-sa.json <user>@<new-ip>:~/carwatch/
    ```
+
 4. Restore the DB from an off-site backup (if available):
+
    ```bash
    scp carwatch-backup.db <user>@<new-ip>:~/carwatch/data/carwatch.db
    ```
+
 5. Start:
+
    ```bash
    make vm-deploy
    ```
