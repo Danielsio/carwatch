@@ -299,9 +299,15 @@ func TestShareTokensAreUnique(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get search 1: %v", err)
 	}
+	if s1 == nil {
+		t.Fatal("search 1 not found")
+	}
 	s2, err := store.GetSearch(ctx, id2, 100)
 	if err != nil {
 		t.Fatalf("get search 2: %v", err)
+	}
+	if s2 == nil {
+		t.Fatal("search 2 not found")
 	}
 
 	if s1.ShareToken == s2.ShareToken {

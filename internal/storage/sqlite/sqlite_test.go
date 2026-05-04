@@ -362,7 +362,9 @@ func TestDeleteSearch_WrongOwner(t *testing.T) {
 		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
 	})
 
-	_ = store.DeleteSearch(ctx, id, 200)
+	if err := store.DeleteSearch(ctx, id, 200); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for wrong-owner delete, got: %v", err)
+	}
 
 	s, err := store.GetSearch(ctx, id, 100)
 	if err != nil {

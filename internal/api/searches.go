@@ -58,15 +58,13 @@ type searchResponse struct {
 	ListingsCount    int64  `json:"listings_count"`
 }
 
-var validSources = map[string]bool{
-	"yad2":         true,
-	"winwin":       true,
-	"yad2,winwin":  true,
-	"winwin,yad2":  true,
-}
-
 func isValidSource(source string) bool {
-	return validSources[source]
+	switch source {
+	case "yad2", "winwin", "yad2,winwin", "winwin,yad2":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateSearchRanges(yearMin, yearMax, priceMax, maxKm, maxHand, engineMinCC int) string {
@@ -159,7 +157,7 @@ func (s *Server) validateCreateSearchInput(ctx context.Context, chatID int64, re
 		req.Source = "yad2"
 	}
 	if !isValidSource(req.Source) {
-		return "", http.StatusBadRequest, "invalid source: must be yad2, winwin, or yad2,winwin"
+		return "", http.StatusBadRequest, "invalid source: must be yad2, winwin, yad2,winwin, or winwin,yad2"
 	}
 
 	if msg := validateSearchRanges(req.YearMin, req.YearMax, req.PriceMax, req.MaxKm, req.MaxHand, req.EngineMinCC); msg != "" {
