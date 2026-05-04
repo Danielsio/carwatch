@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"runtime"
 	"strings"
@@ -329,9 +330,9 @@ func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) adminLogs(w http.ResponseWriter, r *http.Request) {
-	n := parseIntParam(r, "limit", 200)
-	if n > 500 {
-		n = 500
+	n := parseIntParam(r, "limit", 500)
+	if n > 2000 {
+		n = 2000
 	}
 
 	entries := s.logHub.Recent(n)
@@ -378,4 +379,34 @@ func (s *Server) adminLogStream(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+}
+
+var validLogLevels = map[string]slog.Level{
+	"DEBUG": slog.LevelDebug,
+	"INFO":  slog.LevelInfo,
+	"WARN":  slog.LevelWarn,
+	"ERROR": slog.LevelError,
+}
+
+func (s *Server) adminGetLogLevel(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"level": s.logLevel.Level().String()})
+}
+
+func (s *Server) adminSetLogLevel(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Level string `json:"level"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	body.Level = strings.ToUpper(strings.TrimSpace(body.Level))
+	lvl, ok := validLogLevels[body.Level]
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid level; must be DEBUG, INFO, WARN, or ERROR")
+		return
+	}
+	s.logLevel.Set(lvl)
+	s.logger.Info("log level changed", "level", body.Level)
+	writeJSON(w, http.StatusOK, map[string]string{"level": s.logLevel.Level().String()})
 }

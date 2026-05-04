@@ -68,8 +68,10 @@ func run(configPath string, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("parse log_level %q: %w", cfg.LogLevel, err)
 	}
-	logHub := logstream.NewHub(500)
-	baseHandler := newLogHandler(cfg.LogFormat, logLevel)
+	var logLevelVar slog.LevelVar
+	logLevelVar.Set(logLevel)
+	logHub := logstream.NewHub(2000)
+	baseHandler := newLogHandler(cfg.LogFormat, &logLevelVar)
 	teeHandler := logstream.NewTeeHandler(baseHandler, logHub, "yad2", "winwin", "scheduler", "enricher")
 	logger = slog.New(teeHandler)
 	slog.SetDefault(logger)
@@ -109,7 +111,7 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer func() { _ = multi.Disconnect() }()
 
-	apiServer, err := buildAPI(cfg, store, dynCatalog, logHub, logger)
+	apiServer, err := buildAPI(cfg, store, dynCatalog, logHub, &logLevelVar, logger)
 	if err != nil {
 		return err
 	}
@@ -242,7 +244,7 @@ func buildBot(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 	return botHandler, tgNotif, multi, nil
 }
 
-func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, logHub *logstream.Hub, logger *slog.Logger) (*api.Server, error) {
+func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, logHub *logstream.Hub, logLevel *slog.LevelVar, logger *slog.Logger) (*api.Server, error) {
 	var firebaseAuth api.TokenVerifier
 	if cfg.Firebase.ProjectID != "" {
 		v, err := api.NewFirebaseVerifier(cfg.Firebase.CredentialsFile, cfg.Firebase.CredentialsJSON, cfg.Firebase.ProjectID)
@@ -269,6 +271,7 @@ func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 		FirebaseAuth: firebaseAuth,
 		BotUsername:  cfg.Telegram.BotUsername,
 		LogHub:       logHub,
+		LogLevel:     logLevel,
 	})
 
 	return apiServer, nil
@@ -295,7 +298,7 @@ func buildHTTPServer(cfg *config.Config, h *health.Status, apiServer *api.Server
 	return srv
 }
 
-func newLogHandler(format string, level slog.Level) slog.Handler {
+func newLogHandler(format string, level slog.Leveler) slog.Handler {
 	fd := os.Stdout.Fd()
 	usePretty := format == "pretty" ||
 		(format == "auto" && (isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)))
