@@ -100,13 +100,13 @@ func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sr, err := s.searches.GetSearch(r.Context(), id)
+	sr, err := s.searches.GetSearch(r.Context(), id, chatID)
 	if err != nil {
 		s.logger.Error("get search for listings", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to get search")
 		return
 	}
-	if sr == nil || sr.ChatID != chatID {
+	if sr == nil {
 		writeError(w, http.StatusNotFound, "search not found")
 		return
 	}

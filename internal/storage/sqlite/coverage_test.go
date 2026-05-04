@@ -495,7 +495,7 @@ func TestGetSearchByShareToken_Coverage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	search, err := store.GetSearch(ctx, id)
+	search, err := store.GetSearch(ctx, id, 100)
 	if err != nil || search == nil {
 		t.Fatal("search should exist")
 	}

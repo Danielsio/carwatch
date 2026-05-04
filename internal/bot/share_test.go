@@ -52,7 +52,7 @@ func TestCloneSearch(t *testing.T) {
 	}
 
 	// Retrieve the source search.
-	src, err := store.GetSearch(ctx, srcID)
+	src, err := store.GetSearch(ctx, srcID, 100)
 	if err != nil || src == nil {
 		t.Fatalf("get source search: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestCloneSearch(t *testing.T) {
 		t.Fatalf("clone search: %v", err)
 	}
 
-	clone, err := store.GetSearch(ctx, cloneID)
+	clone, err := store.GetSearch(ctx, cloneID, 200)
 	if err != nil || clone == nil {
 		t.Fatalf("get cloned search: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestCloneSearchRespectsLimit(t *testing.T) {
 	}
 
 	// Verify that source search exists (the handler would check this).
-	src, _ := store.GetSearch(ctx, srcID)
+	src, _ := store.GetSearch(ctx, srcID, 100)
 	if src == nil {
 		t.Fatal("source search not found")
 	}
@@ -177,7 +177,7 @@ func TestCloneSearchFromDeletedSource(t *testing.T) {
 	_ = store.DeleteSearch(ctx, srcID, 100)
 
 	// The search should no longer exist.
-	src, err := store.GetSearch(ctx, srcID)
+	src, err := store.GetSearch(ctx, srcID, 100)
 	if err != nil {
 		t.Fatalf("get deleted search: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestCreateSearch_GeneratesShareToken(t *testing.T) {
 		t.Fatalf("create search: %v", err)
 	}
 
-	s, err := store.GetSearch(ctx, id)
+	s, err := store.GetSearch(ctx, id, 100)
 	if err != nil || s == nil {
 		t.Fatalf("get search: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestGetSearchByShareToken(t *testing.T) {
 		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
 	})
 
-	original, _ := store.GetSearch(ctx, id)
+	original, _ := store.GetSearch(ctx, id, 100)
 	if original == nil {
 		t.Fatal("original search not found")
 	}
@@ -289,8 +289,8 @@ func TestShareTokensAreUnique(t *testing.T) {
 		ChatID: 100, Name: "second", Manufacturer: 2, Model: 2,
 	})
 
-	s1, _ := store.GetSearch(ctx, id1)
-	s2, _ := store.GetSearch(ctx, id2)
+	s1, _ := store.GetSearch(ctx, id1, 100)
+	s2, _ := store.GetSearch(ctx, id2, 100)
 
 	if s1.ShareToken == s2.ShareToken {
 		t.Error("two searches should have different share tokens")

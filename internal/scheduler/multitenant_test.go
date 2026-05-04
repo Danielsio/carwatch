@@ -32,9 +32,9 @@ func (m *mockSearchStore) ListSearches(_ context.Context, chatID int64) ([]stora
 	return result, nil
 }
 
-func (m *mockSearchStore) GetSearch(_ context.Context, id int64) (*storage.Search, error) {
+func (m *mockSearchStore) GetSearch(_ context.Context, id int64, chatID int64) (*storage.Search, error) {
 	for i := range m.searches {
-		if m.searches[i].ID == id {
+		if m.searches[i].ID == id && m.searches[i].ChatID == chatID {
 			return &m.searches[i], nil
 		}
 	}

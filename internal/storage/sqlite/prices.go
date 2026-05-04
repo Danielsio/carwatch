@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -11,7 +12,7 @@ import (
 func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, false, err
+		return 0, false, fmt.Errorf("record price begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -24,18 +25,21 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 		"INSERT INTO price_history (token, price) VALUES (?, ?)",
 		token, price)
 	if err != nil {
-		return 0, false, err
+		return 0, false, fmt.Errorf("record price insert: %w", err)
 	}
 
 	if scanErr == sql.ErrNoRows {
-		return 0, false, tx.Commit()
+		if err := tx.Commit(); err != nil {
+			return 0, false, fmt.Errorf("record price commit: %w", err)
+		}
+		return 0, false, nil
 	}
 	if scanErr != nil {
-		return 0, false, scanErr
+		return 0, false, fmt.Errorf("record price scan prev: %w", scanErr)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return 0, false, err
+		return 0, false, fmt.Errorf("record price commit: %w", err)
 	}
 	if price != prev {
 		return prev, true, nil
@@ -47,7 +51,7 @@ func (s *Store) GetPriceHistory(ctx context.Context, token string) ([]storage.Pr
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT price, observed_at FROM price_history WHERE token = ? ORDER BY observed_at DESC, rowid DESC", token)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get price history: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -55,7 +59,7 @@ func (s *Store) GetPriceHistory(ctx context.Context, token string) ([]storage.Pr
 	for rows.Next() {
 		var p storage.PricePoint
 		if err := rows.Scan(&p.Price, &p.ObservedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan price point: %w", err)
 		}
 		points = append(points, p)
 	}
@@ -66,7 +70,7 @@ func (s *Store) PrunePrices(ctx context.Context, olderThan time.Duration) (int64
 	cutoff := time.Now().Add(-olderThan)
 	result, err := s.db.ExecContext(ctx, "DELETE FROM price_history WHERE observed_at < ?", cutoff)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("prune prices: %w", err)
 	}
 	return result.RowsAffected()
 }

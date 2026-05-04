@@ -105,7 +105,7 @@ func (m *errSearchStore) ListSearches(_ context.Context, _ int64) ([]storage.Sea
 	return m.searches, nil
 }
 
-func (m *errSearchStore) GetSearch(_ context.Context, _ int64) (*storage.Search, error) {
+func (m *errSearchStore) GetSearch(_ context.Context, _ int64, _ int64) (*storage.Search, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}

@@ -860,7 +860,7 @@ func TestHandlePause(t *testing.T) {
 	var nilBot *tgbot.Bot
 	tb.bot.handlePause(ctx, nilBot, update)
 
-	s, _ := tb.store.GetSearch(ctx, id)
+	s, _ := tb.store.GetSearch(ctx, id, chatID)
 	if s.Active {
 		t.Error("search should be paused")
 	}
@@ -887,7 +887,7 @@ func TestHandleResume(t *testing.T) {
 	var nilBot *tgbot.Bot
 	tb.bot.handleResume(ctx, nilBot, update)
 
-	s, _ := tb.store.GetSearch(ctx, id)
+	s, _ := tb.store.GetSearch(ctx, id, chatID)
 	if !s.Active {
 		t.Error("search should be active after resume")
 	}

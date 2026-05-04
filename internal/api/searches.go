@@ -58,6 +58,17 @@ type searchResponse struct {
 	ListingsCount    int64  `json:"listings_count"`
 }
 
+var validSources = map[string]bool{
+	"yad2":         true,
+	"winwin":       true,
+	"yad2,winwin":  true,
+	"winwin,yad2":  true,
+}
+
+func isValidSource(source string) bool {
+	return validSources[source]
+}
+
 func validateSearchRanges(yearMin, yearMax, priceMax, maxKm, maxHand, engineMinCC int) string {
 	if yearMin < 0 {
 		return "year_min must not be negative"
@@ -147,6 +158,9 @@ func (s *Server) validateCreateSearchInput(ctx context.Context, chatID int64, re
 	if req.Source == "" {
 		req.Source = "yad2"
 	}
+	if !isValidSource(req.Source) {
+		return "", http.StatusBadRequest, "invalid source: must be yad2, winwin, or yad2,winwin"
+	}
 
 	if msg := validateSearchRanges(req.YearMin, req.YearMax, req.PriceMax, req.MaxKm, req.MaxHand, req.EngineMinCC); msg != "" {
 		return "", http.StatusBadRequest, msg
@@ -198,7 +212,7 @@ func createSearchRecord(chatID int64, name string, req createSearchRequest) stor
 }
 
 func (s *Server) writeCreatedSearch(w http.ResponseWriter, r *http.Request, chatID, id int64) {
-	created, err := s.searches.GetSearch(r.Context(), id)
+	created, err := s.searches.GetSearch(r.Context(), id, chatID)
 	if err != nil || created == nil {
 		s.logger.Error("get created search", "error", err)
 		writeError(w, http.StatusInternalServerError, "search created but failed to retrieve")
@@ -251,13 +265,13 @@ func (s *Server) getSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sr, err := s.searches.GetSearch(r.Context(), id)
+	sr, err := s.searches.GetSearch(r.Context(), id, chatID)
 	if err != nil {
 		s.logger.Error("get search", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to get search")
 		return
 	}
-	if sr == nil || sr.ChatID != chatID {
+	if sr == nil {
 		writeError(w, http.StatusNotFound, "search not found")
 		return
 	}
@@ -276,13 +290,13 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing, err := s.searches.GetSearch(r.Context(), id)
+	existing, err := s.searches.GetSearch(r.Context(), id, chatID)
 	if err != nil {
 		s.logger.Error("get search for update", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to get search")
 		return
 	}
-	if existing == nil || existing.ChatID != chatID {
+	if existing == nil {
 		writeError(w, http.StatusNotFound, "search not found")
 		return
 	}
@@ -359,18 +373,11 @@ func (s *Server) setSearchActive(w http.ResponseWriter, r *http.Request, active 
 		return
 	}
 
-	sr, err := s.searches.GetSearch(r.Context(), id)
-	if err != nil {
-		s.logger.Error("get search for active toggle", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to get search")
-		return
-	}
-	if sr == nil || sr.ChatID != chatID {
-		writeError(w, http.StatusNotFound, "search not found")
-		return
-	}
-
 	if err := s.searches.SetSearchActive(r.Context(), id, chatID, active); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "search not found")
+			return
+		}
 		s.logger.Error("set search active", "error", err, "active", active)
 		writeError(w, http.StatusInternalServerError, "failed to update search")
 		return

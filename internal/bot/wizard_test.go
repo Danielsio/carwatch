@@ -519,7 +519,7 @@ func TestHandleEdit_KeywordsRoundTrip(t *testing.T) {
 	// Confirm
 	tb.simulateCallback(ctx, chatID, cbConfirm)
 
-	s, err := tb.store.GetSearch(ctx, id)
+	s, err := tb.store.GetSearch(ctx, id, chatID)
 	if err != nil {
 		t.Fatalf("get search: %v", err)
 	}

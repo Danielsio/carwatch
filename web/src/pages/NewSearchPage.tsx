@@ -61,12 +61,13 @@ export function NewSearchPage() {
   const set = <K extends keyof FormData>(key: K, val: FormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
+  const validYear = (y: number) => y === 0 || y >= 1990;
   const canSubmit =
     form.manufacturer > 0 &&
     form.model > 0 &&
-    form.yearMin >= 2000 &&
-    form.yearMax >= 2000 &&
-    form.yearMin <= form.yearMax &&
+    validYear(form.yearMin) &&
+    validYear(form.yearMax) &&
+    (form.yearMin === 0 || form.yearMax === 0 || form.yearMin <= form.yearMax) &&
     !createSearch.isPending;
 
   function handleSubmit() {
