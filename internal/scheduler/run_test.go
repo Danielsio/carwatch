@@ -98,6 +98,7 @@ func TestRunMultiTenantCycle_PrunesOldListings(t *testing.T) {
 	cfg := testConfig()
 	cfg.Storage.PruneAfter = 1 * time.Hour
 
+	ls := &mockListingStore{}
 	ss := &mockSearchStore{
 		searches: []storage.Search{
 			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332, Active: true},
@@ -106,8 +107,9 @@ func TestRunMultiTenantCycle_PrunesOldListings(t *testing.T) {
 	h := health.New()
 
 	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
-		SearchStore: ss,
-		Observer:    h,
+		SearchStore:  ss,
+		ListingStore: ls,
+		Observer:     h,
 	})
 	s.lastPruneTime = time.Time{}
 
@@ -117,6 +119,9 @@ func TestRunMultiTenantCycle_PrunesOldListings(t *testing.T) {
 	}
 	if s.lastPruneTime.IsZero() {
 		t.Error("lastPruneTime should be updated after pruning")
+	}
+	if ls.pruneCalls != 1 {
+		t.Errorf("expected PruneListings to be called once, got %d", ls.pruneCalls)
 	}
 }
 
@@ -246,7 +251,8 @@ func TestFlushAndSendDigest_WithHealth(t *testing.T) {
 }
 
 type mockListingStore struct {
-	saved []storage.ListingRecord
+	saved      []storage.ListingRecord
+	pruneCalls int
 }
 
 func (m *mockListingStore) SaveListing(_ context.Context, r storage.ListingRecord) error {
@@ -280,5 +286,6 @@ func (m *mockListingStore) CountSearchListings(_ context.Context, _ int64, _ int
 }
 
 func (m *mockListingStore) PruneListings(_ context.Context, _ time.Duration) (int64, error) {
+	m.pruneCalls++
 	return 0, nil
 }

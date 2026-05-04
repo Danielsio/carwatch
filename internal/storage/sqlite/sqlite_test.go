@@ -2690,21 +2690,27 @@ func TestPruneListings_RemovesOld(t *testing.T) {
 	old := time.Now().Add(-100 * 24 * time.Hour)
 	recent := time.Now().Add(-10 * 24 * time.Hour)
 
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "old-1", ChatID: 100, SearchName: "test",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000,
 		FirstSeenAt: old,
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatalf("SaveListing old-1: %v", err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "old-2", ChatID: 100, SearchName: "test",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 85000,
 		FirstSeenAt: old,
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatalf("SaveListing old-2: %v", err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "recent-1", ChatID: 100, SearchName: "test",
 		Manufacturer: "Honda", Model: "Civic", Year: 2022, Price: 95000,
 		FirstSeenAt: recent,
-	})
+	}); err != nil {
+		t.Fatalf("SaveListing recent-1: %v", err)
+	}
 
 	pruned, err := store.PruneListings(ctx, 90*24*time.Hour)
 	if err != nil {
@@ -2714,7 +2720,10 @@ func TestPruneListings_RemovesOld(t *testing.T) {
 		t.Errorf("expected 2 pruned, got %d", pruned)
 	}
 
-	count, _ := store.CountUserListings(ctx, 100)
+	count, err := store.CountUserListings(ctx, 100)
+	if err != nil {
+		t.Fatalf("CountUserListings: %v", err)
+	}
 	if count != 1 {
 		t.Errorf("expected 1 remaining listing, got %d", count)
 	}
@@ -2727,18 +2736,24 @@ func TestPruneListings_PreservesSaved(t *testing.T) {
 
 	old := time.Now().Add(-100 * 24 * time.Hour)
 
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "old-saved", ChatID: 100, SearchName: "test",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000,
 		FirstSeenAt: old,
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatalf("SaveListing old-saved: %v", err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "old-unsaved", ChatID: 100, SearchName: "test",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 85000,
 		FirstSeenAt: old,
-	})
+	}); err != nil {
+		t.Fatalf("SaveListing old-unsaved: %v", err)
+	}
 
-	_ = store.SaveBookmark(ctx, 100, "old-saved")
+	if err := store.SaveBookmark(ctx, 100, "old-saved"); err != nil {
+		t.Fatalf("SaveBookmark: %v", err)
+	}
 
 	pruned, err := store.PruneListings(ctx, 90*24*time.Hour)
 	if err != nil {
@@ -2748,12 +2763,18 @@ func TestPruneListings_PreservesSaved(t *testing.T) {
 		t.Errorf("expected 1 pruned (unsaved only), got %d", pruned)
 	}
 
-	saved, _ := store.GetListing(ctx, 100, "old-saved")
+	saved, err := store.GetListing(ctx, 100, "old-saved")
+	if err != nil {
+		t.Fatalf("GetListing old-saved: %v", err)
+	}
 	if saved == nil {
 		t.Error("saved listing should survive pruning")
 	}
 
-	unsaved, _ := store.GetListing(ctx, 100, "old-unsaved")
+	unsaved, err := store.GetListing(ctx, 100, "old-unsaved")
+	if err != nil {
+		t.Fatalf("GetListing old-unsaved: %v", err)
+	}
 	if unsaved != nil {
 		t.Error("unsaved old listing should be pruned")
 	}
