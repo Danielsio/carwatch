@@ -1071,11 +1071,9 @@ function LogsTab({ active }: { active: boolean }) {
 
   function formatTime(iso: string) {
     try {
-      return new Date(iso).toLocaleTimeString("he-IL", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
+      const d = new Date(iso);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     } catch {
       return "";
     }
@@ -1266,7 +1264,7 @@ function LogLine({
       onKeyDown={hasAttrs ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } } : undefined}
     >
       <div className="flex items-start gap-2">
-        <span className="text-muted-foreground/60 flex-shrink-0 tabular-nums w-[60px]">
+        <span className="text-muted-foreground/60 flex-shrink-0 tabular-nums w-[135px]">
           {formatTime(entry.time)}
         </span>
         <span
