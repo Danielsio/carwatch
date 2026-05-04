@@ -147,14 +147,24 @@ type PricePoint struct {
 	ObservedAt time.Time
 }
 
+// ListingFilter restricts which listing_history rows are returned.
+// Zero values are ignored (no constraint applied for that field).
+type ListingFilter struct {
+	PriceMax int
+	YearMin  int
+	YearMax  int
+	MaxKm    int
+	MaxHand  int
+}
+
 type ListingStore interface {
 	SaveListing(ctx context.Context, r ListingRecord) error
 	SaveListings(ctx context.Context, records []ListingRecord) error
 	GetListing(ctx context.Context, chatID int64, token string) (*ListingRecord, error)
 	ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]ListingRecord, error)
 	CountUserListings(ctx context.Context, chatID int64) (int64, error)
-	ListSearchListings(ctx context.Context, chatID int64, searchID int64, limit, offset int, sort string) ([]ListingRecord, error)
-	CountSearchListings(ctx context.Context, chatID int64, searchID int64) (int64, error)
+	ListSearchListings(ctx context.Context, chatID int64, searchID int64, f ListingFilter, limit, offset int, sort string) ([]ListingRecord, error)
+	CountSearchListings(ctx context.Context, chatID int64, searchID int64, f ListingFilter) (int64, error)
 	PruneListings(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 

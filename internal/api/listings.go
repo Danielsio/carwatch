@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 type listingResponse struct {
@@ -77,6 +79,16 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func listingFilterFromSearch(sr *storage.Search) storage.ListingFilter {
+	return storage.ListingFilter{
+		PriceMax: sr.PriceMax,
+		YearMin:  sr.YearMin,
+		YearMax:  sr.YearMax,
+		MaxKm:    sr.MaxKm,
+		MaxHand:  sr.MaxHand,
+	}
+}
+
 func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 	chatID, okChat := requireChatID(w, r)
 	if !okChat {
@@ -100,20 +112,23 @@ func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limit := parseIntParam(r, "limit", 20)
-	if limit > 100 {
+	if limit <= 0 {
+		limit = 20
+	} else if limit > 100 {
 		limit = 100
 	}
 	offset := parseIntParam(r, "offset", 0)
 	sort := parseSortParam(r)
+	f := listingFilterFromSearch(sr)
 
-	listings, err := s.listings.ListSearchListings(r.Context(), chatID, sr.ID, limit, offset, sort)
+	listings, err := s.listings.ListSearchListings(r.Context(), chatID, sr.ID, f, limit, offset, sort)
 	if err != nil {
 		s.logger.Error("list search listings", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list listings")
 		return
 	}
 
-	total, err := s.listings.CountSearchListings(r.Context(), chatID, sr.ID)
+	total, err := s.listings.CountSearchListings(r.Context(), chatID, sr.ID, f)
 	if err != nil {
 		s.logger.Error("count search listings", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to count listings")

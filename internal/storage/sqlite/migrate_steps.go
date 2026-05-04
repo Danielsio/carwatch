@@ -627,3 +627,15 @@ func migrateUsersActiveIndex(db *sql.DB) error {
 
 	return nil
 }
+
+func migrateMissingIndexes(db *sql.DB) error {
+	if _, err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_seen_listings_search_chat
+			ON seen_listings(search_id, chat_id);
+		CREATE INDEX IF NOT EXISTS idx_pending_notifications_name_recipient
+			ON pending_notifications(search_name, recipient)
+	`); err != nil {
+		return fmt.Errorf("create missing indexes: %w", err)
+	}
+	return nil
+}

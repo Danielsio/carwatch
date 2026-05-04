@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
@@ -46,15 +47,27 @@ type runtimeStats struct {
 	Uptime     string `json:"uptime"`
 }
 
+func (s *Server) isAdmin(chatID int64, email string) bool {
+	return (chatID > 0 && s.cfg.AdminChatID != 0 && chatID == s.cfg.AdminChatID) ||
+		(s.cfg.AdminEmail != "" && email != "" && strings.EqualFold(email, s.cfg.AdminEmail))
+}
+
+func (s *Server) getMe(w http.ResponseWriter, r *http.Request) {
+	chatID, _ := chatIDFromContext(r.Context())
+	email := emailFromContext(r.Context())
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"email":    email,
+		"is_admin": s.isAdmin(chatID, email),
+	})
+}
+
 func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		chatID, chatOK := chatIDFromContext(r.Context())
+		chatID, _ := chatIDFromContext(r.Context())
 		email := emailFromContext(r.Context())
 
-		isAdmin := (chatOK && s.cfg.AdminChatID != 0 && chatID == s.cfg.AdminChatID) ||
-			(s.cfg.AdminEmail != "" && email != "" && email == s.cfg.AdminEmail)
-
-		if !isAdmin {
+		if !s.isAdmin(chatID, email) {
 			writeError(w, http.StatusForbidden, "admin access required")
 			return
 		}

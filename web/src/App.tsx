@@ -1,8 +1,9 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route } from "react-router";
+import { Routes, Route, Navigate } from "react-router";
 import { Loader2 } from "lucide-react";
 import { Shell } from "./components/layout/Shell";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { useMe } from "./hooks/useMe";
 
 const LandingPage = lazy(() =>
   import("./pages/LandingPage").then((m) => ({ default: m.LandingPage })),
@@ -53,6 +54,13 @@ const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
 
+function AdminGuard({ children }: { children: React.ReactNode }) {
+  const { data: me, isLoading } = useMe();
+  if (isLoading) return <PageFallback />;
+  if (!me?.is_admin) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
 function PageFallback() {
   return (
     <div className="flex min-h-[40vh] items-center justify-center">
@@ -76,7 +84,7 @@ export default function App() {
             <Route path="/searches/:id/listings" element={<ListingsPage />} />
             <Route path="/listings/:token" element={<ListingDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
             <Route path="/saved" element={<SavedPage />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />

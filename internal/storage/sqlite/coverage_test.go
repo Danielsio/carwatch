@@ -261,7 +261,7 @@ func TestDeleteSearch_CascadeCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	listings, err := store.ListSearchListings(ctx, 100, id, 100, 0, "newest")
+	listings, err := store.ListSearchListings(ctx, 100, id, storage.ListingFilter{}, 100, 0, "newest")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +322,7 @@ func TestDeleteSearch_DuplicateNameDoesNotAffectOther(t *testing.T) {
 	}
 
 	// Deleting id1 cascades only rows tied to that search_id; id2's listing remains.
-	listings, err := store.ListSearchListings(ctx, 100, id2, 100, 0, "newest")
+	listings, err := store.ListSearchListings(ctx, 100, id2, storage.ListingFilter{}, 100, 0, "newest")
 	if err != nil {
 		t.Fatal(err)
 	}
