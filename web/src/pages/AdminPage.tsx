@@ -1219,6 +1219,7 @@ function LogLine({
       )}
       tabIndex={hasAttrs ? 0 : undefined}
       role={hasAttrs ? "button" : undefined}
+      aria-expanded={hasAttrs ? expanded : undefined}
       onClick={hasAttrs ? onToggle : undefined}
       onKeyDown={hasAttrs ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } } : undefined}
     >
