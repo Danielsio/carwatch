@@ -125,7 +125,7 @@ func (f *Yad2Fetcher) FetchItem(ctx context.Context, token string) (ItemDetails,
 		return ItemDetails{}, fmt.Errorf("parse item %s: %w", token, err)
 	}
 
-	f.logger.Info("yad2 item page parsed",
+	f.logger.Debug("yad2 item page parsed",
 		"token", token,
 		"km", details.Km,
 		"city", details.City,
@@ -152,7 +152,12 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 	}
 
 	reqURL := buildURL(f.baseURL, params)
-	f.logger.Info("fetching listings", "url", reqURL)
+	f.logger.Info("fetching listings",
+		"url", reqURL,
+		"manufacturer", params.Manufacturer,
+		"model", params.Model,
+		"page", params.Page,
+	)
 
 	result, err := client.Get(ctx, reqURL)
 	if err != nil {
@@ -174,7 +179,17 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 		return nil, fmt.Errorf("parse page: %w", err)
 	}
 
-	f.logger.Info("fetched listings", "count", len(listings))
+	// Remember this client so FetchItem reuses its session cookies.
+	f.lastFetchMu.Lock()
+	f.lastFetchClient = client
+	f.lastFetchMu.Unlock()
+
+	f.logger.Info("fetched listings",
+		"count", len(listings),
+		"manufacturer", params.Manufacturer,
+		"model", params.Model,
+		"page", params.Page,
+	)
 	return listings, nil
 }
 
