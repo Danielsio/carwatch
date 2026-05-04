@@ -8,7 +8,7 @@ import (
 
 func (s *Store) MarketListings(ctx context.Context) ([]storage.MarketListing, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT DISTINCT ON (token) manufacturer, model, year, price
+		SELECT DISTINCT ON (token) manufacturer, model, year, price, km
 		FROM listing_history
 		WHERE manufacturer IS NOT NULL AND manufacturer != ''
 		  AND model IS NOT NULL AND model != ''
@@ -22,7 +22,7 @@ func (s *Store) MarketListings(ctx context.Context) ([]storage.MarketListing, er
 	var listings []storage.MarketListing
 	for rows.Next() {
 		var l storage.MarketListing
-		if err := rows.Scan(&l.Manufacturer, &l.Model, &l.Year, &l.Price); err != nil {
+		if err := rows.Scan(&l.Manufacturer, &l.Model, &l.Year, &l.Price, &l.Km); err != nil {
 			return nil, err
 		}
 		listings = append(listings, l)

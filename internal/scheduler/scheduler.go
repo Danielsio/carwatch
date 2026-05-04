@@ -586,6 +586,7 @@ func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
 			Model:        l.Model,
 			Year:         l.Year,
 			Price:        l.Price,
+			Km:           l.Km,
 		}
 	}
 	return scoring.NewMarketCache(data)
@@ -887,11 +888,12 @@ func (s *Scheduler) scoreAndRecordListings(search storage.Search, l model.RawLis
 		}
 	}
 	if marketCache != nil && l.Price > 0 {
-		median, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
+		median, medianKm, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
 		if ok {
 			listing.DealScore = &model.ScoreInfo{
-				Score:       scoring.Score(l.Price, median),
+				Score:       scoring.ScoreWithKm(l.Price, l.Km, median, medianKm),
 				MedianPrice: median,
+				MedianKm:    medianKm,
 				CohortSize:  cohort,
 			}
 		}

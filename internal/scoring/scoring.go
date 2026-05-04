@@ -9,18 +9,23 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-const MinCohortSize = 10
+const (
+	MinCohortSize = 10
+	minPriceFloor = 5000 // ignore placeholder prices below this (NIS)
+)
 
 type ListingData struct {
 	Manufacturer string
 	Model        string
 	Year         int
 	Price        int
+	Km           int
 }
 
 type entry struct {
 	Year  int
 	Price int
+	Km    int
 }
 
 type MarketCache struct {
@@ -32,13 +37,14 @@ func NewMarketCache(listings []ListingData) *MarketCache {
 	m := make(map[string][]entry)
 	for _, l := range listings {
 		key := cacheKey(l.Manufacturer, l.Model)
-		m[key] = append(m[key], entry{Year: l.Year, Price: l.Price})
+		m[key] = append(m[key], entry{Year: l.Year, Price: l.Price, Km: l.Km})
 	}
 	return &MarketCache{data: m}
 }
 
 type lookupResult struct {
 	median     int
+	medianKm   int
 	cohortSize int
 	ok         bool
 }
@@ -47,38 +53,80 @@ func cohortLookupKey(manufacturer, model string, year int) string {
 	return fmt.Sprintf("%s|%d", cacheKey(manufacturer, model), year)
 }
 
-func (mc *MarketCache) Lookup(manufacturer, model string, year int) (median int, cohortSize int, ok bool) {
+// Lookup returns the median price, median km, cohort size, and whether enough data exists.
+func (mc *MarketCache) Lookup(manufacturer, model string, year int) (median int, medianKm int, cohortSize int, ok bool) {
 	key := cohortLookupKey(manufacturer, model, year)
 	v, _, _ := mc.sf.Do(key, func() (interface{}, error) {
 		return mc.lookupUnsynchronized(manufacturer, model, year), nil
 	})
 	res := v.(lookupResult)
-	return res.median, res.cohortSize, res.ok
+	return res.median, res.medianKm, res.cohortSize, res.ok
 }
 
 func (mc *MarketCache) lookupUnsynchronized(manufacturer, model string, year int) lookupResult {
 	entries := mc.data[cacheKey(manufacturer, model)]
-	var prices []int
+	var prices, kms []int
 	for _, e := range entries {
-		if abs(e.Year-year) <= 1 {
+		if abs(e.Year-year) <= 1 && e.Price >= minPriceFloor {
 			prices = append(prices, e.Price)
+			if e.Km > 0 {
+				kms = append(kms, e.Km)
+			}
 		}
 	}
 	if len(prices) < MinCohortSize {
 		return lookupResult{cohortSize: len(prices)}
 	}
-	sort.Ints(prices)
-	n := len(prices)
-	var median int
-	if n%2 == 0 {
-		median = (prices[n/2-1] + prices[n/2]) / 2
-	} else {
-		median = prices[n/2]
+	return lookupResult{
+		median:     medianInt(prices),
+		medianKm:   medianInt(kms),
+		cohortSize: len(prices),
+		ok:         true,
 	}
-	return lookupResult{median: median, cohortSize: n, ok: true}
 }
 
+func medianInt(vals []int) int {
+	if len(vals) == 0 {
+		return 0
+	}
+	sort.Ints(vals)
+	n := len(vals)
+	if n%2 == 0 {
+		return (vals[n/2-1] + vals[n/2]) / 2
+	}
+	return vals[n/2]
+}
+
+// Score computes a deal score (0-100) based on how far the listing price is
+// below the median. Higher = better deal.
 func Score(listingPrice, medianPrice int) int {
+	return scoreRaw(listingPrice, medianPrice)
+}
+
+// ScoreWithKm computes a km-adjusted deal score. When both the listing and
+// cohort have km data, a low-km car priced at median gets a bonus and a
+// high-km car priced at median gets a penalty. Falls back to price-only
+// when km data is unavailable.
+func ScoreWithKm(listingPrice, listingKm, medianPrice, medianKm int) int {
+	if medianKm <= 0 || listingKm <= 0 {
+		return scoreRaw(listingPrice, medianPrice)
+	}
+	// Km adjustment: if listing has fewer km than median, it's a better deal.
+	// Scale: 50% fewer km -> +10 bonus, 50% more km -> -10 penalty.
+	kmRatio := float64(listingKm) / float64(medianKm)
+	kmAdj := (1.0 - kmRatio) * 20.0 // +/-20 points for double/half km
+	base := float64(scoreRaw(listingPrice, medianPrice))
+	adjusted := base + kmAdj
+	if adjusted < 0 {
+		return 0
+	}
+	if adjusted > 100 {
+		return 100
+	}
+	return int(math.Round(adjusted))
+}
+
+func scoreRaw(listingPrice, medianPrice int) int {
 	if medianPrice <= 0 || listingPrice <= 0 {
 		return 0
 	}
@@ -261,7 +309,9 @@ func yearScore(year, yearMin, yearMax int) float64 {
 		return 1.0
 	}
 	s := float64(year-yearMin) / float64(yearMax-yearMin)
-	return clamp01(s)
+	// Concave curve: newer years cluster near top, older years spread apart,
+	// matching non-linear depreciation in the Israeli market.
+	return clamp01(math.Pow(s, 0.7))
 }
 
 func engineScore(engineVolume float64, engineMinCC int) float64 {
@@ -271,8 +321,13 @@ func engineScore(engineVolume float64, engineMinCC int) float64 {
 	if engineVolume <= 0 {
 		return 0.5
 	}
-	s := (engineVolume - float64(engineMinCC)) / float64(engineMinCC)
-	return clamp01(math.Min(s, 1.0))
+	minCC := float64(engineMinCC)
+	if engineVolume < minCC {
+		return 0.0
+	}
+	// Meeting the minimum scores 0.7; 50% above minimum reaches 1.0.
+	bonus := (engineVolume - minCC) / (minCC * 0.5)
+	return clamp01(0.7 + 0.3*bonus)
 }
 
 func clamp01(v float64) float64 {
