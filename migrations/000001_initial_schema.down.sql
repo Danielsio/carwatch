@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS link_tokens;
+DROP TABLE IF EXISTS hidden_listings;
+DROP TABLE IF EXISTS saved_listings;
+DROP TABLE IF EXISTS pending_digest;
+DROP TABLE IF EXISTS listing_history;
+DROP TABLE IF EXISTS price_history;
+DROP TABLE IF EXISTS pending_notifications;
+DROP TABLE IF EXISTS seen_listings;
+DROP TABLE IF EXISTS searches;
+DROP TABLE IF EXISTS users;

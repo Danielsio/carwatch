@@ -58,8 +58,11 @@ type TelegramConfig struct {
 }
 
 type StorageConfig struct {
-	DBPath     string        `yaml:"db_path"`
-	PruneAfter time.Duration `yaml:"prune_after"`
+	Driver         string        `yaml:"driver"`
+	DBPath         string        `yaml:"db_path"`
+	DSN            string        `yaml:"dsn"`
+	MigrationsPath string        `yaml:"migrations_path"`
+	PruneAfter     time.Duration `yaml:"prune_after"`
 }
 
 type HTTPConfig struct {
@@ -121,8 +124,14 @@ func applyDefaults(cfg *Config) {
 	if cfg.Polling.Timezone == "" {
 		cfg.Polling.Timezone = "Asia/Jerusalem"
 	}
+	if cfg.Storage.Driver == "" {
+		cfg.Storage.Driver = "sqlite"
+	}
 	if cfg.Storage.DBPath == "" {
 		cfg.Storage.DBPath = "./data/dedup.db"
+	}
+	if cfg.Storage.MigrationsPath == "" {
+		cfg.Storage.MigrationsPath = "./migrations"
 	}
 	if cfg.Storage.PruneAfter == 0 {
 		cfg.Storage.PruneAfter = 30 * 24 * time.Hour

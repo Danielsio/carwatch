@@ -11,6 +11,8 @@ var (
 	ErrLinkTokenNotFound = errors.New("link token not found")
 	ErrLinkTokenExpired  = errors.New("link token expired")
 	ErrLinkTokenUsed     = errors.New("link token already used")
+	// ErrNotPurgeable is returned by AdminStore.PurgeTable for non-allowlisted tables.
+	ErrNotPurgeable = errors.New("table is not purgeable")
 )
 
 type User struct {
