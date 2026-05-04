@@ -322,6 +322,10 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 	existing.ExcludeKeys = splitKeywords(req.ExcludeKeys)
 
 	if err := s.searches.UpdateSearch(r.Context(), *existing); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "search not found")
+			return
+		}
 		s.logger.Error("update search", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to update search")
 		return

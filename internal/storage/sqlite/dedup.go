@@ -35,5 +35,9 @@ func (s *Store) Prune(ctx context.Context, olderThan time.Duration) (int64, erro
 	if err != nil {
 		return 0, fmt.Errorf("prune seen listings: %w", err)
 	}
-	return result.RowsAffected()
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("prune seen listings rows affected: %w", err)
+	}
+	return rows, nil
 }

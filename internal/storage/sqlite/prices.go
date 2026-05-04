@@ -63,7 +63,10 @@ func (s *Store) GetPriceHistory(ctx context.Context, token string) ([]storage.Pr
 		}
 		points = append(points, p)
 	}
-	return points, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get price history rows: %w", err)
+	}
+	return points, nil
 }
 
 func (s *Store) PrunePrices(ctx context.Context, olderThan time.Duration) (int64, error) {
@@ -72,5 +75,9 @@ func (s *Store) PrunePrices(ctx context.Context, olderThan time.Duration) (int64
 	if err != nil {
 		return 0, fmt.Errorf("prune prices: %w", err)
 	}
-	return result.RowsAffected()
+	n, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("prune prices rows affected: %w", err)
+	}
+	return n, nil
 }

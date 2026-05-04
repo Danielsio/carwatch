@@ -105,12 +105,14 @@ func (m *errSearchStore) ListSearches(_ context.Context, _ int64) ([]storage.Sea
 	return m.searches, nil
 }
 
-func (m *errSearchStore) GetSearch(_ context.Context, _ int64, _ int64) (*storage.Search, error) {
+func (m *errSearchStore) GetSearch(_ context.Context, id int64, chatID int64) (*storage.Search, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
-	if len(m.searches) > 0 {
-		return &m.searches[0], nil
+	for i := range m.searches {
+		if m.searches[i].ID == id && m.searches[i].ChatID == chatID {
+			return &m.searches[i], nil
+		}
 	}
 	return nil, nil
 }

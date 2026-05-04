@@ -152,7 +152,10 @@ func TestCloneSearchRespectsLimit(t *testing.T) {
 	}
 
 	// Verify that source search exists (the handler would check this).
-	src, _ := store.GetSearch(ctx, srcID, 100)
+	src, err := store.GetSearch(ctx, srcID, 100)
+	if err != nil {
+		t.Fatalf("get source search: %v", err)
+	}
 	if src == nil {
 		t.Fatal("source search not found")
 	}
@@ -251,7 +254,10 @@ func TestGetSearchByShareToken(t *testing.T) {
 		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
 	})
 
-	original, _ := store.GetSearch(ctx, id, 100)
+	original, err := store.GetSearch(ctx, id, 100)
+	if err != nil {
+		t.Fatalf("get search: %v", err)
+	}
 	if original == nil {
 		t.Fatal("original search not found")
 	}
@@ -289,8 +295,14 @@ func TestShareTokensAreUnique(t *testing.T) {
 		ChatID: 100, Name: "second", Manufacturer: 2, Model: 2,
 	})
 
-	s1, _ := store.GetSearch(ctx, id1, 100)
-	s2, _ := store.GetSearch(ctx, id2, 100)
+	s1, err := store.GetSearch(ctx, id1, 100)
+	if err != nil {
+		t.Fatalf("get search 1: %v", err)
+	}
+	s2, err := store.GetSearch(ctx, id2, 100)
+	if err != nil {
+		t.Fatalf("get search 2: %v", err)
+	}
 
 	if s1.ShareToken == s2.ShareToken {
 		t.Error("two searches should have different share tokens")
