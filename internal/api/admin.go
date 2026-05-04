@@ -361,10 +361,20 @@ func (s *Server) adminLogStream(w http.ResponseWriter, r *http.Request) {
 	defer unsub()
 
 	ctx := r.Context()
+	heartbeat := time.NewTicker(15 * time.Second)
+	defer heartbeat.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-heartbeat.C:
+			if err := rc.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+				return
+			}
+			if _, err := w.Write([]byte(": keepalive\n\n")); err != nil {
+				return
+			}
+			flusher.Flush()
 		case entry := <-ch:
 			data, err := json.Marshal(entry)
 			if err != nil {

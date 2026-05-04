@@ -68,7 +68,11 @@ func (h *TeeHandler) Handle(ctx context.Context, r slog.Record) error {
 		if a.Key == "component" {
 			component = a.Value.String()
 		} else {
-			attrs[a.Key] = attrValueString(a.Value)
+			key := a.Key
+			if groupPrefix != "" {
+				key = groupPrefix + key
+			}
+			attrs[key] = attrValueString(a.Value)
 		}
 		return true
 	})

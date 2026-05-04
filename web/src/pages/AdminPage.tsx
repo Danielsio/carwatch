@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   Car,
@@ -85,9 +85,15 @@ function ConfirmModal({
   onCancel: () => void;
   loading?: boolean;
 }) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    modalRef.current?.focus();
+  }, []);
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      ref={modalRef}
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 outline-none"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-title"
@@ -1029,6 +1035,7 @@ function LogsTab({ active }: { active: boolean }) {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+<<<<<<< HEAD
   const [backendLevel, setBackendLevel] = useState("INFO");
 
   useEffect(() => {
@@ -1044,6 +1051,8 @@ function LogsTab({ active }: { active: boolean }) {
       // non-critical
     }
   }
+=======
+>>>>>>> origin/main
 
   const filtered = logs.filter(
     (e) => componentFilter.has(e.component) && levelFilter.has(e.level),
@@ -1071,9 +1080,17 @@ function LogsTab({ active }: { active: boolean }) {
 
   function formatTime(iso: string) {
     try {
+<<<<<<< HEAD
       const d = new Date(iso);
       const pad = (n: number) => String(n).padStart(2, "0");
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+=======
+      return new Date(iso).toLocaleTimeString("he-IL", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+>>>>>>> origin/main
     } catch {
       return "";
     }
@@ -1144,6 +1161,7 @@ function LogsTab({ active }: { active: boolean }) {
         </div>
 
         <div className="flex items-center gap-2">
+<<<<<<< HEAD
           {/* Backend log level selector */}
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] text-muted-foreground">רמה:</span>
@@ -1171,6 +1189,8 @@ function LogsTab({ active }: { active: boolean }) {
 
           <div className="h-4 w-px bg-border/50" />
 
+=======
+>>>>>>> origin/main
           <button
             type="button"
             onClick={() => setAutoScroll((p) => !p)}
@@ -1206,7 +1226,11 @@ function LogsTab({ active }: { active: boolean }) {
           </span>
         </div>
 
+<<<<<<< HEAD
         <div dir="ltr" className="max-h-[60vh] overflow-y-auto p-2 font-mono text-xs">
+=======
+        <div className="max-h-[60vh] overflow-y-auto p-2 font-mono text-xs">
+>>>>>>> origin/main
           {filtered.length === 0 ? (
             <EmptyState
               icon={ScrollText}
@@ -1264,7 +1288,11 @@ function LogLine({
       onKeyDown={hasAttrs ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } } : undefined}
     >
       <div className="flex items-start gap-2">
+<<<<<<< HEAD
         <span className="text-muted-foreground/60 flex-shrink-0 tabular-nums w-[135px]">
+=======
+        <span className="text-muted-foreground/60 flex-shrink-0 tabular-nums w-[60px]">
+>>>>>>> origin/main
           {formatTime(entry.time)}
         </span>
         <span
@@ -1290,7 +1318,11 @@ function LogLine({
         )}
       </div>
       {expanded && hasAttrs && (
+<<<<<<< HEAD
         <div className="mt-2 ml-[132px] space-y-0.5 border-l border-border/50 pl-3">
+=======
+        <div className="mt-2 mr-[132px] space-y-0.5 border-r border-border/50 pr-3">
+>>>>>>> origin/main
           {Object.entries(entry.attrs!).map(([k, v]) => (
             <div key={k} className="flex gap-2">
               <span className="text-muted-foreground/60">{k}:</span>
@@ -1446,7 +1478,7 @@ export function AdminPage() {
       </div>
 
       {/* Tab Content */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="popLayout">
         <motion.div
           key={activeTab}
           initial={{ opacity: 0, y: 8 }}
