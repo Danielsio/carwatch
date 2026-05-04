@@ -179,11 +179,6 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 		return nil, fmt.Errorf("parse page: %w", err)
 	}
 
-	// Remember this client so FetchItem reuses its session cookies.
-	f.lastFetchMu.Lock()
-	f.lastFetchClient = client
-	f.lastFetchMu.Unlock()
-
 	f.logger.Info("fetched listings",
 		"count", len(listings),
 		"manufacturer", params.Manufacturer,

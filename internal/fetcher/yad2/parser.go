@@ -1,6 +1,7 @@
 package yad2
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -51,7 +52,7 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 		return nil, err
 	}
 
-	if logger != nil && len(items) > 0 {
+	if logger != nil && len(items) > 0 && logger.Enabled(context.Background(), slog.LevelDebug) {
 		var probe feedItem
 		if err := json.Unmarshal(items[0], &probe); err == nil {
 			logger.Debug("yad2 feed item summary",
