@@ -27,6 +27,8 @@ import (
 	"github.com/dsionov/carwatch/internal/notifier/telegram"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/spa"
+	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/dsionov/carwatch/internal/storage/postgres"
 	"github.com/dsionov/carwatch/internal/storage/sqlite"
 	"github.com/dsionov/carwatch/web"
 )
@@ -69,7 +71,7 @@ func run(configPath string, logger *slog.Logger) error {
 	slog.SetDefault(logger)
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
-	store, err := sqlite.New(cfg.Storage.DBPath)
+	store, err := openStore(cfg)
 	if err != nil {
 		return fmt.Errorf("create store: %w", err)
 	}
@@ -193,7 +195,16 @@ func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, 
 	return yad2Fetcher, cachingFetcher, fetcherFactory, nil
 }
 
-func buildBot(cfg *config.Config, store *sqlite.Store, dynCatalog *catalog.DynamicCatalog, h *health.Status, logger *slog.Logger) (*cwbot.Bot, *telegram.Notifier, *notifier.MultiNotifier, error) {
+func openStore(cfg *config.Config) (storage.Store, error) {
+	switch cfg.Storage.Driver {
+	case "postgres":
+		return postgres.New(cfg.Storage.DSN, cfg.Storage.MigrationsPath)
+	default:
+		return sqlite.New(cfg.Storage.DBPath)
+	}
+}
+
+func buildBot(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, h *health.Status, logger *slog.Logger) (*cwbot.Bot, *telegram.Notifier, *notifier.MultiNotifier, error) {
 	botHandler := cwbot.New(nil, store, store, cwbot.Config{
 		AdminChatID:  cfg.Telegram.AdminChatID,
 		MaxSearches:  cfg.Telegram.MaxSearches,
@@ -227,7 +238,7 @@ func buildBot(cfg *config.Config, store *sqlite.Store, dynCatalog *catalog.Dynam
 	return botHandler, tgNotif, multi, nil
 }
 
-func buildAPI(cfg *config.Config, store *sqlite.Store, dynCatalog *catalog.DynamicCatalog, logger *slog.Logger) (*api.Server, error) {
+func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, logger *slog.Logger) (*api.Server, error) {
 	var firebaseAuth api.TokenVerifier
 	if cfg.Firebase.ProjectID != "" {
 		v, err := api.NewFirebaseVerifier(cfg.Firebase.CredentialsFile, cfg.Firebase.CredentialsJSON, cfg.Firebase.ProjectID)

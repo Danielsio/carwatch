@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 type adminListingResponse struct {
@@ -140,7 +140,7 @@ func (s *Server) adminPurgeTable(w http.ResponseWriter, r *http.Request) {
 	deleted, err := s.admin.PurgeTable(r.Context(), body.Table)
 	if err != nil {
 		s.logger.Error("admin: purge table", "table", body.Table, "error", err)
-		if errors.Is(err, sqlite.ErrNotPurgeable) {
+		if errors.Is(err, storage.ErrNotPurgeable) {
 			writeError(w, http.StatusBadRequest, "purge operation failed")
 		} else {
 			writeError(w, http.StatusInternalServerError, "purge operation failed")
