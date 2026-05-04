@@ -155,6 +155,7 @@ type ListingStore interface {
 	CountUserListings(ctx context.Context, chatID int64) (int64, error)
 	ListSearchListings(ctx context.Context, chatID int64, searchID int64, limit, offset int, sort string) ([]ListingRecord, error)
 	CountSearchListings(ctx context.Context, chatID int64, searchID int64) (int64, error)
+	PruneListings(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 
 type SavedListingStore interface {

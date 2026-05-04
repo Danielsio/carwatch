@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/storage"
 )
@@ -202,6 +203,23 @@ func (s *Store) CountSearchListings(ctx context.Context, chatID int64, searchID 
 		SELECT COUNT(*) FROM listing_history
 		WHERE chat_id = ? AND search_id = ?`, chatID, searchID).Scan(&count)
 	return count, err
+}
+
+func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-olderThan)
+	result, err := s.db.ExecContext(ctx, `
+		DELETE FROM listing_history
+		WHERE first_seen_at < ?
+		  AND NOT EXISTS (
+		      SELECT 1 FROM saved_listings
+		      WHERE saved_listings.token = listing_history.token
+		        AND saved_listings.chat_id = listing_history.chat_id
+		  )`,
+		cutoff.UTC().Format(firstSeenAtLayout))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 func (s *Store) SaveBookmark(ctx context.Context, chatID int64, token string) error {

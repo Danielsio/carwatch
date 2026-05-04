@@ -2682,3 +2682,80 @@ func TestSavedAmong_LargeBatch(t *testing.T) {
 	}
 }
 
+func TestPruneListings_RemovesOld(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	old := time.Now().Add(-100 * 24 * time.Hour)
+	recent := time.Now().Add(-10 * 24 * time.Hour)
+
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "old-1", ChatID: 100, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000,
+		FirstSeenAt: old,
+	})
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "old-2", ChatID: 100, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 85000,
+		FirstSeenAt: old,
+	})
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "recent-1", ChatID: 100, SearchName: "test",
+		Manufacturer: "Honda", Model: "Civic", Year: 2022, Price: 95000,
+		FirstSeenAt: recent,
+	})
+
+	pruned, err := store.PruneListings(ctx, 90*24*time.Hour)
+	if err != nil {
+		t.Fatalf("PruneListings: %v", err)
+	}
+	if pruned != 2 {
+		t.Errorf("expected 2 pruned, got %d", pruned)
+	}
+
+	count, _ := store.CountUserListings(ctx, 100)
+	if count != 1 {
+		t.Errorf("expected 1 remaining listing, got %d", count)
+	}
+}
+
+func TestPruneListings_PreservesSaved(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	old := time.Now().Add(-100 * 24 * time.Hour)
+
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "old-saved", ChatID: 100, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000,
+		FirstSeenAt: old,
+	})
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "old-unsaved", ChatID: 100, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 85000,
+		FirstSeenAt: old,
+	})
+
+	_ = store.SaveBookmark(ctx, 100, "old-saved")
+
+	pruned, err := store.PruneListings(ctx, 90*24*time.Hour)
+	if err != nil {
+		t.Fatalf("PruneListings: %v", err)
+	}
+	if pruned != 1 {
+		t.Errorf("expected 1 pruned (unsaved only), got %d", pruned)
+	}
+
+	saved, _ := store.GetListing(ctx, 100, "old-saved")
+	if saved == nil {
+		t.Error("saved listing should survive pruning")
+	}
+
+	unsaved, _ := store.GetListing(ctx, 100, "old-unsaved")
+	if unsaved != nil {
+		t.Error("unsaved old listing should be pruned")
+	}
+}
+

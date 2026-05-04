@@ -278,3 +278,7 @@ func (m *mockListingStore) ListSearchListings(_ context.Context, _ int64, _ int6
 func (m *mockListingStore) CountSearchListings(_ context.Context, _ int64, _ int64) (int64, error) {
 	return 0, nil
 }
+
+func (m *mockListingStore) PruneListings(_ context.Context, _ time.Duration) (int64, error) {
+	return 0, nil
+}
