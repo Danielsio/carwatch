@@ -68,6 +68,7 @@ type Scheduler struct {
 
 	langCache   sync.Map
 	digestCache sync.Map
+	cycleCount  uint64
 }
 
 type digestMeta struct {
@@ -180,8 +181,8 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	logJitter := s.cfg.Polling.Jitter
 	s.cfgMu.RUnlock()
 	s.logger.Info("scheduler started",
-		"interval", logInterval,
-		"jitter", logJitter,
+		"interval", logInterval.String(),
+		"jitter", logJitter.String(),
 	)
 
 	s.retryPending(ctx)
@@ -212,13 +213,13 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		if !s.isActiveHours() {
 			if sleepUntil := s.durationUntilActiveStart(); sleepUntil > 0 {
 				s.logger.Info("outside active hours, sleeping until start",
-					"sleep", sleepUntil.Round(time.Minute),
+					"sleep", sleepUntil.Round(time.Minute).String(),
 				)
 				delay = sleepUntil
 			}
 		}
 
-		s.logger.Info("next poll", "delay", delay.Round(time.Second))
+		s.logger.Info("next poll", "delay", delay.Round(time.Second).String())
 
 		timer.Reset(delay)
 
@@ -296,7 +297,12 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 		lastErr = err
 
 		if errors.Is(err, fetcher.ErrPartialResults) && len(listings) > 0 {
-			s.logger.Warn("fetch returned partial results", "error", err, "count", len(listings))
+			s.logger.Warn("fetch returned partial results",
+				"error", err,
+				"count", len(listings),
+				"manufacturer", params.Manufacturer,
+				"model", params.Model,
+			)
 			return listings, nil
 		}
 
@@ -308,7 +314,10 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 			delay := retryBaseDelay * (1 << attempt)
 			s.logger.Warn("fetch failed, retrying",
 				"attempt", attempt+1,
-				"delay", delay,
+				"max_attempts", maxRetries,
+				"delay", delay.String(),
+				"manufacturer", params.Manufacturer,
+				"model", params.Model,
 				"error", err,
 			)
 			select {
@@ -432,8 +441,8 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 			s.logger.Error("purging malformed pending notification",
 				"id", p.ID,
 				"recipient", maskPhone(p.Recipient),
-				"payload_len", len(p.Payload),
-				"payload_preview", truncateStr(p.Payload, 200),
+				"msg_len", len(p.Payload),
+				"msg_preview", truncateStr(p.Payload, 200),
 			)
 			if err := s.stores.Queue.AckNotification(ctx, p.ID); err != nil {
 				s.logger.Error("ack malformed notification failed", "id", p.ID, "error", err)
@@ -443,8 +452,8 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 		s.logger.Debug("retrying pending notification",
 			"id", p.ID,
 			"recipient", maskPhone(p.Recipient),
-			"payload_len", len(p.Payload),
-			"payload_preview", truncateStr(p.Payload, 100),
+			"msg_len", len(p.Payload),
+			"msg_preview", truncateStr(p.Payload, 100),
 		)
 		if err := s.notifier.NotifyRaw(ctx, p.Recipient, p.Payload); err != nil {
 			s.logger.Error("retry notification failed",
@@ -461,7 +470,11 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 }
 
 func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
-	s.logger.Info("starting poll cycle")
+	s.cycleCount++
+	cycle := s.cycleCount
+	cycleStart := time.Now()
+
+	s.logger.Info("poll cycle started", "cycle", cycle)
 
 	s.langCache.Range(func(k, _ any) bool { s.langCache.Delete(k); return true })
 	s.digestCache.Range(func(k, _ any) bool { s.digestCache.Delete(k); return true })
@@ -475,15 +488,15 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.processExpiredPremium(ctx)
 
 	if len(searches) == 0 {
-		s.logger.Info("no active searches")
+		s.logger.Info("poll cycle done", "cycle", cycle, "elapsed", time.Since(cycleStart).Round(time.Millisecond), "searches", 0)
 		return nil
 	}
 
 	marketCache := s.buildMarketCache(ctx)
 	groups := GroupSearches(searches)
-	s.logger.Info("grouped searches", "groups", len(groups), "total_searches", len(searches))
+	s.logger.Info("grouped searches", "cycle", cycle, "groups", len(groups), "total_searches", len(searches))
 
-	allFailed := s.runFetchGroups(ctx, groups, marketCache)
+	allFailed, stats := s.runFetchGroups(ctx, groups, marketCache)
 
 	if s.catalogIngester != nil {
 		s.catalogIngester.Flush(ctx)
@@ -491,6 +504,17 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 
 	s.processDigests(ctx)
 	s.processDailyDigests(ctx)
+
+	s.logger.Info("poll cycle done",
+		"cycle", cycle,
+		"elapsed", time.Since(cycleStart).Round(time.Millisecond),
+		"groups", len(groups),
+		"searches", len(searches),
+		"listings_fetched", stats.listingsFetched,
+		"new_listings", stats.newListings,
+		"notifications_sent", stats.notificationsSent,
+		"groups_failed", stats.groupsFailed,
+	)
 
 	if allFailed && len(groups) > 0 {
 		s.observer.RecordError()
@@ -556,9 +580,16 @@ func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
 	return scoring.NewMarketCache(data)
 }
 
+type cycleStats struct {
+	listingsFetched   int
+	newListings       int
+	notificationsSent int
+	groupsFailed      int
+}
+
 // runFetchGroups runs processGroup for each canonical group with bounded concurrency.
-// It reports whether every group failed.
-func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup, marketCache *scoring.MarketCache) bool {
+// It reports whether every group failed and aggregate stats.
+func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup, marketCache *scoring.MarketCache) (bool, cycleStats) {
 	s.cfgMu.RLock()
 	concurrency := s.cfg.Polling.MaxConcurrentFetches
 	s.cfgMu.RUnlock()
@@ -570,6 +601,7 @@ func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup,
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	allFailed := true
+	var stats cycleStats
 
 	cancelled := false
 	for _, group := range groups {
@@ -598,7 +630,8 @@ func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup,
 				}
 			}()
 
-			if err := s.processGroup(ctx, g, marketCache); err != nil {
+			gs, err := s.processGroup(ctx, g, marketCache)
+			if err != nil {
 				s.logger.Error("group failed",
 					"manufacturer", g.Manufacturer,
 					"model", g.Model,
@@ -608,10 +641,16 @@ func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup,
 					s.backoffMultiplier = min(s.backoffMultiplier*2, maxBackoff)
 					s.boMu.Unlock()
 				}
+				mu.Lock()
+				stats.groupsFailed++
+				mu.Unlock()
 				return
 			}
 			mu.Lock()
 			allFailed = false
+			stats.listingsFetched += gs.listingsFetched
+			stats.newListings += gs.newListings
+			stats.notificationsSent += gs.notificationsSent
 			mu.Unlock()
 			s.boMu.Lock()
 			s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
@@ -619,21 +658,18 @@ func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup,
 		}(group)
 	}
 	wg.Wait()
-	return allFailed
+	return allFailed, stats
 }
 
-func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, marketCache *scoring.MarketCache) error {
-	raw, _, err := s.fetchAndEnrich(ctx, group)
+func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, marketCache *scoring.MarketCache) (cycleStats, error) {
+	groupStart := time.Now()
+	raw, source, err := s.fetchAndEnrich(ctx, group)
 	if err != nil {
-		return err
+		return cycleStats{}, err
 	}
 
-	s.logger.Info("fetched for group",
-		"manufacturer", group.Manufacturer,
-		"model", group.Model,
-		"raw_count", len(raw),
-		"user_searches", len(group.Searches),
-	)
+	var gs cycleStats
+	gs.listingsFetched = len(raw)
 
 	for _, search := range group.Searches {
 		filtered := filter.Apply(buildFilterCriteria(search), raw)
@@ -644,10 +680,24 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 				continue
 			}
 		}
-		s.deliverResults(ctx, search, lang, sr)
+		gs.newListings += len(sr.newListings)
+		delivered := s.deliverResults(ctx, search, lang, sr)
+		if delivered {
+			gs.notificationsSent++
+		}
 	}
 
-	return nil
+	s.logger.Info("group done",
+		"source", source,
+		"manufacturer", group.Manufacturer,
+		"model", group.Model,
+		"listings", len(raw),
+		"new", gs.newListings,
+		"user_searches", len(group.Searches),
+		"elapsed", time.Since(groupStart).Round(time.Millisecond),
+	)
+
+	return gs, nil
 }
 
 func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup) ([]model.RawListing, string, error) {
@@ -677,7 +727,12 @@ func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup) ([
 		defer cancelEnrich()
 		enriched := s.kmEnricher.Enrich(enrichCtx, raw)
 		if enriched > 0 {
-			s.logger.Info("km enrichment complete", "enriched", enriched)
+			s.logger.Info("km enrichment complete",
+				"enriched", enriched,
+				"total", len(raw),
+				"manufacturer", group.Manufacturer,
+				"model", group.Model,
+			)
 		}
 	}
 
@@ -872,8 +927,9 @@ func (s *Scheduler) persistListings(ctx context.Context, records []storage.Listi
 	return nil
 }
 
-func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, lang locale.Lang, sr searchResult) {
+func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, lang locale.Lang, sr searchResult) bool {
 	delivery := s.deliveryFor(ctx, search.ChatID, lang)
+	sent := false
 
 	for _, msg := range sr.priceDropMessages {
 		if err := delivery.DeliverRaw(ctx, search.ChatID, msg); err != nil {
@@ -889,7 +945,7 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 						)
 					}
 				}
-				break
+				return false
 			}
 			s.logger.Error("price drop delivery failed",
 				"chat_id", search.ChatID,
@@ -899,7 +955,7 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 	}
 
 	if len(sr.newListings) == 0 {
-		return
+		return sent
 	}
 
 	s.observer.RecordListingsFound(len(sr.newListings))
@@ -940,7 +996,9 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 		}
 	} else {
 		s.observer.RecordNotificationSent()
+		sent = true
 	}
+	return sent
 }
 
 func (s *Scheduler) processDigests(ctx context.Context) {

@@ -196,7 +196,7 @@ func (n *Notifier) sendMessageWithRetry(ctx context.Context, chatID string, para
 			delay = w
 		}
 		n.logger.Warn("rate limited by telegram, retrying",
-			"chat_id", chatID, "attempt", attempt+1, "wait", delay)
+			"chat_id", chatID, "attempt", attempt+1, "wait", delay.String())
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -223,7 +223,7 @@ func (n *Notifier) sendPhotoWithRetry(ctx context.Context, chatID string, params
 			delay = w
 		}
 		n.logger.Warn("rate limited by telegram on sendPhoto, retrying",
-			"chat_id", chatID, "attempt", attempt+1, "wait", delay)
+			"chat_id", chatID, "attempt", attempt+1, "wait", delay.String())
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

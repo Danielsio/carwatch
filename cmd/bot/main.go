@@ -66,6 +66,7 @@ func run(configPath string, logger *slog.Logger) error {
 		return fmt.Errorf("parse log_level %q: %w", cfg.LogLevel, err)
 	}
 	logger = slog.New(newLogHandler(cfg.LogFormat, logLevel))
+	slog.SetDefault(logger)
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
 	store, err := sqlite.New(cfg.Storage.DBPath)
@@ -116,9 +117,9 @@ func run(configPath string, logger *slog.Logger) error {
 		}
 	}()
 
-	kmEnricher := yad2.NewEnricher(yad2Fetcher, logger, yad2.EnricherConfig{})
+	kmEnricher := yad2.NewEnricher(yad2Fetcher, logger.With("component", "enricher"), yad2.EnricherConfig{})
 
-	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, multi, logger, scheduler.Options{
+	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, multi, logger.With("component", "scheduler"), scheduler.Options{
 		Observer:         h,
 		Queue:            store,
 		Prices:           store,
@@ -156,12 +157,13 @@ func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, 
 		proxyPool = fetcher.NewProxyPool(cfg.HTTP.Proxies)
 	}
 
+	yad2Logger := logger.With("component", "yad2")
 	var yad2Fetcher *yad2.Yad2Fetcher
 	var err error
 	if proxyPool != nil {
-		yad2Fetcher, err = yad2.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, logger)
+		yad2Fetcher, err = yad2.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, yad2Logger)
 	} else {
-		yad2Fetcher, err = yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, logger)
+		yad2Fetcher, err = yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, yad2Logger)
 	}
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create fetcher: %w", err)
@@ -171,11 +173,12 @@ func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, 
 	cachingFetcher := fetcher.NewCachingFetcher(paginatingFetcher, 5*time.Minute)
 	yad2CB := fetcher.NewCircuitBreaker(cachingFetcher, 5, 30*time.Minute)
 
+	winwinLogger := logger.With("component", "winwin")
 	var winwinFetcher *winwin.WinWinFetcher
 	if proxyPool != nil {
-		winwinFetcher, err = winwin.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, logger)
+		winwinFetcher, err = winwin.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, winwinLogger)
 	} else {
-		winwinFetcher, err = winwin.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, logger)
+		winwinFetcher, err = winwin.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, winwinLogger)
 	}
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create winwin fetcher: %w", err)
@@ -204,9 +207,9 @@ func buildBot(cfg *config.Config, store *sqlite.Store, dynCatalog *catalog.Dynam
 		DailyDigests: store,
 		Catalog:      dynCatalog,
 		LinkTokens:   store,
-	}, logger)
+	}, logger.With("component", "bot"))
 
-	tgNotif, err := telegram.New(cfg.Telegram.Token, logger,
+	tgNotif, err := telegram.New(cfg.Telegram.Token, logger.With("component", "telegram"),
 		tgbot.WithDefaultHandler(botHandler.DefaultHandler()),
 	)
 	if err != nil {
@@ -216,7 +219,7 @@ func buildBot(cfg *config.Config, store *sqlite.Store, dynCatalog *catalog.Dynam
 	botHandler.SetBot(tgNotif.Bot())
 	botHandler.RegisterHandlers()
 
-	multi := notifier.NewMultiNotifier(store, logger)
+	multi := notifier.NewMultiNotifier(store, logger.With("component", "notifier"))
 	if err := multi.Register("telegram", tgNotif); err != nil {
 		return nil, nil, nil, fmt.Errorf("register telegram notifier: %w", err)
 	}

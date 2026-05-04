@@ -57,7 +57,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			continue
 		}
 		if e.cfg.MaxPerCycle > 0 && attempts >= e.cfg.MaxPerCycle {
-			e.logger.Info("enrichment limit reached",
+			e.logger.Debug("enrichment limit reached",
 				"enriched", enriched,
 				"attempts", attempts,
 				"remaining", countNeedingEnrichment(listings[i:]),
