@@ -77,7 +77,7 @@ type SearchStore interface {
 	CreateSearch(ctx context.Context, s Search) (int64, error)
 	UpdateSearch(ctx context.Context, s Search) error
 	ListSearches(ctx context.Context, chatID int64) ([]Search, error)
-	GetSearch(ctx context.Context, id int64) (*Search, error)
+	GetSearch(ctx context.Context, id int64, chatID int64) (*Search, error)
 	GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*Search, error)
 	GetSearchByShareToken(ctx context.Context, token string) (*Search, error)
 	DeleteSearch(ctx context.Context, id int64, chatID int64) error

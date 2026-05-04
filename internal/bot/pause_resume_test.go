@@ -22,7 +22,7 @@ func TestPauseSearch(t *testing.T) {
 	}
 
 	// Search starts active
-	s, err := store.GetSearch(ctx, id)
+	s, err := store.GetSearch(ctx, id, 200)
 	if err != nil {
 		t.Fatalf("get search: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestPauseSearch(t *testing.T) {
 		t.Fatalf("pause search: %v", err)
 	}
 
-	s, err = store.GetSearch(ctx, id)
+	s, err = store.GetSearch(ctx, id, 200)
 	if err != nil {
 		t.Fatalf("get search after pause: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestResumeSearch(t *testing.T) {
 		t.Fatalf("resume: %v", err)
 	}
 
-	s, err := store.GetSearch(ctx, id)
+	s, err := store.GetSearch(ctx, id, 300)
 	if err != nil {
 		t.Fatalf("get search after resume: %v", err)
 	}
@@ -109,18 +109,22 @@ func TestPauseSearchOwnership(t *testing.T) {
 		t.Fatalf("create search: %v", err)
 	}
 
-	// Verify ownership check: GetSearch returns the search but chatID won't match
-	s, err := store.GetSearch(ctx, id)
+	// Verify ownership: GetSearch with correct owner succeeds
+	s, err := store.GetSearch(ctx, id, 400)
 	if err != nil {
 		t.Fatalf("get search: %v", err)
 	}
-	if s.ChatID != 400 {
-		t.Errorf("search owner = %d, want 400", s.ChatID)
+	if s == nil || s.ChatID != 400 {
+		t.Errorf("search owner = %v, want 400", s)
 	}
 
-	// Eve's chatID (401) doesn't match - the handler would reject this
-	if s.ChatID == 401 {
-		t.Error("search should not belong to eve")
+	// Eve's chatID (401) doesn't match - GetSearch returns nil
+	sEve, err := store.GetSearch(ctx, id, 401)
+	if err != nil {
+		t.Fatalf("get search as eve: %v", err)
+	}
+	if sEve != nil {
+		t.Error("search should not be visible to eve")
 	}
 }
 
@@ -147,7 +151,7 @@ func TestPauseAlreadyPausedSearch(t *testing.T) {
 		t.Fatalf("second pause: %v", err)
 	}
 
-	s, _ := store.GetSearch(ctx, id)
+	s, _ := store.GetSearch(ctx, id, 500)
 	if s.Active {
 		t.Error("search should still be paused")
 	}
@@ -171,7 +175,7 @@ func TestResumeAlreadyActiveSearch(t *testing.T) {
 		t.Fatalf("resume active search: %v", err)
 	}
 
-	s, _ := store.GetSearch(ctx, id)
+	s, _ := store.GetSearch(ctx, id, 600)
 	if !s.Active {
 		t.Error("search should still be active")
 	}
@@ -221,7 +225,7 @@ func TestGetSearchNonExistent(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
-	s, err := store.GetSearch(ctx, 99999)
+	s, err := store.GetSearch(ctx, 99999, 0)
 	if err != nil {
 		t.Fatalf("get non-existent search: %v", err)
 	}

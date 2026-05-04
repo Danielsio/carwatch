@@ -60,16 +60,16 @@ func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Searc
 		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at, COALESCE(share_token, '')
 		FROM searches WHERE chat_id = ? ORDER BY created_at DESC`, chatID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list searches: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	return scanSearches(rows)
 }
 
-func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error) {
+func (s *Store) GetSearch(ctx context.Context, id int64, chatID int64) (*storage.Search, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at, COALESCE(share_token, '')
-		FROM searches WHERE id = ?`, id)
+		FROM searches WHERE id = ? AND chat_id = ?`, id, chatID)
 
 	var search storage.Search
 	err := row.Scan(&search.ID, &search.ChatID, &search.UserSeq, &search.Name, &search.Source, &search.Manufacturer, &search.Model,
@@ -81,7 +81,7 @@ func (s *Store) GetSearch(ctx context.Context, id int64) (*storage.Search, error
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get search: %w", err)
 	}
 	return &search, nil
 }
@@ -101,7 +101,7 @@ func (s *Store) GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*sto
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get search by seq: %w", err)
 	}
 	return &search, nil
 }
@@ -121,7 +121,7 @@ func (s *Store) GetSearchByShareToken(ctx context.Context, token string) (*stora
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get search by share token: %w", err)
 	}
 	return &search, nil
 }
@@ -141,11 +141,11 @@ func (s *Store) UpdateSearch(ctx context.Context, search storage.Search) error {
 		search.MaxKm, search.MaxHand, search.Keywords, search.ExcludeKeys,
 		search.ID, search.ChatID)
 	if err != nil {
-		return err
+		return fmt.Errorf("update search: %w", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("update search rows affected: %w", err)
 	}
 	if rows == 0 {
 		return storage.ErrNotFound
@@ -199,9 +199,19 @@ func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error 
 }
 
 func (s *Store) SetSearchActive(ctx context.Context, id int64, chatID int64, active bool) error {
-	_, err := s.db.ExecContext(ctx,
+	result, err := s.db.ExecContext(ctx,
 		"UPDATE searches SET active = ? WHERE id = ? AND chat_id = ?", active, id, chatID)
-	return err
+	if err != nil {
+		return fmt.Errorf("set search active: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("set search active rows affected: %w", err)
+	}
+	if rows == 0 {
+		return storage.ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, error) {
@@ -212,7 +222,7 @@ func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, er
 		WHERE s.active = true AND u.active = true
 		ORDER BY s.source, s.manufacturer, s.model`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list active searches: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	return scanSearches(rows)
@@ -223,14 +233,20 @@ func (s *Store) CountSearches(ctx context.Context, chatID int64) (int64, error) 
 	err := s.db.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM searches WHERE chat_id = ? AND active = true",
 		chatID).Scan(&count)
-	return count, err
+	if err != nil {
+		return 0, fmt.Errorf("count searches: %w", err)
+	}
+	return count, nil
 }
 
 func (s *Store) CountAllSearches(ctx context.Context) (int64, error) {
 	var count int64
 	err := s.db.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM searches WHERE active = true").Scan(&count)
-	return count, err
+	if err != nil {
+		return 0, fmt.Errorf("count all searches: %w", err)
+	}
+	return count, nil
 }
 
 func scanSearches(rows *sql.Rows) ([]storage.Search, error) {

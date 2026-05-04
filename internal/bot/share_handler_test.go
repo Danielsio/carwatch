@@ -121,7 +121,7 @@ func TestHandleShareStart_ValidLink(t *testing.T) {
 		ChatID: 100, Name: "mazda-3", Manufacturer: 27, Model: 10332,
 		YearMin: 2020, YearMax: 2024, PriceMax: 100000, EngineMinCC: 2000,
 	})
-	search, _ := tb.store.GetSearch(ctx, id)
+	search, _ := tb.store.GetSearch(ctx, id, 100)
 	tb.msg.reset()
 
 	tb.simulateCommand(ctx, 200, fmt.Sprintf("/start share_%s", search.ShareToken))
@@ -145,7 +145,7 @@ func TestHandleShareStart_DeletedSearch(t *testing.T) {
 	id, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "temp", Manufacturer: 27, Model: 10332,
 	})
-	search, _ := tb.store.GetSearch(ctx, id)
+	search, _ := tb.store.GetSearch(ctx, id, 100)
 	shareToken := search.ShareToken
 	_ = tb.store.DeleteSearch(ctx, id, 100)
 	tb.msg.reset()
@@ -185,7 +185,7 @@ func TestOnShareCopy_Success(t *testing.T) {
 		ChatID: 100, Name: "mazda-3", Source: "yad2", Manufacturer: 27, Model: 10332,
 		YearMin: 2020, YearMax: 2024, PriceMax: 100000, EngineMinCC: 2000,
 	})
-	search, _ := tb.store.GetSearch(ctx, srcID)
+	search, _ := tb.store.GetSearch(ctx, srcID, 100)
 	tb.msg.reset()
 
 	tb.simulateCallback(ctx, 200, cbPrefixShareCopy+search.ShareToken)
@@ -214,7 +214,7 @@ func TestOnShareCopy_AtMaxSearches(t *testing.T) {
 	srcID, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "shared", Manufacturer: 27, Model: 10332,
 	})
-	search, _ := tb.store.GetSearch(ctx, srcID)
+	search, _ := tb.store.GetSearch(ctx, srcID, 100)
 
 	for i := range 10 {
 		_, _ = tb.store.CreateSearch(ctx, storage.Search{
@@ -241,7 +241,7 @@ func TestOnShareCopy_DeletedSource(t *testing.T) {
 	srcID, _ := tb.store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "temp", Manufacturer: 27, Model: 10332,
 	})
-	search, _ := tb.store.GetSearch(ctx, srcID)
+	search, _ := tb.store.GetSearch(ctx, srcID, 100)
 	shareToken := search.ShareToken
 	_ = tb.store.DeleteSearch(ctx, srcID, 100)
 	tb.msg.reset()

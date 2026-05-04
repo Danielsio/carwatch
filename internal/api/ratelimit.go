@@ -8,11 +8,12 @@ import (
 )
 
 type rateLimiter struct {
-	mu    sync.Mutex
-	users map[int64]*bucket
-	burst int
-	every time.Duration
-	done  chan struct{}
+	mu     sync.Mutex
+	users  map[int64]*bucket
+	burst  int
+	every  time.Duration
+	done   chan struct{}
+	cancel context.CancelFunc
 }
 
 type bucket struct {
@@ -21,15 +22,22 @@ type bucket struct {
 	lastUsed time.Time
 }
 
-func newRateLimiter(ctx context.Context, burst int, every time.Duration) *rateLimiter {
+func newRateLimiter(burst int, every time.Duration) *rateLimiter {
+	ctx, cancel := context.WithCancel(context.Background())
 	rl := &rateLimiter{
-		users: make(map[int64]*bucket),
-		burst: burst,
-		every: every,
-		done:  make(chan struct{}),
+		users:  make(map[int64]*bucket),
+		burst:  burst,
+		every:  every,
+		done:   make(chan struct{}),
+		cancel: cancel,
 	}
 	go rl.cleanup(ctx)
 	return rl
+}
+
+func (rl *rateLimiter) stop() {
+	rl.cancel()
+	<-rl.done
 }
 
 func (rl *rateLimiter) allow(chatID int64) bool {

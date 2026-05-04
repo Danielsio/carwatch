@@ -54,6 +54,12 @@ func (s *Server) SetPollTrigger(p PollTrigger) {
 	s.poller = p
 }
 
+func (s *Server) Shutdown() {
+	if s.rl != nil {
+		s.rl.stop()
+	}
+}
+
 type Config struct {
 	Catalog  catalog.Catalog
 	Searches storage.SearchStore
@@ -88,7 +94,7 @@ func New(c Config) *Server {
 		cfg:       c.API,
 		botUsername: c.BotUsername,
 		startTime: time.Now(),
-		rl:        newRateLimiter(context.Background(), 60, time.Second/60),
+		rl:        newRateLimiter(60, time.Second/60),
 	}
 }
 

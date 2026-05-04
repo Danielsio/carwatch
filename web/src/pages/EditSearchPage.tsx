@@ -56,10 +56,11 @@ export function EditSearchPage() {
   const set = <K extends keyof typeof form>(key: K, val: (typeof form)[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
+  const validYear = (y: number) => y === 0 || y >= 1990;
   const canSubmit =
-    form.yearMin >= 2000 &&
-    form.yearMax >= 2000 &&
-    form.yearMin <= form.yearMax &&
+    validYear(form.yearMin) &&
+    validYear(form.yearMax) &&
+    (form.yearMin === 0 || form.yearMax === 0 || form.yearMin <= form.yearMax) &&
     !updateSearch.isPending;
 
   function handleSubmit() {
@@ -148,7 +149,7 @@ export function EditSearchPage() {
               type="number"
               value={form.yearMin}
               onChange={(e) => set("yearMin", Number(e.target.value))}
-              min={2000}
+              min={1990}
               max={2030}
               error={form.yearMin > form.yearMax}
               className="tabular-nums"
@@ -161,7 +162,7 @@ export function EditSearchPage() {
               type="number"
               value={form.yearMax}
               onChange={(e) => set("yearMax", Number(e.target.value))}
-              min={2000}
+              min={1990}
               max={2030}
               className="tabular-nums"
             />

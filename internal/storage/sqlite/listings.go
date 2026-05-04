@@ -56,7 +56,10 @@ func upsertListingArgs(r storage.ListingRecord) []any {
 
 func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
 	_, err := s.db.ExecContext(ctx, upsertListingSQL, upsertListingArgs(r)...)
-	return err
+	if err != nil {
+		return fmt.Errorf("save listing: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecord) error {
@@ -66,22 +69,25 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("save listings begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.PrepareContext(ctx, upsertListingSQL)
 	if err != nil {
-		return err
+		return fmt.Errorf("save listings prepare: %w", err)
 	}
 	defer func() { _ = stmt.Close() }()
 
 	for _, r := range records {
 		if _, err := stmt.ExecContext(ctx, upsertListingArgs(r)...); err != nil {
-			return err
+			return fmt.Errorf("save listings exec: %w", err)
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("save listings commit: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) GetListing(ctx context.Context, chatID int64, token string) (*storage.ListingRecord, error) {

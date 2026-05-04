@@ -73,8 +73,8 @@ func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 		return
 	}
 
-	search, err := b.searches.GetSearch(ctx, id)
-	if err != nil || search == nil || search.ChatID != chatID {
+	search, err := b.searches.GetSearch(ctx, id, chatID)
+	if err != nil || search == nil {
 		b.send(ctx, chatID, locale.T(lang, "share_not_found"))
 		return
 	}
@@ -268,8 +268,8 @@ func (b *Bot) handlePause(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 		return
 	}
 
-	search, err := b.searches.GetSearch(ctx, id)
-	if err != nil || search == nil || search.ChatID != chatID {
+	search, err := b.searches.GetSearch(ctx, id, chatID)
+	if err != nil || search == nil {
 		b.send(ctx, chatID, locale.T(lang, "pause_not_found"))
 		return
 	}
@@ -302,8 +302,8 @@ func (b *Bot) handleResume(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 		return
 	}
 
-	search, err := b.searches.GetSearch(ctx, id)
-	if err != nil || search == nil || search.ChatID != chatID {
+	search, err := b.searches.GetSearch(ctx, id, chatID)
+	if err != nil || search == nil {
 		b.send(ctx, chatID, locale.T(lang, "resume_not_found"))
 		return
 	}
@@ -479,8 +479,8 @@ func (b *Bot) handleEdit(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 		return
 	}
 
-	search, err := b.searches.GetSearch(ctx, id)
-	if err != nil || search == nil || search.ChatID != chatID {
+	search, err := b.searches.GetSearch(ctx, id, chatID)
+	if err != nil || search == nil {
 		b.send(ctx, chatID, locale.T(lang, "edit_not_found"))
 		return
 	}

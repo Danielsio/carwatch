@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -307,7 +308,7 @@ func TestGetSearch(t *testing.T) {
 		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
 	})
 
-	s, err := store.GetSearch(ctx, id)
+	s, err := store.GetSearch(ctx, id, 100)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -315,12 +316,20 @@ func TestGetSearch(t *testing.T) {
 		t.Errorf("search = %+v", s)
 	}
 
-	s, err = store.GetSearch(ctx, 999)
+	s, err = store.GetSearch(ctx, 999, 100)
 	if err != nil {
 		t.Fatalf("get nonexistent: %v", err)
 	}
 	if s != nil {
 		t.Error("expected nil for nonexistent search")
+	}
+
+	s, err = store.GetSearch(ctx, id, 999)
+	if err != nil {
+		t.Fatalf("get wrong chatID: %v", err)
+	}
+	if s != nil {
+		t.Error("expected nil when chatID does not match")
 	}
 }
 
@@ -353,9 +362,14 @@ func TestDeleteSearch_WrongOwner(t *testing.T) {
 		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
 	})
 
-	_ = store.DeleteSearch(ctx, id, 200)
+	if err := store.DeleteSearch(ctx, id, 200); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for wrong-owner delete, got: %v", err)
+	}
 
-	s, _ := store.GetSearch(ctx, id)
+	s, err := store.GetSearch(ctx, id, 100)
+	if err != nil {
+		t.Fatalf("get search after wrong-owner delete: %v", err)
+	}
 	if s == nil {
 		t.Error("search should NOT be deleted by wrong owner")
 	}
@@ -428,7 +442,7 @@ func TestDeleteSearch_CascadesRelatedRecords(t *testing.T) {
 	}
 
 	// Search itself should be gone.
-	s, err := store.GetSearch(ctx, id1)
+	s, err := store.GetSearch(ctx, id1, 100)
 	if err != nil {
 		t.Fatalf("get deleted search: %v", err)
 	}
@@ -543,24 +557,33 @@ func TestSetSearchActive(t *testing.T) {
 	if err := store.SetSearchActive(ctx, id, 100, false); err != nil {
 		t.Fatalf("set inactive: %v", err)
 	}
-	s, _ := store.GetSearch(ctx, id)
+	s, err := store.GetSearch(ctx, id, 100)
+	if err != nil {
+		t.Fatalf("get search after set inactive: %v", err)
+	}
 	if s.Active {
 		t.Error("search should be inactive")
 	}
 
-	if err := store.SetSearchActive(ctx, id, 100, true); err != nil {
+	if err = store.SetSearchActive(ctx, id, 100, true); err != nil {
 		t.Fatalf("set active: %v", err)
 	}
-	s, _ = store.GetSearch(ctx, id)
+	s, err = store.GetSearch(ctx, id, 100)
+	if err != nil {
+		t.Fatalf("get search after set active: %v", err)
+	}
 	if !s.Active {
 		t.Error("search should be active again")
 	}
 
-	// Wrong owner should have no effect.
-	if err := store.SetSearchActive(ctx, id, 999, false); err != nil {
-		t.Fatalf("set active with wrong owner: %v", err)
+	// Wrong owner should return ErrNotFound.
+	if err = store.SetSearchActive(ctx, id, 999, false); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for wrong owner, got: %v", err)
 	}
-	s, _ = store.GetSearch(ctx, id)
+	s, err = store.GetSearch(ctx, id, 100)
+	if err != nil {
+		t.Fatalf("get search after wrong-owner toggle: %v", err)
+	}
 	if !s.Active {
 		t.Error("wrong owner should not be able to deactivate search")
 	}
@@ -618,9 +641,18 @@ func TestCreateSearch_AssignsUserSeq(t *testing.T) {
 	id2, _ := store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "second", Manufacturer: 2, Model: 2})
 	id3, _ := store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "other-user", Manufacturer: 1, Model: 1})
 
-	s1, _ := store.GetSearch(ctx, id1)
-	s2, _ := store.GetSearch(ctx, id2)
-	s3, _ := store.GetSearch(ctx, id3)
+	s1, err := store.GetSearch(ctx, id1, 100)
+	if err != nil {
+		t.Fatalf("get search 1: %v", err)
+	}
+	s2, err := store.GetSearch(ctx, id2, 100)
+	if err != nil {
+		t.Fatalf("get search 2: %v", err)
+	}
+	s3, err := store.GetSearch(ctx, id3, 200)
+	if err != nil {
+		t.Fatalf("get search 3: %v", err)
+	}
 
 	if s1.UserSeq != 1 {
 		t.Errorf("first search UserSeq = %d, want 1", s1.UserSeq)
@@ -1905,7 +1937,7 @@ func TestUpdateSearch(t *testing.T) {
 		t.Fatalf("UpdateSearch: %v", err)
 	}
 
-	s, err := store.GetSearch(ctx, id)
+	s, err := store.GetSearch(ctx, id, 100)
 	if err != nil {
 		t.Fatalf("GetSearch: %v", err)
 	}
@@ -2151,7 +2183,7 @@ func TestGetSearchByShareToken(t *testing.T) {
 		t.Fatalf("CreateSearch: %v", err)
 	}
 
-	search, err := store.GetSearch(ctx, id)
+	search, err := store.GetSearch(ctx, id, 100)
 	if err != nil {
 		t.Fatalf("GetSearch: %v", err)
 	}
