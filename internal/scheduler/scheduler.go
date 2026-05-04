@@ -674,6 +674,11 @@ func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup,
 
 func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, marketCache *scoring.MarketCache) (cycleStats, error) {
 	groupStart := time.Now()
+	s.logger.Debug("group starting",
+		"manufacturer", group.Manufacturer,
+		"model", group.Model,
+		"searches", len(group.Searches),
+	)
 	raw, source, err := s.fetchAndEnrich(ctx, group)
 	if err != nil {
 		return cycleStats{}, err
@@ -684,6 +689,12 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 
 	for _, search := range group.Searches {
 		filtered := filter.Apply(buildFilterCriteria(search), raw)
+		s.logger.Debug("search filter applied",
+			"search_id", search.ID,
+			"chat_id", search.ChatID,
+			"total_raw", len(raw),
+			"after_filter", len(filtered),
+		)
 		lang := s.userLang(ctx, search.ChatID)
 		sr := s.processSearchListings(ctx, search, filtered, marketCache, lang)
 		persistOK := true
