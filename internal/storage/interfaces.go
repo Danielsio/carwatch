@@ -196,6 +196,7 @@ type MarketListing struct {
 	Model        string
 	Year         int
 	Price        int
+	Km           int
 }
 
 type MarketStore interface {

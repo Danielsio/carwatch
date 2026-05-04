@@ -30,6 +30,7 @@ type RawListing struct {
 type ScoreInfo struct {
 	Score       int
 	MedianPrice int
+	MedianKm    int
 	CohortSize  int
 }
 

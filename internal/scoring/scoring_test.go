@@ -1,6 +1,7 @@
 package scoring
 
 import (
+	"math"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -60,7 +61,7 @@ func TestMarketCache_LookupSufficient(t *testing.T) {
 	}
 
 	mc := NewMarketCache(data)
-	median, cohort, ok := mc.Lookup("Toyota", "Corolla", 2020)
+	median, _, cohort, ok := mc.Lookup("Toyota", "Corolla", 2020)
 	if !ok {
 		t.Fatal("expected ok=true")
 	}
@@ -79,7 +80,7 @@ func TestMarketCache_LookupInsufficientData(t *testing.T) {
 	}
 
 	mc := NewMarketCache(data)
-	_, _, ok := mc.Lookup("Toyota", "Corolla", 2020)
+	_, _, _, ok := mc.Lookup("Toyota", "Corolla", 2020)
 	if ok {
 		t.Error("expected ok=false for insufficient data")
 	}
@@ -98,7 +99,7 @@ func TestMarketCache_LookupYearBand(t *testing.T) {
 
 	mc := NewMarketCache(data)
 	// Looking up year 2020 should include 2019, 2020, 2021
-	_, cohort, ok := mc.Lookup("Honda", "Civic", 2020)
+	_, _, cohort, ok := mc.Lookup("Honda", "Civic", 2020)
 	if !ok {
 		t.Fatal("expected ok=true")
 	}
@@ -107,7 +108,7 @@ func TestMarketCache_LookupYearBand(t *testing.T) {
 	}
 
 	// Looking up year 2022 should only include 2021 (year+-1)
-	_, _, ok = mc.Lookup("Honda", "Civic", 2022)
+	_, _, _, ok = mc.Lookup("Honda", "Civic", 2022)
 	if ok {
 		t.Error("expected ok=false for year 2022 (only 4 listings in range)")
 	}
@@ -125,7 +126,7 @@ func TestMarketCache_CaseInsensitive(t *testing.T) {
 	}
 
 	mc := NewMarketCache(data)
-	_, _, ok := mc.Lookup("toyota", "corolla", 2020)
+	_, _, _, ok := mc.Lookup("toyota", "corolla", 2020)
 	if !ok {
 		t.Error("expected case-insensitive lookup to work")
 	}
@@ -133,7 +134,7 @@ func TestMarketCache_CaseInsensitive(t *testing.T) {
 
 func TestMarketCache_Empty(t *testing.T) {
 	mc := NewMarketCache(nil)
-	_, _, ok := mc.Lookup("Toyota", "Corolla", 2020)
+	_, _, _, ok := mc.Lookup("Toyota", "Corolla", 2020)
 	if ok {
 		t.Error("expected ok=false for empty cache")
 	}
@@ -151,7 +152,7 @@ func TestMarketCache_MedianEven(t *testing.T) {
 	}
 
 	mc := NewMarketCache(data)
-	median, _, ok := mc.Lookup("Mazda", "3", 2021)
+	median, _, _, ok := mc.Lookup("Mazda", "3", 2021)
 	if !ok {
 		t.Fatal("expected ok=true")
 	}
@@ -437,6 +438,111 @@ func TestDefaultDimensions(t *testing.T) {
 	}
 }
 
+func TestEngineScore(t *testing.T) {
+	tests := []struct {
+		name   string
+		volume float64
+		minCC  int
+		min    float64
+		max    float64
+	}{
+		{"no minimum set", 1600, 0, 1.0, 1.0},
+		{"unknown volume", 0, 1600, 0.5, 0.5},
+		{"below minimum", 1200, 1600, 0.0, 0.0},
+		{"exactly at minimum", 1600, 1600, 0.7, 0.7},
+		{"2.0L with 1.6L minimum", 2000, 1600, 0.85, 1.0},
+		{"2.4L with 1.6L minimum", 2400, 1600, 1.0, 1.0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := engineScore(tt.volume, tt.minCC)
+			if got < tt.min-0.01 || got > tt.max+0.01 {
+				t.Errorf("engineScore(%.0f, %d) = %.3f, want [%.2f, %.2f]", tt.volume, tt.minCC, got, tt.min, tt.max)
+			}
+		})
+	}
+}
+
+func TestYearScore_NonLinear(t *testing.T) {
+	// Newer years should cluster near the top (concave curve).
+	// 2023 vs 2024 gap should be smaller than 2018 vs 2019 gap.
+	scoreNewer := yearScore(2023, 2018, 2024) // near top
+	scoreOlder := yearScore(2019, 2018, 2024) // near bottom
+
+	// With pow(0.7), the spread between adjacent years at the top is smaller.
+	topGap := 1.0 - scoreNewer
+	bottomGap := scoreOlder - 0.0
+
+	if topGap >= bottomGap {
+		t.Errorf("concave curve should make top gap (%.3f) smaller than bottom gap (%.3f)", topGap, bottomGap)
+	}
+}
+
+func TestYearScore_BelowMin(t *testing.T) {
+	score := yearScore(2015, 2018, 2024)
+	if score != 0.0 {
+		t.Errorf("year below min should score 0, got %.3f", score)
+	}
+	if math.IsNaN(score) {
+		t.Fatal("yearScore returned NaN for year below min")
+	}
+}
+
+func TestScoreWithKm(t *testing.T) {
+	priceOnly := Score(80000, 100000) // 20% below median -> score 20
+	lowKm := ScoreWithKm(80000, 30000, 100000, 80000)
+	highKm := ScoreWithKm(80000, 150000, 100000, 80000)
+
+	if lowKm <= priceOnly {
+		t.Errorf("low-km deal (%d) should score higher than price-only (%d)", lowKm, priceOnly)
+	}
+	if highKm >= priceOnly {
+		t.Errorf("high-km deal (%d) should score lower than price-only (%d)", highKm, priceOnly)
+	}
+}
+
+func TestScoreWithKm_FallbackWhenNoKm(t *testing.T) {
+	priceOnly := Score(80000, 100000)
+	noKm := ScoreWithKm(80000, 0, 100000, 80000)
+	if noKm != priceOnly {
+		t.Errorf("ScoreWithKm with listingKm=0 should equal Score: %d != %d", noKm, priceOnly)
+	}
+	noMedianKm := ScoreWithKm(80000, 50000, 100000, 0)
+	if noMedianKm != priceOnly {
+		t.Errorf("ScoreWithKm with medianKm=0 should equal Score: %d != %d", noMedianKm, priceOnly)
+	}
+}
+
+func TestJunkPriceFiltering(t *testing.T) {
+	var data []ListingData
+	// 10 legitimate prices
+	for i := range 10 {
+		data = append(data, ListingData{
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2020,
+			Price: 90000 + i*2000,
+		})
+	}
+	// 3 junk prices that should be filtered
+	for range 3 {
+		data = append(data, ListingData{
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2020,
+			Price: 1, // placeholder
+		})
+	}
+
+	mc := NewMarketCache(data)
+	median, _, cohort, ok := mc.Lookup("Toyota", "Corolla", 2020)
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if cohort != 10 {
+		t.Errorf("junk prices should be excluded: cohort=%d, want 10", cohort)
+	}
+	if median < 90000 || median > 108000 {
+		t.Errorf("median should be in legitimate range, got %d", median)
+	}
+}
+
 func TestMarketCache_LookupConcurrent(t *testing.T) {
 	var data []ListingData
 	for i := range 15 {
@@ -454,7 +560,7 @@ func TestMarketCache_LookupConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			median, cohort, ok := mc.Lookup("Toyota", "Corolla", 2020)
+			median, _, cohort, ok := mc.Lookup("Toyota", "Corolla", 2020)
 			if !ok || cohort != 15 || median != 104000 {
 				bad.Add(1)
 			}
