@@ -127,6 +127,33 @@ func (s *Store) AdminDeleteListing(ctx context.Context, token string, chatID int
 	return err
 }
 
+func (s *Store) AdminListSearches(ctx context.Context) ([]storage.Search, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max,
+			price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at,
+			COALESCE(share_token, '')
+		FROM searches
+		ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("admin list searches: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	return scanSearches(rows)
+}
+
+func (s *Store) AdminListUsers(ctx context.Context) ([]storage.User, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT chat_id, username, state, state_data, created_at, active, language, tier,
+			tier_expires_at, trial_used
+		FROM users
+		ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("admin list users: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	return scanUsers(rows)
+}
+
 func (s *Store) VacuumDB(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, `VACUUM`); err != nil {
 		return fmt.Errorf("vacuum: %w", err)

@@ -2683,6 +2683,40 @@ func TestAdminDeleteListing(t *testing.T) {
 	}
 }
 
+func TestAdminListSearches(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "s1", Source: "yad2", Manufacturer: 19, Model: 10226, Active: true})
+	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "s2", Source: "winwin", Manufacturer: 8, Model: 10061, Active: false})
+
+	searches, err := store.AdminListSearches(ctx)
+	if err != nil {
+		t.Fatalf("AdminListSearches: %v", err)
+	}
+	if len(searches) != 2 {
+		t.Fatalf("expected 2 searches, got %d", len(searches))
+	}
+}
+
+func TestAdminListUsers(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+	_ = store.SetUserActive(ctx, 200, false)
+
+	users, err := store.AdminListUsers(ctx)
+	if err != nil {
+		t.Fatalf("AdminListUsers: %v", err)
+	}
+	if len(users) != 2 {
+		t.Fatalf("expected 2 users (active+inactive), got %d", len(users))
+	}
+}
+
 func TestVacuumDB(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

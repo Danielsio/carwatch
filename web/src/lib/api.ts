@@ -228,6 +228,7 @@ export interface AdminStats {
 
 export interface AdminListing extends Listing {
   chat_id: number;
+  search_name?: string;
 }
 
 export interface AdminListingsResponse {
@@ -248,6 +249,43 @@ export interface VacuumResult {
   size_bytes?: number;
 }
 
+export interface AdminSearch {
+  id: number;
+  chat_id: number;
+  name: string;
+  source: string;
+  manufacturer: number;
+  model: number;
+  year_min: number;
+  year_max: number;
+  price_max: number;
+  max_km: number;
+  max_hand: number;
+  active: boolean;
+  created_at: string;
+}
+
+export interface AdminSearchesResponse {
+  items: AdminSearch[];
+  total: number;
+}
+
+export interface AdminUser {
+  chat_id: number;
+  username: string;
+  channel: string;
+  channel_id: string;
+  active: boolean;
+  tier: string;
+  language: string;
+  created_at: string;
+}
+
+export interface AdminUsersResponse {
+  items: AdminUser[];
+  total: number;
+}
+
 export const adminApi = {
   stats: () => fetchAPI<AdminStats>("/admin/stats"),
   listings: (params?: ListingsParams) => {
@@ -262,6 +300,8 @@ export const adminApi = {
       method: "DELETE",
       body: JSON.stringify({ chat_id: chatId }),
     }),
+  searches: () => fetchAPI<AdminSearchesResponse>("/admin/searches"),
+  users: () => fetchAPI<AdminUsersResponse>("/admin/users"),
   purgeTable: (table: string) =>
     fetchAPI<PurgeResult>("/admin/purge", {
       method: "POST",

@@ -712,6 +712,14 @@ func (f *failingAdminStore) AdminDeleteListing(_ context.Context, _ string, _ in
 	return nil
 }
 
+func (f *failingAdminStore) AdminListSearches(_ context.Context) ([]storage.Search, error) {
+	return nil, nil
+}
+
+func (f *failingAdminStore) AdminListUsers(_ context.Context) ([]storage.User, error) {
+	return nil, nil
+}
+
 func (f *failingAdminStore) VacuumDB(_ context.Context) error {
 	return nil
 }
