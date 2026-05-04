@@ -6,6 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatPrice(price: number): string {
+  if (price <= 0) return "ללא מחיר";
   return price.toLocaleString("he-IL") + " ₪";
 }
 

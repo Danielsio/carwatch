@@ -21,3 +21,6 @@ web/.env.*.local
 
 # Cursor IDE (may contain sensitive project-local rules)
 .cursor/
+
+# Generated review artifacts
+.context/

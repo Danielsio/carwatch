@@ -162,9 +162,9 @@ func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID i
 	case "newest":
 		orderBy = "first_seen_at DESC, token DESC"
 	case "price_asc":
-		orderBy = "price ASC, token DESC"
+		orderBy = "CASE WHEN price <= 0 THEN 1 ELSE 0 END, price ASC, token DESC"
 	case "price_desc":
-		orderBy = "price DESC, token DESC"
+		orderBy = "CASE WHEN price <= 0 THEN 1 ELSE 0 END, price DESC, token DESC"
 	case "score":
 		orderBy = "CASE WHEN fitness_score IS NULL THEN 1 ELSE 0 END, fitness_score DESC, token DESC"
 	case "km":
