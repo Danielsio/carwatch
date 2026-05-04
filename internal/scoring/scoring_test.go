@@ -1,6 +1,7 @@
 package scoring
 
 import (
+	"math"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -474,6 +475,16 @@ func TestYearScore_NonLinear(t *testing.T) {
 
 	if topGap >= bottomGap {
 		t.Errorf("concave curve should make top gap (%.3f) smaller than bottom gap (%.3f)", topGap, bottomGap)
+	}
+}
+
+func TestYearScore_BelowMin(t *testing.T) {
+	score := yearScore(2015, 2018, 2024)
+	if score != 0.0 {
+		t.Errorf("year below min should score 0, got %.3f", score)
+	}
+	if math.IsNaN(score) {
+		t.Fatal("yearScore returned NaN for year below min")
 	}
 }
 

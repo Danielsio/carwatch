@@ -308,10 +308,10 @@ func yearScore(year, yearMin, yearMax int) float64 {
 	if yearMin <= 0 || yearMax <= 0 || yearMax <= yearMin {
 		return 1.0
 	}
-	s := float64(year-yearMin) / float64(yearMax-yearMin)
+	s := clamp01(float64(year-yearMin) / float64(yearMax-yearMin))
 	// Concave curve: newer years cluster near top, older years spread apart,
 	// matching non-linear depreciation in the Israeli market.
-	return clamp01(math.Pow(s, 0.7))
+	return math.Pow(s, 0.7)
 }
 
 func engineScore(engineVolume float64, engineMinCC int) float64 {
