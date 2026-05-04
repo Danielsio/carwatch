@@ -185,6 +185,14 @@ func validate(cfg *Config) error {
 			return fmt.Errorf("active_hours.end %q: must be HH:MM format", ah.End)
 		}
 	}
+	switch cfg.Storage.Driver {
+	case "sqlite", "postgres":
+	default:
+		return fmt.Errorf("storage.driver %q: must be sqlite or postgres", cfg.Storage.Driver)
+	}
+	if cfg.Storage.Driver == "postgres" && cfg.Storage.DSN == "" {
+		return fmt.Errorf("storage.dsn is required when driver is postgres")
+	}
 	if _, err := net.ResolveTCPAddr("tcp", cfg.HTTP.Bind); err != nil {
 		return fmt.Errorf("http.bind %q: must be a valid host:port", cfg.HTTP.Bind)
 	}

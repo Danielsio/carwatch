@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_active ON users (active) WHERE active = TRUE;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_channel_id ON users (channel_id) WHERE channel_id != '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_channel_id ON users (channel, channel_id) WHERE channel_id != '';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_linked_web_id ON users (linked_web_id) WHERE linked_web_id IS NOT NULL AND channel = 'telegram';
 
 CREATE TABLE IF NOT EXISTS searches (

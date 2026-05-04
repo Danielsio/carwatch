@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
@@ -12,8 +13,7 @@ import (
 )
 
 type Store struct {
-	db  *sql.DB
-	dsn string
+	db *sql.DB
 }
 
 func New(dsn string, migrationsPath string) (*Store, error) {
@@ -23,6 +23,8 @@ func New(dsn string, migrationsPath string) (*Store, error) {
 	}
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(30 * time.Minute)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
@@ -51,7 +53,7 @@ func New(dsn string, migrationsPath string) (*Store, error) {
 		}
 	}
 
-	return &Store{db: db, dsn: dsn}, nil
+	return &Store{db: db}, nil
 }
 
 func (s *Store) DB() *sql.DB { return s.db }
