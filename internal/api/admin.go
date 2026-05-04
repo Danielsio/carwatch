@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -325,4 +326,53 @@ func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {
 		"size_after": humanBytes(fileSize),
 		"size_bytes": fileSize,
 	})
+}
+
+func (s *Server) adminLogs(w http.ResponseWriter, r *http.Request) {
+	n := parseIntParam(r, "limit", 200)
+	if n > 500 {
+		n = 500
+	}
+
+	entries := s.logHub.Recent(n)
+	if entries == nil {
+		entries = []logstream.LogEntry{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": entries})
+}
+
+func (s *Server) adminLogStream(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming not supported")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	flusher.Flush()
+
+	rc := http.NewResponseController(w)
+
+	ch, unsub := s.logHub.Subscribe()
+	defer unsub()
+
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case entry := <-ch:
+			data, err := json.Marshal(entry)
+			if err != nil {
+				continue
+			}
+			// Extend write deadline for this long-lived connection.
+			_ = rc.SetWriteDeadline(time.Now().Add(30 * time.Second))
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		}
+	}
 }

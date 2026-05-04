@@ -15,6 +15,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -41,6 +42,7 @@ type Server struct {
 	saved     storage.SavedListingStore
 	hidden    storage.HiddenListingStore
 	notifs    storage.NotificationStore
+	logHub    *logstream.Hub
 	poller    PollTrigger
 	logger    *slog.Logger
 	cfg       config.APIConfig
@@ -71,6 +73,7 @@ type Config struct {
 	Saved    storage.SavedListingStore
 	Hidden       storage.HiddenListingStore
 	Notifs       storage.NotificationStore
+	LogHub       *logstream.Hub
 	Logger       *slog.Logger
 	API          config.APIConfig
 	FirebaseAuth TokenVerifier
@@ -90,6 +93,7 @@ func New(c Config) *Server {
 		saved:     c.Saved,
 		hidden:    c.Hidden,
 		notifs:    c.Notifs,
+		logHub:    c.LogHub,
 		logger:    c.Logger,
 		cfg:       c.API,
 		botUsername: c.BotUsername,
@@ -125,6 +129,10 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/admin/users", s.requireAdmin(s.adminListUsers))
 		mux.HandleFunc("POST /api/v1/admin/purge", s.requireAdmin(s.adminPurgeTable))
 		mux.HandleFunc("POST /api/v1/admin/vacuum", s.requireAdmin(s.adminVacuum))
+		if s.logHub != nil {
+			mux.HandleFunc("GET /api/v1/admin/logs", s.requireAdmin(s.adminLogs))
+			mux.HandleFunc("GET /api/v1/admin/logs/stream", s.requireAdmin(s.adminLogStream))
+		}
 	}
 
 	if s.notifs != nil {
@@ -179,6 +187,13 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHdr := r.Header.Get("Authorization")
 		bearer := bearerFromAuthHeader(authHdr)
+
+		// Allow token via query param for SSE (EventSource can't set headers).
+		if bearer == "" {
+			if qt := r.URL.Query().Get("token"); qt != "" {
+				bearer = qt
+			}
+		}
 
 		var chatID int64
 

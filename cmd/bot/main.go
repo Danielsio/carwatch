@@ -20,6 +20,7 @@ import (
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
+	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/fetcher/winwin"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
@@ -67,7 +68,10 @@ func run(configPath string, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("parse log_level %q: %w", cfg.LogLevel, err)
 	}
-	logger = slog.New(newLogHandler(cfg.LogFormat, logLevel))
+	logHub := logstream.NewHub(500)
+	baseHandler := newLogHandler(cfg.LogFormat, logLevel)
+	teeHandler := logstream.NewTeeHandler(baseHandler, logHub, "yad2", "winwin", "scheduler", "enricher")
+	logger = slog.New(teeHandler)
 	slog.SetDefault(logger)
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
@@ -105,7 +109,7 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer func() { _ = multi.Disconnect() }()
 
-	apiServer, err := buildAPI(cfg, store, dynCatalog, logger)
+	apiServer, err := buildAPI(cfg, store, dynCatalog, logHub, logger)
 	if err != nil {
 		return err
 	}
@@ -238,7 +242,7 @@ func buildBot(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 	return botHandler, tgNotif, multi, nil
 }
 
-func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, logger *slog.Logger) (*api.Server, error) {
+func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, logHub *logstream.Hub, logger *slog.Logger) (*api.Server, error) {
 	var firebaseAuth api.TokenVerifier
 	if cfg.Firebase.ProjectID != "" {
 		v, err := api.NewFirebaseVerifier(cfg.Firebase.CredentialsFile, cfg.Firebase.CredentialsJSON, cfg.Firebase.ProjectID)
@@ -264,6 +268,7 @@ func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 		API:          cfg.API,
 		FirebaseAuth: firebaseAuth,
 		BotUsername:  cfg.Telegram.BotUsername,
+		LogHub:       logHub,
 	})
 
 	return apiServer, nil

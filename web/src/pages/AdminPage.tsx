@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   Car,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Cpu,
@@ -11,6 +12,7 @@ import {
   HardDrive,
   Loader2,
   RefreshCw,
+  ScrollText,
   Search,
   Shield,
   Table,
@@ -21,11 +23,13 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { useAdminStats } from "@/hooks/useAdmin";
+import { useLogStream } from "@/hooks/useLogStream";
 import {
   adminApi,
   type AdminListing,
   type AdminSearch,
   type AdminUser,
+  type LogEntry,
 } from "@/lib/api";
 import { EmptyState, Skeleton, Badge } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
@@ -58,13 +62,14 @@ const PURGEABLE = new Set([
   "pending_digest",
 ]);
 
-type TabKey = "overview" | "listings" | "searches" | "users";
+type TabKey = "overview" | "listings" | "searches" | "users" | "logs";
 
 const TABS: { key: TabKey; label: string; icon: typeof Car }[] = [
   { key: "overview", label: "סקירה כללית", icon: Database },
   { key: "listings", label: "מודעות", icon: Car },
   { key: "searches", label: "חיפושים", icon: FileSearch },
   { key: "users", label: "משתמשים", icon: Users },
+  { key: "logs", label: "לוגים", icon: ScrollText },
 ];
 
 // ── Confirm Modal ─────────────────────────────────────────────────────────────
@@ -975,6 +980,266 @@ function UsersTab() {
   );
 }
 
+// ── Logs Tab ──────────────────────────────────────────────────────────────────
+
+const LEVEL_STYLES: Record<
+  string,
+  { bg: string; text: string; label: string }
+> = {
+  DEBUG: {
+    bg: "bg-muted-foreground/10",
+    text: "text-muted-foreground",
+    label: "DBG",
+  },
+  INFO: { bg: "bg-primary/10", text: "text-primary", label: "INF" },
+  WARN: { bg: "bg-warning/10", text: "text-warning", label: "WRN" },
+  ERROR: { bg: "bg-destructive/10", text: "text-destructive", label: "ERR" },
+};
+
+const ALL_COMPONENTS = ["yad2", "winwin", "scheduler", "enricher"] as const;
+const ALL_LEVELS = ["DEBUG", "INFO", "WARN", "ERROR"] as const;
+
+function LogsTab({ active }: { active: boolean }) {
+  const { logs, connected, clear } = useLogStream(active);
+  const [componentFilter, setComponentFilter] = useState<Set<string>>(
+    new Set(ALL_COMPONENTS),
+  );
+  const [levelFilter, setLevelFilter] = useState<Set<string>>(
+    new Set(ALL_LEVELS),
+  );
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const filtered = logs.filter(
+    (e) => componentFilter.has(e.component) && levelFilter.has(e.level),
+  );
+
+  useEffect(() => {
+    if (autoScroll && bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [filtered.length, autoScroll]);
+
+  function toggleFilter(
+    set: Set<string>,
+    setter: (s: Set<string>) => void,
+    value: string,
+  ) {
+    const next = new Set(set);
+    if (next.has(value)) {
+      if (next.size > 1) next.delete(value);
+    } else {
+      next.add(value);
+    }
+    setter(next);
+  }
+
+  function formatTime(iso: string) {
+    try {
+      return new Date(iso).toLocaleTimeString("he-IL", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    } catch {
+      return "";
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Connection indicator */}
+          <div className="flex items-center gap-1.5">
+            <div
+              className={cn(
+                "h-2 w-2 rounded-full flex-shrink-0",
+                connected
+                  ? "bg-success animate-pulse-soft"
+                  : "bg-muted-foreground/40",
+              )}
+            />
+            <span className="text-xs text-muted-foreground">
+              {connected ? "מחובר" : "מנותק"}
+            </span>
+          </div>
+
+          {/* Component filters */}
+          <div className="flex gap-1">
+            {ALL_COMPONENTS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() =>
+                  toggleFilter(componentFilter, setComponentFilter, c)
+                }
+                className={cn(
+                  "px-2 py-1 rounded-md text-[11px] font-medium transition-colors",
+                  componentFilter.has(c)
+                    ? "bg-primary/10 text-primary"
+                    : "bg-secondary text-muted-foreground/50",
+                )}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+
+          {/* Level filters */}
+          <div className="flex gap-1">
+            {ALL_LEVELS.map((l) => {
+              const style = LEVEL_STYLES[l];
+              return (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => toggleFilter(levelFilter, setLevelFilter, l)}
+                  className={cn(
+                    "px-2 py-1 rounded-md text-[11px] font-medium transition-colors",
+                    levelFilter.has(l)
+                      ? `${style.bg} ${style.text}`
+                      : "bg-secondary text-muted-foreground/50",
+                  )}
+                >
+                  {style.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAutoScroll((p) => !p)}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors",
+              autoScroll
+                ? "bg-primary/10 text-primary"
+                : "bg-secondary text-muted-foreground",
+            )}
+          >
+            <ChevronDown className="h-3 w-3" />
+            גלילה אוטומטית
+          </button>
+          <button
+            type="button"
+            onClick={clear}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-xs font-medium text-foreground transition-colors"
+          >
+            <Trash2 className="h-3 w-3" />
+            נקה
+          </button>
+        </div>
+      </div>
+
+      {/* Log entries */}
+      <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+          <h2 className="text-base font-semibold">
+            לוגים ({filtered.length})
+          </h2>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {logs.length} סה״כ
+          </span>
+        </div>
+
+        <div className="max-h-[60vh] overflow-y-auto p-2 font-mono text-xs">
+          {filtered.length === 0 ? (
+            <EmptyState
+              icon={ScrollText}
+              title="אין לוגים"
+              description="לוגים מה-fetchers יופיעו כאן בזמן אמת"
+              className="border-0 bg-transparent"
+            />
+          ) : (
+            <div className="space-y-px">
+              {filtered.map((entry, idx) => (
+                <LogLine
+                  key={`${entry.time}-${idx}`}
+                  entry={entry}
+                  expanded={expandedIdx === idx}
+                  onToggle={() =>
+                    setExpandedIdx(expandedIdx === idx ? null : idx)
+                  }
+                  formatTime={formatTime}
+                />
+              ))}
+              <div ref={bottomRef} />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LogLine({
+  entry,
+  expanded,
+  onToggle,
+  formatTime,
+}: {
+  entry: LogEntry;
+  expanded: boolean;
+  onToggle: () => void;
+  formatTime: (iso: string) => string;
+}) {
+  const style = LEVEL_STYLES[entry.level] ?? LEVEL_STYLES.INFO;
+  const hasAttrs = entry.attrs && Object.keys(entry.attrs).length > 0;
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg px-3 py-2 transition-colors",
+        expanded ? "bg-secondary" : "hover:bg-secondary/50",
+        hasAttrs && "cursor-pointer",
+      )}
+      onClick={hasAttrs ? onToggle : undefined}
+    >
+      <div className="flex items-start gap-2">
+        <span className="text-muted-foreground/60 flex-shrink-0 tabular-nums w-[60px]">
+          {formatTime(entry.time)}
+        </span>
+        <span
+          className={cn(
+            "inline-flex items-center justify-center rounded px-1.5 py-0.5 text-[10px] font-semibold flex-shrink-0 w-8",
+            style.bg,
+            style.text,
+          )}
+        >
+          {style.label}
+        </span>
+        <span className="text-primary/70 flex-shrink-0 w-[70px] truncate">
+          {entry.component}
+        </span>
+        <span className="text-foreground break-all flex-1">{entry.message}</span>
+        {hasAttrs && (
+          <ChevronDown
+            className={cn(
+              "h-3 w-3 text-muted-foreground/40 flex-shrink-0 mt-0.5 transition-transform",
+              expanded && "rotate-180",
+            )}
+          />
+        )}
+      </div>
+      {expanded && hasAttrs && (
+        <div className="mt-2 mr-[132px] space-y-0.5 border-r border-border/50 pr-3">
+          {Object.entries(entry.attrs!).map(([k, v]) => (
+            <div key={k} className="flex gap-2">
+              <span className="text-muted-foreground/60">{k}:</span>
+              <span className="text-foreground/80 break-all">{v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function StorageIndicator({ sizeBytes }: { sizeBytes: number }) {
@@ -1132,6 +1397,9 @@ export function AdminPage() {
           {activeTab === "listings" && <ListingsTab />}
           {activeTab === "searches" && <SearchesTab />}
           {activeTab === "users" && <UsersTab />}
+          {activeTab === "logs" && (
+            <LogsTab active={activeTab === "logs"} />
+          )}
         </motion.div>
       </AnimatePresence>
     </div>
