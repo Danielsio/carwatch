@@ -2313,6 +2313,83 @@ func TestListSearchListings(t *testing.T) {
 	if listings[0].Token != "lsl-1" {
 		t.Fatalf("pagination offset=1 returned %q, want lsl-1", listings[0].Token)
 	}
+
+	// Test data reminder:
+	//   lsl-1: Year=2021, Price=120000, Km=50000, Hand=2
+	//   lsl-2: Year=2022, Price=90000,  Km=30000, Hand=1
+	t.Run("applies listing filters", func(t *testing.T) {
+		cases := []struct {
+			name   string
+			filter storage.ListingFilter
+			want   []string
+		}{
+			{
+				name:   "price_max excludes expensive",
+				filter: storage.ListingFilter{PriceMax: 100000},
+				want:   []string{"lsl-2"},
+			},
+			{
+				name:   "price_max includes all",
+				filter: storage.ListingFilter{PriceMax: 200000},
+				want:   []string{"lsl-2", "lsl-1"},
+			},
+			{
+				name:   "year_min",
+				filter: storage.ListingFilter{YearMin: 2022},
+				want:   []string{"lsl-2"},
+			},
+			{
+				name:   "year_max",
+				filter: storage.ListingFilter{YearMax: 2021},
+				want:   []string{"lsl-1"},
+			},
+			{
+				name:   "max_km",
+				filter: storage.ListingFilter{MaxKm: 40000},
+				want:   []string{"lsl-2"},
+			},
+			{
+				name:   "max_hand",
+				filter: storage.ListingFilter{MaxHand: 1},
+				want:   []string{"lsl-2"},
+			},
+			{
+				name:   "combined filters",
+				filter: storage.ListingFilter{PriceMax: 100000, YearMin: 2022, MaxKm: 40000, MaxHand: 1},
+				want:   []string{"lsl-2"},
+			},
+			{
+				name:   "all filtered out",
+				filter: storage.ListingFilter{PriceMax: 50000},
+				want:   nil,
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				got, err := store.ListSearchListings(ctx, 100, idMazda3, tc.filter, 20, 0, "newest")
+				if err != nil {
+					t.Fatalf("ListSearchListings(%s): %v", tc.name, err)
+				}
+				if len(got) != len(tc.want) {
+					t.Fatalf("%s: got %d rows, want %d", tc.name, len(got), len(tc.want))
+				}
+				for i := range tc.want {
+					if got[i].Token != tc.want[i] {
+						t.Errorf("%s: got token %q at %d, want %q", tc.name, got[i].Token, i, tc.want[i])
+					}
+				}
+
+				count, err := store.CountSearchListings(ctx, 100, idMazda3, tc.filter)
+				if err != nil {
+					t.Fatalf("CountSearchListings(%s): %v", tc.name, err)
+				}
+				if int(count) != len(tc.want) {
+					t.Errorf("CountSearchListings(%s): got %d, want %d", tc.name, count, len(tc.want))
+				}
+			})
+		}
+	})
 }
 
 // --- New() edge cases ---

@@ -55,8 +55,15 @@ const SettingsPage = lazy(() =>
 );
 
 function AdminGuard({ children }: { children: React.ReactNode }) {
-  const { data: me, isLoading } = useMe();
+  const { data: me, isLoading, isError } = useMe();
   if (isLoading) return <PageFallback />;
+  if (isError) {
+    return (
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-muted-foreground">
+        <span>שגיאה בבדיקת הרשאות</span>
+      </div>
+    );
+  }
   if (!me?.is_admin) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
