@@ -34,8 +34,9 @@ const (
 	maxRetries            = 3
 	retryBaseDelay        = 2 * time.Second
 	defaultConcurrency    = 4
-	notificationPruneAge  = 48 * time.Hour
-	priceHistoryRetention = 90 * 24 * time.Hour
+	notificationPruneAge      = 48 * time.Hour
+	priceHistoryRetention     = 90 * 24 * time.Hour
+	listingHistoryRetention   = 90 * 24 * time.Hour
 )
 
 type CatalogIngester interface {
@@ -554,6 +555,14 @@ func (s *Scheduler) pruneOldData(ctx context.Context) {
 			s.logger.Error("prune prices failed", "error", err)
 		} else if pruned > 0 {
 			s.logger.Info("pruned old price history", "count", pruned)
+		}
+	}
+	if s.stores.Listings != nil {
+		pruned, err := s.stores.Listings.PruneListings(ctx, listingHistoryRetention)
+		if err != nil {
+			s.logger.Error("prune listing history failed", "error", err)
+		} else if pruned > 0 {
+			s.logger.Info("pruned old listing history", "count", pruned)
 		}
 	}
 	s.lastPruneTime = time.Now()
