@@ -736,6 +736,78 @@ func TestAdminDeleteListing(t *testing.T) {
 	}
 }
 
+func TestAdminListSearches(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.UpsertUser(ctx, 999, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 999, Name: "test-search", Source: "yad2",
+		Manufacturer: 19, Model: 10226, Active: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/searches", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Items []struct {
+			ID     int64  `json:"id"`
+			Name   string `json:"name"`
+			Active bool   `json:"active"`
+		} `json:"items"`
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Total != 1 {
+		t.Fatalf("expected total=1, got %d", resp.Total)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(resp.Items))
+	}
+	if resp.Items[0].Name != "test-search" {
+		t.Fatalf("expected name=test-search, got %s", resp.Items[0].Name)
+	}
+}
+
+func TestAdminListUsers(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.UpsertUser(ctx, 999, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpsertUser(ctx, 100, "user1"); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/users", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Items []struct {
+			ChatID   int64  `json:"chat_id"`
+			Username string `json:"username"`
+		} `json:"items"`
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Total != 2 {
+		t.Fatalf("expected total=2, got %d", resp.Total)
+	}
+}
+
 func TestAdminVacuum(t *testing.T) {
 	srv, _ := setupTestServer(t)
 

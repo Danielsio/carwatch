@@ -15,6 +15,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -41,6 +42,7 @@ type Server struct {
 	saved     storage.SavedListingStore
 	hidden    storage.HiddenListingStore
 	notifs    storage.NotificationStore
+	logHub    *logstream.Hub
 	poller    PollTrigger
 	logger    *slog.Logger
 	cfg       config.APIConfig
@@ -71,6 +73,7 @@ type Config struct {
 	Saved    storage.SavedListingStore
 	Hidden       storage.HiddenListingStore
 	Notifs       storage.NotificationStore
+	LogHub       *logstream.Hub
 	Logger       *slog.Logger
 	API          config.APIConfig
 	FirebaseAuth TokenVerifier
@@ -90,6 +93,7 @@ func New(c Config) *Server {
 		saved:     c.Saved,
 		hidden:    c.Hidden,
 		notifs:    c.Notifs,
+		logHub:    c.LogHub,
 		logger:    c.Logger,
 		cfg:       c.API,
 		botUsername: c.BotUsername,
@@ -121,8 +125,14 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/admin/stats", s.requireAdmin(s.adminStats))
 		mux.HandleFunc("GET /api/v1/admin/listings", s.requireAdmin(s.adminListListings))
 		mux.HandleFunc("DELETE /api/v1/admin/listings/{token}", s.requireAdmin(s.adminDeleteListing))
+		mux.HandleFunc("GET /api/v1/admin/searches", s.requireAdmin(s.adminListSearches))
+		mux.HandleFunc("GET /api/v1/admin/users", s.requireAdmin(s.adminListUsers))
 		mux.HandleFunc("POST /api/v1/admin/purge", s.requireAdmin(s.adminPurgeTable))
 		mux.HandleFunc("POST /api/v1/admin/vacuum", s.requireAdmin(s.adminVacuum))
+		if s.logHub != nil {
+			mux.HandleFunc("GET /api/v1/admin/logs", s.requireAdmin(s.adminLogs))
+			mux.HandleFunc("GET /api/v1/admin/logs/stream", s.requireAdmin(s.adminLogStream))
+		}
 	}
 
 	if s.notifs != nil {
@@ -178,6 +188,13 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		authHdr := r.Header.Get("Authorization")
 		bearer := bearerFromAuthHeader(authHdr)
 
+		// Allow token via query param for SSE only (EventSource can't set headers).
+		if bearer == "" && strings.HasPrefix(r.URL.Path, "/api/v1/admin/logs/") {
+			if qt := r.URL.Query().Get("token"); qt != "" {
+				bearer = qt
+			}
+		}
+
 		var chatID int64
 
 		var userEmail string
@@ -200,7 +217,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		} else if s.firebaseAuth == nil {
 			if s.cfg.AuthToken != "" {
-				if authHdr != "Bearer "+s.cfg.AuthToken {
+				if bearer != s.cfg.AuthToken {
 					writeError(w, http.StatusUnauthorized, "invalid or missing token")
 					return
 				}

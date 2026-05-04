@@ -2683,6 +2683,64 @@ func TestAdminDeleteListing(t *testing.T) {
 	}
 }
 
+func TestAdminListSearches(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "s1", Source: "yad2", Manufacturer: 19, Model: 10226, Active: true})
+	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "s2", Source: "winwin", Manufacturer: 8, Model: 10061, Active: false})
+
+	searches, err := store.AdminListSearches(ctx)
+	if err != nil {
+		t.Fatalf("AdminListSearches: %v", err)
+	}
+	if len(searches) != 2 {
+		t.Fatalf("expected 2 searches, got %d", len(searches))
+	}
+	byName := map[string]storage.Search{}
+	for _, s := range searches {
+		byName[s.Name] = s
+	}
+	s1 := byName["s1"]
+	if s1.ChatID != 100 || s1.Source != "yad2" || s1.Manufacturer != 19 || s1.Model != 10226 || !s1.Active {
+		t.Errorf("s1 fields mismatch: %+v", s1)
+	}
+	s2 := byName["s2"]
+	if s2.ChatID != 200 || s2.Source != "winwin" || s2.Manufacturer != 8 {
+		t.Errorf("s2 fields mismatch: %+v", s2)
+	}
+}
+
+func TestAdminListUsers(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+	_ = store.SetUserActive(ctx, 200, false)
+
+	users, err := store.AdminListUsers(ctx)
+	if err != nil {
+		t.Fatalf("AdminListUsers: %v", err)
+	}
+	if len(users) != 2 {
+		t.Fatalf("expected 2 users (active+inactive), got %d", len(users))
+	}
+	byID := map[int64]storage.User{}
+	for _, u := range users {
+		byID[u.ChatID] = u
+	}
+	u100 := byID[100]
+	if !u100.Active || u100.Channel != "telegram" {
+		t.Errorf("user 100 mismatch: active=%v channel=%q", u100.Active, u100.Channel)
+	}
+	u200 := byID[200]
+	if u200.Active || u200.Channel != "telegram" {
+		t.Errorf("user 200 mismatch: active=%v channel=%q", u200.Active, u200.Channel)
+	}
+}
+
 func TestVacuumDB(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

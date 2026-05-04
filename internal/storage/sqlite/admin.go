@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -137,6 +138,46 @@ func parseFlexibleTime(s string) (time.Time, error) {
 func (s *Store) AdminDeleteListing(ctx context.Context, token string, chatID int64) error {
 	_, err := s.db.ExecContext(ctx, "DELETE FROM listing_history WHERE token = ? AND chat_id = ?", token, chatID)
 	return err
+}
+
+func (s *Store) AdminListSearches(ctx context.Context) ([]storage.Search, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max,
+			price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at,
+			COALESCE(share_token, '')
+		FROM searches
+		ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("admin list searches: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	return scanSearches(rows)
+}
+
+func (s *Store) AdminListUsers(ctx context.Context) ([]storage.User, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT chat_id, username, state, state_data, created_at, active, language, tier,
+			tier_expires_at, trial_used, channel, channel_id
+		FROM users
+		ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("admin list users: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	return scanAdminUsers(rows)
+}
+
+func scanAdminUsers(rows *sql.Rows) ([]storage.User, error) {
+	var users []storage.User
+	for rows.Next() {
+		var u storage.User
+		if err := rows.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language,
+			&u.Tier, &u.TierExpires, &u.TrialUsed, &u.Channel, &u.ChannelID); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
 }
 
 func (s *Store) VacuumDB(ctx context.Context) error {

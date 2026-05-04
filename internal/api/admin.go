@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -220,6 +221,86 @@ func (s *Server) adminDeleteListing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) adminListSearches(w http.ResponseWriter, r *http.Request) {
+	searches, err := s.admin.AdminListSearches(r.Context())
+	if err != nil {
+		s.logger.Error("admin: list searches", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to list searches")
+		return
+	}
+
+	type searchResp struct {
+		ID           int64  `json:"id"`
+		ChatID       int64  `json:"chat_id"`
+		Name         string `json:"name"`
+		Source       string `json:"source"`
+		Manufacturer int    `json:"manufacturer"`
+		Model        int    `json:"model"`
+		YearMin      int    `json:"year_min"`
+		YearMax      int    `json:"year_max"`
+		PriceMax     int    `json:"price_max"`
+		MaxKm        int    `json:"max_km"`
+		MaxHand      int    `json:"max_hand"`
+		Active       bool   `json:"active"`
+		CreatedAt    string `json:"created_at"`
+	}
+
+	resp := make([]searchResp, 0, len(searches))
+	for _, s := range searches {
+		resp = append(resp, searchResp{
+			ID:           s.ID,
+			ChatID:       s.ChatID,
+			Name:         s.Name,
+			Source:       s.Source,
+			Manufacturer: s.Manufacturer,
+			Model:        s.Model,
+			YearMin:      s.YearMin,
+			YearMax:      s.YearMax,
+			PriceMax:     s.PriceMax,
+			MaxKm:        s.MaxKm,
+			MaxHand:      s.MaxHand,
+			Active:       s.Active,
+			CreatedAt:    s.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": resp, "total": len(resp)})
+}
+
+func (s *Server) adminListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := s.admin.AdminListUsers(r.Context())
+	if err != nil {
+		s.logger.Error("admin: list users", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to list users")
+		return
+	}
+
+	type userResp struct {
+		ChatID    int64  `json:"chat_id"`
+		Username  string `json:"username"`
+		Channel   string `json:"channel"`
+		ChannelID string `json:"channel_id"`
+		Active    bool   `json:"active"`
+		Tier      string `json:"tier"`
+		Language  string `json:"language"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	resp := make([]userResp, 0, len(users))
+	for _, u := range users {
+		resp = append(resp, userResp{
+			ChatID:    u.ChatID,
+			Username:  u.Username,
+			Channel:   u.Channel,
+			ChannelID: u.ChannelID,
+			Active:    u.Active,
+			Tier:      u.Tier,
+			Language:  u.Language,
+			CreatedAt: u.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": resp, "total": len(resp)})
+}
+
 func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {
 	if !s.vacuumMu.TryLock() {
 		writeError(w, http.StatusConflict, "vacuum already in progress")
@@ -245,4 +326,56 @@ func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {
 		"size_after": humanBytes(fileSize),
 		"size_bytes": fileSize,
 	})
+}
+
+func (s *Server) adminLogs(w http.ResponseWriter, r *http.Request) {
+	n := parseIntParam(r, "limit", 200)
+	if n > 500 {
+		n = 500
+	}
+
+	entries := s.logHub.Recent(n)
+	if entries == nil {
+		entries = []logstream.LogEntry{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": entries})
+}
+
+func (s *Server) adminLogStream(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming not supported")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	flusher.Flush()
+
+	rc := http.NewResponseController(w)
+
+	ch, unsub := s.logHub.Subscribe()
+	defer unsub()
+
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case entry := <-ch:
+			data, err := json.Marshal(entry)
+			if err != nil {
+				continue
+			}
+			if err := rc.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+				return
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
 }
