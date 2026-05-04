@@ -14,7 +14,10 @@ export function useUpdateSearch() {
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<CreateSearchRequest> }) =>
       api.searches.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["searches"] }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["searches"] });
+      queryClient.invalidateQueries({ queryKey: ["listings", variables.id] });
+    },
   });
 }
 

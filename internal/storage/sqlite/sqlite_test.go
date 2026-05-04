@@ -455,7 +455,7 @@ func TestDeleteSearch_CascadesRelatedRecords(t *testing.T) {
 	}
 
 	// listing_history for user 100 should be cleaned up.
-	count100, err := store.CountSearchListings(ctx, 100, id1)
+	count100, err := store.CountSearchListings(ctx, 100, id1, storage.ListingFilter{})
 	if err != nil {
 		t.Fatalf("count listings user 100: %v", err)
 	}
@@ -464,7 +464,7 @@ func TestDeleteSearch_CascadesRelatedRecords(t *testing.T) {
 	}
 
 	// User 200's listing_history should be untouched.
-	count200, err := store.CountSearchListings(ctx, 200, id2)
+	count200, err := store.CountSearchListings(ctx, 200, id2, storage.ListingFilter{})
 	if err != nil {
 		t.Fatalf("count listings user 200: %v", err)
 	}
@@ -522,7 +522,7 @@ func TestDeleteSearch_CascadeNotFound(t *testing.T) {
 	}
 
 	// Verify dependent rows for the real search are still intact.
-	count, err := store.CountSearchListings(ctx, 100, id)
+	count, err := store.CountSearchListings(ctx, 100, id, storage.ListingFilter{})
 	if err != nil {
 		t.Fatalf("count listings: %v", err)
 	}
@@ -2249,7 +2249,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	listings, err := store.ListSearchListings(ctx, 100, idMazda3, 20, 0, "newest")
+	listings, err := store.ListSearchListings(ctx, 100, idMazda3, storage.ListingFilter{}, 20, 0, "newest")
 	if err != nil {
 		t.Fatalf("ListSearchListings: %v", err)
 	}
@@ -2260,7 +2260,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Fatalf("newest sort order = [%s, %s], want [lsl-2, lsl-1]", listings[0].Token, listings[1].Token)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 20, 0, "price_asc")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, storage.ListingFilter{}, 20, 0, "price_asc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2268,7 +2268,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Errorf("price_asc: expected 90000 first, got %d", listings[0].Price)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 20, 0, "price_desc")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, storage.ListingFilter{}, 20, 0, "price_desc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2276,7 +2276,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Errorf("price_desc: expected 120000 first, got %d", listings[0].Price)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 20, 0, "km")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, storage.ListingFilter{}, 20, 0, "km")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2284,7 +2284,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Errorf("km sort: expected 30000 first, got %d", listings[0].Km)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 20, 0, "year")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, storage.ListingFilter{}, 20, 0, "year")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2292,7 +2292,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Errorf("year sort: expected 2022 first, got %d", listings[0].Year)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 1, 0, "newest")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, storage.ListingFilter{}, 1, 0, "newest")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2303,7 +2303,7 @@ func TestListSearchListings(t *testing.T) {
 		t.Fatalf("pagination offset=0 returned %q, want lsl-2", listings[0].Token)
 	}
 
-	listings, err = store.ListSearchListings(ctx, 100, idMazda3, 1, 1, "newest")
+	listings, err = store.ListSearchListings(ctx, 100, idMazda3, storage.ListingFilter{}, 1, 1, "newest")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2313,6 +2313,83 @@ func TestListSearchListings(t *testing.T) {
 	if listings[0].Token != "lsl-1" {
 		t.Fatalf("pagination offset=1 returned %q, want lsl-1", listings[0].Token)
 	}
+
+	// Test data reminder:
+	//   lsl-1: Year=2021, Price=120000, Km=50000, Hand=2
+	//   lsl-2: Year=2022, Price=90000,  Km=30000, Hand=1
+	t.Run("applies listing filters", func(t *testing.T) {
+		cases := []struct {
+			name   string
+			filter storage.ListingFilter
+			want   []string
+		}{
+			{
+				name:   "price_max excludes expensive",
+				filter: storage.ListingFilter{PriceMax: 100000},
+				want:   []string{"lsl-2"},
+			},
+			{
+				name:   "price_max includes all",
+				filter: storage.ListingFilter{PriceMax: 200000},
+				want:   []string{"lsl-2", "lsl-1"},
+			},
+			{
+				name:   "year_min",
+				filter: storage.ListingFilter{YearMin: 2022},
+				want:   []string{"lsl-2"},
+			},
+			{
+				name:   "year_max",
+				filter: storage.ListingFilter{YearMax: 2021},
+				want:   []string{"lsl-1"},
+			},
+			{
+				name:   "max_km",
+				filter: storage.ListingFilter{MaxKm: 40000},
+				want:   []string{"lsl-2"},
+			},
+			{
+				name:   "max_hand",
+				filter: storage.ListingFilter{MaxHand: 1},
+				want:   []string{"lsl-2"},
+			},
+			{
+				name:   "combined filters",
+				filter: storage.ListingFilter{PriceMax: 100000, YearMin: 2022, MaxKm: 40000, MaxHand: 1},
+				want:   []string{"lsl-2"},
+			},
+			{
+				name:   "all filtered out",
+				filter: storage.ListingFilter{PriceMax: 50000},
+				want:   nil,
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				got, err := store.ListSearchListings(ctx, 100, idMazda3, tc.filter, 20, 0, "newest")
+				if err != nil {
+					t.Fatalf("ListSearchListings(%s): %v", tc.name, err)
+				}
+				if len(got) != len(tc.want) {
+					t.Fatalf("%s: got %d rows, want %d", tc.name, len(got), len(tc.want))
+				}
+				for i := range tc.want {
+					if got[i].Token != tc.want[i] {
+						t.Errorf("%s: got token %q at %d, want %q", tc.name, got[i].Token, i, tc.want[i])
+					}
+				}
+
+				count, err := store.CountSearchListings(ctx, 100, idMazda3, tc.filter)
+				if err != nil {
+					t.Fatalf("CountSearchListings(%s): %v", tc.name, err)
+				}
+				if int(count) != len(tc.want) {
+					t.Errorf("CountSearchListings(%s): got %d, want %d", tc.name, count, len(tc.want))
+				}
+			})
+		}
+	})
 }
 
 // --- New() edge cases ---

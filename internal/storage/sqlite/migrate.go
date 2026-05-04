@@ -40,6 +40,7 @@ func migrate(db *sql.DB) error {
 		migrateUserLinkedWebID,
 		migrateUserLinkedWebIndex,
 		migrateUsersActiveIndex,
+		migrateMissingIndexes,
 	}
 	for _, step := range steps {
 		if err := step(db); err != nil {

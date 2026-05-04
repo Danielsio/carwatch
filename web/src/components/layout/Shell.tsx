@@ -17,10 +17,20 @@ import { useAppVersion } from "@/hooks/useAppVersion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useHealthCheck } from "@/hooks/useHealthCheck";
+import { useMe } from "@/hooks/useMe";
 import { ConnectionBanner } from "@/components/ui/ConnectionBanner";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+interface NavItem {
+  path: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  mobile: boolean;
+  badge?: boolean;
+  adminOnly?: boolean;
+}
+
+const navItems: NavItem[] = [
   { path: "/dashboard", label: "לוח בקרה", icon: LayoutDashboard, mobile: true },
   { path: "/searches/new", label: "חיפוש חדש", icon: Plus, mobile: true },
   { path: "/saved", label: "מועדפים", icon: Bookmark, mobile: true },
@@ -33,7 +43,7 @@ const navItems = [
     mobile: true,
   },
   { path: "/settings", label: "הגדרות", icon: Settings, mobile: true },
-  { path: "/admin", label: "ניהול", icon: Wrench, mobile: false },
+  { path: "/admin", label: "ניהול", icon: Wrench, mobile: false, adminOnly: true },
 ];
 
 function isNavActive(pathname: string, path: string): boolean {
@@ -49,6 +59,11 @@ export function Shell() {
   const { theme, toggle: toggleTheme } = useTheme();
   const appVersion = useAppVersion();
   const connectionStatus = useHealthCheck();
+  const { data: me } = useMe();
+  const isAdmin = me?.is_admin ?? false;
+  const visibleNavItems = navItems.filter(
+    (item) => !item.adminOnly || isAdmin,
+  );
   const emailInitial =
     user?.email?.trim().charAt(0)?.toLocaleUpperCase("he-IL") || "?";
 
@@ -81,7 +96,7 @@ export function Shell() {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-4">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const active = isNavActive(location.pathname, item.path);
             const showBadge = item.badge && unread > 0;
@@ -194,7 +209,7 @@ export function Shell() {
 
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/40 bg-card/80 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.15)] dark:shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 md:hidden">
         <div className="flex justify-around px-1 py-3 landscape:py-1.5">
-          {navItems.filter((item) => item.mobile).map((item) => {
+          {visibleNavItems.filter((item) => item.mobile).map((item) => {
             const Icon = item.icon;
             const isActive = isNavActive(location.pathname, item.path);
             const showBadge = item.badge && unread > 0;

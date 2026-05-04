@@ -108,7 +108,7 @@ func (s *Server) toSearchResponse(sr storage.Search) searchResponse {
 func (s *Server) searchResponseWithListingCount(ctx context.Context, chatID int64, sr storage.Search) searchResponse {
 	item := s.toSearchResponse(sr)
 	if s.listings != nil {
-		n, err := s.listings.CountSearchListings(ctx, chatID, sr.ID)
+		n, err := s.listings.CountSearchListings(ctx, chatID, sr.ID, listingFilterFromSearch(&sr))
 		if err != nil {
 			s.logger.Error("count search listings", "error", err, "search_id", sr.ID)
 		} else {

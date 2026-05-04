@@ -271,6 +271,15 @@ export const adminApi = {
     fetchAPI<VacuumResult>("/admin/vacuum", { method: "POST" }),
 };
 
+export interface UserProfile {
+  email: string;
+  is_admin: boolean;
+}
+
+export const userApi = {
+  me: () => fetchAPI<UserProfile>("/me"),
+};
+
 export interface TelegramLinkResponse {
   link: string;
   expires_in_seconds: number;

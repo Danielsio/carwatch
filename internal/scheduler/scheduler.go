@@ -260,7 +260,9 @@ func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.L
 	if s.stores.Digests != nil {
 		var mode string
 		if v, ok := s.digestCache.Load(chatID); ok {
-			mode = v.(digestMeta).mode
+			if dm, ok := v.(digestMeta); ok {
+				mode = dm.mode
+			}
 		} else {
 			m, interval, err := s.stores.Digests.GetDigestMode(ctx, chatID)
 			if err != nil {
@@ -684,10 +686,18 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 		filtered := filter.Apply(buildFilterCriteria(search), raw)
 		lang := s.userLang(ctx, search.ChatID)
 		sr := s.processSearchListings(ctx, search, filtered, marketCache, lang)
+		persistOK := true
 		if s.stores.Listings != nil && len(sr.listingRecords) > 0 {
 			if err := s.persistListings(ctx, sr.listingRecords); err != nil {
-				continue
+				persistOK = false
 			}
+		}
+		if !persistOK {
+			// Persist failed: still deliver price-drop messages (already saved
+			// individually in tryPriceDropListing), but drop new-listing
+			// notifications since they weren't persisted.
+			sr.newListings = nil
+			sr.listingRecords = nil
 		}
 		gs.newListings += len(sr.newListings)
 		delivered := s.deliverResults(ctx, search, lang, sr)
@@ -1241,7 +1251,9 @@ func (s *Scheduler) processExpiredPremium(ctx context.Context) {
 
 func (s *Scheduler) userLang(ctx context.Context, chatID int64) locale.Lang {
 	if v, ok := s.langCache.Load(chatID); ok {
-		return v.(locale.Lang)
+		if l, ok := v.(locale.Lang); ok {
+			return l
+		}
 	}
 	lang := locale.Hebrew
 	if s.stores.Users != nil {

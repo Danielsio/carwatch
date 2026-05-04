@@ -4,12 +4,31 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
 const firstSeenAtLayout = "2006-01-02 15:04:05.000000"
+
+const upsertListingSQL = `
+	INSERT INTO listing_history
+	(token, chat_id, search_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, image_url, fitness_score, first_seen_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT(token, chat_id) DO UPDATE SET
+		search_id = CASE WHEN excluded.search_id > 0 THEN excluded.search_id ELSE listing_history.search_id END,
+		search_name = CASE WHEN excluded.search_id > 0 THEN excluded.search_name ELSE listing_history.search_name END,
+		manufacturer = CASE WHEN excluded.manufacturer != '' THEN excluded.manufacturer ELSE listing_history.manufacturer END,
+		model = CASE WHEN excluded.model != '' THEN excluded.model ELSE listing_history.model END,
+		year = CASE WHEN excluded.year > 0 THEN excluded.year ELSE listing_history.year END,
+		price = excluded.price,
+		km = CASE WHEN excluded.km > 0 THEN excluded.km ELSE listing_history.km END,
+		hand = excluded.hand,
+		city = CASE WHEN excluded.city != '' THEN excluded.city ELSE listing_history.city END,
+		page_link = CASE WHEN excluded.page_link != '' THEN excluded.page_link ELSE listing_history.page_link END,
+		image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE listing_history.image_url END,
+		fitness_score = excluded.fitness_score`
 
 type listingScanner interface {
 	Scan(dest ...any) error
@@ -28,22 +47,15 @@ func scanListingRow(sc listingScanner) (storage.ListingRecord, error) {
 	return l, nil
 }
 
-func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO listing_history
-		(token, chat_id, search_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, image_url, fitness_score, first_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(token, chat_id) DO UPDATE SET
-			search_id = CASE WHEN excluded.search_id > 0 THEN excluded.search_id ELSE listing_history.search_id END,
-			search_name = CASE WHEN excluded.search_id > 0 THEN excluded.search_name ELSE listing_history.search_name END,
-			price = excluded.price,
-			km = CASE WHEN excluded.km > 0 THEN excluded.km ELSE listing_history.km END,
-			hand = excluded.hand,
-			city = CASE WHEN excluded.city != '' THEN excluded.city ELSE listing_history.city END,
-			image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE listing_history.image_url END,
-			fitness_score = excluded.fitness_score`,
+func upsertListingArgs(r storage.ListingRecord) []any {
+	return []any{
 		r.Token, r.ChatID, r.SearchID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
-		r.Km, r.Hand, r.City, r.PageLink, r.ImageURL, r.FitnessScore, r.FirstSeenAt.UTC().Format(firstSeenAtLayout))
+		r.Km, r.Hand, r.City, r.PageLink, r.ImageURL, r.FitnessScore, r.FirstSeenAt.UTC().Format(firstSeenAtLayout),
+	}
+}
+
+func (s *Store) SaveListing(ctx context.Context, r storage.ListingRecord) error {
+	_, err := s.db.ExecContext(ctx, upsertListingSQL, upsertListingArgs(r)...)
 	return err
 }
 
@@ -58,28 +70,14 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	listingStmt, err := tx.PrepareContext(ctx, `
-		INSERT INTO listing_history
-		(token, chat_id, search_id, search_name, manufacturer, model, year, price, km, hand, city, page_link, image_url, fitness_score, first_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(token, chat_id) DO UPDATE SET
-			search_id = CASE WHEN excluded.search_id > 0 THEN excluded.search_id ELSE listing_history.search_id END,
-			search_name = CASE WHEN excluded.search_id > 0 THEN excluded.search_name ELSE listing_history.search_name END,
-			price = excluded.price,
-			km = CASE WHEN excluded.km > 0 THEN excluded.km ELSE listing_history.km END,
-			hand = excluded.hand,
-			city = CASE WHEN excluded.city != '' THEN excluded.city ELSE listing_history.city END,
-			image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE listing_history.image_url END,
-			fitness_score = excluded.fitness_score`)
+	stmt, err := tx.PrepareContext(ctx, upsertListingSQL)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = listingStmt.Close() }()
+	defer func() { _ = stmt.Close() }()
 
 	for _, r := range records {
-		if _, err := listingStmt.ExecContext(ctx,
-			r.Token, r.ChatID, r.SearchID, r.SearchName, r.Manufacturer, r.Model, r.Year, r.Price,
-			r.Km, r.Hand, r.City, r.PageLink, r.ImageURL, r.FitnessScore, r.FirstSeenAt.UTC().Format(firstSeenAtLayout)); err != nil {
+		if _, err := stmt.ExecContext(ctx, upsertListingArgs(r)...); err != nil {
 			return err
 		}
 	}
@@ -157,7 +155,36 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 	return listings, rows.Err()
 }
 
-func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID int64, limit, offset int, sort string) ([]storage.ListingRecord, error) {
+func buildFilterClauses(f storage.ListingFilter) (string, []any) {
+	var clauses []string
+	var args []any
+	if f.PriceMax > 0 {
+		clauses = append(clauses, "price <= ?")
+		args = append(args, f.PriceMax)
+	}
+	if f.YearMin > 0 {
+		clauses = append(clauses, "year >= ?")
+		args = append(args, f.YearMin)
+	}
+	if f.YearMax > 0 {
+		clauses = append(clauses, "year <= ?")
+		args = append(args, f.YearMax)
+	}
+	if f.MaxKm > 0 {
+		clauses = append(clauses, "(km <= ? OR km = 0)")
+		args = append(args, f.MaxKm)
+	}
+	if f.MaxHand > 0 {
+		clauses = append(clauses, "hand <= ?")
+		args = append(args, f.MaxHand)
+	}
+	if len(clauses) == 0 {
+		return "", nil
+	}
+	return " AND " + strings.Join(clauses, " AND "), args
+}
+
+func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID int64, f storage.ListingFilter, limit, offset int, sort string) ([]storage.ListingRecord, error) {
 	orderBy := "first_seen_at DESC, token DESC"
 	switch sort {
 	case "newest":
@@ -174,13 +201,18 @@ func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID i
 		orderBy = "year DESC, token DESC"
 	}
 
+	filterSQL, filterArgs := buildFilterClauses(f)
+	args := []any{chatID, searchID}
+	args = append(args, filterArgs...)
+	args = append(args, limit, offset)
+
 	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT token, search_name, manufacturer, model, year, price,
 			km, hand, city, page_link, image_url, fitness_score, first_seen_at
 		FROM listing_history
-		WHERE chat_id = ? AND search_id = ?
+		WHERE chat_id = ? AND search_id = ?%s
 		ORDER BY %s
-		LIMIT ? OFFSET ?`, orderBy), chatID, searchID, limit, offset)
+		LIMIT ? OFFSET ?`, filterSQL, orderBy), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -197,11 +229,15 @@ func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID i
 	return listings, rows.Err()
 }
 
-func (s *Store) CountSearchListings(ctx context.Context, chatID int64, searchID int64) (int64, error) {
+func (s *Store) CountSearchListings(ctx context.Context, chatID int64, searchID int64, f storage.ListingFilter) (int64, error) {
+	filterSQL, filterArgs := buildFilterClauses(f)
+	args := []any{chatID, searchID}
+	args = append(args, filterArgs...)
+
 	var count int64
-	err := s.db.QueryRowContext(ctx, `
+	err := s.db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT COUNT(*) FROM listing_history
-		WHERE chat_id = ? AND search_id = ?`, chatID, searchID).Scan(&count)
+		WHERE chat_id = ? AND search_id = ?%s`, filterSQL), args...).Scan(&count)
 	return count, err
 }
 
