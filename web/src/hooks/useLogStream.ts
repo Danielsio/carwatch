@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getAuthToken } from "@/lib/auth-token";
 import { adminApi, type LogEntry } from "@/lib/api";
 
-const MAX_ENTRIES = 500;
+const MAX_ENTRIES = 2000;
 const STYLE_BY_LEVEL: Record<string, string> = {
   DEBUG: "color: #8b8b8b",
   INFO: "color: #3b82f6",
@@ -30,7 +30,7 @@ export function useLogStream(enabled: boolean) {
     async function connect() {
       // Load recent logs first
       try {
-        const { items } = await adminApi.logs(200);
+        const { items } = await adminApi.logs(500);
         if (!cancelled) {
           setLogs(items);
         }

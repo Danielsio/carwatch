@@ -64,11 +64,19 @@ func (f *WinWinFetcher) Fetch(ctx context.Context, params model.SourceParams) ([
 		cli = c
 	}
 	reqURL := buildURL(f.baseURL, params)
-	f.logger.Info("fetching winwin listings", "url", reqURL)
+	f.logger.Info("fetching winwin listings",
+		"url", reqURL,
+		"manufacturer", params.Manufacturer,
+		"model", params.Model,
+	)
 	result, err := cli.Get(ctx, reqURL)
 	if err != nil {
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
+	f.logger.Debug("winwin response received",
+		"status", result.StatusCode,
+		"body_bytes", len(result.Body),
+	)
 	switch result.StatusCode {
 	case http.StatusOK:
 	case http.StatusTooManyRequests:
@@ -84,5 +92,15 @@ func (f *WinWinFetcher) Fetch(ctx context.Context, params model.SourceParams) ([
 		return nil, fmt.Errorf("parse page: %w", err)
 	}
 	f.logger.Info("fetched winwin listings", "count", len(listings))
+	for i, l := range listings {
+		f.logger.Debug("winwin listing parsed",
+			"idx", i,
+			"token", l.Token,
+			"manufacturer", l.Manufacturer,
+			"model", l.Model,
+			"year", l.Year,
+			"price", l.Price,
+		)
+	}
 	return listings, nil
 }

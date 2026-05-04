@@ -43,6 +43,7 @@ type Server struct {
 	hidden    storage.HiddenListingStore
 	notifs    storage.NotificationStore
 	logHub    *logstream.Hub
+	logLevel  *slog.LevelVar
 	poller    PollTrigger
 	logger    *slog.Logger
 	cfg       config.APIConfig
@@ -74,6 +75,7 @@ type Config struct {
 	Hidden       storage.HiddenListingStore
 	Notifs       storage.NotificationStore
 	LogHub       *logstream.Hub
+	LogLevel     *slog.LevelVar
 	Logger       *slog.Logger
 	API          config.APIConfig
 	FirebaseAuth TokenVerifier
@@ -94,6 +96,7 @@ func New(c Config) *Server {
 		hidden:    c.Hidden,
 		notifs:    c.Notifs,
 		logHub:    c.LogHub,
+		logLevel:  c.LogLevel,
 		logger:    c.Logger,
 		cfg:       c.API,
 		botUsername: c.BotUsername,
@@ -132,6 +135,10 @@ func (s *Server) Routes() http.Handler {
 		if s.logHub != nil {
 			mux.HandleFunc("GET /api/v1/admin/logs", s.requireAdmin(s.adminLogs))
 			mux.HandleFunc("GET /api/v1/admin/logs/stream", s.requireAdmin(s.adminLogStream))
+		}
+		if s.logLevel != nil {
+			mux.HandleFunc("GET /api/v1/admin/logs/level", s.requireAdmin(s.adminGetLogLevel))
+			mux.HandleFunc("PUT /api/v1/admin/logs/level", s.requireAdmin(s.adminSetLogLevel))
 		}
 	}
 

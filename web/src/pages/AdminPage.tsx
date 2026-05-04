@@ -85,9 +85,15 @@ function ConfirmModal({
   onCancel: () => void;
   loading?: boolean;
 }) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    modalRef.current?.focus();
+  }, []);
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      ref={modalRef}
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 outline-none"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-title"
@@ -1029,6 +1035,21 @@ function LogsTab({ active }: { active: boolean }) {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [backendLevel, setBackendLevel] = useState("INFO");
+
+  useEffect(() => {
+    if (!active) return;
+    adminApi.getLogLevel().then((r) => setBackendLevel(r.level)).catch(() => {});
+  }, [active]);
+
+  async function changeBackendLevel(level: string) {
+    try {
+      const { level: newLevel } = await adminApi.setLogLevel(level);
+      setBackendLevel(newLevel);
+    } catch {
+      // non-critical
+    }
+  }
 
   const filtered = logs.filter(
     (e) => componentFilter.has(e.component) && levelFilter.has(e.level),
@@ -1056,11 +1077,9 @@ function LogsTab({ active }: { active: boolean }) {
 
   function formatTime(iso: string) {
     try {
-      return new Date(iso).toLocaleTimeString("he-IL", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
+      const d = new Date(iso);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     } catch {
       return "";
     }
@@ -1131,6 +1150,33 @@ function LogsTab({ active }: { active: boolean }) {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Backend log level selector */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground">רמה:</span>
+            <div className="flex gap-0.5 rounded-lg bg-secondary/50 p-0.5">
+              {ALL_LEVELS.map((l) => {
+                const style = LEVEL_STYLES[l];
+                return (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => changeBackendLevel(l)}
+                    className={cn(
+                      "px-2 py-1 rounded-md text-[11px] font-medium transition-all",
+                      backendLevel === l
+                        ? `${style.bg} ${style.text} ring-1 ring-current/20`
+                        : "text-muted-foreground/40 hover:text-muted-foreground/70",
+                    )}
+                  >
+                    {style.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="h-4 w-px bg-border/50" />
+
           <button
             type="button"
             onClick={() => setAutoScroll((p) => !p)}
@@ -1166,7 +1212,7 @@ function LogsTab({ active }: { active: boolean }) {
           </span>
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto p-2 font-mono text-xs">
+        <div dir="ltr" className="max-h-[60vh] overflow-y-auto p-2 font-mono text-xs">
           {filtered.length === 0 ? (
             <EmptyState
               icon={ScrollText}
@@ -1224,7 +1270,7 @@ function LogLine({
       onKeyDown={hasAttrs ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } } : undefined}
     >
       <div className="flex items-start gap-2">
-        <span className="text-muted-foreground/60 flex-shrink-0 tabular-nums w-[60px]">
+        <span className="text-muted-foreground/60 flex-shrink-0 tabular-nums w-[135px]">
           {formatTime(entry.time)}
         </span>
         <span
@@ -1250,7 +1296,7 @@ function LogLine({
         )}
       </div>
       {expanded && hasAttrs && (
-        <div className="mt-2 mr-[132px] space-y-0.5 border-r border-border/50 pr-3">
+        <div className="mt-2 ml-[132px] space-y-0.5 border-l border-border/50 pl-3">
           {Object.entries(entry.attrs!).map(([k, v]) => (
             <div key={k} className="flex gap-2">
               <span className="text-muted-foreground/60">{k}:</span>
@@ -1406,7 +1452,7 @@ export function AdminPage() {
       </div>
 
       {/* Tab Content */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="popLayout">
         <motion.div
           key={activeTab}
           initial={{ opacity: 0, y: 8 }}

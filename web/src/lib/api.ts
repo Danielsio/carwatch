@@ -304,6 +304,12 @@ export const adminApi = {
     fetchAPI<AdminLogsResponse>(
       `/admin/logs${limit ? `?limit=${limit}` : ""}`,
     ),
+  getLogLevel: () => fetchAPI<{ level: string }>("/admin/logs/level"),
+  setLogLevel: (level: string) =>
+    fetchAPI<{ level: string }>("/admin/logs/level", {
+      method: "PUT",
+      body: JSON.stringify({ level }),
+    }),
   listings: (params?: ListingsParams) => {
     const query = new URLSearchParams();
     if (params?.limit !== undefined) query.set("limit", String(params.limit));

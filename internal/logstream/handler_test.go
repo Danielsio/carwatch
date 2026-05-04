@@ -121,8 +121,8 @@ func TestTeeHandler_WithGroup(t *testing.T) {
 	if entries[0].Component != "yad2" {
 		t.Errorf("expected component=yad2, got %q", entries[0].Component)
 	}
-	if entries[0].Attrs["count"] != "42" {
-		t.Errorf("expected count=42, got attrs: %v", entries[0].Attrs)
+	if entries[0].Attrs["grp.count"] != "42" {
+		t.Errorf("expected grp.count=42, got attrs: %v", entries[0].Attrs)
 	}
 }
 

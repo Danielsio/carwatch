@@ -2689,8 +2689,12 @@ func TestAdminListSearches(t *testing.T) {
 	seedUser(t, store, 100)
 	seedUser(t, store, 200)
 
-	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "s1", Source: "yad2", Manufacturer: 19, Model: 10226, Active: true})
-	_, _ = store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "s2", Source: "winwin", Manufacturer: 8, Model: 10061, Active: false})
+	if _, err := store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "s1", Source: "yad2", Manufacturer: 19, Model: 10226, Active: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateSearch(ctx, storage.Search{ChatID: 200, Name: "s2", Source: "winwin", Manufacturer: 8, Model: 10061, Active: false}); err != nil {
+		t.Fatal(err)
+	}
 
 	searches, err := store.AdminListSearches(ctx)
 	if err != nil {
@@ -2718,7 +2722,9 @@ func TestAdminListUsers(t *testing.T) {
 	ctx := context.Background()
 	seedUser(t, store, 100)
 	seedUser(t, store, 200)
-	_ = store.SetUserActive(ctx, 200, false)
+	if err := store.SetUserActive(ctx, 200, false); err != nil {
+		t.Fatal(err)
+	}
 
 	users, err := store.AdminListUsers(ctx)
 	if err != nil {
