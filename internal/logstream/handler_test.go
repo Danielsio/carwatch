@@ -106,6 +106,26 @@ func TestTeeHandler_LevelCaptured(t *testing.T) {
 	}
 }
 
+func TestTeeHandler_WithGroup(t *testing.T) {
+	hub := NewHub(100)
+	inner := slog.NewTextHandler(&bytes.Buffer{}, &slog.HandlerOptions{Level: slog.LevelDebug})
+	handler := NewTeeHandler(inner, hub, "yad2")
+
+	logger := slog.New(handler).WithGroup("grp").With("component", "yad2")
+	logger.Info("msg", "count", 42)
+
+	entries := hub.Recent(0)
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].Component != "yad2" {
+		t.Errorf("expected component=yad2, got %q", entries[0].Component)
+	}
+	if entries[0].Attrs["count"] != "42" {
+		t.Errorf("expected count=42, got attrs: %v", entries[0].Attrs)
+	}
+}
+
 func TestTeeHandler_SubscriberReceivesLive(t *testing.T) {
 	hub := NewHub(100)
 	inner := slog.NewTextHandler(&bytes.Buffer{}, &slog.HandlerOptions{Level: slog.LevelDebug})

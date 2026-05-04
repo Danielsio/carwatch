@@ -11,6 +11,24 @@ func makeEntry(msg string) LogEntry {
 	return LogEntry{Time: time.Now(), Level: "INFO", Message: msg, Component: "test"}
 }
 
+func TestNewBuffer_PanicsOnZero(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic for zero capacity")
+		}
+	}()
+	NewBuffer(0)
+}
+
+func TestNewBuffer_PanicsOnNegative(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic for negative capacity")
+		}
+	}()
+	NewBuffer(-1)
+}
+
 func TestBuffer_EmptyRecent(t *testing.T) {
 	b := NewBuffer(10)
 	if got := b.Recent(5); got != nil {

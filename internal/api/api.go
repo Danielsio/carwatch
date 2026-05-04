@@ -188,8 +188,8 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		authHdr := r.Header.Get("Authorization")
 		bearer := bearerFromAuthHeader(authHdr)
 
-		// Allow token via query param for SSE (EventSource can't set headers).
-		if bearer == "" {
+		// Allow token via query param for SSE only (EventSource can't set headers).
+		if bearer == "" && strings.HasPrefix(r.URL.Path, "/api/v1/admin/logs/") {
 			if qt := r.URL.Query().Get("token"); qt != "" {
 				bearer = qt
 			}
@@ -217,7 +217,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		} else if s.firebaseAuth == nil {
 			if s.cfg.AuthToken != "" {
-				if authHdr != "Bearer "+s.cfg.AuthToken {
+				if bearer != s.cfg.AuthToken {
 					writeError(w, http.StatusUnauthorized, "invalid or missing token")
 					return
 				}

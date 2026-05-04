@@ -369,9 +369,12 @@ func (s *Server) adminLogStream(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				continue
 			}
-			// Extend write deadline for this long-lived connection.
-			_ = rc.SetWriteDeadline(time.Now().Add(30 * time.Second))
-			fmt.Fprintf(w, "data: %s\n\n", data)
+			if err := rc.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+				return
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+				return
+			}
 			flusher.Flush()
 		}
 	}

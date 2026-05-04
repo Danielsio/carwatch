@@ -769,6 +769,9 @@ func TestAdminListSearches(t *testing.T) {
 	if resp.Total != 1 {
 		t.Fatalf("expected total=1, got %d", resp.Total)
 	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(resp.Items))
+	}
 	if resp.Items[0].Name != "test-search" {
 		t.Fatalf("expected name=test-search, got %s", resp.Items[0].Name)
 	}

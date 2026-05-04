@@ -12,7 +12,11 @@ type Buffer struct {
 }
 
 // NewBuffer creates a ring buffer that holds the last cap entries.
+// Panics if cap is not positive.
 func NewBuffer(cap int) *Buffer {
+	if cap <= 0 {
+		panic("logstream: buffer capacity must be positive")
+	}
 	return &Buffer{
 		items: make([]LogEntry, cap),
 		cap:   cap,

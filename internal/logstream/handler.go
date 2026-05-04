@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -43,12 +44,22 @@ func (h *TeeHandler) Handle(ctx context.Context, r slog.Record) error {
 	component := h.componentFromPre()
 	attrs := make(map[string]string)
 
-	// Collect pre-set attrs (from WithAttrs)
+	groupPrefix := ""
+	if len(h.groups) > 0 {
+		groupPrefix = strings.Join(h.groups, ".") + "."
+	}
+
+	// Collect pre-set attrs (from WithAttrs).
+	// "component" is a well-known key used for filtering, never prefixed.
 	for _, a := range h.preAttrs {
 		if a.Key == "component" {
 			component = a.Value.String()
 		} else {
-			attrs[a.Key] = attrValueString(a.Value)
+			key := a.Key
+			if groupPrefix != "" {
+				key = groupPrefix + key
+			}
+			attrs[key] = attrValueString(a.Value)
 		}
 	}
 

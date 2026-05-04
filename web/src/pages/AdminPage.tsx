@@ -86,7 +86,14 @@ function ConfirmModal({
   loading?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-title"
+      aria-describedby="confirm-desc"
+      onKeyDown={(e) => e.key === "Escape" && onCancel()}
+    >
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -105,9 +112,9 @@ function ConfirmModal({
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/15">
             <Trash2 className="h-[18px] w-[18px] text-destructive" />
           </div>
-          <h3 className="font-bold text-foreground">אישור פעולה</h3>
+          <h3 id="confirm-title" className="font-bold text-foreground">אישור פעולה</h3>
         </div>
-        <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+        <p id="confirm-desc" className="text-sm text-muted-foreground mb-6 leading-relaxed">
           {message}
         </p>
         <div className="flex gap-3">
@@ -148,7 +155,13 @@ function DetailModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="detail-title"
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
+    >
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -164,7 +177,7 @@ function DetailModal({
         className="relative bg-card border border-border rounded-2xl p-6 max-w-lg w-full shadow-2xl max-h-[80vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between mb-5">
-          <h3 className="font-bold text-foreground">{title}</h3>
+          <h3 id="detail-title" className="font-bold text-foreground">{title}</h3>
           <button
             type="button"
             onClick={onClose}
@@ -604,7 +617,7 @@ function ListingsTab() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1.5 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
                       <button
                         type="button"
                         onClick={() => setDetailListing(listing)}
@@ -692,7 +705,7 @@ function ListingsTab() {
               { label: "עיר", value: detailListing.city },
               {
                 label: "ציון התאמה",
-                value: detailListing.fitness_score
+                value: detailListing.fitness_score != null
                   ? `${(detailListing.fitness_score * 100).toFixed(0)}%`
                   : null,
               },
@@ -774,8 +787,11 @@ function SearchesTab() {
                   key={search.id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex items-center gap-3 rounded-xl bg-secondary/40 px-4 py-3 transition-colors hover:bg-secondary cursor-pointer group"
+                  className="flex items-center gap-3 rounded-xl bg-secondary/40 px-4 py-3 transition-colors hover:bg-secondary cursor-pointer group focus-visible:ring-2 focus-visible:ring-ring outline-none"
+                  tabIndex={0}
+                  role="button"
                   onClick={() => setDetailSearch(search)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetailSearch(search); } }}
                 >
                   <div
                     className={cn(
@@ -919,8 +935,11 @@ function UsersTab() {
                   key={user.chat_id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex items-center gap-3 rounded-xl bg-secondary/40 px-4 py-3 transition-colors hover:bg-secondary cursor-pointer"
+                  className="flex items-center gap-3 rounded-xl bg-secondary/40 px-4 py-3 transition-colors hover:bg-secondary cursor-pointer focus-visible:ring-2 focus-visible:ring-ring outline-none"
+                  tabIndex={0}
+                  role="button"
                   onClick={() => setDetailUser(user)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetailUser(user); } }}
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary font-bold text-sm flex-shrink-0">
                     {(user.username || user.channel || "?")[0].toUpperCase()}
@@ -1196,9 +1215,12 @@ function LogLine({
       className={cn(
         "rounded-lg px-3 py-2 transition-colors",
         expanded ? "bg-secondary" : "hover:bg-secondary/50",
-        hasAttrs && "cursor-pointer",
+        hasAttrs && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring outline-none",
       )}
+      tabIndex={hasAttrs ? 0 : undefined}
+      role={hasAttrs ? "button" : undefined}
       onClick={hasAttrs ? onToggle : undefined}
+      onKeyDown={hasAttrs ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } } : undefined}
     >
       <div className="flex items-start gap-2">
         <span className="text-muted-foreground/60 flex-shrink-0 tabular-nums w-[60px]">
