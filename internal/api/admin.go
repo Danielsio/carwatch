@@ -17,6 +17,7 @@ import (
 type adminListingResponse struct {
 	ChatID       int64    `json:"chat_id"`
 	Token        string   `json:"token"`
+	SearchID     int64    `json:"search_id"`
 	SearchName   string   `json:"search_name,omitempty"`
 	Manufacturer string   `json:"manufacturer"`
 	Model        string   `json:"model"`
@@ -162,8 +163,9 @@ func (s *Server) adminListListings(w http.ResponseWriter, r *http.Request) {
 	if offset < 0 {
 		offset = 0
 	}
+	searchID := int64(parseIntParam(r, "search_id", 0))
 
-	items, total, err := s.admin.AdminListListings(r.Context(), limit, offset)
+	items, total, err := s.admin.AdminListListings(r.Context(), limit, offset, searchID)
 	if err != nil {
 		s.logger.Error("admin: list listings", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list listings")
@@ -175,6 +177,7 @@ func (s *Server) adminListListings(w http.ResponseWriter, r *http.Request) {
 		resp = append(resp, adminListingResponse{
 			ChatID:       l.ChatID,
 			Token:        l.Token,
+			SearchID:     l.SearchID,
 			SearchName:   l.SearchName,
 			Manufacturer: l.Manufacturer,
 			Model:        l.Model,
@@ -265,6 +268,22 @@ func (s *Server) adminListSearches(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": resp, "total": len(resp)})
+}
+
+func (s *Server) adminDeleteSearch(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "valid search id is required")
+		return
+	}
+
+	if err := s.admin.AdminDeleteSearch(r.Context(), id); err != nil {
+		s.logger.Error("admin: delete search", "id", id, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to delete search")
+		return
+	}
+	s.logger.Info("admin: deleted search", "id", id)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) adminListUsers(w http.ResponseWriter, r *http.Request) {

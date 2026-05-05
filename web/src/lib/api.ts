@@ -228,6 +228,7 @@ export interface AdminStats {
 
 export interface AdminListing extends Listing {
   chat_id: number;
+  search_id: number;
   search_name?: string;
 }
 
@@ -310,10 +311,11 @@ export const adminApi = {
       method: "PUT",
       body: JSON.stringify({ level }),
     }),
-  listings: (params?: ListingsParams) => {
+  listings: (params?: ListingsParams & { search_id?: number }) => {
     const query = new URLSearchParams();
     if (params?.limit !== undefined) query.set("limit", String(params.limit));
     if (params?.offset !== undefined) query.set("offset", String(params.offset));
+    if (params?.search_id) query.set("search_id", String(params.search_id));
     const qs = query.toString();
     return fetchAPI<AdminListingsResponse>(`/admin/listings${qs ? `?${qs}` : ""}`);
   },
@@ -323,6 +325,8 @@ export const adminApi = {
       body: JSON.stringify({ chat_id: chatId }),
     }),
   searches: () => fetchAPI<AdminSearchesResponse>("/admin/searches"),
+  deleteSearch: (id: number) =>
+    fetchAPI<void>(`/admin/searches/${id}`, { method: "DELETE" }),
   users: () => fetchAPI<AdminUsersResponse>("/admin/users"),
   purgeTable: (table: string) =>
     fetchAPI<PurgeResult>("/admin/purge", {

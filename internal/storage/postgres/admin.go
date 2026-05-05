@@ -85,18 +85,36 @@ func (s *Store) PurgeTable(ctx context.Context, table string) (int64, error) {
 	return result.RowsAffected()
 }
 
-func (s *Store) AdminListListings(ctx context.Context, limit, offset int) ([]storage.ListingRecord, int64, error) {
+func (s *Store) AdminListListings(ctx context.Context, limit, offset int, searchID int64) ([]storage.ListingRecord, int64, error) {
 	var total int64
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM listing_history`).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count listings: %w", err)
+	if searchID > 0 {
+		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM listing_history WHERE search_id = $1`, searchID).Scan(&total); err != nil {
+			return nil, 0, fmt.Errorf("count listings: %w", err)
+		}
+	} else {
+		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM listing_history`).Scan(&total); err != nil {
+			return nil, 0, fmt.Errorf("count listings: %w", err)
+		}
 	}
 
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT token, chat_id, search_id, search_name, manufacturer, model, year, price,
-			km, hand, city, page_link, image_url, fitness_score, first_seen_at
-		FROM listing_history
-		ORDER BY first_seen_at DESC
-		LIMIT $1 OFFSET $2`, limit, offset)
+	var rows *sql.Rows
+	var err error
+	if searchID > 0 {
+		rows, err = s.db.QueryContext(ctx, `
+			SELECT token, chat_id, search_id, search_name, manufacturer, model, year, price,
+				km, hand, city, page_link, image_url, fitness_score, first_seen_at
+			FROM listing_history
+			WHERE search_id = $1
+			ORDER BY first_seen_at DESC
+			LIMIT $2 OFFSET $3`, searchID, limit, offset)
+	} else {
+		rows, err = s.db.QueryContext(ctx, `
+			SELECT token, chat_id, search_id, search_name, manufacturer, model, year, price,
+				km, hand, city, page_link, image_url, fitness_score, first_seen_at
+			FROM listing_history
+			ORDER BY first_seen_at DESC
+			LIMIT $1 OFFSET $2`, limit, offset)
+	}
 	if err != nil {
 		return nil, 0, fmt.Errorf("query listings: %w", err)
 	}
@@ -139,6 +157,15 @@ func (s *Store) AdminListSearches(ctx context.Context) ([]storage.Search, error)
 	}
 	defer func() { _ = rows.Close() }()
 	return scanSearches(rows)
+}
+
+func (s *Store) AdminDeleteSearch(ctx context.Context, id int64) error {
+	var chatID int64
+	err := s.db.QueryRowContext(ctx, `SELECT chat_id FROM searches WHERE id = $1`, id).Scan(&chatID)
+	if err != nil {
+		return fmt.Errorf("lookup search: %w", err)
+	}
+	return s.DeleteSearch(ctx, id, chatID)
 }
 
 func (s *Store) AdminListUsers(ctx context.Context) ([]storage.User, error) {

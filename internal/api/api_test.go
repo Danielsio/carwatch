@@ -704,7 +704,7 @@ func (f *failingAdminStore) PurgeTable(_ context.Context, _ string) (int64, erro
 	return 0, nil
 }
 
-func (f *failingAdminStore) AdminListListings(_ context.Context, _, _ int) ([]storage.ListingRecord, int64, error) {
+func (f *failingAdminStore) AdminListListings(_ context.Context, _, _ int, _ int64) ([]storage.ListingRecord, int64, error) {
 	return nil, 0, nil
 }
 
@@ -714,6 +714,10 @@ func (f *failingAdminStore) AdminDeleteListing(_ context.Context, _ string, _ in
 
 func (f *failingAdminStore) AdminListSearches(_ context.Context) ([]storage.Search, error) {
 	return nil, nil
+}
+
+func (f *failingAdminStore) AdminDeleteSearch(_ context.Context, _ int64) error {
+	return nil
 }
 
 func (f *failingAdminStore) AdminListUsers(_ context.Context) ([]storage.User, error) {

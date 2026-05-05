@@ -85,7 +85,11 @@ func (f *WinWinFetcher) Fetch(ctx context.Context, params model.SourceParams) ([
 		if looksLikeChallenge(string(result.Body)) {
 			return nil, fetcher.ErrChallenge
 		}
-		return nil, fmt.Errorf("unexpected status: %d", result.StatusCode)
+		body := string(result.Body)
+		if len(body) > 512 {
+			body = body[:512] + "…"
+		}
+		return nil, fmt.Errorf("unexpected status %d: %s", result.StatusCode, body)
 	}
 	listings, err := ParseListingsPage(bytes.NewReader(result.Body))
 	if err != nil {

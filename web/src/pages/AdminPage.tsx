@@ -39,9 +39,9 @@ import { cn, formatKm, formatPrice, relativeTime, safeHref } from "@/lib/utils";
 const TABLE_LABELS: Record<string, string> = {
   users: "משתמשים",
   searches: "חיפושים",
-  listing_history: "מודעות",
+  listing_history: "היסטוריית מודעות",
   price_history: "היסטוריית מחירים",
-  dedup_seen: "מודעות שזוהו",
+  dedup_seen: "סינון כפילויות",
   seen_listings: "מודעות שנצפו",
   notifications: "התראות",
   pending_notifications: "התראות ממתינות",
@@ -49,6 +49,7 @@ const TABLE_LABELS: Record<string, string> = {
   saved_listings: "מודעות שמורות",
   hidden_listings: "מודעות מוסתרות",
   pending_digest: "תקצירים ממתינים",
+  link_tokens: "טוקנים לקישור",
 };
 
 const PURGEABLE = new Set([
@@ -156,10 +157,12 @@ function DetailModal({
   title,
   fields,
   onClose,
+  actions,
 }: {
   title: string;
   fields: { label: string; value: string | number | null | undefined }[];
   onClose: () => void;
+  actions?: React.ReactNode;
 }) {
   return (
     <div
@@ -212,6 +215,11 @@ function DetailModal({
             );
           })}
         </div>
+        {actions && (
+          <div className="flex justify-end mt-4 pt-4 border-t border-border/50">
+            {actions}
+          </div>
+        )}
       </motion.div>
     </div>
   );
@@ -469,7 +477,13 @@ function OverviewTab({
 
 // ── Listings Tab ──────────────────────────────────────────────────────────────
 
-function ListingsTab() {
+function ListingsTab({
+  searchId,
+  onClearFilter,
+}: {
+  searchId: number | null;
+  onClearFilter: () => void;
+}) {
   const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [detailListing, setDetailListing] = useState<AdminListing | null>(null);
@@ -478,10 +492,20 @@ function ListingsTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const prevSearchId = useRef(searchId);
+  if (prevSearchId.current !== searchId) {
+    prevSearchId.current = searchId;
+    setPage(0);
+  }
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin", "listings", page],
+    queryKey: ["admin", "listings", page, searchId],
     queryFn: () =>
-      adminApi.listings({ limit: pageSize, offset: page * pageSize }),
+      adminApi.listings({
+        limit: pageSize,
+        offset: page * pageSize,
+        ...(searchId ? { search_id: searchId } : {}),
+      }),
   });
 
   const deleteMutation = useMutation({
@@ -511,6 +535,28 @@ function ListingsTab() {
 
   return (
     <div className="space-y-4">
+      {/* Filter banner */}
+      {searchId && (
+        <div className="flex items-center justify-between rounded-xl bg-primary/5 border border-primary/20 px-4 py-3">
+          <span className="text-sm text-foreground">
+            מסנן לפי חיפוש #{searchId}
+            {data && (
+              <span className="text-muted-foreground mr-2">
+                · {data.total} מודעות
+              </span>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={onClearFilter}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+          >
+            <X className="h-3 w-3" />
+            הסר סינון
+          </button>
+        </div>
+      )}
+
       {/* Header with search */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -536,7 +582,9 @@ function ListingsTab() {
       {/* Listings */}
       <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
-          <h2 className="text-base font-semibold">כל המודעות</h2>
+          <h2 className="text-base font-semibold">
+            {searchId ? "מודעות לחיפוש" : "כל המודעות"}
+          </h2>
           {data && (
             <span className="text-sm text-muted-foreground tabular-nums">
               {data.total.toLocaleString("he-IL")} סה״כ
@@ -736,12 +784,28 @@ function ListingsTab() {
 
 // ── Searches Tab ──────────────────────────────────────────────────────────────
 
-function SearchesTab() {
+function SearchesTab({ onViewListings }: { onViewListings: (searchId: number) => void }) {
   const [detailSearch, setDetailSearch] = useState<AdminSearch | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<AdminSearch | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "searches"],
     queryFn: adminApi.searches,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => adminApi.deleteSearch(id),
+    onSuccess: () => {
+      toast("החיפוש נמחק בהצלחה", "success");
+      setConfirmDelete(null);
+      setDetailSearch(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin"] });
+    },
+    onError: () => {
+      toast("שגיאה במחיקת החיפוש", "error");
+    },
   });
 
   return (
@@ -829,6 +893,26 @@ function SearchesTab() {
                   <Badge variant={search.active ? "success" : "default"}>
                     {search.active ? "פעיל" : "מושהה"}
                   </Badge>
+                  <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onViewListings(search.id); }}
+                      aria-label="צפה במודעות"
+                      title="צפה במודעות"
+                      className="rounded-lg p-1.5 text-muted-foreground/50 transition-colors hover:text-primary hover:bg-primary/10"
+                    >
+                      <Car className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setConfirmDelete(search); }}
+                      aria-label={`מחק חיפוש ${search.name || search.id}`}
+                      title="מחק חיפוש"
+                      className="rounded-lg p-1.5 text-muted-foreground/50 transition-colors hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                   <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0">
                     #{search.chat_id}
                   </span>
@@ -849,21 +933,21 @@ function SearchesTab() {
               { label: "מקור", value: detailSearch.source },
               { label: "יצרן", value: detailSearch.manufacturer || null },
               { label: "דגם", value: detailSearch.model || null },
-              { label: "שנה מ", value: detailSearch.year_min || null },
+              { label: "שנה מ-", value: detailSearch.year_min || null },
               { label: "שנה עד", value: detailSearch.year_max || null },
               {
-                label: "מחיר מקס",
+                label: "מחיר מקס׳",
                 value: detailSearch.price_max
                   ? formatPrice(detailSearch.price_max)
                   : null,
               },
               {
-                label: "ק״מ מקס",
+                label: "ק״מ מקס׳",
                 value: detailSearch.max_km
                   ? detailSearch.max_km.toLocaleString("he-IL")
                   : null,
               },
-              { label: "יד מקס", value: detailSearch.max_hand || null },
+              { label: "יד מקס׳", value: detailSearch.max_hand || null },
               {
                 label: "סטטוס",
                 value: detailSearch.active ? "פעיל" : "מושהה",
@@ -875,6 +959,37 @@ function SearchesTab() {
               },
             ]}
             onClose={() => setDetailSearch(null)}
+            actions={
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setDetailSearch(null); onViewListings(detailSearch.id); }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+                >
+                  <Car className="h-3 w-3" />
+                  צפה במודעות
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDetailSearch(null); setConfirmDelete(detailSearch); }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  מחק חיפוש
+                </button>
+              </div>
+            }
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {confirmDelete && (
+          <ConfirmModal
+            message={`למחוק את החיפוש "${confirmDelete.name || `#${confirmDelete.id}`}" של משתמש #${confirmDelete.chat_id}? פעולה זו תמחק גם את כל המודעות וההיסטוריה המשויכים.`}
+            onConfirm={() => deleteMutation.mutate(confirmDelete.id)}
+            onCancel={() => setConfirmDelete(null)}
+            loading={deleteMutation.isPending}
           />
         )}
       </AnimatePresence>
@@ -1362,6 +1477,12 @@ function RuntimeStat({ label, value }: { label: string; value: string }) {
 export function AdminPage() {
   const { data, isLoading, isError, dataUpdatedAt, refetch } = useAdminStats();
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [listingsSearchId, setListingsSearchId] = useState<number | null>(null);
+
+  function viewListingsForSearch(searchId: number) {
+    setListingsSearchId(searchId);
+    setActiveTab("listings");
+  }
 
   if (isLoading) {
     return (
@@ -1483,8 +1604,15 @@ export function AdminPage() {
           {activeTab === "overview" && (
             <OverviewTab data={data} onRefresh={() => void refetch()} />
           )}
-          {activeTab === "listings" && <ListingsTab />}
-          {activeTab === "searches" && <SearchesTab />}
+          {activeTab === "listings" && (
+            <ListingsTab
+              searchId={listingsSearchId}
+              onClearFilter={() => setListingsSearchId(null)}
+            />
+          )}
+          {activeTab === "searches" && (
+            <SearchesTab onViewListings={viewListingsForSearch} />
+          )}
           {activeTab === "users" && <UsersTab />}
           {activeTab === "logs" && (
             <LogsTab active={activeTab === "logs"} />
