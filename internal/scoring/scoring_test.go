@@ -752,3 +752,24 @@ func TestHandScore_AgeBonus(t *testing.T) {
 		t.Errorf("hand 1 should have no age bonus: old=%.3f new=%.3f", hand1old, hand1new)
 	}
 }
+
+func TestKmScore_ZeroCarYear(t *testing.T) {
+	stubCurrentYear(t, 2026)
+
+	// carYear=0 should not inflate score — fall back to cap-only.
+	withCap := kmScore(80000, 150000, 0)
+	if math.IsNaN(withCap) {
+		t.Fatal("kmScore with maxKm>0 and carYear=0 should not be NaN")
+	}
+	// Without age adjustment, score is purely cap-based.
+	expectedCap := clamp01(1.0 - math.Pow(clamp01(80000.0/150000.0), 1.5))
+	if math.Abs(withCap-expectedCap) > 0.01 {
+		t.Errorf("kmScore(80k, 150k, year=0) = %.3f, want cap-only %.3f", withCap, expectedCap)
+	}
+
+	// No maxKm and no year → NaN (no signal at all).
+	noSignal := kmScore(80000, 0, 0)
+	if !math.IsNaN(noSignal) {
+		t.Errorf("kmScore(80k, maxKm=0, year=0) should be NaN, got %.3f", noSignal)
+	}
+}

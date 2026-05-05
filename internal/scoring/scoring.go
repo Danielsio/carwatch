@@ -297,22 +297,29 @@ func kmScore(km, maxKm, carYear int) float64 {
 	if km <= 0 {
 		return math.NaN()
 	}
-	now := currentYear()
-	carAge := now - carYear
-	if carAge < 1 {
-		carAge = 1
+
+	var ageScore float64
+	hasAge := carYear > 0
+	if hasAge {
+		carAge := currentYear() - carYear
+		if carAge < 1 {
+			carAge = 1
+		}
+		expectedKm := float64(carAge * avgKmPerYear)
+		kmRatio := float64(km) / expectedKm
+		ageScore = clamp01(1.0 - math.Pow(clamp01(kmRatio), 1.2))
 	}
 
-	// Age-adjusted: compare actual km/year to Israeli average.
-	expectedKm := float64(carAge * avgKmPerYear)
-	kmRatio := float64(km) / expectedKm
-	ageScore := clamp01(1.0 - math.Pow(clamp01(kmRatio), 1.2))
-
 	if maxKm > 0 {
-		// Cap-based: how far below the user's km limit.
 		capRatio := float64(km) / float64(maxKm)
 		capScore := clamp01(1.0 - math.Pow(clamp01(capRatio), 1.5))
+		if !hasAge {
+			return capScore
+		}
 		return ageAdjustKmBlend*ageScore + (1-ageAdjustKmBlend)*capScore
+	}
+	if !hasAge {
+		return math.NaN()
 	}
 	return ageScore
 }

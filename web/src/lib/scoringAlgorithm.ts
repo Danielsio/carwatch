@@ -45,17 +45,22 @@ export function scoreListingAgainstSearch(
   }
 
   // Km: blend age-adjusted expectations with cap-based score.
+  // When mileage is missing/zero, mark as NaN to omit the dimension (matches backend).
   const AVG_KM_PER_YEAR = 15000;
   const now = new Date().getFullYear();
   const carAge = Math.max(1, now - listing.year);
-  const expectedKm = carAge * AVG_KM_PER_YEAR;
-  const ageScore = clamp01(1 - Math.pow(clamp01(listing.mileage / expectedKm), 1.2));
   let mileageFactor: number;
-  if (search.mileage_max > 0) {
-    const capScore = clamp01(1 - Math.pow(clamp01(listing.mileage / search.mileage_max), 1.5));
-    mileageFactor = 0.6 * ageScore + 0.4 * capScore;
+  if (listing.mileage <= 0) {
+    mileageFactor = NaN;
   } else {
-    mileageFactor = ageScore;
+    const expectedKm = carAge * AVG_KM_PER_YEAR;
+    const ageScore = clamp01(1 - Math.pow(clamp01(listing.mileage / expectedKm), 1.2));
+    if (search.mileage_max > 0) {
+      const capScore = clamp01(1 - Math.pow(clamp01(listing.mileage / search.mileage_max), 1.5));
+      mileageFactor = 0.6 * ageScore + 0.4 * capScore;
+    } else {
+      mileageFactor = ageScore;
+    }
   }
 
   // Year: position in range with floor at 0.3 and sqrt curve.
@@ -78,20 +83,29 @@ export function scoreListingAgainstSearch(
   }
   const handFactor = handBase;
 
-  const combined =
-    0.35 * priceFactor +
-    0.25 * mileageFactor +
-    0.15 * yearFactor +
-    0.20 * handFactor +
-    0.05 * 1.0; // engine (always 1.0 in demo)
+  const dims: [number, number][] = [
+    [0.35, priceFactor],
+    [0.25, mileageFactor],
+    [0.15, yearFactor],
+    [0.20, handFactor],
+    [0.05, 1.0], // engine (always 1.0 in demo)
+  ];
 
+  let totalWeight = 0;
+  let weighted = 0;
+  for (const [w, s] of dims) {
+    if (Number.isNaN(s)) continue;
+    totalWeight += w;
+    weighted += w * s;
+  }
+  const combined = totalWeight > 0 ? weighted / totalWeight : 0.5;
   const score = clamp01(combined) * 10;
 
   return {
     score,
     breakdown: {
       price: Math.round(priceFactor * 100),
-      mileage: Math.round(mileageFactor * 100),
+      mileage: Number.isNaN(mileageFactor) ? 0 : Math.round(mileageFactor * 100),
       year: Math.round(yearFactor * 100),
       hand: Math.round(handFactor * 100),
     },
