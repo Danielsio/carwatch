@@ -1199,8 +1199,10 @@ function LogsTab({ active }: { active: boolean }) {
               const a = document.createElement("a");
               a.href = url;
               a.download = `carwatch-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.json`;
+              document.body.appendChild(a);
               a.click();
-              URL.revokeObjectURL(url);
+              a.remove();
+              setTimeout(() => URL.revokeObjectURL(url), 0);
             }}
             disabled={filtered.length === 0}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-xs font-medium text-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
