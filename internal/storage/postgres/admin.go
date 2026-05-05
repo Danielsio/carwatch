@@ -194,6 +194,29 @@ func scanAdminUsers(rows *sql.Rows) ([]storage.User, error) {
 	return users, rows.Err()
 }
 
+func (s *Store) AdminDeleteUser(ctx context.Context, chatID int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("admin delete user begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for _, table := range []string{
+		"searches", "listing_history", "seen_listings",
+		"pending_notifications", "saved_listings", "hidden_listings",
+		"pending_digest", "daily_digest",
+	} {
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE chat_id = $1`, quoteIdent(table)), chatID); err != nil {
+			return fmt.Errorf("admin delete user data from %s: %w", table, err)
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE chat_id = $1`, chatID); err != nil {
+		return fmt.Errorf("admin delete user: %w", err)
+	}
+	return tx.Commit()
+}
+
 func (s *Store) VacuumDB(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, `VACUUM`); err != nil {
 		return fmt.Errorf("vacuum: %w", err)

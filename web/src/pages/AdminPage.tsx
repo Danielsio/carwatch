@@ -1001,10 +1001,20 @@ function SearchesTab({ onViewListings }: { onViewListings: (searchId: number) =>
 
 function UsersTab() {
   const [detailUser, setDetailUser] = useState<AdminUser | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "users"],
     queryFn: adminApi.users,
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (chatId: number) => adminApi.deleteUser(chatId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "stats"] });
+    },
   });
 
   return (
@@ -1057,7 +1067,7 @@ function UsersTab() {
                   key={user.chat_id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex items-center gap-3 rounded-xl bg-secondary/40 px-4 py-3 transition-colors hover:bg-secondary cursor-pointer focus-visible:ring-2 focus-visible:ring-ring outline-none"
+                  className="group flex items-center gap-3 rounded-xl bg-secondary/40 px-4 py-3 transition-colors hover:bg-secondary cursor-pointer focus-visible:ring-2 focus-visible:ring-ring outline-none"
                   tabIndex={0}
                   role="button"
                   onClick={() => setDetailUser(user)}
@@ -1088,6 +1098,15 @@ function UsersTab() {
                     <Badge variant={user.active ? "success" : "default"}>
                       {user.active ? "פעיל" : "לא פעיל"}
                     </Badge>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setConfirmDelete(user); }}
+                      aria-label={`מחק משתמש ${user.username || user.chat_id}`}
+                      title="מחק משתמש"
+                      className="rounded-lg p-1.5 text-muted-foreground/50 transition-colors hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </motion.div>
               ))}
@@ -1114,9 +1133,30 @@ function UsersTab() {
               { label: "נוצר", value: relativeTime(detailUser.created_at) },
             ]}
             onClose={() => setDetailUser(null)}
+            actions={
+              <button
+                type="button"
+                onClick={() => { setDetailUser(null); setConfirmDelete(detailUser); }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                מחק משתמש
+              </button>
+            }
           />
         )}
       </AnimatePresence>
+
+      {confirmDelete && (
+        <ConfirmModal
+          message={`האם למחוק את המשתמש "${confirmDelete.username || confirmDelete.chat_id}" וכל הנתונים שלו?`}
+          onConfirm={() => {
+            deleteUserMutation.mutate(confirmDelete.chat_id);
+            setConfirmDelete(null);
+          }}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   );
 }

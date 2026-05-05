@@ -22,14 +22,13 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 	var prev int
 	scanErr := row.Scan(&prev)
 
-	_, err = tx.ExecContext(ctx,
-		`INSERT INTO price_history (token, price) VALUES ($1, $2)`,
-		token, price)
-	if err != nil {
-		return 0, false, fmt.Errorf("record price insert: %w", err)
-	}
-
 	if scanErr == sql.ErrNoRows {
+		// First observation: insert initial price point.
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO price_history (token, price) VALUES ($1, $2)`,
+			token, price); err != nil {
+			return 0, false, fmt.Errorf("record price insert: %w", err)
+		}
 		if err := tx.Commit(); err != nil {
 			return 0, false, fmt.Errorf("record price commit: %w", err)
 		}
@@ -39,11 +38,22 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 		return 0, false, fmt.Errorf("record price scan prev: %w", scanErr)
 	}
 
+	if price != prev {
+		// Price changed: insert a new row.
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO price_history (token, price) VALUES ($1, $2)`,
+			token, price); err != nil {
+			return 0, false, fmt.Errorf("record price insert: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return 0, false, fmt.Errorf("record price commit: %w", err)
+		}
+		return prev, true, nil
+	}
+
+	// Price unchanged: no insert needed.
 	if err := tx.Commit(); err != nil {
 		return 0, false, fmt.Errorf("record price commit: %w", err)
-	}
-	if price != prev {
-		return prev, true, nil
 	}
 	return prev, false, nil
 }

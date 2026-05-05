@@ -48,8 +48,8 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 	cat := catalog.NewDynamic(slog.Default())
 	cat.Load(context.Background())
 
-	cat.Ingest(context.Background(), 19, "Toyota", 10226, "Corolla")
-	cat.Ingest(context.Background(), 8, "Honda", 10061, "Civic")
+	cat.Ingest(context.Background(), catalog.IngestEntry{ManufacturerID: 19, ManufacturerName: "Toyota", ManufacturerNameHe: "טויוטה", ModelID: 10226, ModelName: "Corolla", ModelNameHe: "קורולה"})
+	cat.Ingest(context.Background(), catalog.IngestEntry{ManufacturerID: 8, ManufacturerName: "Honda", ManufacturerNameHe: "הונדה", ModelID: 10061, ModelName: "Civic", ModelNameHe: "סיוויק"})
 
 	srv := New(Config{
 		Catalog:  cat,
@@ -722,6 +722,10 @@ func (f *failingAdminStore) AdminDeleteSearch(_ context.Context, _ int64) error 
 
 func (f *failingAdminStore) AdminListUsers(_ context.Context) ([]storage.User, error) {
 	return nil, nil
+}
+
+func (f *failingAdminStore) AdminDeleteUser(_ context.Context, _ int64) error {
+	return nil
 }
 
 func (f *failingAdminStore) VacuumDB(_ context.Context) error {

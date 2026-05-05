@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -201,7 +202,7 @@ type mockCatalogIngester struct {
 	flushed  int
 }
 
-func (m *mockCatalogIngester) Ingest(_ context.Context, _ int, _ string, _ int, _ string) {
+func (m *mockCatalogIngester) Ingest(_ context.Context, _ catalog.IngestEntry) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ingested++
