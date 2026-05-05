@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Cpu,
   Database,
+  Download,
   ExternalLink,
   FileSearch,
   HardDrive,
@@ -1189,6 +1190,25 @@ function LogsTab({ active }: { active: boolean }) {
           >
             <ChevronDown className="h-3 w-3" />
             גלילה אוטומטית
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `carwatch-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.json`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              setTimeout(() => URL.revokeObjectURL(url), 0);
+            }}
+            disabled={filtered.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-xs font-medium text-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+          >
+            <Download className="h-3 w-3" />
+            ייצוא JSON
           </button>
           <button
             type="button"
