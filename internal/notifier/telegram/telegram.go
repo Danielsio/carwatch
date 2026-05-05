@@ -20,6 +20,10 @@ const (
 	maxMessageLen = 4096
 	maxCaptionLen = 1024
 
+	// telegramListingSeparatorLine matches notifier.FormatBatch listing dividers so
+	// long batch messages split on whole Markdown blocks instead of arbitrary lines.
+	telegramListingSeparatorLine = "━━━━━━━━━━━━━━━━━━━━"
+
 	// defaultSendDelay is the minimum pause between consecutive Telegram
 	// API calls to avoid hitting rate limits.
 	defaultSendDelay = 50 * time.Millisecond
@@ -106,22 +110,15 @@ func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, list
 		return fmt.Errorf("blocked malformed photo caption (%d chars): %q", len(caption), truncate(caption, 100))
 	}
 
-	if len([]rune(caption)) > maxCaptionLen {
-		err = n.sendPhotoWithRetry(ctx, chatID, &tgbot.SendPhotoParams{
-			ChatID: id,
-			Photo:  &tgmodels.InputFileString{Data: listing.ImageURL},
-		})
-		if err != nil {
-			n.logger.Warn("sendPhoto failed, falling back to text", "chat_id", chatID, "error", err)
-			return n.sendMessageMarkdown(ctx, chatID, caption)
-		}
-		return n.sendMessageMarkdown(ctx, chatID, caption)
+	captionForPhoto := caption
+	if len([]rune(captionForPhoto)) > maxCaptionLen {
+		captionForPhoto = truncateTelegramCaption(captionForPhoto, maxCaptionLen)
 	}
 
 	err = n.sendPhotoWithRetry(ctx, chatID, &tgbot.SendPhotoParams{
 		ChatID:    id,
 		Photo:     &tgmodels.InputFileString{Data: listing.ImageURL},
-		Caption:   caption,
+		Caption:   captionForPhoto,
 		ParseMode: tgmodels.ParseModeMarkdownV1,
 	})
 	if err != nil {
@@ -250,6 +247,65 @@ func splitMessage(text string, limit int) []string {
 		return []string{text}
 	}
 
+	sep := "\n" + telegramListingSeparatorLine + "\n"
+	parts := strings.Split(text, sep)
+	if len(parts) > 1 {
+		return packListingChunks(parts, sep, limit)
+	}
+	return splitMessageByNewlines(text, limit)
+}
+
+// packListingChunks merges batch header and per-listing sections without exceeding
+// limit runes per chunk, preserving listing separator lines as boundaries.
+func packListingChunks(parts []string, sep string, limit int) []string {
+	type atom struct {
+		text           string
+		needsSepBefore bool
+	}
+	var atoms []atom
+	for i, p := range parts {
+		needsSep := i > 0
+		for j, sc := range splitMessageByNewlines(p, limit) {
+			atoms = append(atoms, atom{text: sc, needsSepBefore: needsSep && j == 0})
+		}
+	}
+
+	var chunks []string
+	var b strings.Builder
+	curRunes := 0
+	for _, a := range atoms {
+		prefix := ""
+		if a.needsSepBefore {
+			prefix = sep
+		}
+		next := prefix + a.text
+		nr := len([]rune(next))
+		if b.Len() == 0 {
+			b.WriteString(next)
+			curRunes = nr
+			continue
+		}
+		if curRunes+nr <= limit {
+			b.WriteString(next)
+			curRunes += nr
+			continue
+		}
+		chunks = append(chunks, b.String())
+		b.Reset()
+		b.WriteString(next)
+		curRunes = nr
+	}
+	if b.Len() > 0 {
+		chunks = append(chunks, b.String())
+	}
+	return chunks
+}
+
+func splitMessageByNewlines(text string, limit int) []string {
+	r := []rune(text)
+	if len(r) <= limit {
+		return []string{text}
+	}
 	var chunks []string
 	for len(r) > 0 {
 		if len(r) <= limit {
@@ -264,6 +320,27 @@ func splitMessage(text string, limit int) []string {
 		r = r[cut:]
 	}
 	return chunks
+}
+
+// truncateTelegramCaption fits caption within maxRunes (Telegram limit), preferring
+// a cut at the last newline before the limit and appending an ellipsis.
+func truncateTelegramCaption(caption string, maxRunes int) string {
+	r := []rune(caption)
+	if len(r) <= maxRunes {
+		return caption
+	}
+	const ellipsis = "…"
+	el := []rune(ellipsis)
+	maxBody := maxRunes - len(el)
+	if maxBody <= 0 {
+		return string(el[:maxRunes])
+	}
+	for i := maxBody - 1; i >= 0; i-- {
+		if r[i] == '\n' {
+			return string(r[:i]) + ellipsis
+		}
+	}
+	return string(r[:maxBody]) + ellipsis
 }
 
 func lastRuneNewlineBefore(s []rune, pos int) int {

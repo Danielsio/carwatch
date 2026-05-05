@@ -164,7 +164,18 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/history", s.listHistory)
 	}
 
-	return s.corsMiddleware(s.authMiddleware(s.withRateLimit(mux)))
+	return s.corsMiddleware(s.authMiddleware(s.withRateLimit(s.withMaxBody(mux))))
+}
+
+const maxRequestBody = 1 << 20 // 1 MB
+
+func (s *Server) withMaxBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
+			r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
@@ -306,16 +317,21 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
-func parseIntParam(r *http.Request, name string, defaultVal int) int {
+func parseIntParam(w http.ResponseWriter, r *http.Request, name string, defaultVal int) (int, bool) {
 	s := r.URL.Query().Get(name)
 	if s == "" {
-		return defaultVal
+		return defaultVal, true
 	}
 	v, err := strconv.Atoi(s)
-	if err != nil || v < 0 {
-		return defaultVal
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid %s parameter: must be an integer", name))
+		return 0, false
 	}
-	return v
+	if v < 0 {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid %s parameter: must be non-negative", name))
+		return 0, false
+	}
+	return v, true
 }
 
 func parsePathID(r *http.Request) (int64, bool) {

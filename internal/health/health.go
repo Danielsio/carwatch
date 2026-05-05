@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -197,17 +198,23 @@ func (s *Status) dbMetrics(ctx context.Context) map[string]any {
 	if users != nil {
 		if n, err := users.CountUsers(ctx); err == nil {
 			out["active_users"] = n
+		} else {
+			slog.Warn("health: count users failed", "error", err)
 		}
 	}
 	if searches != nil {
 		if n, err := searches.CountAllSearches(ctx); err == nil {
 			out["active_searches"] = n
+		} else {
+			slog.Warn("health: count searches failed", "error", err)
 		}
 	}
 	if dbSizer != nil {
 		if size, err := dbSizer.DBSizeBytes(); err == nil {
 			out["db_size_bytes"] = size
 			out["db_size_mb"] = float64(size) / (1024 * 1024)
+		} else {
+			slog.Warn("health: db size check failed", "error", err)
 		}
 	}
 	return out

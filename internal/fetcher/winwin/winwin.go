@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
@@ -18,6 +19,10 @@ type WinWinFetcher struct {
 	baseURL    string
 	logger     *slog.Logger
 	proxyPool  *fetcher.ProxyPool
+
+	proxyMu      sync.Mutex
+	cachedProxy  string
+	cachedClient *Client
 }
 
 // NewFetcher creates a WinWin fetcher with optional proxy support.
@@ -57,11 +62,22 @@ func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logge
 func (f *WinWinFetcher) Fetch(ctx context.Context, params model.SourceParams) ([]model.RawListing, error) {
 	cli := f.client
 	if f.proxyPool != nil {
-		c, err := NewClient(f.userAgents, f.proxyPool.Next())
-		if err != nil {
-			return nil, fmt.Errorf("winwin proxy client: %w", err)
+		proxyURL := f.proxyPool.Next()
+		f.proxyMu.Lock()
+		if proxyURL == f.cachedProxy && f.cachedClient != nil {
+			cli = f.cachedClient
+			f.proxyMu.Unlock()
+		} else {
+			c, err := NewClient(f.userAgents, proxyURL)
+			if err != nil {
+				f.proxyMu.Unlock()
+				return nil, fmt.Errorf("winwin proxy client: %w", err)
+			}
+			f.cachedProxy = proxyURL
+			f.cachedClient = c
+			cli = c
+			f.proxyMu.Unlock()
 		}
-		cli = c
 	}
 	reqURL := buildURL(f.baseURL, params)
 	f.logger.Info("fetching winwin listings",

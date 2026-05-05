@@ -162,6 +162,7 @@ type ListingFilter struct {
 type ListingStore interface {
 	SaveListing(ctx context.Context, r ListingRecord) error
 	SaveListings(ctx context.Context, records []ListingRecord) error
+	BackfillListings(ctx context.Context, records []ListingRecord) error
 	GetListing(ctx context.Context, chatID int64, token string) (*ListingRecord, error)
 	ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]ListingRecord, error)
 	CountUserListings(ctx context.Context, chatID int64) (int64, error)

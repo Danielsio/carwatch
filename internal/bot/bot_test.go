@@ -84,6 +84,10 @@ func TestRateLimitedMiddleware_BlocksWhenOverLimit(t *testing.T) {
 	if called {
 		t.Error("next handler should not run when limited")
 	}
+	last := tb.msg.last()
+	if last.Text != "Too many requests, please wait a moment." {
+		t.Errorf("expected rate-limit reply, got %q", last.Text)
+	}
 }
 
 func TestStartCleanup_RemovesStaleRateLimitEntries(t *testing.T) {

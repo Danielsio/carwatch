@@ -34,6 +34,8 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 
 	if l.Km > 0 {
 		b.WriteString(locale.Tf(lang, "fmt_mileage", format.Number(l.Km)))
+	} else {
+		b.WriteString(locale.T(lang, "fmt_mileage_unknown"))
 	}
 
 	if l.FitnessScore > 0 {
@@ -113,6 +115,8 @@ func FormatPriceDrop(l model.Listing, oldPrice int, lang locale.Lang) string {
 	var inlineParts []string
 	if l.Km > 0 {
 		inlineParts = append(inlineParts, fmt.Sprintf("🛣️ %s km", format.Number(l.Km)))
+	} else {
+		inlineParts = append(inlineParts, locale.T(lang, "fmt_mileage_unknown_inline"))
 	}
 	if l.Hand > 0 {
 		inlineParts = append(inlineParts, locale.Tf(lang, "fmt_hand_inline", l.Hand))

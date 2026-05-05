@@ -12,7 +12,7 @@ import (
 
 const (
 	defaultEnrichDelay     = 2 * time.Second
-	defaultMaxPerCycle     = 5
+	defaultMaxPerCycle     = 25
 	maxConsecutiveFailures = 3
 )
 
@@ -20,8 +20,8 @@ const (
 type EnricherConfig struct {
 	// Delay between individual item fetches to avoid rate-limiting.
 	Delay time.Duration
-	// MaxPerCycle limits how many item-page fetches run per Enrich call.
-	// 0 (default) applies defaultMaxPerCycle. Negative means no limit.
+	// MaxPerCycle caps successful enrichments per Enrich call (not fetch attempts).
+	// 0 (default) applies defaultMaxPerCycle (25); override in config as needed. Negative means no limit.
 	MaxPerCycle int
 }
 
@@ -56,7 +56,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 		if !needsKm && !needsImg && !needsCity {
 			continue
 		}
-		if e.cfg.MaxPerCycle > 0 && attempts >= e.cfg.MaxPerCycle {
+		if e.cfg.MaxPerCycle > 0 && enriched >= e.cfg.MaxPerCycle {
 			e.logger.Debug("enrichment limit reached",
 				"enriched", enriched,
 				"attempts", attempts,

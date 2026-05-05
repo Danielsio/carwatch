@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
@@ -61,7 +62,9 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 		}
 		d.logger.Debug("enqueueing batch notification after send failure",
 			"chat_id", chatID, "msg_len", len(msg))
-		if qErr := d.queue.EnqueueNotification(context.Background(), chatIDStr, "", msg); qErr == nil {
+		enqCtx, enqCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer enqCancel()
+		if qErr := d.queue.EnqueueNotification(enqCtx, chatIDStr, "", msg); qErr == nil {
 			return nil
 		}
 	}
@@ -84,7 +87,9 @@ func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message 
 	if errors.Is(err, notifier.ErrRecipientBlocked) {
 		return err
 	}
-	if qErr := d.queue.EnqueueNotification(context.Background(), chatIDStr, "", message); qErr == nil {
+	enqCtx, enqCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer enqCancel()
+	if qErr := d.queue.EnqueueNotification(enqCtx, chatIDStr, "", message); qErr == nil {
 		return nil
 	}
 	return err

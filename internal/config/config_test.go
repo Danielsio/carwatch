@@ -46,8 +46,8 @@ telegram:
 	if len(cfg.HTTP.UserAgents) == 0 {
 		t.Error("expected default user agents")
 	}
-	if cfg.Telegram.MaxSearches != 3 {
-		t.Errorf("default max_searches = %d, want 3", cfg.Telegram.MaxSearches)
+	if cfg.Telegram.MaxSearches != 10 {
+		t.Errorf("default max_searches = %d, want 10", cfg.Telegram.MaxSearches)
 	}
 }
 

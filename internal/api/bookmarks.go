@@ -50,7 +50,10 @@ func (s *Server) listSaved(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, offset := parsePagination(r)
+	limit, offset, ok := parsePagination(w, r)
+	if !ok {
+		return
+	}
 
 	listings, err := s.saved.ListSaved(r.Context(), chatID, limit, offset)
 	if err != nil {
@@ -122,7 +125,10 @@ func (s *Server) listHistory(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, offset := parsePagination(r)
+	limit, offset, ok := parsePagination(w, r)
+	if !ok {
+		return
+	}
 
 	listings, err := s.listings.ListUserListings(r.Context(), chatID, limit, offset)
 	if err != nil {
@@ -191,14 +197,20 @@ func toListingResponses(records []storage.ListingRecord, saved map[string]bool) 
 	return items
 }
 
-func parsePagination(r *http.Request) (limit, offset int) {
-	limit = parseIntParam(r, "limit", 20)
+func parsePagination(w http.ResponseWriter, r *http.Request) (limit, offset int, ok bool) {
+	limit, ok = parseIntParam(w, r, "limit", 20)
+	if !ok {
+		return
+	}
 	if limit <= 0 {
 		limit = 20
 	} else if limit > 100 {
 		limit = 100
 	}
-	offset = parseIntParam(r, "offset", 0)
+	offset, ok = parseIntParam(w, r, "offset", 0)
+	if !ok {
+		return
+	}
 	if offset < 0 {
 		offset = 0
 	}

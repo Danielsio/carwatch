@@ -17,7 +17,11 @@ import (
 
 func TestParsePagination_Defaults(t *testing.T) {
 	r := httptest.NewRequest("GET", "/test", nil)
-	limit, offset := parsePagination(r)
+	w := httptest.NewRecorder()
+	limit, offset, ok := parsePagination(w, r)
+	if !ok {
+		t.Fatal("expected ok")
+	}
 	if limit != 20 {
 		t.Errorf("default limit = %d, want 20", limit)
 	}
@@ -28,7 +32,11 @@ func TestParsePagination_Defaults(t *testing.T) {
 
 func TestParsePagination_OverMax(t *testing.T) {
 	r := httptest.NewRequest("GET", "/test?limit=200", nil)
-	limit, _ := parsePagination(r)
+	w := httptest.NewRecorder()
+	limit, _, ok := parsePagination(w, r)
+	if !ok {
+		t.Fatal("expected ok")
+	}
 	if limit != 100 {
 		t.Errorf("limit capped = %d, want 100", limit)
 	}
@@ -36,23 +44,35 @@ func TestParsePagination_OverMax(t *testing.T) {
 
 func TestParsePagination_NegativeLimit(t *testing.T) {
 	r := httptest.NewRequest("GET", "/test?limit=-5", nil)
-	limit, _ := parsePagination(r)
-	if limit != 20 {
-		t.Errorf("negative limit = %d, want 20", limit)
+	w := httptest.NewRecorder()
+	_, _, ok := parsePagination(w, r)
+	if ok {
+		t.Error("expected !ok for negative limit")
+	}
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
 	}
 }
 
 func TestParsePagination_NegativeOffset(t *testing.T) {
 	r := httptest.NewRequest("GET", "/test?offset=-10", nil)
-	_, offset := parsePagination(r)
-	if offset != 0 {
-		t.Errorf("negative offset = %d, want 0", offset)
+	w := httptest.NewRecorder()
+	_, _, ok := parsePagination(w, r)
+	if ok {
+		t.Error("expected !ok for negative offset")
+	}
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
 	}
 }
 
 func TestParsePagination_ZeroLimit(t *testing.T) {
 	r := httptest.NewRequest("GET", "/test?limit=0", nil)
-	limit, _ := parsePagination(r)
+	w := httptest.NewRecorder()
+	limit, _, ok := parsePagination(w, r)
+	if !ok {
+		t.Fatal("expected ok")
+	}
 	if limit != 20 {
 		t.Errorf("zero limit = %d, want 20 (default)", limit)
 	}

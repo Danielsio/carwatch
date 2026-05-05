@@ -106,6 +106,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install dependencies
         run: cd web && npm ci
+      - name: Lint
+        run: cd web && npm run lint
       - name: Type check
         run: cd web && npx tsc -b
       - name: Build

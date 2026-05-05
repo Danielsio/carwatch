@@ -58,6 +58,7 @@ func (c *stealthClient) Get(ctx context.Context, reqURL string) (*HTTPResult, er
 		err  error
 	}
 	ch := make(chan fetchResult, 1)
+	// NOTE: azuretls does not support context cancellation natively; the goroutine may outlive the context.
 	go func() {
 		r, e := c.session.Get(reqURL, azuretls.OrderedHeaders{
 			{"User-Agent", ua},

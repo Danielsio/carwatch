@@ -171,9 +171,24 @@ func (b *Bot) rateLimited(next tgbot.HandlerFunc) tgbot.HandlerFunc {
 		if chatID != 0 && b.isRateLimited(chatID) {
 			b.logger.Warn("rate limited", "chat_id", chatID)
 			if update.CallbackQuery != nil {
-				if err := b.msg.AnswerCallback(ctx, update.CallbackQuery.ID); err != nil {
+				tgBot := bot
+				if tgBot == nil {
+					tgBot = b.bot
+				}
+				if tgBot != nil {
+					_, err := tgBot.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
+						CallbackQueryID: update.CallbackQuery.ID,
+						Text:            "Please slow down.",
+						ShowAlert:       true,
+					})
+					if err != nil {
+						b.logger.Error("answer rate-limit callback query failed", "chat_id", chatID, "error", err)
+					}
+				} else if err := b.msg.AnswerCallback(ctx, update.CallbackQuery.ID); err != nil {
 					b.logger.Error("answer callback query failed", "chat_id", chatID, "error", err)
 				}
+			} else if update.Message != nil {
+				b.send(ctx, chatID, "Too many requests, please wait a moment.")
 			}
 			return
 		}

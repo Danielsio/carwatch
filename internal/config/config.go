@@ -143,7 +143,7 @@ func applyDefaults(cfg *Config) {
 		cfg.HTTP.UserAgents = defaultUserAgents()
 	}
 	if cfg.Telegram.MaxSearches == 0 {
-		cfg.Telegram.MaxSearches = 3
+		cfg.Telegram.MaxSearches = 10
 	}
 	if cfg.Polling.MaxConcurrentFetches <= 0 {
 		cfg.Polling.MaxConcurrentFetches = 4

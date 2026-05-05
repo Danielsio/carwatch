@@ -86,7 +86,7 @@ func TestEnricher_DefaultMaxPerCycle(t *testing.T) {
 	})
 	enricher := newTestEnricher(t, handler, EnricherConfig{Delay: time.Millisecond})
 
-	listings := make([]model.RawListing, 10)
+	listings := make([]model.RawListing, defaultMaxPerCycle+5)
 	for i := range listings {
 		listings[i] = model.RawListing{Token: fmt.Sprintf("tok-%d", i), Km: 0}
 	}
@@ -180,7 +180,7 @@ func TestEnricher_RespectsMaxPerCycle(t *testing.T) {
 		t.Errorf("listing[1].Km = %d, want 0 (not enriched)", listings[1].Km)
 	}
 	if got := requestCount.Load(); got != 1 {
-		t.Errorf("requests = %d, want 1 (budget limits attempts)", got)
+		t.Errorf("requests = %d, want 1 (budget limits successful enrichments)", got)
 	}
 }
 
@@ -427,7 +427,7 @@ func TestEnricher_ConsecutiveFailureResets(t *testing.T) {
 	}
 }
 
-func TestEnricher_FailedAttemptsConsumeBudget(t *testing.T) {
+func TestEnricher_FailedAttemptsDoNotConsumeSuccessBudget(t *testing.T) {
 	var requestCount atomic.Int32
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requestCount.Add(1)
@@ -449,7 +449,7 @@ func TestEnricher_FailedAttemptsConsumeBudget(t *testing.T) {
 	if count != 0 {
 		t.Errorf("enriched = %d, want 0 (all failed)", count)
 	}
-	if got := requestCount.Load(); got != 2 {
-		t.Errorf("requests = %d, want 2 (budget=2, failures count)", got)
+	if got := requestCount.Load(); got != int32(maxConsecutiveFailures) {
+		t.Errorf("requests = %d, want %d (MaxPerCycle is successes only; abort on consecutive failures)", got, maxConsecutiveFailures)
 	}
 }

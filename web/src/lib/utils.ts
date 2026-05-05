@@ -10,9 +10,10 @@ export function formatPrice(price: number): string {
   return price.toLocaleString("he-IL") + " ₪";
 }
 
-export function formatKm(km: number): string {
-  if (km <= 0) return "—";
-  return km.toLocaleString("he-IL") + " ק\"מ";
+export function formatKm(km: number | null | undefined): string {
+  if (km === null || km === undefined || km === 0) return "לא ידוע";
+  if (km > 0) return km.toLocaleString("he-IL") + " ק\"מ";
+  return "לא ידוע";
 }
 
 export function safeHref(raw: string): string | null {

@@ -250,12 +250,12 @@ func TestFitnessScore(t *testing.T) {
 			min: 6.0, max: 9.0,
 		},
 		{
-			name: "unknown km gets neutral score",
+			name: "unknown km omits km dimension",
 			p: FitnessParams{
 				Price: 150000, Km: 0, Hand: 1, Year: 2024, EngineVolume: 2000,
 				PriceMax: 200000, MaxKm: 100000, MaxHand: 3, YearMin: 2020, YearMax: 2024, EngineMinCC: 1500,
 			},
-			min: 5.0, max: 8.0,
+			min: 6.5, max: 7.5,
 		},
 		{
 			name: "price exactly at max",
@@ -337,29 +337,39 @@ func TestFitnessScoreDetailed_NoPriceDim(t *testing.T) {
 
 func TestKmScore(t *testing.T) {
 	tests := []struct {
-		name  string
-		km    int
-		maxKm int
-		want  float64
+		name    string
+		km      int
+		maxKm   int
+		wantNaN bool
+		want    float64
 	}{
-		{"zero km is neutral", 0, 150000, 0.5},
-		{"negative km is neutral", -1, 150000, 0.5},
-		{"at max km scores zero", 150000, 150000, 0.0},
+		{"zero km omits dimension", 0, 150000, true, 0},
+		{"negative km omits dimension", -1, 150000, true, 0},
+		{"at max km scores zero", 150000, 150000, false, 0.0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := kmScore(tt.km, tt.maxKm)
+			if tt.wantNaN {
+				if !math.IsNaN(got) {
+					t.Errorf("kmScore(%d, %d) = %v, want NaN", tt.km, tt.maxKm, got)
+				}
+				return
+			}
 			if got != tt.want {
 				t.Errorf("kmScore(%d, %d) = %.2f, want %.2f", tt.km, tt.maxKm, got, tt.want)
 			}
 		})
 	}
 
-	t.Run("known low beats unknown", func(t *testing.T) {
+	t.Run("known low vs unknown", func(t *testing.T) {
 		low := kmScore(10000, 150000)
 		unknown := kmScore(0, 150000)
-		if low <= unknown {
-			t.Errorf("low-km (%.3f) should score higher than unknown-km (%.3f)", low, unknown)
+		if !math.IsNaN(unknown) {
+			t.Fatalf("unknown km should be NaN, got %v", unknown)
+		}
+		if low <= 0 {
+			t.Errorf("low-km should score positive, got %.3f", low)
 		}
 	})
 }
@@ -504,12 +514,69 @@ func TestScoreWithKm(t *testing.T) {
 func TestScoreWithKm_FallbackWhenNoKm(t *testing.T) {
 	priceOnly := Score(80000, 100000)
 	noKm := ScoreWithKm(80000, 0, 100000, 80000)
-	if noKm != priceOnly {
-		t.Errorf("ScoreWithKm with listingKm=0 should equal Score: %d != %d", noKm, priceOnly)
+	wantPenalized := priceOnly - 5
+	if noKm != wantPenalized {
+		t.Errorf("ScoreWithKm with listingKm=0 and cohort km: want %d, got %d", wantPenalized, noKm)
 	}
 	noMedianKm := ScoreWithKm(80000, 50000, 100000, 0)
 	if noMedianKm != priceOnly {
 		t.Errorf("ScoreWithKm with medianKm=0 should equal Score: %d != %d", noMedianKm, priceOnly)
+	}
+}
+
+func TestScoreWithKm_UnknownKmPenaltyFloorsAtOne(t *testing.T) {
+	// Base score 4 -> penalized would be -1; floor at 1.
+	got := ScoreWithKm(96000, 0, 100000, 50000)
+	if got != 1 {
+		t.Errorf("penalized score should floor at 1, got %d", got)
+	}
+}
+
+func TestMarketCache_MedianKmRequiresMinSamples(t *testing.T) {
+	// 10 valid prices but only 2 non-zero km -> medianKm must be 0.
+	var data []ListingData
+	for i := range 8 {
+		data = append(data, ListingData{
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2020,
+			Price: 90000 + i*2000, Km: 0,
+		})
+	}
+	data = append(data,
+		ListingData{Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 106000, Km: 40000},
+		ListingData{Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 108000, Km: 60000},
+	)
+
+	mc := NewMarketCache(data)
+	_, medianKm, cohort, ok := mc.Lookup("Toyota", "Corolla", 2020)
+	if !ok || cohort != 10 {
+		t.Fatalf("lookup: ok=%v cohort=%d", ok, cohort)
+	}
+	if medianKm != 0 {
+		t.Errorf("medianKm should be 0 with <3 non-zero km samples, got %d", medianKm)
+	}
+}
+
+func TestMarketCache_MedianKmWithThreeSamples(t *testing.T) {
+	var data []ListingData
+	for i := range 7 {
+		data = append(data, ListingData{
+			Manufacturer: "Toyota", Model: "Camry", Year: 2020,
+			Price: 90000 + i*2000, Km: 0,
+		})
+	}
+	data = append(data,
+		ListingData{Manufacturer: "Toyota", Model: "Camry", Year: 2020, Price: 104000, Km: 30000},
+		ListingData{Manufacturer: "Toyota", Model: "Camry", Year: 2020, Price: 106000, Km: 50000},
+		ListingData{Manufacturer: "Toyota", Model: "Camry", Year: 2020, Price: 108000, Km: 70000},
+	)
+
+	mc := NewMarketCache(data)
+	_, medianKm, cohort, ok := mc.Lookup("Toyota", "Camry", 2020)
+	if !ok || cohort != 10 {
+		t.Fatalf("lookup: ok=%v cohort=%d", ok, cohort)
+	}
+	if medianKm != 50000 {
+		t.Errorf("medianKm want 50000, got %d", medianKm)
 	}
 }
 
