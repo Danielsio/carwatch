@@ -73,6 +73,22 @@ func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logge
 	}, nil
 }
 
+// FetchRawPage fetches a URL and returns the raw response body.
+// Used by the catalog loader to fetch the Yad2 cars page.
+func (f *Yad2Fetcher) FetchRawPage(ctx context.Context, rawURL string) ([]byte, error) {
+	result, err := f.client.Get(ctx, rawURL)
+	if err != nil {
+		return nil, err
+	}
+	if result.StatusCode != http.StatusOK {
+		if looksLikeBotProtection(result.Body) {
+			return nil, fmt.Errorf("anti-bot challenge detected")
+		}
+		return nil, fmt.Errorf("unexpected status %d", result.StatusCode)
+	}
+	return result.Body, nil
+}
+
 func (f *Yad2Fetcher) Close() {
 	if f.clientPool != nil {
 		f.clientPool.Close()

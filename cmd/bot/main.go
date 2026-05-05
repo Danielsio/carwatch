@@ -83,14 +83,17 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer func() { _ = store.Close() }()
 
-	dynCatalog := catalog.NewDynamic(logger)
-	dynCatalog.Load(context.Background())
-	logger.Info("dynamic catalog loaded")
-
 	yad2Fetcher, cachingFetcher, fetcherFactory, err := buildFetchers(cfg, logger)
 	if err != nil {
 		return err
 	}
+
+	dynCatalog := catalog.NewDynamic(logger)
+	pageFetcher := &catalog.HTTPPageFetcher{
+		GetPage: yad2Fetcher.FetchRawPage,
+	}
+	dynCatalog.Load(context.Background(), pageFetcher)
+	logger.Info("dynamic catalog loaded")
 
 	h := health.New()
 	h.SetVersion(version)

@@ -3,11 +3,18 @@ package api
 import (
 	"net/http"
 	"strconv"
+
+	"github.com/dsionov/carwatch/internal/catalog"
 )
 
 type catalogEntry struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID     int    `json:"id"`
+	Name   string `json:"name"`
+	NameHe string `json:"name_he,omitempty"`
+}
+
+func toCatalogEntry(e catalog.Entry) catalogEntry {
+	return catalogEntry{ID: e.ID, Name: e.Name, NameHe: e.NameHe}
 }
 
 func (s *Server) listManufacturers(w http.ResponseWriter, r *http.Request) {
@@ -16,11 +23,11 @@ func (s *Server) listManufacturers(w http.ResponseWriter, r *http.Request) {
 	var entries []catalogEntry
 	if q != "" {
 		for _, e := range s.catalog.SearchManufacturers(q) {
-			entries = append(entries, catalogEntry{ID: e.ID, Name: e.Name})
+			entries = append(entries, toCatalogEntry(e))
 		}
 	} else {
 		for _, e := range s.catalog.Manufacturers() {
-			entries = append(entries, catalogEntry{ID: e.ID, Name: e.Name})
+			entries = append(entries, toCatalogEntry(e))
 		}
 	}
 
@@ -43,11 +50,11 @@ func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 	var entries []catalogEntry
 	if q != "" {
 		for _, e := range s.catalog.SearchModels(mfrID, q) {
-			entries = append(entries, catalogEntry{ID: e.ID, Name: e.Name})
+			entries = append(entries, toCatalogEntry(e))
 		}
 	} else {
 		for _, e := range s.catalog.Models(mfrID) {
-			entries = append(entries, catalogEntry{ID: e.ID, Name: e.Name})
+			entries = append(entries, toCatalogEntry(e))
 		}
 	}
 

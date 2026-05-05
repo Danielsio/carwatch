@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/filter"
@@ -40,7 +41,7 @@ const (
 )
 
 type CatalogIngester interface {
-	Ingest(ctx context.Context, manufacturerID int, manufacturerName string, modelID int, modelName string)
+	Ingest(ctx context.Context, e catalog.IngestEntry)
 	Flush(ctx context.Context)
 }
 
@@ -749,7 +750,14 @@ func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup) ([
 
 	if s.catalogIngester != nil {
 		for _, l := range raw {
-			s.catalogIngester.Ingest(ctx, l.ManufacturerID, l.Manufacturer, l.ModelID, l.Model)
+			s.catalogIngester.Ingest(ctx, catalog.IngestEntry{
+				ManufacturerID:     l.ManufacturerID,
+				ManufacturerName:   l.Manufacturer,
+				ManufacturerNameHe: l.ManufacturerNameHe,
+				ModelID:            l.ModelID,
+				ModelName:          l.Model,
+				ModelNameHe:        l.ModelNameHe,
+			})
 		}
 	}
 

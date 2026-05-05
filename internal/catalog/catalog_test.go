@@ -121,7 +121,7 @@ func TestDynamicCatalog_Ingest(t *testing.T) {
 	before := len(cat.Manufacturers())
 	ctx := context.Background()
 
-	cat.Ingest(ctx, 999, "NewBrand", 88888, "NewModel")
+	cat.Ingest(ctx, IngestEntry{ManufacturerID: 999, ManufacturerName: "NewBrand", ModelID: 88888, ModelName: "NewModel"})
 
 	after := len(cat.Manufacturers())
 	if after != before+1 {
@@ -138,7 +138,7 @@ func TestDynamicCatalog_Ingest(t *testing.T) {
 	}
 
 	// Ingesting same entry again should not duplicate
-	cat.Ingest(ctx, 999, "NewBrand", 88888, "NewModel")
+	cat.Ingest(ctx, IngestEntry{ManufacturerID: 999, ManufacturerName: "NewBrand", ModelID: 88888, ModelName: "NewModel"})
 	if len(cat.Models(999)) != 1 {
 		t.Error("duplicate ingest should not add new entry")
 	}

@@ -37,7 +37,7 @@ func TestDynamicCatalog_Ingest_NewManufacturerAndModel(t *testing.T) {
 	before := len(d.Manufacturers())
 	ctx := context.Background()
 
-	d.Ingest(ctx, 999, "NewBrand", 88888, "NewModel")
+	d.Ingest(ctx, IngestEntry{ManufacturerID: 999, ManufacturerName: "NewBrand", ModelID: 88888, ModelName: "NewModel"})
 
 	after := len(d.Manufacturers())
 	if after != before+1 {
@@ -59,8 +59,8 @@ func TestDynamicCatalog_Ingest_DuplicateIgnored(t *testing.T) {
 	d.Load(context.Background())
 	ctx := context.Background()
 
-	d.Ingest(ctx, 999, "NewBrand", 88888, "NewModel")
-	d.Ingest(ctx, 999, "NewBrand", 88888, "NewModel")
+	d.Ingest(ctx, IngestEntry{ManufacturerID: 999, ManufacturerName: "NewBrand", ModelID: 88888, ModelName: "NewModel"})
+	d.Ingest(ctx, IngestEntry{ManufacturerID: 999, ManufacturerName: "NewBrand", ModelID: 88888, ModelName: "NewModel"})
 
 	if len(d.Models(999)) != 1 {
 		t.Error("duplicate ingest should not add new entry")
@@ -73,9 +73,9 @@ func TestDynamicCatalog_Ingest_SkipsInvalid(t *testing.T) {
 	ctx := context.Background()
 	before := len(d.Manufacturers())
 
-	d.Ingest(ctx, 0, "", 1, "X")
-	d.Ingest(ctx, 0, "Empty", 1, "X")
-	d.Ingest(ctx, 5, "", 1, "X")
+	d.Ingest(ctx, IngestEntry{ManufacturerID: 0, ManufacturerName: "", ModelID: 1, ModelName: "X"})
+	d.Ingest(ctx, IngestEntry{ManufacturerID: 0, ManufacturerName: "Empty", ModelID: 1, ModelName: "X"})
+	d.Ingest(ctx, IngestEntry{ManufacturerID: 5, ManufacturerName: "", ModelID: 1, ModelName: "X"})
 
 	after := len(d.Manufacturers())
 	if after != before {
@@ -89,7 +89,7 @@ func TestDynamicCatalog_Ingest_ManufacturerWithoutModel(t *testing.T) {
 	ctx := context.Background()
 	before := len(d.Manufacturers())
 
-	d.Ingest(ctx, 999, "NoModelBrand", 0, "")
+	d.Ingest(ctx, IngestEntry{ManufacturerID: 999, ManufacturerName: "NoModelBrand"})
 
 	after := len(d.Manufacturers())
 	if after != before+1 {
@@ -108,7 +108,7 @@ func TestDynamicCatalog_Ingest_PreservesExistingName(t *testing.T) {
 	d.Load(context.Background())
 	ctx := context.Background()
 
-	d.Ingest(ctx, 19, "טויוטה", 10226, "קורולה")
+	d.Ingest(ctx, IngestEntry{ManufacturerID: 19, ManufacturerName: "טויוטה", ModelID: 10226, ModelName: "קורולה"})
 
 	if name := d.ManufacturerName(19); name != "Toyota" {
 		t.Errorf("static name should be preserved, got %q", name)
@@ -119,7 +119,7 @@ func TestDynamicCatalog_Flush_IsNoop(t *testing.T) {
 	d := NewDynamic(testLogger)
 	d.Load(context.Background())
 
-	d.Ingest(context.Background(), 999, "NewBrand", 88888, "NewModel")
+	d.Ingest(context.Background(), IngestEntry{ManufacturerID: 999, ManufacturerName: "NewBrand", ModelID: 88888, ModelName: "NewModel"})
 	d.Flush(context.Background())
 
 	if name := d.ManufacturerName(999); name != "NewBrand" {
@@ -140,7 +140,7 @@ func TestDynamicCatalog_ModelName(t *testing.T) {
 	d.Load(context.Background())
 	ctx := context.Background()
 
-	d.Ingest(ctx, 9000, "AlphaCar", 100, "A3")
+	d.Ingest(ctx, IngestEntry{ManufacturerID: 9000, ManufacturerName: "AlphaCar", ModelID: 100, ModelName: "A3"})
 
 	if name := d.ModelName(9000, 100); name != "A3" {
 		t.Errorf("ModelName(9000,100) = %q, want A3", name)
@@ -156,7 +156,7 @@ func TestDynamicCatalog_ModelName(t *testing.T) {
 func TestDynamicCatalog_SearchManufacturers(t *testing.T) {
 	d := NewDynamic(testLogger)
 	d.Load(context.Background())
-	d.Ingest(context.Background(), 9000, "AlphaCar", 100, "A3")
+	d.Ingest(context.Background(), IngestEntry{ManufacturerID: 9000, ManufacturerName: "AlphaCar", ModelID: 100, ModelName: "A3"})
 
 	results := d.SearchManufacturers("alpha")
 	if len(results) == 0 {
@@ -182,8 +182,8 @@ func TestDynamicCatalog_SearchManufacturers(t *testing.T) {
 func TestDynamicCatalog_SearchModels(t *testing.T) {
 	d := NewDynamic(testLogger)
 	d.Load(context.Background())
-	d.Ingest(context.Background(), 9000, "AlphaCar", 100, "BetaModel")
-	d.Ingest(context.Background(), 9000, "AlphaCar", 101, "GammaModel")
+	d.Ingest(context.Background(), IngestEntry{ManufacturerID: 9000, ManufacturerName: "AlphaCar", ModelID: 100, ModelName: "BetaModel"})
+	d.Ingest(context.Background(), IngestEntry{ManufacturerID: 9000, ManufacturerName: "AlphaCar", ModelID: 101, ModelName: "GammaModel"})
 
 	results := d.SearchModels(9000, "beta")
 	if len(results) != 1 {
@@ -220,10 +220,45 @@ func TestDynamicCatalog_Manufacturers_DefensiveCopy(t *testing.T) {
 	}
 }
 
+func TestDynamicCatalog_Ingest_HebrewNames(t *testing.T) {
+	d := NewDynamic(testLogger)
+	d.Load(context.Background())
+	ctx := context.Background()
+
+	d.Ingest(ctx, IngestEntry{
+		ManufacturerID: 8000, ManufacturerName: "Toyota", ManufacturerNameHe: "טויוטה",
+		ModelID: 200, ModelName: "Corolla", ModelNameHe: "קורולה",
+	})
+
+	mfrs := d.SearchManufacturers("טויוטה")
+	found := false
+	for _, m := range mfrs {
+		if m.ID == 8000 && m.NameHe == "טויוטה" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("SearchManufacturers should match Hebrew name and populate NameHe")
+	}
+
+	models := d.SearchModels(8000, "קורולה")
+	if len(models) != 1 || models[0].NameHe != "קורולה" {
+		t.Errorf("SearchModels: expected 1 Hebrew match, got %v", models)
+	}
+
+	// Hebrew name must not be overwritten
+	d.Ingest(ctx, IngestEntry{ManufacturerID: 8000, ManufacturerName: "Toyota", ManufacturerNameHe: "DIFFERENT"})
+	for _, m := range d.Manufacturers() {
+		if m.ID == 8000 && m.NameHe != "טויוטה" {
+			t.Error("existing Hebrew manufacturer name should not be overwritten")
+		}
+	}
+}
+
 func TestDynamicCatalog_Models_DefensiveCopy(t *testing.T) {
 	d := NewDynamic(testLogger)
 	d.Load(context.Background())
-	d.Ingest(context.Background(), 9000, "TestBrand", 100, "ModelA")
+	d.Ingest(context.Background(), IngestEntry{ManufacturerID: 9000, ManufacturerName: "TestBrand", ModelID: 100, ModelName: "ModelA"})
 
 	models1 := d.Models(9000)
 	models2 := d.Models(9000)

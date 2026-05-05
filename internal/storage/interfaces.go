@@ -236,6 +236,7 @@ type AdminStore interface {
 	AdminListSearches(ctx context.Context) ([]Search, error)
 	AdminDeleteSearch(ctx context.Context, id int64) error
 	AdminListUsers(ctx context.Context) ([]User, error)
+	AdminDeleteUser(ctx context.Context, chatID int64) error
 	VacuumDB(ctx context.Context) error
 }
 

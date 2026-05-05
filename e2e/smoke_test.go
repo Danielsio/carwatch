@@ -39,8 +39,8 @@ func TestSmoke_FullStack(t *testing.T) {
 
 	cat := catalog.NewDynamic(logger)
 	cat.Load(ctx)
-	cat.Ingest(ctx, 19, "Toyota", 10226, "Corolla")
-	cat.Ingest(ctx, 27, "Mazda", 10332, "3")
+	cat.Ingest(ctx, catalog.IngestEntry{ManufacturerID: 19, ManufacturerName: "Toyota", ManufacturerNameHe: "טויוטה", ModelID: 10226, ModelName: "Corolla", ModelNameHe: "קורולה"})
+	cat.Ingest(ctx, catalog.IngestEntry{ManufacturerID: 27, ManufacturerName: "Mazda", ManufacturerNameHe: "מאזדה", ModelID: 10332, ModelName: "3"})
 
 	h := health.New()
 	h.SetUserCounter(store)

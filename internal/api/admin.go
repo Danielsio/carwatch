@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -319,6 +320,23 @@ func (s *Server) adminListUsers(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": resp, "total": len(resp)})
+}
+
+func (s *Server) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("chatID")
+	chatID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || chatID <= 0 {
+		writeError(w, http.StatusBadRequest, "valid chat_id is required")
+		return
+	}
+
+	if err := s.admin.AdminDeleteUser(r.Context(), chatID); err != nil {
+		s.logger.Error("admin: delete user", "chat_id", chatID, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to delete user")
+		return
+	}
+	s.logger.Info("admin: deleted user", "chat_id", chatID)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {

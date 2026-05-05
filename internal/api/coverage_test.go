@@ -877,3 +877,36 @@ func TestAdminStats_NonAdminDevUser(t *testing.T) {
 		t.Fatalf("expected 403 for non-admin, got %d", w.Code)
 	}
 }
+
+func TestAdminDeleteUser(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.UpsertUser(ctx, 12345, "todelete"); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "DELETE", "/api/v1/admin/users/12345", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	users, err := store.AdminListUsers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range users {
+		if u.ChatID == 12345 {
+			t.Error("user 12345 should have been deleted")
+		}
+	}
+}
+
+func TestAdminDeleteUser_InvalidID(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "DELETE", "/api/v1/admin/users/abc", nil)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}

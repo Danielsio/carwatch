@@ -8,8 +8,9 @@ import (
 )
 
 type Entry struct {
-	ID   int
-	Name string
+	ID     int
+	Name   string
+	NameHe string
 }
 
 type Catalog interface {
@@ -39,7 +40,7 @@ func stripDiacritics(s string) string {
 func searchEntries(entries []Entry, query string) []Entry {
 	var results []Entry
 	for _, e := range entries {
-		if fuzzyMatch(e.Name, query) {
+		if fuzzyMatch(e.Name, query) || (e.NameHe != "" && fuzzyMatch(e.NameHe, query)) {
 			results = append(results, e)
 		}
 	}

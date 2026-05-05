@@ -50,11 +50,13 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
 export interface Manufacturer {
   id: number;
   name: string;
+  name_he?: string;
 }
 
 export interface Model {
   id: number;
   name: string;
+  name_he?: string;
 }
 
 export interface Search {
@@ -328,6 +330,8 @@ export const adminApi = {
   deleteSearch: (id: number) =>
     fetchAPI<void>(`/admin/searches/${id}`, { method: "DELETE" }),
   users: () => fetchAPI<AdminUsersResponse>("/admin/users"),
+  deleteUser: (chatId: number) =>
+    fetchAPI<void>(`/admin/users/${chatId}`, { method: "DELETE" }),
   purgeTable: (table: string) =>
     fetchAPI<PurgeResult>("/admin/purge", {
       method: "POST",

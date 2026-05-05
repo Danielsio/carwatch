@@ -165,11 +165,13 @@ func itemToListing(raw json.RawMessage) (model.RawListing, error) {
 	}
 
 	listing := model.RawListing{
-		Token:            item.Token,
-		Manufacturer:     textFromField(item.Manufacturer),
-		ManufacturerID:   item.Manufacturer.ID,
-		Model:            textFromField(item.Model),
-		ModelID:          item.Model.ID,
+		Token:              item.Token,
+		Manufacturer:       textFromField(item.Manufacturer),
+		ManufacturerID:     item.Manufacturer.ID,
+		ManufacturerNameHe: item.Manufacturer.Text,
+		Model:              textFromField(item.Model),
+		ModelID:            item.Model.ID,
+		ModelNameHe:        item.Model.Text,
 		SubModel:         textFromField(item.SubModel),
 		Year:         year,
 		Month:        item.Month,
