@@ -35,34 +35,55 @@ export function scoreListingAgainstSearch(
   listing: DemoListingInput,
   search: DemoSearchCriteria,
 ): { score: number; breakdown: ScoreBreakdownPct } {
-  const priceRatio =
-    search.price_max > 0 ? listing.price / search.price_max : 1;
-  const priceFactor = priceRatio <= 1 ? 1 : Math.exp(-(priceRatio - 1) * 3);
+  // Price: cheaper within budget = better (sqrt curve).
+  let priceFactor: number;
+  if (search.price_max <= 0) {
+    priceFactor = 0.5;
+  } else {
+    const ratio = listing.price / search.price_max;
+    priceFactor = ratio >= 1 ? 0 : Math.sqrt(1 - ratio);
+  }
 
-  const kmRatio =
-    search.mileage_max > 0
-      ? Math.max(0, listing.mileage/search.mileage_max)
-      : 0;
-  const mileageFactor = Math.exp(-kmRatio * 2.2);
+  // Km: blend age-adjusted expectations with cap-based score.
+  const AVG_KM_PER_YEAR = 15000;
+  const now = new Date().getFullYear();
+  const carAge = Math.max(1, now - listing.year);
+  const expectedKm = carAge * AVG_KM_PER_YEAR;
+  const ageScore = clamp01(1 - Math.pow(clamp01(listing.mileage / expectedKm), 1.2));
+  let mileageFactor: number;
+  if (search.mileage_max > 0) {
+    const capScore = clamp01(1 - Math.pow(clamp01(listing.mileage / search.mileage_max), 1.5));
+    mileageFactor = 0.6 * ageScore + 0.4 * capScore;
+  } else {
+    mileageFactor = ageScore;
+  }
 
+  // Year: position in range with floor at 0.3 and sqrt curve.
+  const YEAR_FLOOR = 0.3;
   const span = Math.max(1, search.year_max - search.year_min);
-  const yearFactor = clamp01((listing.year - search.year_min) / span);
+  const pos = clamp01((listing.year - search.year_min) / span);
+  const yearFactor = YEAR_FLOOR + (1 - YEAR_FLOOR) * Math.sqrt(pos);
 
-  const handFactor =
-    search.hand_max > 0
-      ? Math.exp(
-          -Math.max(0, listing.hand - 1) / Math.max(1, search.hand_max),
-        )
-      : listing.hand <= 1
-        ? 1
-        : 0.55;
+  // Hand: ladder with age bonus for older cars.
+  let handBase: number;
+  if (search.hand_max > 0) {
+    const ratio = Math.max(0, listing.hand - 1) / search.hand_max;
+    handBase = clamp01(1 - Math.pow(clamp01(ratio), 0.6));
+  } else {
+    handBase = listing.hand <= 1 ? 1 : listing.hand === 2 ? 0.7 : listing.hand === 3 ? 0.4 : 0.1;
+  }
+  if (listing.hand > 1) {
+    const bonus = clamp01(carAge / 15) * 0.15;
+    handBase = clamp01(handBase + bonus);
+  }
+  const handFactor = handBase;
 
-  /* Weights match the "מה נכנס לחישוב?" copy on the landing page (30/30/20/20). */
   const combined =
-    0.3 * priceFactor +
-    0.3 * mileageFactor +
-    0.2 * yearFactor +
-    0.2 * handFactor;
+    0.35 * priceFactor +
+    0.25 * mileageFactor +
+    0.15 * yearFactor +
+    0.20 * handFactor +
+    0.05 * 1.0; // engine (always 1.0 in demo)
 
   const score = clamp01(combined) * 10;
 

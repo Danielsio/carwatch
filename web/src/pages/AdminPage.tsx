@@ -659,15 +659,15 @@ function ListingsTab({
                         {listing.fitness_score != null && (
                           <Badge
                             variant={
-                              listing.fitness_score >= 0.7
+                              listing.fitness_score >= 7.0
                                 ? "success"
-                                : listing.fitness_score >= 0.4
+                                : listing.fitness_score >= 4.0
                                   ? "warning"
                                   : "destructive"
                             }
                             className="text-[10px] px-1.5 py-0"
                           >
-                            {(listing.fitness_score * 100).toFixed(0)}%
+                            {listing.fitness_score.toFixed(1)}
                           </Badge>
                         )}
                       </div>
@@ -761,7 +761,7 @@ function ListingsTab({
               {
                 label: "ציון התאמה",
                 value: detailListing.fitness_score != null
-                  ? `${(detailListing.fitness_score * 100).toFixed(0)}%`
+                  ? `${detailListing.fitness_score.toFixed(1)} / 10`
                   : null,
               },
               {
