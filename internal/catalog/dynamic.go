@@ -32,9 +32,88 @@ func NewDynamic(logger *slog.Logger) *DynamicCatalog {
 	}
 }
 
-func (d *DynamicCatalog) Load(_ context.Context) {
-	d.logger.Info("seeding catalog from static fallback")
+// Load seeds the catalog. When a Yad2PageFetcher is provided it attempts
+// to fetch the full catalog from the live Yad2 page first.  On any
+// failure it falls back to the static catalog so the app still works.
+func (d *DynamicCatalog) Load(ctx context.Context, fetchers ...Yad2PageFetcher) {
 	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if len(fetchers) > 0 && fetchers[0] != nil {
+		result, err := FetchCatalogFromYad2(ctx, fetchers[0])
+		if err == nil && len(result.Manufacturers) > 0 {
+			d.seedFromCatalogResult(result)
+			d.logger.Info("catalog seeded from yad2",
+				"manufacturers", len(result.Manufacturers),
+				"model_groups", len(result.Models),
+			)
+			d.seedStaticMissing()
+			d.rebuildSlices()
+			return
+		}
+		d.logger.Warn("yad2 catalog fetch failed, falling back to static", "error", err)
+	}
+
+	d.seedFromStatic()
+	d.rebuildSlices()
+	d.logger.Info("catalog seeded from static fallback")
+}
+
+func (d *DynamicCatalog) seedFromCatalogResult(cr *CatalogResult) {
+	for id, entry := range cr.Manufacturers {
+		d.mfrMap[id] = entry.Name
+		if entry.NameHe != "" {
+			d.mfrHeMap[id] = entry.NameHe
+		}
+	}
+	for mfrID, models := range cr.Models {
+		if d.modelMap[mfrID] == nil {
+			d.modelMap[mfrID] = make(map[int]string)
+		}
+		if d.modelHeMap[mfrID] == nil {
+			d.modelHeMap[mfrID] = make(map[int]string)
+		}
+		for id, entry := range models {
+			d.modelMap[mfrID][id] = entry.Name
+			if entry.NameHe != "" {
+				d.modelHeMap[mfrID][id] = entry.NameHe
+			}
+		}
+	}
+}
+
+// seedStaticMissing merges entries from the static fallback that weren't
+// already provided by the Yad2 fetch, ensuring nothing is lost.
+func (d *DynamicCatalog) seedStaticMissing() {
+	for _, m := range d.fallback.Manufacturers() {
+		if _, ok := d.mfrMap[m.ID]; !ok {
+			d.mfrMap[m.ID] = m.Name
+		}
+		if m.NameHe != "" {
+			if _, ok := d.mfrHeMap[m.ID]; !ok {
+				d.mfrHeMap[m.ID] = m.NameHe
+			}
+		}
+		if d.modelMap[m.ID] == nil {
+			d.modelMap[m.ID] = make(map[int]string)
+		}
+		if d.modelHeMap[m.ID] == nil {
+			d.modelHeMap[m.ID] = make(map[int]string)
+		}
+		for _, mdl := range d.fallback.Models(m.ID) {
+			if _, ok := d.modelMap[m.ID][mdl.ID]; !ok {
+				d.modelMap[m.ID][mdl.ID] = mdl.Name
+			}
+			if mdl.NameHe != "" {
+				if _, ok := d.modelHeMap[m.ID][mdl.ID]; !ok {
+					d.modelHeMap[m.ID][mdl.ID] = mdl.NameHe
+				}
+			}
+		}
+	}
+}
+
+func (d *DynamicCatalog) seedFromStatic() {
 	for _, m := range d.fallback.Manufacturers() {
 		d.mfrMap[m.ID] = m.Name
 		if m.NameHe != "" {
@@ -53,8 +132,6 @@ func (d *DynamicCatalog) Load(_ context.Context) {
 			}
 		}
 	}
-	d.rebuildSlices()
-	d.mu.Unlock()
 }
 
 type IngestEntry struct {
