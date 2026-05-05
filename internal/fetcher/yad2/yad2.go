@@ -171,7 +171,11 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 		if looksLikeBotProtection(result.Body) {
 			return nil, fmt.Errorf("yad2: %w", fetcher.ErrChallenge)
 		}
-		return nil, fmt.Errorf("unexpected status: %d", result.StatusCode)
+		body := string(result.Body)
+		if len(body) > 512 {
+			body = body[:512] + "…"
+		}
+		return nil, fmt.Errorf("unexpected status %d: %s", result.StatusCode, body)
 	}
 
 	listings, err := ParseListingsPageWithLogger(bytes.NewReader(result.Body), f.logger)

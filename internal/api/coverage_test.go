@@ -777,6 +777,53 @@ func TestAdminListSearches(t *testing.T) {
 	}
 }
 
+func TestAdminDeleteSearch(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.UpsertUser(ctx, 999, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	id, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 999, Name: "to-delete", Source: "yad2",
+		Manufacturer: 19, Model: 10226, Active: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "DELETE", fmt.Sprintf("/api/v1/admin/searches/%d", id), nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	searches, err := store.AdminListSearches(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(searches) != 0 {
+		t.Fatalf("expected 0 searches after delete, got %d", len(searches))
+	}
+}
+
+func TestAdminDeleteSearch_NotFound(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "DELETE", "/api/v1/admin/searches/999", nil)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminDeleteSearch_InvalidID(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "DELETE", "/api/v1/admin/searches/abc", nil)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestAdminListUsers(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()

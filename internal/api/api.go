@@ -129,6 +129,7 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/admin/listings", s.requireAdmin(s.adminListListings))
 		mux.HandleFunc("DELETE /api/v1/admin/listings/{token}", s.requireAdmin(s.adminDeleteListing))
 		mux.HandleFunc("GET /api/v1/admin/searches", s.requireAdmin(s.adminListSearches))
+		mux.HandleFunc("DELETE /api/v1/admin/searches/{id}", s.requireAdmin(s.adminDeleteSearch))
 		mux.HandleFunc("GET /api/v1/admin/users", s.requireAdmin(s.adminListUsers))
 		mux.HandleFunc("POST /api/v1/admin/purge", s.requireAdmin(s.adminPurgeTable))
 		mux.HandleFunc("POST /api/v1/admin/vacuum", s.requireAdmin(s.adminVacuum))

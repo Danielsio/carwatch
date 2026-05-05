@@ -2645,7 +2645,7 @@ func TestAdminListListings(t *testing.T) {
 		}
 	}
 
-	items, total, err := store.AdminListListings(ctx, 2, 0)
+	items, total, err := store.AdminListListings(ctx, 2, 0, 0)
 	if err != nil {
 		t.Fatalf("AdminListListings: %v", err)
 	}
@@ -2714,6 +2714,39 @@ func TestAdminListSearches(t *testing.T) {
 	s2 := byName["s2"]
 	if s2.ChatID != 200 || s2.Source != "winwin" || s2.Manufacturer != 8 {
 		t.Errorf("s2 fields mismatch: %+v", s2)
+	}
+}
+
+func TestAdminDeleteSearch(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	id, err := store.CreateSearch(ctx, storage.Search{ChatID: 100, Name: "s1", Source: "yad2", Manufacturer: 19, Model: 10226, Active: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.AdminDeleteSearch(ctx, id); err != nil {
+		t.Fatalf("AdminDeleteSearch: %v", err)
+	}
+
+	searches, err := store.AdminListSearches(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(searches) != 0 {
+		t.Fatalf("expected 0 searches after admin delete, got %d", len(searches))
+	}
+}
+
+func TestAdminDeleteSearch_NotFound(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	err := store.AdminDeleteSearch(ctx, 999)
+	if err == nil {
+		t.Fatal("expected error for non-existent search")
 	}
 }
 
