@@ -118,8 +118,8 @@ func ScoreWithKm(listingPrice, listingKm, medianPrice, medianKm int) int {
 		if medianKm > 0 && listingKm <= 0 {
 			// Unknown mileage gets a small penalty when the market cohort has km data.
 			penalized := base - 5
-			if penalized < 1 {
-				return 1
+			if penalized < 0 {
+				return 0
 			}
 			return penalized
 		}

@@ -281,6 +281,10 @@ func packListingChunks(parts []string, sep string, limit int) []string {
 		next := prefix + a.text
 		nr := len([]rune(next))
 		if b.Len() == 0 {
+			if nr > limit {
+				chunks = append(chunks, splitMessageByNewlines(next, limit)...)
+				continue
+			}
 			b.WriteString(next)
 			curRunes = nr
 			continue

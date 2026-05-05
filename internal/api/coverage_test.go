@@ -66,6 +66,30 @@ func TestParsePagination_NegativeOffset(t *testing.T) {
 	}
 }
 
+func TestParsePagination_NonIntegerLimit(t *testing.T) {
+	r := httptest.NewRequest("GET", "/test?limit=abc", nil)
+	w := httptest.NewRecorder()
+	_, _, ok := parsePagination(w, r)
+	if ok {
+		t.Error("expected !ok for non-integer limit")
+	}
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestParsePagination_NonIntegerOffset(t *testing.T) {
+	r := httptest.NewRequest("GET", "/test?offset=xyz", nil)
+	w := httptest.NewRecorder()
+	_, _, ok := parsePagination(w, r)
+	if ok {
+		t.Error("expected !ok for non-integer offset")
+	}
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
 func TestParsePagination_ZeroLimit(t *testing.T) {
 	r := httptest.NewRequest("GET", "/test?limit=0", nil)
 	w := httptest.NewRecorder()

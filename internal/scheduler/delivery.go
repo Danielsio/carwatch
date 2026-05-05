@@ -66,6 +66,8 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 		defer enqCancel()
 		if qErr := d.queue.EnqueueNotification(enqCtx, chatIDStr, "", msg); qErr == nil {
 			return nil
+		} else {
+			d.logger.Error("batch enqueue failed", "chat_id", chatID, "error", qErr)
 		}
 	}
 
@@ -91,6 +93,8 @@ func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message 
 	defer enqCancel()
 	if qErr := d.queue.EnqueueNotification(enqCtx, chatIDStr, "", message); qErr == nil {
 		return nil
+	} else {
+		d.logger.Error("raw enqueue failed", "chat_id", chatID, "error", qErr)
 	}
 	return err
 }

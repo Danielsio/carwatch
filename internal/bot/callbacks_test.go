@@ -20,6 +20,7 @@ func TestIsValidToken(t *testing.T) {
 		{"abcd", false},
 		{"abc", false},
 		{"", false},
+		{"1234567890123456789012345678901234567890", true},
 		{"12345678901234567890123456789012345678901", false},
 		{"abc def", false},
 		{"abc.def", false},

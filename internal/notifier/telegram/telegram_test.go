@@ -187,8 +187,8 @@ func TestTruncateTelegramCaption_LastNewline(t *testing.T) {
 	}
 	cap := strings.Join(lines, "\n")
 	got := truncateTelegramCaption(cap, 120)
-	if len([]rune(got)) > maxCaptionLen {
-		t.Errorf("result length %d exceeds max", len([]rune(got)))
+	if len([]rune(got)) > 120 {
+		t.Errorf("result length %d exceeds limit 120", len([]rune(got)))
 	}
 	if !strings.HasSuffix(got, "…") {
 		t.Errorf("expected ellipsis suffix, got %q", got)

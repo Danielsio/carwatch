@@ -511,24 +511,27 @@ func TestScoreWithKm(t *testing.T) {
 	}
 }
 
-func TestScoreWithKm_FallbackWhenNoKm(t *testing.T) {
+func TestScoreWithKm_UnknownKmPenalty(t *testing.T) {
 	priceOnly := Score(80000, 100000)
 	noKm := ScoreWithKm(80000, 0, 100000, 80000)
 	wantPenalized := priceOnly - 5
 	if noKm != wantPenalized {
 		t.Errorf("ScoreWithKm with listingKm=0 and cohort km: want %d, got %d", wantPenalized, noKm)
 	}
+}
+
+func TestScoreWithKm_FallbackWhenNoCohortKm(t *testing.T) {
+	priceOnly := Score(80000, 100000)
 	noMedianKm := ScoreWithKm(80000, 50000, 100000, 0)
 	if noMedianKm != priceOnly {
 		t.Errorf("ScoreWithKm with medianKm=0 should equal Score: %d != %d", noMedianKm, priceOnly)
 	}
 }
 
-func TestScoreWithKm_UnknownKmPenaltyFloorsAtOne(t *testing.T) {
-	// Base score 4 -> penalized would be -1; floor at 1.
+func TestScoreWithKm_UnknownKmPenaltyFloorsAtZero(t *testing.T) {
 	got := ScoreWithKm(96000, 0, 100000, 50000)
-	if got != 1 {
-		t.Errorf("penalized score should floor at 1, got %d", got)
+	if got != 0 {
+		t.Errorf("penalized score should floor at 0, got %d", got)
 	}
 }
 
