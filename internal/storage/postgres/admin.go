@@ -11,9 +11,14 @@ import (
 
 func (s *Store) DBFileSize() (int64, error) {
 	var size int64
-	err := s.db.QueryRowContext(context.Background(), `SELECT pg_database_size(current_database())`).Scan(&size)
+	// Sum actual user-table sizes instead of pg_database_size(), which
+	// includes ~5-8 MB of system catalog overhead that VACUUM cannot reclaim.
+	err := s.db.QueryRowContext(context.Background(), `
+		SELECT COALESCE(SUM(pg_total_relation_size(quote_ident(table_name))), 0)
+		FROM information_schema.tables
+		WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`).Scan(&size)
 	if err != nil {
-		return 0, fmt.Errorf("pg_database_size: %w", err)
+		return 0, fmt.Errorf("pg user table size: %w", err)
 	}
 	return size, nil
 }
@@ -218,8 +223,11 @@ func (s *Store) AdminDeleteUser(ctx context.Context, chatID int64) error {
 }
 
 func (s *Store) VacuumDB(ctx context.Context) error {
-	if _, err := s.db.ExecContext(ctx, `VACUUM`); err != nil {
-		return fmt.Errorf("vacuum: %w", err)
+	// VACUUM FULL rewrites tables and returns freed pages to the OS.
+	// Plain VACUUM only marks dead tuples as reusable within Postgres
+	// without actually shrinking the on-disk files.
+	if _, err := s.db.ExecContext(ctx, `VACUUM FULL`); err != nil {
+		return fmt.Errorf("vacuum full: %w", err)
 	}
 	return nil
 }
