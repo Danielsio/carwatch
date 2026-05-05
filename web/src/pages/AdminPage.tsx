@@ -1002,6 +1002,7 @@ function SearchesTab({ onViewListings }: { onViewListings: (searchId: number) =>
 function UsersTab() {
   const [detailUser, setDetailUser] = useState<AdminUser | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
+  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -1012,8 +1013,13 @@ function UsersTab() {
   const deleteUserMutation = useMutation({
     mutationFn: (chatId: number) => adminApi.deleteUser(chatId),
     onSuccess: () => {
+      toast("המשתמש נמחק בהצלחה", "success");
+      setConfirmDelete(null);
       void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "stats"] });
+    },
+    onError: () => {
+      toast("שגיאה במחיקת המשתמש", "error");
     },
   });
 
@@ -1150,11 +1156,9 @@ function UsersTab() {
       {confirmDelete && (
         <ConfirmModal
           message={`האם למחוק את המשתמש "${confirmDelete.username || confirmDelete.chat_id}" וכל הנתונים שלו?`}
-          onConfirm={() => {
-            deleteUserMutation.mutate(confirmDelete.chat_id);
-            setConfirmDelete(null);
-          }}
+          onConfirm={() => deleteUserMutation.mutate(confirmDelete.chat_id)}
           onCancel={() => setConfirmDelete(null)}
+          loading={deleteUserMutation.isPending}
         />
       )}
     </div>

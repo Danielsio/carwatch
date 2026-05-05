@@ -164,7 +164,7 @@ export function NewSearchPage() {
               <option value={0}>כל היצרנים</option>
               {manufacturers?.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name_he ? `${m.name_he} (${m.name})` : m.name}
+                  {m.name_he && m.name_he !== m.name ? `${m.name_he} (${m.name})` : m.name}
                 </option>
               ))}
             </Select>
@@ -180,7 +180,7 @@ export function NewSearchPage() {
               <option value={0}>כל הדגמים</option>
               {models?.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name_he ? `${m.name_he} (${m.name})` : m.name}
+                  {m.name_he && m.name_he !== m.name ? `${m.name_he} (${m.name})` : m.name}
                 </option>
               ))}
             </Select>

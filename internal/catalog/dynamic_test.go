@@ -220,6 +220,41 @@ func TestDynamicCatalog_Manufacturers_DefensiveCopy(t *testing.T) {
 	}
 }
 
+func TestDynamicCatalog_Ingest_HebrewNames(t *testing.T) {
+	d := NewDynamic(testLogger)
+	d.Load(context.Background())
+	ctx := context.Background()
+
+	d.Ingest(ctx, IngestEntry{
+		ManufacturerID: 8000, ManufacturerName: "Toyota", ManufacturerNameHe: "טויוטה",
+		ModelID: 200, ModelName: "Corolla", ModelNameHe: "קורולה",
+	})
+
+	mfrs := d.SearchManufacturers("טויוטה")
+	found := false
+	for _, m := range mfrs {
+		if m.ID == 8000 && m.NameHe == "טויוטה" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("SearchManufacturers should match Hebrew name and populate NameHe")
+	}
+
+	models := d.SearchModels(8000, "קורולה")
+	if len(models) != 1 || models[0].NameHe != "קורולה" {
+		t.Errorf("SearchModels: expected 1 Hebrew match, got %v", models)
+	}
+
+	// Hebrew name must not be overwritten
+	d.Ingest(ctx, IngestEntry{ManufacturerID: 8000, ManufacturerName: "Toyota", ManufacturerNameHe: "DIFFERENT"})
+	for _, m := range d.Manufacturers() {
+		if m.ID == 8000 && m.NameHe != "טויוטה" {
+			t.Error("existing Hebrew manufacturer name should not be overwritten")
+		}
+	}
+}
+
 func TestDynamicCatalog_Models_DefensiveCopy(t *testing.T) {
 	d := NewDynamic(testLogger)
 	d.Load(context.Background())

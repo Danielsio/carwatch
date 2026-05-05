@@ -203,8 +203,8 @@ func (s *Store) AdminDeleteUser(ctx context.Context, chatID int64) error {
 
 	for _, table := range []string{
 		"searches", "listing_history", "seen_listings",
-		"pending_notifications", "saved_listings", "hidden_listings",
-		"pending_digest", "daily_digest",
+		"saved_listings", "hidden_listings",
+		"pending_digest",
 	} {
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE chat_id = $1`, quoteIdent(table)), chatID); err != nil {
 			return fmt.Errorf("admin delete user data from %s: %w", table, err)
