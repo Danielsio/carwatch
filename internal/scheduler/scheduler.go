@@ -373,7 +373,11 @@ func (s *Scheduler) isActiveHours() bool {
 		return true
 	}
 
-	return currentMinutes >= start && currentMinutes < end
+	if start < end {
+		return currentMinutes >= start && currentMinutes < end
+	}
+	// Overnight window (e.g. 22:00-06:00).
+	return currentMinutes >= start || currentMinutes < end
 }
 
 func (s *Scheduler) durationUntilActiveStart() time.Duration {
@@ -772,10 +776,44 @@ func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup) ([
 				"manufacturer", group.Manufacturer,
 				"model", group.Model,
 			)
+			// Backfill: persist enriched km/city/image for existing listings.
+			if s.stores.Listings != nil {
+				s.backfillEnrichedListings(ctx, raw)
+			}
 		}
 	}
 
 	return raw, source, nil
+}
+
+// backfillEnrichedListings upserts listing_history for listings that gained
+// km/city/image data during enrichment, ensuring the DB is updated even for
+// previously-seen tokens.
+func (s *Scheduler) backfillEnrichedListings(ctx context.Context, listings []model.RawListing) {
+	var toUpdate []storage.ListingRecord
+	for _, l := range listings {
+		if l.Km <= 0 {
+			continue
+		}
+		toUpdate = append(toUpdate, storage.ListingRecord{
+			Token:        l.Token,
+			Manufacturer: l.Manufacturer,
+			Model:        l.Model,
+			Year:         l.Year,
+			Price:        l.Price,
+			Km:           l.Km,
+			Hand:         l.Hand,
+			City:         l.City,
+			PageLink:     l.PageLink,
+			ImageURL:     l.ImageURL,
+		})
+	}
+	if len(toUpdate) == 0 {
+		return
+	}
+	if err := s.stores.Listings.BackfillListings(ctx, toUpdate); err != nil {
+		s.logger.Error("km backfill failed", "count", len(toUpdate), "error", err)
+	}
 }
 
 func buildFilterCriteria(search storage.Search) model.FilterCriteria {

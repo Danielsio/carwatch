@@ -77,9 +77,13 @@ func (mc *MarketCache) lookupUnsynchronized(manufacturer, model string, year int
 	if len(prices) < MinCohortSize {
 		return lookupResult{cohortSize: len(prices)}
 	}
+	medianKm := 0
+	if len(kms) >= 3 {
+		medianKm = medianInt(kms)
+	}
 	return lookupResult{
 		median:     medianInt(prices),
-		medianKm:   medianInt(kms),
+		medianKm:   medianKm,
 		cohortSize: len(prices),
 		ok:         true,
 	}
@@ -105,18 +109,27 @@ func Score(listingPrice, medianPrice int) int {
 
 // ScoreWithKm computes a km-adjusted deal score. When both the listing and
 // cohort have km data, a low-km car priced at median gets a bonus and a
-// high-km car priced at median gets a penalty. Falls back to price-only
-// when km data is unavailable.
+// high-km car priced at median gets a penalty. When the cohort has km data
+// but the listing does not, the price-only score is reduced slightly (floored
+// at 1). Otherwise falls back to price-only scoring when cohort km is unavailable.
 func ScoreWithKm(listingPrice, listingKm, medianPrice, medianKm int) int {
+	base := scoreRaw(listingPrice, medianPrice)
 	if medianKm <= 0 || listingKm <= 0 {
-		return scoreRaw(listingPrice, medianPrice)
+		if medianKm > 0 && listingKm <= 0 {
+			// Unknown mileage gets a small penalty when the market cohort has km data.
+			penalized := base - 5
+			if penalized < 0 {
+				return 0
+			}
+			return penalized
+		}
+		return base
 	}
 	// Km adjustment: if listing has fewer km than median, it's a better deal.
 	// Scale: 50% fewer km -> +10 bonus, 50% more km -> -10 penalty.
 	kmRatio := float64(listingKm) / float64(medianKm)
 	kmAdj := (1.0 - kmRatio) * 20.0 // +/-20 points for double/half km
-	base := float64(scoreRaw(listingPrice, medianPrice))
-	adjusted := base + kmAdj
+	adjusted := float64(base) + kmAdj
 	if adjusted < 0 {
 		return 0
 	}
@@ -272,7 +285,7 @@ func priceScore(price, priceMax int) float64 {
 
 func kmScore(km, maxKm int) float64 {
 	if km <= 0 {
-		return 0.5
+		return math.NaN()
 	}
 	ref := maxKm
 	if ref <= 0 {

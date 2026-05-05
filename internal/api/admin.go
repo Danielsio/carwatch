@@ -156,15 +156,25 @@ func (s *Server) adminPurgeTable(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) adminListListings(w http.ResponseWriter, r *http.Request) {
-	limit := parseIntParam(r, "limit", 50)
+	limit, ok := parseIntParam(w, r, "limit", 50)
+	if !ok {
+		return
+	}
 	if limit > 100 {
 		limit = 100
 	}
-	offset := parseIntParam(r, "offset", 0)
+	offset, ok := parseIntParam(w, r, "offset", 0)
+	if !ok {
+		return
+	}
 	if offset < 0 {
 		offset = 0
 	}
-	searchID := int64(parseIntParam(r, "search_id", 0))
+	searchIDVal, ok := parseIntParam(w, r, "search_id", 0)
+	if !ok {
+		return
+	}
+	searchID := int64(searchIDVal)
 
 	items, total, err := s.admin.AdminListListings(r.Context(), limit, offset, searchID)
 	if err != nil {
@@ -367,7 +377,10 @@ func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) adminLogs(w http.ResponseWriter, r *http.Request) {
-	n := parseIntParam(r, "limit", 500)
+	n, ok := parseIntParam(w, r, "limit", 500)
+	if !ok {
+		return
+	}
 	if n > 2000 {
 		n = 2000
 	}

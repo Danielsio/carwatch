@@ -34,7 +34,10 @@ func (s *Server) listNotifications(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, offset := parsePagination(r)
+	limit, offset, ok := parsePagination(w, r)
+	if !ok {
+		return
+	}
 
 	since, err := s.notifs.GetLastSeenAt(r.Context(), chatID)
 	if err != nil {

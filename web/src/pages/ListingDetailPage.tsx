@@ -11,7 +11,7 @@ import {
   Car,
 } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, safeHref } from "@/lib/utils";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
@@ -32,10 +32,12 @@ export function ListingDetailPage() {
   );
   const [loading, setLoading] = useState(!stateListingForToken && !!token);
   const [error, setError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     setListing(stateListingForToken);
     setError(false);
+    setNotFound(false);
     setLoading(!stateListingForToken && !!token);
   }, [token, stateListingForToken]);
 
@@ -45,7 +47,13 @@ export function ListingDetailPage() {
     api
       .listing(token)
       .then((data) => setListing(data))
-      .catch(() => setError(true))
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 404) {
+          setNotFound(true);
+        } else {
+          setError(true);
+        }
+      })
       .finally(() => setLoading(false));
   }, [listing, token]);
 
@@ -64,11 +72,11 @@ export function ListingDetailPage() {
     );
   }
 
-  if (error || !listing) {
+  if (notFound || (!listing && !error)) {
     return (
       <EmptyState
         icon={Car}
-        title="המודעה לא נמצאה"
+        title="Listing not found"
         description="ניתן לגשת למודעה דרך רשימת התוצאות"
         action={
           <Button asChild>
@@ -80,6 +88,28 @@ export function ListingDetailPage() {
         }
       />
     );
+  }
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={Car}
+        title="Something went wrong"
+        description="נסה שוב מאוחר יותר או חזור לרשימת התוצאות"
+        action={
+          <Button asChild>
+            <Link to="/dashboard">
+              <ArrowRight className="h-4 w-4" />
+              חזרה לחיפושים
+            </Link>
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (!listing) {
+    return null;
   }
 
   return (

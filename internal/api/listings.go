@@ -111,13 +111,19 @@ func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := parseIntParam(r, "limit", 20)
+	limit, ok := parseIntParam(w, r, "limit", 20)
+	if !ok {
+		return
+	}
 	if limit <= 0 {
 		limit = 20
 	} else if limit > 100 {
 		limit = 100
 	}
-	offset := parseIntParam(r, "offset", 0)
+	offset, ok := parseIntParam(w, r, "offset", 0)
+	if !ok {
+		return
+	}
 	sort := parseSortParam(r)
 	f := listingFilterFromSearch(sr)
 

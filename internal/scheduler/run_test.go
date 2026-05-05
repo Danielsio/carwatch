@@ -265,6 +265,10 @@ func (m *mockListingStore) SaveListings(_ context.Context, records []storage.Lis
 	return nil
 }
 
+func (m *mockListingStore) BackfillListings(_ context.Context, _ []storage.ListingRecord) error {
+	return nil
+}
+
 func (m *mockListingStore) GetListing(_ context.Context, _ int64, _ string) (*storage.ListingRecord, error) {
 	return nil, nil
 }

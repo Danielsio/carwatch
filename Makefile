@@ -27,6 +27,7 @@ run: build
 
 test:
 	@mkdir -p $(COVER_DIR)
+	go build ./...
 	go test -count=1 -coverprofile=$(COVER_PROFILE) -covermode=atomic $(TEST_PKGS)
 	@echo ""
 	@echo "=== Coverage Summary ==="

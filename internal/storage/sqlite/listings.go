@@ -90,6 +90,35 @@ func (s *Store) SaveListings(ctx context.Context, records []storage.ListingRecor
 	return nil
 }
 
+const backfillListingSQL_sqlite = `
+	UPDATE listing_history SET
+		km = CASE WHEN ?2 > 0 AND listing_history.km <= 0 THEN ?2 ELSE listing_history.km END,
+		city = CASE WHEN ?3 != '' AND listing_history.city = '' THEN ?3 ELSE listing_history.city END,
+		image_url = CASE WHEN ?4 != '' AND listing_history.image_url = '' THEN ?4 ELSE listing_history.image_url END
+	WHERE token = ?1 AND (listing_history.km <= 0 OR listing_history.city = '' OR listing_history.image_url = '')`
+
+func (s *Store) BackfillListings(ctx context.Context, records []storage.ListingRecord) error {
+	if len(records) == 0 {
+		return nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("backfill begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	stmt, err := tx.PrepareContext(ctx, backfillListingSQL_sqlite)
+	if err != nil {
+		return fmt.Errorf("backfill prepare: %w", err)
+	}
+	defer func() { _ = stmt.Close() }()
+	for _, r := range records {
+		if _, err := stmt.ExecContext(ctx, r.Token, r.Km, r.City, r.ImageURL); err != nil {
+			return fmt.Errorf("backfill exec: %w", err)
+		}
+	}
+	return tx.Commit()
+}
+
 func (s *Store) GetListing(ctx context.Context, chatID int64, token string) (*storage.ListingRecord, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT token, search_name, manufacturer, model, year, price,
@@ -177,7 +206,7 @@ func buildFilterClauses(f storage.ListingFilter) (string, []any) {
 		args = append(args, f.YearMax)
 	}
 	if f.MaxKm > 0 {
-		clauses = append(clauses, "(km <= ? OR km = 0)")
+		clauses = append(clauses, "km > 0 AND km <= ?")
 		args = append(args, f.MaxKm)
 	}
 	if f.MaxHand > 0 {
@@ -202,7 +231,7 @@ func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID i
 	case "score":
 		orderBy = "CASE WHEN fitness_score IS NULL THEN 1 ELSE 0 END, fitness_score DESC, token DESC"
 	case "km":
-		orderBy = "km ASC, token DESC"
+		orderBy = "CASE WHEN km <= 0 THEN 1 ELSE 0 END, km ASC, token DESC"
 	case "year":
 		orderBy = "year DESC, token DESC"
 	}

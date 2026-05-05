@@ -15,6 +15,13 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
+// DefaultQuickStartManufacturer and DefaultQuickStartModel are catalog IDs for the quick-start preset (Toyota Corolla).
+// TODO: these should eventually come from config instead of hardcoding.
+const (
+	DefaultQuickStartManufacturer = 19
+	DefaultQuickStartModel        = 8640
+)
+
 // --- Callback Handler ---
 
 func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
@@ -185,8 +192,8 @@ func (b *Bot) onQuickStart(ctx context.Context, chatID int64) {
 		ChatID:       chatID,
 		Name:         "toyota-corolla",
 		Source:       "yad2,winwin",
-		Manufacturer: 19,
-		Model:        8640,
+		Manufacturer: DefaultQuickStartManufacturer,
+		Model:        DefaultQuickStartModel,
 		YearMin:      2018,
 		YearMax:      time.Now().Year() + 2,
 		PriceMax:     200000,
@@ -224,13 +231,17 @@ const (
 )
 
 func isValidToken(token string) bool {
-	if len(token) < 5 || len(token) > 20 {
+	if len(token) < 5 || len(token) > 40 {
 		return false
 	}
 	for _, c := range token {
-		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') {
-			return false
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+			continue
 		}
+		if c == '-' || c == '_' {
+			continue
+		}
+		return false
 	}
 	return true
 }

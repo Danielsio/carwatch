@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useListings } from "@/hooks/useListings";
 import { useSaveBookmark, useRemoveBookmark } from "@/hooks/useBookmarks";
-import { safeHref, cn } from "@/lib/utils";
+import { safeHref, cn, formatPrice } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { ListingCardBody } from "@/components/ListingCardBody";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -178,6 +178,7 @@ function ListingCard({ listing }: { listing: Listing }) {
     <div
       role="button"
       tabIndex={0}
+      aria-label={`${listing.manufacturer} ${listing.model} ${listing.year} - ${formatPrice(listing.price)}`}
       onClick={(e) => {
         if (isInteractiveTarget(e.target)) return;
         navigate(`/listings/${listing.token}`, { state: { listing } });

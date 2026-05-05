@@ -154,6 +154,64 @@ func TestSplitMessage_PreservesContent(t *testing.T) {
 	}
 }
 
+func TestSplitMessage_ListingSeparatorBoundaries(t *testing.T) {
+	sep := "\n" + telegramListingSeparatorLine + "\n"
+	header := strings.Repeat("h", 60)
+	block := strings.Repeat("b", 70)
+	msg := header + sep + block + sep + block
+
+	chunks := splitMessage(msg, 100)
+	combined := strings.Join(chunks, "")
+	if combined != msg {
+		t.Errorf("reassembled text differs:\ngot:  %q\nwant: %q", combined, msg)
+	}
+	for i, ch := range chunks {
+		if len([]rune(ch)) > 100 {
+			t.Errorf("chunk %d exceeds limit: %d runes", i, len([]rune(ch)))
+		}
+	}
+}
+
+func TestTruncateTelegramCaption_NoTruncation(t *testing.T) {
+	got := truncateTelegramCaption("short", maxCaptionLen)
+	if got != "short" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestTruncateTelegramCaption_LastNewline(t *testing.T) {
+	lines := []string{
+		strings.Repeat("a", 40),
+		strings.Repeat("b", 40),
+		strings.Repeat("c", 400),
+	}
+	cap := strings.Join(lines, "\n")
+	got := truncateTelegramCaption(cap, 120)
+	if len([]rune(got)) > 120 {
+		t.Errorf("result length %d exceeds limit 120", len([]rune(got)))
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Errorf("expected ellipsis suffix, got %q", got)
+	}
+	if strings.Contains(got, strings.Repeat("c", 10)) {
+		t.Errorf("expected third line to be dropped entirely, got %q", got)
+	}
+	if !strings.Contains(got, strings.Repeat("a", 40)) {
+		t.Errorf("expected first line preserved:\n%s", got)
+	}
+}
+
+func TestTruncateTelegramCaption_NoNewlineFallsBackToRuneCut(t *testing.T) {
+	cap := strings.Repeat("x", maxCaptionLen+50)
+	got := truncateTelegramCaption(cap, maxCaptionLen)
+	if len([]rune(got)) != maxCaptionLen {
+		t.Errorf("want length %d, got %d", maxCaptionLen, len([]rune(got)))
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Errorf("expected ellipsis, got %q", got)
+	}
+}
+
 // --- lastRuneNewlineBefore tests ---
 
 func TestLastRuneNewlineBefore_Found(t *testing.T) {

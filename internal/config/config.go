@@ -143,7 +143,7 @@ func applyDefaults(cfg *Config) {
 		cfg.HTTP.UserAgents = defaultUserAgents()
 	}
 	if cfg.Telegram.MaxSearches == 0 {
-		cfg.Telegram.MaxSearches = 3
+		cfg.Telegram.MaxSearches = 10
 	}
 	if cfg.Polling.MaxConcurrentFetches <= 0 {
 		cfg.Polling.MaxConcurrentFetches = 4
@@ -203,6 +203,9 @@ func validate(cfg *Config) error {
 	case "auto", "json", "pretty":
 	default:
 		return fmt.Errorf("log_format %q: must be auto, json, or pretty", cfg.LogFormat)
+	}
+	if cfg.Telegram.MaxSearches < 0 {
+		return fmt.Errorf("telegram.max_searches must be >= 0")
 	}
 	if cfg.Telegram.Token == "" {
 		return fmt.Errorf("telegram.token is required")
