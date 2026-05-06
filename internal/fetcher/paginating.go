@@ -3,24 +3,31 @@ package fetcher
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/model"
 )
 
-const DefaultMaxPages = 5
+const (
+	DefaultMaxPages  = 5
+	defaultPageDelay = 1500 * time.Millisecond
+	pageDelayJitter  = 1000 * time.Millisecond
+)
 
 var ErrPartialResults = fmt.Errorf("partial paginated results")
 
 type PaginatingFetcher struct {
-	inner    Fetcher
-	maxPages int
+	inner     Fetcher
+	maxPages  int
+	pageDelay time.Duration
 }
 
 func NewPaginatingFetcher(inner Fetcher, maxPages int) *PaginatingFetcher {
 	if maxPages <= 0 {
 		maxPages = DefaultMaxPages
 	}
-	return &PaginatingFetcher{inner: inner, maxPages: maxPages}
+	return &PaginatingFetcher{inner: inner, maxPages: maxPages, pageDelay: defaultPageDelay}
 }
 
 func (f *PaginatingFetcher) Fetch(ctx context.Context, params model.SourceParams) ([]model.RawListing, error) {
@@ -28,6 +35,19 @@ func (f *PaginatingFetcher) Fetch(ctx context.Context, params model.SourceParams
 	var all []model.RawListing
 
 	for page := 1; page <= f.maxPages; page++ {
+		if page > 1 && f.pageDelay > 0 {
+			jitter := time.Duration(rand.Int64N(int64(pageDelayJitter)))
+			delay := f.pageDelay + jitter
+			select {
+			case <-ctx.Done():
+				if len(all) > 0 {
+					return all, fmt.Errorf("%w: canceled after page %d: %v", ErrPartialResults, page-1, ctx.Err())
+				}
+				return nil, ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
 		p := params
 		p.Page = page
 

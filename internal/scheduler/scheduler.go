@@ -45,6 +45,13 @@ type CatalogIngester interface {
 	Flush(ctx context.Context)
 }
 
+// CarNameResolver translates numeric manufacturer/model IDs into
+// human-readable names for log messages.
+type CarNameResolver interface {
+	ManufacturerName(id int) string
+	ModelName(manufacturerID, modelID int) string
+}
+
 // KmEnricher fills in missing km data by fetching individual listing pages.
 type KmEnricher interface {
 	Enrich(ctx context.Context, listings []model.RawListing) int
@@ -65,6 +72,7 @@ type Scheduler struct {
 	observer          CycleObserver
 	fetcherFactory    *fetcher.Factory
 	catalogIngester   CatalogIngester
+	carNames          CarNameResolver
 	kmEnricher        KmEnricher
 	triggerCh         chan struct{}
 
@@ -110,6 +118,7 @@ type Options struct {
 	DigestStore      storage.DigestStore
 	HiddenStore      storage.HiddenListingStore
 	CatalogIngester  CatalogIngester
+	CarNames         CarNameResolver
 	KmEnricher       KmEnricher
 	MarketStore      storage.MarketStore
 	DailyDigestStore storage.DailyDigestStore
@@ -165,6 +174,7 @@ func NewWithOptions(
 		observer:          obs,
 		fetcherFactory:    opts.FetcherFactory,
 		catalogIngester:   opts.CatalogIngester,
+		carNames:          opts.CarNames,
 		kmEnricher:        opts.KmEnricher,
 		triggerCh:         make(chan struct{}, 1),
 	}, nil
@@ -183,7 +193,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	logJitter := s.cfg.Polling.Jitter
 	s.cfgMu.RUnlock()
 	s.logger.Info("scheduler started",
-		"interval", logInterval.String(),
+		"check_interval", logInterval.String(),
 		"jitter", logJitter.String(),
 	)
 
@@ -221,7 +231,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			}
 		}
 
-		s.logger.Info("next poll", "delay", delay.Round(time.Second).String())
+		s.logger.Info("next scan", "in", delay.Round(time.Second).String())
 
 		timer.Reset(delay)
 
@@ -240,7 +250,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			if !timer.Stop() {
 				<-timer.C
 			}
-			s.logger.Info("poll triggered")
+			s.logger.Info("scan triggered manually")
 		case <-timer.C:
 		}
 
@@ -252,7 +262,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			if errors.Is(err, context.Canceled) {
 				return err
 			}
-			s.logger.Error("cycle failed", "error", err)
+			s.logger.Error("scan failed", "error", err)
 		}
 	}
 }
@@ -301,11 +311,10 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 		lastErr = err
 
 		if errors.Is(err, fetcher.ErrPartialResults) && len(listings) > 0 {
-			s.logger.Warn("fetch returned partial results",
+			s.logger.Warn("partial results (some pages failed)",
+				"car", s.carName(params.Manufacturer, params.Model),
+				"listings_returned", len(listings),
 				"error", err,
-				"count", len(listings),
-				"manufacturer", params.Manufacturer,
-				"model", params.Model,
 			)
 			return listings, nil
 		}
@@ -317,11 +326,9 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 		if attempt < maxRetries-1 {
 			delay := retryBaseDelay * (1 << attempt)
 			s.logger.Warn("fetch failed, retrying",
-				"attempt", attempt+1,
-				"max_attempts", maxRetries,
-				"delay", delay.String(),
-				"manufacturer", params.Manufacturer,
-				"model", params.Model,
+				"car", s.carName(params.Manufacturer, params.Model),
+				"attempt", fmt.Sprintf("%d/%d", attempt+1, maxRetries),
+				"retry_in", delay.String(),
 				"error", err,
 			)
 			select {
@@ -443,7 +450,7 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 	if len(pending) == 0 {
 		return
 	}
-	s.logger.Info("retrying pending notifications", "count", len(pending))
+	s.logger.Info("retrying queued messages", "count", len(pending))
 	for _, p := range pending {
 		if notifier.IsMalformedMessage(p.Payload) {
 			s.logger.Error("purging malformed pending notification",
@@ -494,7 +501,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	cycle := s.cycleCount
 	cycleStart := time.Now()
 
-	s.logger.Info("poll cycle started", "cycle", cycle)
+	s.logger.Info("checking for new listings", "scan", cycle)
 
 	s.langCache.Range(func(k, _ any) bool { s.langCache.Delete(k); return true })
 	s.digestCache.Range(func(k, _ any) bool { s.digestCache.Delete(k); return true })
@@ -508,13 +515,17 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.processExpiredPremium(ctx)
 
 	if len(searches) == 0 {
-		s.logger.Info("poll cycle done", "cycle", cycle, "elapsed", time.Since(cycleStart).Round(time.Millisecond), "searches", 0)
+		s.logger.Info("scan complete (no active searches)", "scan", cycle, "elapsed", time.Since(cycleStart).Round(time.Millisecond))
 		return nil
 	}
 
 	marketCache := s.buildMarketCache(ctx)
 	groups := GroupSearches(searches)
-	s.logger.Info("grouped searches", "cycle", cycle, "groups", len(groups), "total_searches", len(searches))
+	s.logger.Info("active searches loaded",
+		"scan", cycle,
+		"car_models", len(groups),
+		"searches", len(searches),
+	)
 
 	allFailed, stats := s.runFetchGroups(ctx, groups, marketCache)
 
@@ -525,20 +536,20 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.processDigests(ctx)
 	s.processDailyDigests(ctx)
 
-	s.logger.Info("poll cycle done",
-		"cycle", cycle,
+	s.logger.Info("scan complete",
+		"scan", cycle,
 		"elapsed", time.Since(cycleStart).Round(time.Millisecond),
-		"groups", len(groups),
+		"car_models", len(groups),
 		"searches", len(searches),
-		"listings_fetched", stats.listingsFetched,
-		"new_listings", stats.newListings,
+		"listings_checked", stats.listingsFetched,
+		"new_matches", stats.newListings,
 		"notifications_sent", stats.notificationsSent,
-		"groups_failed", stats.groupsFailed,
+		"failed", stats.groupsFailed,
 	)
 
 	if allFailed && len(groups) > 0 {
 		s.observer.RecordError()
-		return fmt.Errorf("all %d groups failed", len(groups))
+		return fmt.Errorf("all %d car models failed to fetch", len(groups))
 	}
 
 	s.observer.RecordSuccess()
@@ -650,9 +661,8 @@ func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup,
 			defer func() { <-sem }()
 			defer func() {
 				if r := recover(); r != nil {
-					s.logger.Error("panic in processGroup",
-						"manufacturer", g.Manufacturer,
-						"model", g.Model,
+					s.logger.Error("unexpected crash while fetching listings",
+						"car", s.carName(g.Manufacturer, g.Model),
 						"panic", r,
 						"stack", string(debug.Stack()))
 					s.observer.RecordError()
@@ -661,9 +671,9 @@ func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup,
 
 			gs, err := s.processGroup(ctx, g, marketCache)
 			if err != nil {
-				s.logger.Error("group failed",
-					"manufacturer", g.Manufacturer,
-					"model", g.Model,
+				s.logger.Error("failed to fetch listings",
+					"car", s.carName(g.Manufacturer, g.Model),
+					"source", g.Source,
 					"error", err)
 				if errors.Is(err, fetcher.ErrChallenge) {
 					s.boMu.Lock()
@@ -692,9 +702,8 @@ func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup,
 
 func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, marketCache *scoring.MarketCache) (cycleStats, error) {
 	groupStart := time.Now()
-	s.logger.Debug("group starting",
-		"manufacturer", group.Manufacturer,
-		"model", group.Model,
+	s.logger.Debug("fetching car model",
+		"car", s.carName(group.Manufacturer, group.Model),
 		"searches", len(group.Searches),
 	)
 	raw, source, err := s.fetchAndEnrich(ctx, group)
@@ -735,13 +744,12 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 		}
 	}
 
-	s.logger.Info("group done",
+	s.logger.Info("car model checked",
+		"car", s.carName(group.Manufacturer, group.Model),
 		"source", source,
-		"manufacturer", group.Manufacturer,
-		"model", group.Model,
 		"listings", len(raw),
-		"new", gs.newListings,
-		"user_searches", len(group.Searches),
+		"new_matches", gs.newListings,
+		"searches", len(group.Searches),
 		"elapsed", time.Since(groupStart).Round(time.Millisecond),
 	)
 
@@ -782,20 +790,75 @@ func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup) ([
 		defer cancelEnrich()
 		enriched := s.kmEnricher.Enrich(enrichCtx, raw)
 		if enriched > 0 {
-			s.logger.Info("km enrichment complete",
+			s.logger.Info("mileage data enriched",
+				"car", s.carName(group.Manufacturer, group.Model),
 				"enriched", enriched,
 				"total", len(raw),
-				"manufacturer", group.Manufacturer,
-				"model", group.Model,
 			)
-			// Backfill: persist enriched km/city/image for existing listings.
 			if s.stores.Listings != nil {
 				s.backfillEnrichedListings(ctx, raw)
 			}
 		}
+
+		// Pre-fill: load previously-known km/city/image from DB for listings
+		// that still lack km after enrichment.
+		if s.stores.Listings != nil {
+			s.prefillFromDB(ctx, raw)
+		}
 	}
 
 	return raw, source, nil
+}
+
+// prefillFromDB fills in km/city/image from listing_history for listings
+// that the enricher could not reach this cycle. Once a listing's km is
+// learned in any previous cycle, it is remembered here.
+func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListing) {
+	var tokens []string
+	for i := range listings {
+		if listings[i].Km <= 0 || listings[i].City == "" || listings[i].ImageURL == "" {
+			tokens = append(tokens, listings[i].Token)
+		}
+	}
+	if len(tokens) == 0 {
+		return
+	}
+
+	data, err := s.stores.Listings.LookupEnrichmentData(ctx, tokens)
+	if err != nil {
+		s.logger.Error("prefill from DB failed", "error", err)
+		return
+	}
+	if len(data) == 0 {
+		return
+	}
+
+	filled := 0
+	for i := range listings {
+		rec, ok := data[listings[i].Token]
+		if !ok {
+			continue
+		}
+		changed := false
+		if listings[i].Km <= 0 && rec.Km > 0 {
+			listings[i].Km = rec.Km
+			changed = true
+		}
+		if listings[i].City == "" && rec.City != "" {
+			listings[i].City = rec.City
+			changed = true
+		}
+		if listings[i].ImageURL == "" && rec.ImageURL != "" {
+			listings[i].ImageURL = rec.ImageURL
+			changed = true
+		}
+		if changed {
+			filled++
+		}
+	}
+	if filled > 0 {
+		s.logger.Info("prefilled from DB", "filled", filled, "looked_up", len(tokens))
+	}
 }
 
 // backfillEnrichedListings upserts listing_history for listings that gained
@@ -1050,7 +1113,7 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 
 	s.observer.RecordListingsFound(len(sr.newListings))
 
-	s.logger.Info("new listings for user",
+	s.logger.Info("notifying user of new listings",
 		"chat_id", search.ChatID,
 		"search", search.Name,
 		"count", len(sr.newListings),
@@ -1335,6 +1398,18 @@ func (s *Scheduler) userLang(ctx context.Context, chatID int64) locale.Lang {
 	}
 	s.langCache.Store(chatID, lang)
 	return lang
+}
+
+func (s *Scheduler) carName(manufacturerID, modelID int) string {
+	if s.carNames == nil {
+		return fmt.Sprintf("%d/%d", manufacturerID, modelID)
+	}
+	mfr := s.carNames.ManufacturerName(manufacturerID)
+	mdl := s.carNames.ModelName(manufacturerID, modelID)
+	if mfr == "" || mdl == "" {
+		return fmt.Sprintf("%d/%d", manufacturerID, modelID)
+	}
+	return mfr + " " + mdl
 }
 
 func maskPhone(phone string) string {

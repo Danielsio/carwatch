@@ -83,7 +83,7 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer func() { _ = store.Close() }()
 
-	yad2Fetcher, cachingFetcher, fetcherFactory, err := buildFetchers(cfg, logger)
+	yad2Fetcher, cachingFetcher, fetcherFactory, _, err := buildFetchers(cfg, logger)
 	if err != nil {
 		return err
 	}
@@ -142,6 +142,7 @@ func run(configPath string, logger *slog.Logger) error {
 		DigestStore:      store,
 		HiddenStore:      store,
 		CatalogIngester:  dynCatalog,
+		CarNames:         dynCatalog,
 		KmEnricher:       kmEnricher,
 		MarketStore:      store,
 		DailyDigestStore: store,
@@ -162,7 +163,7 @@ func run(configPath string, logger *slog.Logger) error {
 	return sched.Run(ctx)
 }
 
-func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, fetcher.Fetcher, *fetcher.Factory, error) {
+func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, fetcher.Fetcher, *fetcher.Factory, *fetcher.ProxyPool, error) {
 	var proxyPool *fetcher.ProxyPool
 	if len(cfg.HTTP.Proxies) > 0 {
 		proxyPool = fetcher.NewProxyPool(cfg.HTTP.Proxies)
@@ -177,7 +178,7 @@ func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, 
 		yad2Fetcher, err = yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, yad2Logger)
 	}
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create fetcher: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("create fetcher: %w", err)
 	}
 
 	paginatingFetcher := fetcher.NewPaginatingFetcher(yad2Fetcher, cfg.HTTP.MaxPages)
@@ -193,7 +194,7 @@ func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, 
 		winwinFetcher, err = winwin.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, winwinLogger)
 	}
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create winwin fetcher: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("create winwin fetcher: %w", err)
 	}
 	cachingWinwin := fetcher.NewCachingFetcher(winwinFetcher, 5*time.Minute)
 	winwinCB := fetcher.NewCircuitBreaker(cachingWinwin, 5, 10*time.Minute,
@@ -203,7 +204,7 @@ func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, 
 	fetcherFactory.Register("yad2", yad2CB)
 	fetcherFactory.Register("winwin", winwinCB)
 
-	return yad2Fetcher, cachingFetcher, fetcherFactory, nil
+	return yad2Fetcher, cachingFetcher, fetcherFactory, proxyPool, nil
 }
 
 func openStore(cfg *config.Config) (storage.Store, error) {

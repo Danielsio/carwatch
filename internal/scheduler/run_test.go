@@ -269,6 +269,10 @@ func (m *mockListingStore) BackfillListings(_ context.Context, _ []storage.Listi
 	return nil
 }
 
+func (m *mockListingStore) LookupEnrichmentData(_ context.Context, _ []string) (map[string]storage.EnrichmentRecord, error) {
+	return nil, nil
+}
+
 func (m *mockListingStore) GetListing(_ context.Context, _ int64, _ string) (*storage.ListingRecord, error) {
 	return nil, nil
 }
