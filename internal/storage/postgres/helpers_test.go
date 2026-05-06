@@ -124,7 +124,10 @@ func TestGenerateShareToken(t *testing.T) {
 		t.Errorf("expected 32-char hex token, got len=%d: %q", len(token), token)
 	}
 
-	token2, _ := generateShareToken()
+	token2, err := generateShareToken()
+	if err != nil {
+		t.Fatalf("unexpected error on second token: %v", err)
+	}
 	if token == token2 {
 		t.Error("two consecutive tokens should differ")
 	}
