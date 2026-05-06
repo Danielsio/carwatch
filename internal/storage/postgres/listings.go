@@ -117,6 +117,56 @@ func (s *Store) BackfillListings(ctx context.Context, records []storage.ListingR
 	return tx.Commit()
 }
 
+const lookupEnrichmentBatchSize = 500
+
+func (s *Store) LookupEnrichmentData(ctx context.Context, tokens []string) (map[string]storage.EnrichmentRecord, error) {
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+
+	out := make(map[string]storage.EnrichmentRecord, len(tokens))
+	for start := 0; start < len(tokens); start += lookupEnrichmentBatchSize {
+		end := start + lookupEnrichmentBatchSize
+		if end > len(tokens) {
+			end = len(tokens)
+		}
+		batch := tokens[start:end]
+
+		placeholders := make([]string, len(batch))
+		args := make([]any, len(batch))
+		for i, t := range batch {
+			args[i] = t
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+		}
+
+		q := `SELECT token, MAX(km), MAX(city), MAX(image_url)
+			FROM listing_history
+			WHERE token IN (` + strings.Join(placeholders, ", ") + `) AND km > 0
+			GROUP BY token`
+
+		rows, err := s.db.QueryContext(ctx, q, args...)
+		if err != nil {
+			return nil, fmt.Errorf("lookup enrichment data: %w", err)
+		}
+
+		for rows.Next() {
+			var tok, city, img string
+			var km int
+			if err := rows.Scan(&tok, &km, &city, &img); err != nil {
+				_ = rows.Close()
+				return nil, fmt.Errorf("scan enrichment data: %w", err)
+			}
+			out[tok] = storage.EnrichmentRecord{Km: km, City: city, ImageURL: img}
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("enrichment rows: %w", err)
+		}
+		_ = rows.Close()
+	}
+	return out, nil
+}
+
 func (s *Store) GetListing(ctx context.Context, chatID int64, token string) (*storage.ListingRecord, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT token, search_name, manufacturer, model, year, price,

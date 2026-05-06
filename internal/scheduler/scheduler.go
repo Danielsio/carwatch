@@ -795,14 +795,70 @@ func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup) ([
 				"enriched", enriched,
 				"total", len(raw),
 			)
-			// Backfill: persist enriched km/city/image for existing listings.
 			if s.stores.Listings != nil {
 				s.backfillEnrichedListings(ctx, raw)
 			}
 		}
+
+		// Pre-fill: load previously-known km/city/image from DB for listings
+		// that still lack km after enrichment.
+		if s.stores.Listings != nil {
+			s.prefillFromDB(ctx, raw)
+		}
 	}
 
 	return raw, source, nil
+}
+
+// prefillFromDB fills in km/city/image from listing_history for listings
+// that the enricher could not reach this cycle. Once a listing's km is
+// learned in any previous cycle, it is remembered here.
+func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListing) {
+	var tokens []string
+	for i := range listings {
+		if listings[i].Km <= 0 || listings[i].City == "" || listings[i].ImageURL == "" {
+			tokens = append(tokens, listings[i].Token)
+		}
+	}
+	if len(tokens) == 0 {
+		return
+	}
+
+	data, err := s.stores.Listings.LookupEnrichmentData(ctx, tokens)
+	if err != nil {
+		s.logger.Error("prefill from DB failed", "error", err)
+		return
+	}
+	if len(data) == 0 {
+		return
+	}
+
+	filled := 0
+	for i := range listings {
+		rec, ok := data[listings[i].Token]
+		if !ok {
+			continue
+		}
+		changed := false
+		if listings[i].Km <= 0 && rec.Km > 0 {
+			listings[i].Km = rec.Km
+			changed = true
+		}
+		if listings[i].City == "" && rec.City != "" {
+			listings[i].City = rec.City
+			changed = true
+		}
+		if listings[i].ImageURL == "" && rec.ImageURL != "" {
+			listings[i].ImageURL = rec.ImageURL
+			changed = true
+		}
+		if changed {
+			filled++
+		}
+	}
+	if filled > 0 {
+		s.logger.Info("prefilled from DB", "filled", filled, "looked_up", len(tokens))
+	}
 }
 
 // backfillEnrichedListings upserts listing_history for listings that gained
