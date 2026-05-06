@@ -113,7 +113,7 @@ export function ListingDetailPage() {
   }
 
   return (
-    <div className="space-y-6 pb-20 md:pb-4">
+    <div className="space-y-6">
       <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground -mr-2">
         <ArrowRight className="h-4 w-4" />
         חזרה לתוצאות

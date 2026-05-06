@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import { Bell, ExternalLink } from "lucide-react";
 import {
   useNotifications,
@@ -6,7 +7,15 @@ import {
 } from "@/hooks/useNotifications";
 import { safeHref } from "@/lib/utils";
 import { ListingCardBody } from "@/components/ListingCardBody";
-import { Button, EmptyState, PageHeader, Skeleton } from "@/components/ui";
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  PageShell,
+  Pagination,
+  Skeleton,
+} from "@/components/ui";
 import type { Listing } from "@/lib/api";
 
 const PAGE_SIZE = 20;
@@ -34,36 +43,35 @@ export function NotificationsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 pb-20 md:pb-4">
+      <PageShell>
         <PageHeader title="התראות" />
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-72 rounded-2xl" />
           ))}
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   if (isError) {
     return (
-      <div className="space-y-6 pb-20 md:pb-4">
+      <PageShell>
         <PageHeader title="התראות" />
-        <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center">
-          <p className="text-destructive font-medium">
-            שגיאה בטעינת ההתראות
-          </p>
-        </div>
-      </div>
+        <ErrorState
+          title="שגיאה בטעינת ההתראות"
+          description="נסה לרענן את הדף"
+        />
+      </PageShell>
     );
   }
 
   return (
-    <div className="space-y-6 pb-20 md:pb-4">
+    <PageShell>
       <PageHeader
         title="התראות"
         action={
-          data ? (
+          data && data.total > 0 ? (
             <span className="text-sm text-muted-foreground tabular-nums">
               ({data.total} חדשות)
             </span>
@@ -76,6 +84,11 @@ export function NotificationsPage() {
           icon={Bell}
           title="אין התראות חדשות"
           description="מודעות חדשות שימצאו יופיעו כאן"
+          action={
+            <Button asChild variant="secondary" size="sm">
+              <Link to="/dashboard">חזרה ללוח הבקרה</Link>
+            </Button>
+          }
         />
       ) : (
         <>
@@ -85,35 +98,16 @@ export function NotificationsPage() {
             ))}
           </div>
 
-          {(data.total > PAGE_SIZE || offset > 0) && (
-            <div className="flex items-center justify-center gap-3 pt-4">
-              {offset > 0 && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-                >
-                  הקודם
-                </Button>
-              )}
-              <span className="text-sm text-muted-foreground tabular-nums">
-                {offset + 1}–{Math.min(offset + PAGE_SIZE, data.total)} מתוך{" "}
-                {data.total}
-              </span>
-              {offset + PAGE_SIZE < data.total && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setOffset(offset + PAGE_SIZE)}
-                >
-                  הבא
-                </Button>
-              )}
-            </div>
-          )}
+          <Pagination
+            offset={offset}
+            total={data.total}
+            pageSize={PAGE_SIZE}
+            onPrev={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+            onNext={() => setOffset(offset + PAGE_SIZE)}
+          />
         </>
       )}
-    </div>
+    </PageShell>
   );
 }
 
