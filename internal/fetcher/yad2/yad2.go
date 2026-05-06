@@ -111,17 +111,40 @@ func (f *Yad2Fetcher) FetchItem(ctx context.Context, token string) (ItemDetails,
 	base.RawQuery = ""
 	itemURL := base.String()
 
-	result, err := f.itemClient.Get(ctx, itemURL)
+	client := f.itemClient
+	var usedProxy string
+	if f.proxyPool != nil {
+		usedProxy = f.proxyPool.Next()
+		if f.clientPool != nil {
+			c, err := f.clientPool.Get(usedProxy)
+			if err != nil {
+				f.logger.Warn("failed to get pooled client for item fetch, using fallback", "proxy", redactProxy(usedProxy), "error", err)
+			} else {
+				client = c
+			}
+		}
+	}
+
+	result, err := client.Get(ctx, itemURL)
 	if err != nil {
+		if f.clientPool != nil && usedProxy != "" {
+			f.clientPool.Evict(usedProxy)
+		}
 		return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, err)
 	}
 
 	if result.StatusCode != http.StatusOK {
 		if looksLikeBotProtection(result.Body) {
+			if f.proxyPool != nil && usedProxy != "" {
+				f.proxyPool.MarkUnhealthy(usedProxy)
+			}
 			return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, fetcher.ErrChallenge)
 		}
 		if (result.StatusCode == http.StatusBadRequest || result.StatusCode == http.StatusForbidden) &&
 			looksLikeGenericError(result.Body) {
+			if f.proxyPool != nil && usedProxy != "" {
+				f.proxyPool.MarkUnhealthy(usedProxy)
+			}
 			return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, fetcher.ErrChallenge)
 		}
 		snippet := string(result.Body)

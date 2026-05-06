@@ -83,7 +83,7 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer func() { _ = store.Close() }()
 
-	yad2Fetcher, cachingFetcher, fetcherFactory, proxyPool, err := buildFetchers(cfg, logger)
+	yad2Fetcher, cachingFetcher, fetcherFactory, _, err := buildFetchers(cfg, logger)
 	if err != nil {
 		return err
 	}
@@ -128,9 +128,7 @@ func run(configPath string, logger *slog.Logger) error {
 		}
 	}()
 
-	kmEnricher := yad2.NewEnricher(yad2Fetcher, logger.With("component", "enricher"), yad2.EnricherConfig{
-		ProxyPool: proxyPool,
-	})
+	kmEnricher := yad2.NewEnricher(yad2Fetcher, logger.With("component", "enricher"), yad2.EnricherConfig{})
 
 	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, multi, logger.With("component", "scheduler"), scheduler.Options{
 		Observer:         h,
