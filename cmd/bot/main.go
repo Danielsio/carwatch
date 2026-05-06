@@ -142,6 +142,7 @@ func run(configPath string, logger *slog.Logger) error {
 		DigestStore:      store,
 		HiddenStore:      store,
 		CatalogIngester:  dynCatalog,
+		CarNames:         dynCatalog,
 		KmEnricher:       kmEnricher,
 		MarketStore:      store,
 		DailyDigestStore: store,
