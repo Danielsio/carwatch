@@ -112,7 +112,7 @@ func Score(listingPrice, medianPrice int) int {
 // cohort have km data, a low-km car priced at median gets a bonus and a
 // high-km car priced at median gets a penalty. When the cohort has km data
 // but the listing does not, the price-only score is reduced slightly (floored
-// at 1). Otherwise falls back to price-only scoring when cohort km is unavailable.
+// at 0). Otherwise falls back to price-only scoring when cohort km is unavailable.
 func ScoreWithKm(listingPrice, listingKm, medianPrice, medianKm int) int {
 	base := scoreRaw(listingPrice, medianPrice)
 	if medianKm <= 0 || listingKm <= 0 {
@@ -172,12 +172,13 @@ const (
 	weightYear   = 0.15
 	weightEngine = 0.05
 
-	defaultMaxKm       = 200000
 	avgKmPerYear       = 15000 // Israeli average annual mileage
 	ageAdjustKmBlend   = 0.6  // weight of age-adjusted vs cap-based km score
-	handAgeBonusMax    = 0.15  // max hand score bonus for older cars
-	handAgeBonusYears  = 15.0  // car age at which full bonus is reached
-	yearScoreFloor     = 0.3   // minimum year score within range
+	kmAgeExponent      = 1.2  // age-adjusted km scoring curve
+	kmCapExponent      = 1.5  // cap-based km scoring curve
+	handAgeBonusMax    = 0.15 // max hand score bonus for older cars
+	handAgeBonusYears  = 15.0 // car age at which full bonus is reached
+	yearScoreFloor     = 0.3  // minimum year score within range
 )
 
 type FitnessParams struct {
@@ -307,12 +308,12 @@ func kmScore(km, maxKm, carYear int) float64 {
 		}
 		expectedKm := float64(carAge * avgKmPerYear)
 		kmRatio := float64(km) / expectedKm
-		ageScore = clamp01(1.0 - math.Pow(clamp01(kmRatio), 1.2))
+		ageScore = clamp01(1.0 - math.Pow(clamp01(kmRatio), kmAgeExponent))
 	}
 
 	if maxKm > 0 {
 		capRatio := float64(km) / float64(maxKm)
-		capScore := clamp01(1.0 - math.Pow(clamp01(capRatio), 1.5))
+		capScore := clamp01(1.0 - math.Pow(clamp01(capRatio), kmCapExponent))
 		if !hasAge {
 			return capScore
 		}

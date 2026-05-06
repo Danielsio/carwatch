@@ -762,7 +762,7 @@ func TestKmScore_ZeroCarYear(t *testing.T) {
 		t.Fatal("kmScore with maxKm>0 and carYear=0 should not be NaN")
 	}
 	// Without age adjustment, score is purely cap-based.
-	expectedCap := clamp01(1.0 - math.Pow(clamp01(80000.0/150000.0), 1.5))
+	expectedCap := clamp01(1.0 - math.Pow(clamp01(80000.0/150000.0), kmCapExponent))
 	if math.Abs(withCap-expectedCap) > 0.01 {
 		t.Errorf("kmScore(80k, 150k, year=0) = %.3f, want cap-only %.3f", withCap, expectedCap)
 	}
@@ -771,5 +771,76 @@ func TestKmScore_ZeroCarYear(t *testing.T) {
 	noSignal := kmScore(80000, 0, 0)
 	if !math.IsNaN(noSignal) {
 		t.Errorf("kmScore(80k, maxKm=0, year=0) should be NaN, got %.3f", noSignal)
+	}
+}
+
+func TestPriceScore(t *testing.T) {
+	tests := []struct {
+		name     string
+		price    int
+		priceMax int
+		want     float64
+		tol      float64
+	}{
+		{"priceMax=0 returns 0.5", 100000, 0, 0.5, 0},
+		{"price at max returns 0", 200000, 200000, 0.0, 0},
+		{"price over max returns 0", 250000, 200000, 0.0, 0},
+		{"price at 50% of max", 100000, 200000, math.Sqrt(0.5), 0.01},
+		{"price at 80% of max", 160000, 200000, math.Sqrt(0.2), 0.01},
+		{"price at 0", 0, 200000, 1.0, 0}, // priceScore itself returns sqrt(1)=1; the dimension wrapper (NaN) handles this upstream
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := priceScore(tt.price, tt.priceMax)
+			if math.Abs(got-tt.want) > tt.tol {
+				t.Errorf("priceScore(%d, %d) = %.4f, want %.4f (±%.2f)", tt.price, tt.priceMax, got, tt.want, tt.tol)
+			}
+		})
+	}
+}
+
+func TestKmScore_AgeOnlyPath(t *testing.T) {
+	stubCurrentYear(t, 2026)
+
+	// km>0, maxKm=0, carYear>0 → pure ageScore (no blending).
+	got := kmScore(60000, 0, 2020)
+	if math.IsNaN(got) {
+		t.Fatal("kmScore with km>0 and carYear>0 should not be NaN even without maxKm")
+	}
+
+	// Verify it matches the age-adjusted formula directly.
+	carAge := 2026 - 2020
+	expectedKm := float64(carAge * avgKmPerYear)
+	kmRatio := 60000.0 / expectedKm
+	wantAge := clamp01(1.0 - math.Pow(clamp01(kmRatio), kmAgeExponent))
+	if math.Abs(got-wantAge) > 0.001 {
+		t.Errorf("kmScore(60k, maxKm=0, 2020) = %.4f, want pure ageScore %.4f", got, wantAge)
+	}
+}
+
+func TestHandScore_WithMaxHandAndAgeBonus(t *testing.T) {
+	stubCurrentYear(t, 2026)
+
+	// Hand 3, maxHand=4, carYear=2014 (age 12) → ratio-based + age bonus.
+	got := handScore(3, 4, 2014)
+
+	// Base: ratio = (3-1)/4 = 0.5, pow(0.5, 0.6) ≈ 0.66, base = 1-0.66 ≈ 0.34
+	// Bonus: clamp01(12/15) * 0.15 ≈ 0.12
+	// Total ≈ 0.46
+	if got < 0.40 || got > 0.55 {
+		t.Errorf("handScore(3, maxHand=4, 2014) = %.3f, want [0.40, 0.55]", got)
+	}
+
+	// Verify age bonus is applied: same hand/maxHand with a new car should score lower.
+	newCar := handScore(3, 4, 2024)
+	if got <= newCar {
+		t.Errorf("hand 3 on 2014 (%.3f) should beat hand 3 on 2024 (%.3f)", got, newCar)
+	}
+}
+
+func TestYearScore_AtMax(t *testing.T) {
+	score := yearScore(2024, 2018, 2024)
+	if score != 1.0 {
+		t.Errorf("yearScore at yearMax should be 1.0, got %.4f", score)
 	}
 }
