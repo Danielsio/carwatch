@@ -181,4 +181,3 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 	}
 	return enriched
 }
-
