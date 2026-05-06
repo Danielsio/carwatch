@@ -349,7 +349,7 @@ func confirmKeyboard(data WizardData, lang locale.Lang) (*tgmodels.InlineKeyboar
 
 	summary := locale.Tf(lang, "wizard_confirm_summary",
 		sourceDisplayName(source),
-		data.ManufacturerName, modelDisplay,
+		format.EscapeMarkdown(data.ManufacturerName), format.EscapeMarkdown(modelDisplay),
 		data.YearMin, data.YearMax,
 		format.Number(data.PriceMax),
 		engineStr,
@@ -358,10 +358,10 @@ func confirmKeyboard(data WizardData, lang locale.Lang) (*tgmodels.InlineKeyboar
 	)
 
 	if data.Keywords != "" {
-		summary += locale.Tf(lang, "wizard_confirm_keywords", data.Keywords)
+		summary += locale.Tf(lang, "wizard_confirm_keywords", format.EscapeMarkdown(data.Keywords))
 	}
 	if data.ExcludeKeys != "" {
-		summary += locale.Tf(lang, "wizard_confirm_exclude_keys", data.ExcludeKeys)
+		summary += locale.Tf(lang, "wizard_confirm_exclude_keys", format.EscapeMarkdown(data.ExcludeKeys))
 	}
 
 	kb := &tgmodels.InlineKeyboardMarkup{

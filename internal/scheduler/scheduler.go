@@ -397,14 +397,14 @@ func (s *Scheduler) durationUntilActiveStart() time.Duration {
 	}
 
 	startMinutes := parseTimeOfDayOrZero(ah.Start)
+	h, m := startMinutes/60, startMinutes%60
 	now := time.Now().In(loc)
-	currentMinutes := now.Hour()*60 + now.Minute()
-
-	diffMinutes := startMinutes - currentMinutes
-	if diffMinutes <= 0 {
-		diffMinutes += 24 * 60
+	target := time.Date(now.Year(), now.Month(), now.Day(), h, m, 0, 0, loc)
+	if !target.After(now) {
+		nextDay := now.AddDate(0, 0, 1)
+		target = time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), h, m, 0, 0, loc)
 	}
-	return time.Duration(diffMinutes) * time.Minute
+	return target.Sub(now)
 }
 
 func parseTimeOfDayOrZero(s string) int {
@@ -1104,6 +1104,8 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 				"chat_id", search.ChatID,
 				"error", err,
 			)
+		} else {
+			sent = true
 		}
 	}
 

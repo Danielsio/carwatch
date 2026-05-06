@@ -837,6 +837,10 @@ func TestWizardFlow_WinWin(t *testing.T) {
 	tb.simulateText(ctx, chatID, "2024")
 	tb.simulateText(ctx, chatID, "150000")
 	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"2000")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"0")
+	tb.simulateCallback(ctx, chatID, cbSkipKeywords)
+	tb.simulateCallback(ctx, chatID, cbSkipExcludeKeys)
 	tb.simulateCallback(ctx, chatID, cbConfirm)
 
 	searches, _ := tb.store.ListSearches(ctx, chatID)
@@ -850,6 +854,29 @@ func TestWizardFlow_WinWin(t *testing.T) {
 	last := tb.msg.last()
 	if !strings.Contains(last.Text, "WinWin") {
 		t.Errorf("confirm message should mention WinWin, got %q", last.Text)
+	}
+}
+
+func TestStaleCallback_IgnoredByExpectState(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 100
+
+	tb.createUser(ctx, t, chatID, "alice")
+	tb.simulateCommand(ctx, chatID, "/watch")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
+
+	user, _ := tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskManufacturer {
+		t.Fatalf("state = %q, want %q", user.State, StateAskManufacturer)
+	}
+
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"50000")
+
+	user, _ = tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskManufacturer {
+		t.Errorf("stale callback should not change state, got %q", user.State)
 	}
 }
 

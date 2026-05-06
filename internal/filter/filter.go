@@ -42,7 +42,7 @@ func matches(c model.FilterCriteria, l model.RawListing) bool {
 	if c.EngineMaxCC > 0 && l.EngineVolume > c.EngineMaxCC {
 		return false
 	}
-	if c.MaxKm > 0 && (l.Km <= 0 || l.Km > c.MaxKm) {
+	if c.MaxKm > 0 && l.Km > 0 && l.Km > c.MaxKm {
 		return false
 	}
 	if c.MaxHand > 0 && l.Hand > c.MaxHand {

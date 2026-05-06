@@ -86,7 +86,7 @@ func (n *Notifier) NotifyRaw(ctx context.Context, chatID string, message string)
 		"msg_len", len(message),
 		"msg_preview", truncate(message, 100),
 	)
-	return n.sendMessage(ctx, chatID, message)
+	return n.sendMessageMarkdown(ctx, chatID, message)
 }
 
 func (n *Notifier) Disconnect() error {
@@ -132,10 +132,6 @@ func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, list
 
 func (n *Notifier) sendMessageMarkdown(ctx context.Context, chatID string, text string) error {
 	return n.sendMessageWithParseMode(ctx, chatID, text, tgmodels.ParseModeMarkdownV1)
-}
-
-func (n *Notifier) sendMessage(ctx context.Context, chatID string, text string) error {
-	return n.sendMessageWithParseMode(ctx, chatID, text, "")
 }
 
 func (n *Notifier) sendMessageWithParseMode(ctx context.Context, chatID string, text string, parseMode tgmodels.ParseMode) error {

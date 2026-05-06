@@ -217,8 +217,8 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 
 		src := sourceDisplayName(s.Source)
 		sb.WriteString(fmt.Sprintf(
-			"%s#%d [%s] %s %s (%d–%d, max %s NIS) [%s]\n",
-			prefix, s.ID, src, mfr, mdl, s.YearMin, s.YearMax, format.Number(s.PriceMax), status))
+			"%s#%d \\[%s\\] %s %s (%d–%d, max %s NIS) \\[%s\\]\n",
+			prefix, s.ID, src, format.EscapeMarkdown(mfr), format.EscapeMarkdown(mdl), s.YearMin, s.YearMax, format.Number(s.PriceMax), status))
 
 		buttons = append(buttons, []tgmodels.InlineKeyboardButton{{
 			Text:         locale.Tf(lang, "list_delete_btn", s.ID),

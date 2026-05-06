@@ -61,8 +61,10 @@ func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logge
 // Fetch retrieves car listings from WinWin.
 func (f *WinWinFetcher) Fetch(ctx context.Context, params model.SourceParams) ([]model.RawListing, error) {
 	cli := f.client
+	var usedProxy string
 	if f.proxyPool != nil {
 		proxyURL := f.proxyPool.Next()
+		usedProxy = proxyURL
 		f.proxyMu.Lock()
 		if proxyURL == f.cachedProxy && f.cachedClient != nil {
 			cli = f.cachedClient
@@ -87,6 +89,7 @@ func (f *WinWinFetcher) Fetch(ctx context.Context, params model.SourceParams) ([
 	)
 	result, err := cli.Get(ctx, reqURL)
 	if err != nil {
+		f.evictOnFailure(usedProxy)
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	f.logger.Debug("winwin response received",
@@ -96,15 +99,18 @@ func (f *WinWinFetcher) Fetch(ctx context.Context, params model.SourceParams) ([
 	switch result.StatusCode {
 	case http.StatusOK:
 	case http.StatusTooManyRequests:
+		f.evictOnFailure(usedProxy)
 		return nil, fetcher.ErrRateLimited
 	default:
 		if looksLikeChallenge(string(result.Body)) {
+			f.evictOnFailure(usedProxy)
 			return nil, fetcher.ErrChallenge
 		}
 		body := string(result.Body)
 		if len(body) > 512 {
 			body = body[:512] + "…"
 		}
+		f.evictOnFailure(usedProxy)
 		return nil, fmt.Errorf("unexpected status %d: %s", result.StatusCode, body)
 	}
 	listings, err := ParseListingsPage(bytes.NewReader(result.Body))
@@ -123,4 +129,19 @@ func (f *WinWinFetcher) Fetch(ctx context.Context, params model.SourceParams) ([
 		)
 	}
 	return listings, nil
+}
+
+func (f *WinWinFetcher) evictOnFailure(proxyURL string) {
+	if f.proxyPool == nil {
+		return
+	}
+	if proxyURL != "" {
+		f.proxyPool.MarkUnhealthy(proxyURL)
+	}
+	f.proxyMu.Lock()
+	if f.cachedProxy == proxyURL {
+		f.cachedClient = nil
+		f.cachedProxy = ""
+	}
+	f.proxyMu.Unlock()
 }

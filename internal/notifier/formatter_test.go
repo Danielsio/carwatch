@@ -147,8 +147,8 @@ func TestFormatListing_EscapesMarkdown(t *testing.T) {
 	if !strings.Contains(msg, "Auto\\_matic") {
 		t.Errorf("expected escaped gearbox, got:\n%s", msg)
 	}
-	if !strings.Contains(msg, "item\\_123") {
-		t.Errorf("expected escaped page link, got:\n%s", msg)
+	if !strings.Contains(msg, "item_123") {
+		t.Errorf("expected unescaped page link URL, got:\n%s", msg)
 	}
 }
 
@@ -172,8 +172,8 @@ func TestFormatPriceDrop_EscapesMarkdown(t *testing.T) {
 	if !strings.Contains(msg, "Range\\*Rover") {
 		t.Errorf("expected escaped model in price drop, got:\n%s", msg)
 	}
-	if !strings.Contains(msg, "item\\_456") {
-		t.Errorf("expected escaped page link in price drop, got:\n%s", msg)
+	if !strings.Contains(msg, "item_456") {
+		t.Errorf("expected unescaped page link URL in price drop, got:\n%s", msg)
 	}
 }
 
