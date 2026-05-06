@@ -235,7 +235,8 @@ func recipientBlockedError(err error) error {
 	}
 	errMsg := strings.ToLower(err.Error())
 	if strings.Contains(errMsg, "bot was blocked by the user") ||
-		strings.Contains(errMsg, "user is deactivated") {
+		strings.Contains(errMsg, "user is deactivated") ||
+		strings.Contains(errMsg, "chat not found") {
 		return fmt.Errorf("%w: %v", notifier.ErrRecipientBlocked, err)
 	}
 	return nil

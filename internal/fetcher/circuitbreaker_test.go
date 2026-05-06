@@ -3,6 +3,7 @@ package fetcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -64,6 +65,27 @@ func TestCircuitBreaker_OpenState_RejectsCalls(t *testing.T) {
 	}
 	if inner.calls != 0 {
 		t.Errorf("inner should not be called when circuit is open, got %d calls", inner.calls)
+	}
+}
+
+func TestCircuitBreaker_OpenState_IncludesResetTime(t *testing.T) {
+	inner := &mockFetcherCB{err: errors.New("timeout")}
+	cb := NewCircuitBreaker(inner, 2, 30*time.Second)
+
+	for i := 0; i < 2; i++ {
+		_, _ = cb.Fetch(context.Background(), model.SourceParams{})
+	}
+
+	_, err := cb.Fetch(context.Background(), model.SourceParams{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	errMsg := err.Error()
+	if !errors.Is(err, ErrCircuitOpen) {
+		t.Errorf("expected ErrCircuitOpen, got: %v", err)
+	}
+	if !contains(errMsg, "resets in") {
+		t.Errorf("expected 'resets in' in error message, got: %s", errMsg)
 	}
 }
 
@@ -170,4 +192,58 @@ func TestCircuitBreaker_ChallengeError_CountsAsFailure(t *testing.T) {
 	if cb.State() != StateOpen {
 		t.Errorf("challenge errors should count toward circuit opening, state = %v", cb.State())
 	}
+}
+
+func TestCircuitBreaker_PartialResults_DoNotCountAsFailure(t *testing.T) {
+	listings := []model.RawListing{{Token: "a"}, {Token: "b"}}
+	inner := &mockFetcherCB{
+		listings: listings,
+		err:      fmt.Errorf("%w: page 3: unexpected status 400", ErrPartialResults),
+	}
+	cb := NewCircuitBreaker(inner, 3, 30*time.Second)
+
+	for i := 0; i < 5; i++ {
+		got, err := cb.Fetch(context.Background(), model.SourceParams{})
+		if !errors.Is(err, ErrPartialResults) {
+			t.Fatalf("call %d: expected ErrPartialResults, got: %v", i, err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("call %d: expected 2 listings, got %d", i, len(got))
+		}
+	}
+
+	if cb.State() != StateClosed {
+		t.Errorf("state = %v, want closed (partial results with data should not trip CB)", cb.State())
+	}
+	if cb.Failures() != 0 {
+		t.Errorf("failures = %d, want 0", cb.Failures())
+	}
+}
+
+func TestCircuitBreaker_PartialResultsNoData_CountsAsFailure(t *testing.T) {
+	inner := &mockFetcherCB{
+		listings: nil,
+		err:      fmt.Errorf("%w: page 1: unexpected status 400", ErrPartialResults),
+	}
+	cb := NewCircuitBreaker(inner, 2, 30*time.Second)
+
+	_, _ = cb.Fetch(context.Background(), model.SourceParams{})
+	_, _ = cb.Fetch(context.Background(), model.SourceParams{})
+
+	if cb.State() != StateOpen {
+		t.Errorf("state = %v, want open (partial results with no data should count as failure)", cb.State())
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
+}
+
+func containsSubstring(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
 }
