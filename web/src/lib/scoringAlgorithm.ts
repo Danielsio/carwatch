@@ -64,17 +64,25 @@ export function scoreListingAgainstSearch(
   // When mileage is missing/zero, mark as NaN to omit the dimension (matches backend).
   const now = new Date().getFullYear();
   const carAge = Math.max(1, now - listing.year);
+  const hasAge = listing.year > 0;
   let mileageFactor: number;
   if (listing.mileage <= 0) {
     mileageFactor = NaN;
   } else {
-    const expectedKm = carAge * AVG_KM_PER_YEAR;
-    const ageScore = clamp01(1 - Math.pow(clamp01(listing.mileage / expectedKm), KM_AGE_EXPONENT));
+    let ageScore: number | null = null;
+    if (hasAge) {
+      const expectedKm = carAge * AVG_KM_PER_YEAR;
+      ageScore = clamp01(1 - Math.pow(clamp01(listing.mileage / expectedKm), KM_AGE_EXPONENT));
+    }
     if (search.mileage_max > 0) {
       const capScore = clamp01(1 - Math.pow(clamp01(listing.mileage / search.mileage_max), KM_CAP_EXPONENT));
-      mileageFactor = AGE_ADJUST_KM_BLEND * ageScore + (1 - AGE_ADJUST_KM_BLEND) * capScore;
-    } else {
+      mileageFactor = ageScore !== null
+        ? AGE_ADJUST_KM_BLEND * ageScore + (1 - AGE_ADJUST_KM_BLEND) * capScore
+        : capScore;
+    } else if (ageScore !== null) {
       mileageFactor = ageScore;
+    } else {
+      mileageFactor = NaN;
     }
   }
 
