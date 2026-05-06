@@ -185,6 +185,9 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 
 	if result.StatusCode != http.StatusOK {
 		if looksLikeBotProtection(result.Body) {
+			if f.proxyPool != nil && usedProxy != "" {
+				f.proxyPool.MarkUnhealthy(usedProxy)
+			}
 			return nil, fmt.Errorf("yad2: %w", fetcher.ErrChallenge)
 		}
 		body := string(result.Body)

@@ -173,11 +173,15 @@ func TestEnricher_RespectsMaxPerCycle(t *testing.T) {
 	if count != 1 {
 		t.Errorf("enriched = %d, want 1 (max per cycle)", count)
 	}
-	if listings[0].Km != 10000 {
-		t.Errorf("listing[0].Km = %d, want 10000", listings[0].Km)
+	// With shuffle, exactly 1 listing is enriched (any of the 3).
+	enrichedCount := 0
+	for _, l := range listings {
+		if l.Km == 10000 {
+			enrichedCount++
+		}
 	}
-	if listings[1].Km != 0 {
-		t.Errorf("listing[1].Km = %d, want 0 (not enriched)", listings[1].Km)
+	if enrichedCount != 1 {
+		t.Errorf("listings with km=10000: %d, want 1", enrichedCount)
 	}
 	if got := requestCount.Load(); got != 1 {
 		t.Errorf("requests = %d, want 1 (budget limits successful enrichments)", got)
@@ -329,6 +333,9 @@ func TestEnricher_FillsKmAndCity(t *testing.T) {
 }
 
 func TestEnricher_AbortsOnBotChallenge(t *testing.T) {
+	// With soft resume: one challenge backs off and continues; 2 consecutive
+	// challenges abort. Here only tok-b triggers a challenge, so the enricher
+	// backs off once and continues to the remaining items.
 	var requestCount atomic.Int32
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount.Add(1)
@@ -342,7 +349,10 @@ func TestEnricher_AbortsOnBotChallenge(t *testing.T) {
 </script></html>`)
 	})
 
-	enricher := newTestEnricher(t, handler, EnricherConfig{Delay: time.Millisecond})
+	enricher := newTestEnricher(t, handler, EnricherConfig{
+		Delay:            time.Millisecond,
+		ChallengeBackoff: time.Millisecond,
+	})
 
 	listings := []model.RawListing{
 		{Token: "tok-a", Km: 0},
@@ -352,17 +362,47 @@ func TestEnricher_AbortsOnBotChallenge(t *testing.T) {
 	}
 
 	count := enricher.Enrich(context.Background(), listings)
-	if count != 1 {
-		t.Errorf("enriched = %d, want 1 (should stop after challenge on tok-b)", count)
+	// 3 out of 4 should be enriched (all except tok-b which triggers challenge).
+	if count != 3 {
+		t.Errorf("enriched = %d, want 3 (soft resume continues after one challenge)", count)
 	}
-	if got := requestCount.Load(); got != 2 {
-		t.Errorf("requests = %d, want 2 (tok-a success, tok-b challenge, then abort)", got)
+	if got := requestCount.Load(); got != 4 {
+		t.Errorf("requests = %d, want 4 (all tokens attempted)", got)
 	}
-	if listings[0].Km != 10000 {
-		t.Errorf("listing[0].Km = %d, want 10000", listings[0].Km)
+	// tok-b should NOT be enriched.
+	if listings[1].Km != 0 {
+		t.Errorf("listing[1] (tok-b).Km = %d, want 0 (challenge token)", listings[1].Km)
 	}
-	if listings[2].Km != 0 {
-		t.Errorf("listing[2].Km = %d, want 0 (skipped)", listings[2].Km)
+}
+
+func TestEnricher_AbortsAfterRepeatedChallenges(t *testing.T) {
+	// When ALL tokens trigger a challenge, the enricher should abort after
+	// maxChallengeRetries consecutive challenges.
+	var requestCount atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount.Add(1)
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = fmt.Fprint(w, `<html>validate.perfdrive.com - Are you for real?</html>`)
+	})
+
+	enricher := newTestEnricher(t, handler, EnricherConfig{
+		Delay:            time.Millisecond,
+		ChallengeBackoff: time.Millisecond,
+	})
+
+	listings := []model.RawListing{
+		{Token: "a", Km: 0},
+		{Token: "b", Km: 0},
+		{Token: "c", Km: 0},
+		{Token: "d", Km: 0},
+	}
+
+	count := enricher.Enrich(context.Background(), listings)
+	if count != 0 {
+		t.Errorf("enriched = %d, want 0 (all challenges)", count)
+	}
+	if got := requestCount.Load(); got != int32(maxChallengeRetries) {
+		t.Errorf("requests = %d, want %d (abort after maxChallengeRetries)", got, maxChallengeRetries)
 	}
 }
 

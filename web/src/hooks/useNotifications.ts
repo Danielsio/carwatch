@@ -22,7 +22,6 @@ export function useMarkNotificationsSeen() {
     mutationFn: () => notificationsApi.markSeen(),
     onSuccess: () => {
       queryClient.setQueryData(["notification-count"], { count: 0 });
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }
