@@ -110,6 +110,8 @@ jobs:
         run: cd web && npm run lint
       - name: Type check
         run: cd web && npx tsc -b
+      - name: Test
+        run: cd web && npm test
       - name: Build
         run: cd web && npm run build
       - name: Upload web dist
