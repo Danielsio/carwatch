@@ -5,6 +5,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -111,7 +112,7 @@ func Score(listingPrice, medianPrice int) int {
 // cohort have km data, a low-km car priced at median gets a bonus and a
 // high-km car priced at median gets a penalty. When the cohort has km data
 // but the listing does not, the price-only score is reduced slightly (floored
-// at 1). Otherwise falls back to price-only scoring when cohort km is unavailable.
+// at 0). Otherwise falls back to price-only scoring when cohort km is unavailable.
 func ScoreWithKm(listingPrice, listingKm, medianPrice, medianKm int) int {
 	base := scoreRaw(listingPrice, medianPrice)
 	if medianKm <= 0 || listingKm <= 0 {
@@ -171,11 +172,13 @@ const (
 	weightYear   = 0.15
 	weightEngine = 0.05
 
-	defaultMaxKm = 200000
-
-	curveKm    = 1.5
-	curvePrice = 1.5
-	curveHand  = 0.6
+	avgKmPerYear       = 15000 // Israeli average annual mileage
+	ageAdjustKmBlend   = 0.6  // weight of age-adjusted vs cap-based km score
+	kmAgeExponent      = 1.2  // age-adjusted km scoring curve
+	kmCapExponent      = 1.5  // cap-based km scoring curve
+	handAgeBonusMax    = 0.15 // max hand score bonus for older cars
+	handAgeBonusYears  = 15.0 // car age at which full bonus is reached
+	yearScoreFloor     = 0.3  // minimum year score within range
 )
 
 type FitnessParams struct {
@@ -225,8 +228,8 @@ func DefaultDimensions() []Dimension {
 				return priceScore(p.Price, p.PriceMax)
 			},
 		},
-		{Name: "km", Weight: weightKm, Score: func(p FitnessParams) float64 { return kmScore(p.Km, p.MaxKm) }},
-		{Name: "hand", Weight: weightHand, Score: func(p FitnessParams) float64 { return handScore(p.Hand, p.MaxHand) }},
+		{Name: "km", Weight: weightKm, Score: func(p FitnessParams) float64 { return kmScore(p.Km, p.MaxKm, p.Year) }},
+		{Name: "hand", Weight: weightHand, Score: func(p FitnessParams) float64 { return handScore(p.Hand, p.MaxHand, p.Year) }},
 		{Name: "year", Weight: weightYear, Score: func(p FitnessParams) float64 { return yearScore(p.Year, p.YearMin, p.YearMax) }},
 		{Name: "engine", Weight: weightEngine, Score: func(p FitnessParams) float64 {
 			return engineScore(p.EngineVolume, p.EngineMinCC)
@@ -274,57 +277,100 @@ func FitnessScoreDetailed(p FitnessParams) FitnessResult {
 	return FitnessResult{Total: total, Dims: dims}
 }
 
+// priceScore: cheaper within budget = better value.
+// sqrt curve so savings have diminishing returns — 50% of budget is great,
+// 80% is decent, at-cap is low but not zero.
 func priceScore(price, priceMax int) float64 {
 	if priceMax <= 0 {
 		return 0.5
 	}
 	ratio := float64(price) / float64(priceMax)
-	s := 1.0 - math.Pow(clamp01(ratio), curvePrice)
-	return clamp01(s)
+	if ratio >= 1.0 {
+		return 0.0
+	}
+	return math.Sqrt(1.0 - ratio)
 }
 
-func kmScore(km, maxKm int) float64 {
+// kmScore: blends age-adjusted km expectations with an absolute cap score.
+// A 12-year-old car with 82k km (~7k/yr vs 15k avg) scores well;
+// the same 82k on a 2-year-old car scores poorly.
+func kmScore(km, maxKm, carYear int) float64 {
 	if km <= 0 {
 		return math.NaN()
 	}
-	ref := maxKm
-	if ref <= 0 {
-		ref = defaultMaxKm
+
+	var ageScore float64
+	hasAge := carYear > 0
+	if hasAge {
+		carAge := currentYear() - carYear
+		if carAge < 1 {
+			carAge = 1
+		}
+		expectedKm := float64(carAge * avgKmPerYear)
+		kmRatio := float64(km) / expectedKm
+		ageScore = clamp01(1.0 - math.Pow(clamp01(kmRatio), kmAgeExponent))
 	}
-	ratio := float64(km) / float64(ref)
-	s := 1.0 - math.Pow(clamp01(ratio), curveKm)
-	return clamp01(s)
+
+	if maxKm > 0 {
+		capRatio := float64(km) / float64(maxKm)
+		capScore := clamp01(1.0 - math.Pow(clamp01(capRatio), kmCapExponent))
+		if !hasAge {
+			return capScore
+		}
+		return ageAdjustKmBlend*ageScore + (1-ageAdjustKmBlend)*capScore
+	}
+	if !hasAge {
+		return math.NaN()
+	}
+	return ageScore
 }
 
-func handScore(hand, maxHand int) float64 {
+// handScore: base ladder plus a bonus for older cars where more owners are expected.
+func handScore(hand, maxHand, carYear int) float64 {
 	if hand <= 0 {
 		return 0.5
 	}
+	var base float64
 	if maxHand > 0 {
 		ratio := float64(hand-1) / float64(maxHand)
-		s := 1.0 - math.Pow(clamp01(ratio), curveHand)
-		return clamp01(s)
+		base = clamp01(1.0 - math.Pow(clamp01(ratio), 0.6))
+	} else {
+		switch hand {
+		case 1:
+			base = 1.0
+		case 2:
+			base = 0.7
+		case 3:
+			base = 0.4
+		default:
+			base = 0.1
+		}
 	}
-	switch hand {
-	case 1:
-		return 1.0
-	case 2:
-		return 0.7
-	case 3:
-		return 0.4
-	default:
-		return 0.1
+	// Older cars naturally have more owners; don't penalize as harshly.
+	if hand > 1 && carYear > 0 {
+		age := float64(currentYear() - carYear)
+		if age < 1 {
+			age = 1
+		}
+		bonus := clamp01(age/handAgeBonusYears) * handAgeBonusMax
+		base = clamp01(base + bonus)
 	}
+	return base
 }
 
+// yearScore: position within search range with a floor so older-in-range
+// cars aren't crushed — price and km already capture age effects.
 func yearScore(year, yearMin, yearMax int) float64 {
 	if yearMin <= 0 || yearMax <= 0 || yearMax <= yearMin {
 		return 1.0
 	}
-	s := clamp01(float64(year-yearMin) / float64(yearMax-yearMin))
-	// Concave curve: newer years cluster near top, older years spread apart,
-	// matching non-linear depreciation in the Israeli market.
-	return math.Pow(s, 0.7)
+	pos := clamp01(float64(year-yearMin) / float64(yearMax-yearMin))
+	return yearScoreFloor + (1.0-yearScoreFloor)*math.Sqrt(pos)
+}
+
+// currentYear returns the calendar year. Extracted for testability.
+var currentYear = func() int {
+	return time.Now().Year()
 }
 
 func engineScore(engineVolume float64, engineMinCC int) float64 {

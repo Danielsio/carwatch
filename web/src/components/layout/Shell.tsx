@@ -190,10 +190,10 @@ export function Shell() {
           </button>
           {appVersion ? (
             <p
-              className="mt-3 rounded-xl border border-[color-mix(in_srgb,var(--color-sidebar-primary)_22%,transparent)] bg-[color-mix(in_srgb,var(--color-sidebar-primary)_8%,transparent)] px-2 py-2 text-center text-sm font-semibold tracking-wide text-[#60a5fa] tabular-nums"
-              title={`גרסה ${appVersion}`}
+              className="mt-2 text-center text-[11px] text-sidebar-foreground/30 tabular-nums"
+              title={`v${appVersion}`}
             >
-              גרסה {appVersion}
+              v{appVersion}
             </p>
           ) : null}
         </div>
