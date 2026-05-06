@@ -857,6 +857,29 @@ func TestWizardFlow_WinWin(t *testing.T) {
 	}
 }
 
+func TestStaleCallback_IgnoredByExpectState(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 100
+
+	tb.createUser(ctx, t, chatID, "alice")
+	tb.simulateCommand(ctx, chatID, "/watch")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
+
+	user, _ := tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskManufacturer {
+		t.Fatalf("state = %q, want %q", user.State, StateAskManufacturer)
+	}
+
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"50000")
+
+	user, _ = tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskManufacturer {
+		t.Errorf("stale callback should not change state, got %q", user.State)
+	}
+}
+
 // --- Confirm with empty source defaults to yad2 ---
 
 func TestOnConfirm_EmptySourceDefaultsToYad2(t *testing.T) {

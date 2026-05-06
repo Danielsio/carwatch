@@ -256,7 +256,9 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 
 	wd := b.loadWizardData(ctx, chatID)
 	if wd.Manufacturer == 0 {
-		_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
+		if err := b.users.UpdateUserState(ctx, chatID, StateIdle, "{}"); err != nil {
+			b.logger.Error("reset wizard state failed", "chat_id", chatID, "error", err)
+		}
 		b.send(ctx, chatID, locale.T(lang, "wizard_session_expired"))
 		return
 	}

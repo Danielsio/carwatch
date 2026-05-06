@@ -401,7 +401,8 @@ func (s *Scheduler) durationUntilActiveStart() time.Duration {
 	now := time.Now().In(loc)
 	target := time.Date(now.Year(), now.Month(), now.Day(), h, m, 0, 0, loc)
 	if !target.After(now) {
-		target = target.Add(24 * time.Hour)
+		nextDay := now.AddDate(0, 0, 1)
+		target = time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), h, m, 0, 0, loc)
 	}
 	return target.Sub(now)
 }

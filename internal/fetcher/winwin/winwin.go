@@ -139,7 +139,9 @@ func (f *WinWinFetcher) evictOnFailure(proxyURL string) {
 		f.proxyPool.MarkUnhealthy(proxyURL)
 	}
 	f.proxyMu.Lock()
-	f.cachedClient = nil
-	f.cachedProxy = ""
+	if f.cachedProxy == proxyURL {
+		f.cachedClient = nil
+		f.cachedProxy = ""
+	}
 	f.proxyMu.Unlock()
 }

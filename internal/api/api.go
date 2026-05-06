@@ -106,7 +106,7 @@ func New(c Config) *Server {
 		botUsername: c.BotUsername,
 		startTime: time.Now(),
 		rl:        newRateLimiter(60, time.Second/60),
-		ipRL:      newIPRateLimiter(120, time.Second/120),
+		ipRL:      newIPRateLimiter(20, time.Second/10, true),
 	}
 }
 

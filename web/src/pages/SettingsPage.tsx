@@ -29,10 +29,10 @@ const ALERT_COUNT_OPTIONS = [1, 3, 5, 10, 20];
 export function SettingsPage() {
   const { toast } = useToast();
 
-  const [telegramEnabled] = useState(true);
-  const [emailEnabled] = useState(false);
-  const [scanFrequency] = useState(30);
-  const [alertCount] = useState(5);
+  const telegramEnabled = true;
+  const emailEnabled = false;
+  const scanFrequency = 30;
+  const alertCount = 5;
 
   const [tgStatus, setTgStatus] = useState<TelegramStatus | null>(null);
   const [tgLoading, setTgLoading] = useState(true);

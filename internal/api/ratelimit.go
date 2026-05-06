@@ -86,23 +86,27 @@ type ipBucket struct {
 	lastUsed time.Time
 }
 
+const maxIPBuckets = 10_000
+
 type ipRateLimiter struct {
-	mu     sync.Mutex
-	ips    map[string]*ipBucket
-	burst  int
-	every  time.Duration
-	done   chan struct{}
-	cancel context.CancelFunc
+	mu         sync.Mutex
+	ips        map[string]*ipBucket
+	burst      int
+	every      time.Duration
+	trustProxy bool
+	done       chan struct{}
+	cancel     context.CancelFunc
 }
 
-func newIPRateLimiter(burst int, every time.Duration) *ipRateLimiter {
+func newIPRateLimiter(burst int, every time.Duration, trustProxy bool) *ipRateLimiter {
 	ctx, cancel := context.WithCancel(context.Background())
 	rl := &ipRateLimiter{
-		ips:    make(map[string]*ipBucket),
-		burst:  burst,
-		every:  every,
-		done:   make(chan struct{}),
-		cancel: cancel,
+		ips:        make(map[string]*ipBucket),
+		burst:      burst,
+		every:      every,
+		trustProxy: trustProxy,
+		done:       make(chan struct{}),
+		cancel:     cancel,
 	}
 	go rl.cleanup(ctx)
 	return rl
@@ -116,6 +120,10 @@ func (rl *ipRateLimiter) stop() {
 func (rl *ipRateLimiter) allow(ip string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
+
+	if len(rl.ips) >= maxIPBuckets {
+		return true
+	}
 
 	b, ok := rl.ips[ip]
 	if !ok {
@@ -141,7 +149,7 @@ func (rl *ipRateLimiter) allow(ip string) bool {
 }
 
 func (rl *ipRateLimiter) cleanup(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
@@ -150,7 +158,7 @@ func (rl *ipRateLimiter) cleanup(ctx context.Context) {
 			return
 		case <-ticker.C:
 			rl.mu.Lock()
-			cutoff := time.Now().Add(-10 * time.Minute)
+			cutoff := time.Now().Add(-5 * time.Minute)
 			for ip, b := range rl.ips {
 				if b.lastUsed.Before(cutoff) {
 					delete(rl.ips, ip)
@@ -161,23 +169,24 @@ func (rl *ipRateLimiter) cleanup(ctx context.Context) {
 	}
 }
 
-func extractIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if comma := strings.IndexByte(xff, ','); comma > 0 {
-			return strings.TrimSpace(xff[:comma])
-		}
-		return strings.TrimSpace(xff)
-	}
+func extractIP(r *http.Request, trustProxy bool) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
+	}
+	if !trustProxy {
+		return host
+	}
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		return strings.TrimSpace(parts[len(parts)-1])
 	}
 	return host
 }
 
 func (s *Server) withIPRateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := extractIP(r)
+		ip := extractIP(r, s.ipRL.trustProxy)
 		if !s.ipRL.allow(ip) {
 			writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
 			return
