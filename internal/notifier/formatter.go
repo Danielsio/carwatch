@@ -82,7 +82,7 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 	}
 
 	if l.PageLink != "" {
-		b.WriteString(fmt.Sprintf("\n🔗 %s", format.EscapeMarkdown(l.PageLink)))
+		b.WriteString(fmt.Sprintf("\n🔗 %s", l.PageLink))
 	}
 
 	return b.String()
@@ -130,7 +130,7 @@ func FormatPriceDrop(l model.Listing, oldPrice int, lang locale.Lang) string {
 	b.WriteString("\n")
 
 	if l.PageLink != "" {
-		b.WriteString(fmt.Sprintf("🔗 %s", format.EscapeMarkdown(l.PageLink)))
+		b.WriteString(fmt.Sprintf("🔗 %s", l.PageLink))
 	}
 
 	return b.String()
@@ -212,7 +212,7 @@ func FormatDailyDigest(stats []storage.DailySearchStats, lang locale.Lang, now t
 		b.WriteString(locale.Tf(lang, "fmt_market_digest_best", format.Number(s.BestPrice)))
 
 		if s.BestPriceLink != "" {
-			b.WriteString(locale.Tf(lang, "fmt_market_digest_best_link", format.EscapeMarkdown(s.BestPriceLink)))
+			b.WriteString(locale.Tf(lang, "fmt_market_digest_best_link", s.BestPriceLink))
 		}
 
 		if s.PriceTrend > 1.0 {

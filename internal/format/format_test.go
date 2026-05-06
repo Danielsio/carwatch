@@ -32,9 +32,11 @@ func TestEscapeMarkdown(t *testing.T) {
 		{"plain text", "plain text"},
 		{"under_score", "under\\_score"},
 		{"*bold*", "\\*bold\\*"},
-		{"[link](url)", "\\[link\\](url)"},
+		{"[link](url)", "\\[link\\]\\(url\\)"},
 		{"`code`", "\\`code\\`"},
 		{"a_b*c[d]e`f", "a\\_b\\*c\\[d\\]e\\`f"},
+		{"tilde~test", "tilde\\~test"},
+		{"parens(test)", "parens\\(test\\)"},
 	}
 	for _, tt := range tests {
 		got := EscapeMarkdown(tt.input)

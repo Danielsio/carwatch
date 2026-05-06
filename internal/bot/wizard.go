@@ -109,6 +109,9 @@ func (b *Bot) onMdlSearch(ctx context.Context, chatID int64) {
 }
 
 func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data string) {
+	if !b.expectState(ctx, chatID, StateAskManufacturer) {
+		return
+	}
 	idStr := strings.TrimPrefix(data, cbPrefixMfr)
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -130,6 +133,9 @@ func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data str
 }
 
 func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
+	if !b.expectState(ctx, chatID, StateAskModel) {
+		return
+	}
 	idStr := strings.TrimPrefix(data, cbPrefixModel)
 	modelID, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -148,6 +154,9 @@ func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onEngineSelected(ctx context.Context, chatID int64, data string) {
+	if !b.expectState(ctx, chatID, StateAskEngine) {
+		return
+	}
 	ccStr := strings.TrimPrefix(data, cbPrefixEngine)
 	cc, err := strconv.Atoi(ccStr)
 	if err != nil {
@@ -166,6 +175,9 @@ func (b *Bot) onEngineSelected(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onMaxKmSelected(ctx context.Context, chatID int64, data string) {
+	if !b.expectState(ctx, chatID, StateAskMaxKm) {
+		return
+	}
 	kmStr := strings.TrimPrefix(data, cbPrefixMaxKm)
 	km, err := strconv.Atoi(kmStr)
 	if err != nil {
@@ -182,6 +194,9 @@ func (b *Bot) onMaxKmSelected(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onMaxHandSelected(ctx context.Context, chatID int64, data string) {
+	if !b.expectState(ctx, chatID, StateAskMaxHand) {
+		return
+	}
 	handStr := strings.TrimPrefix(data, cbPrefixMaxHand)
 	hand, err := strconv.Atoi(handStr)
 	if err != nil {
@@ -200,6 +215,9 @@ func (b *Bot) onMaxHandSelected(ctx context.Context, chatID int64, data string) 
 }
 
 func (b *Bot) onSkipKeywords(ctx context.Context, chatID int64) {
+	if !b.expectState(ctx, chatID, StateAskKeywords) {
+		return
+	}
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Keywords = ""
 	b.saveWizardState(ctx, chatID, StateAskExcludeKeys, wd)
@@ -211,6 +229,9 @@ func (b *Bot) onSkipKeywords(ctx context.Context, chatID int64) {
 }
 
 func (b *Bot) onSkipExcludeKeys(ctx context.Context, chatID int64) {
+	if !b.expectState(ctx, chatID, StateAskExcludeKeys) {
+		return
+	}
 	wd := b.loadWizardData(ctx, chatID)
 	wd.ExcludeKeys = ""
 	b.saveWizardState(ctx, chatID, StateConfirm, wd)
@@ -228,12 +249,17 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 		return
 	}
 	lang := b.getUserLang(ctx, chatID)
-	if user == nil || user.State == StateIdle {
+	if user == nil || user.State != StateConfirm {
 		b.send(ctx, chatID, locale.T(lang, "wizard_session_expired"))
 		return
 	}
 
 	wd := b.loadWizardData(ctx, chatID)
+	if wd.Manufacturer == 0 {
+		_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
+		b.send(ctx, chatID, locale.T(lang, "wizard_session_expired"))
+		return
+	}
 	b.logger.Debug("confirm clicked", "chat_id", chatID, "wizard_data", wd)
 
 	source := wd.Source
@@ -272,6 +298,10 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 		if b.pollTrigger != nil {
 			b.pollTrigger.TriggerPoll()
 		}
+		return
+	}
+
+	if b.checkSearchLimit(ctx, chatID, lang, "watch_limit") {
 		return
 	}
 
@@ -410,6 +440,8 @@ func (b *Bot) handlePriceMax(ctx context.Context, chatID int64, text string) {
 	b.sendWithKeyboard(ctx, chatID, locale.T(lang, "wizard_engine_prompt"), engineKeyboard(lang))
 }
 
+const maxKeywordsLen = 500
+
 func (b *Bot) handleKeywordsInput(ctx context.Context, chatID int64, text string) {
 	wd := b.loadWizardData(ctx, chatID)
 	lang := b.getUserLang(ctx, chatID)
@@ -418,6 +450,10 @@ func (b *Bot) handleKeywordsInput(ctx context.Context, chatID int64, text string
 	if strings.EqualFold(text, skip) || strings.EqualFold(text, "skip") || strings.EqualFold(text, "דלג") {
 		wd.Keywords = ""
 	} else {
+		if len(text) > maxKeywordsLen {
+			b.send(ctx, chatID, locale.T(lang, "error_generic"))
+			return
+		}
 		wd.Keywords = normalizeKeywords(text)
 	}
 
@@ -435,6 +471,10 @@ func (b *Bot) handleExcludeKeysInput(ctx context.Context, chatID int64, text str
 	if strings.EqualFold(text, skip) || strings.EqualFold(text, "skip") || strings.EqualFold(text, "דלג") {
 		wd.ExcludeKeys = ""
 	} else {
+		if len(text) > maxKeywordsLen {
+			b.send(ctx, chatID, locale.T(lang, "error_generic"))
+			return
+		}
 		wd.ExcludeKeys = normalizeKeywords(text)
 	}
 

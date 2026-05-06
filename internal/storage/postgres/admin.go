@@ -223,11 +223,8 @@ func (s *Store) AdminDeleteUser(ctx context.Context, chatID int64) error {
 }
 
 func (s *Store) VacuumDB(ctx context.Context) error {
-	// VACUUM FULL rewrites tables and returns freed pages to the OS.
-	// Plain VACUUM only marks dead tuples as reusable within Postgres
-	// without actually shrinking the on-disk files.
-	if _, err := s.db.ExecContext(ctx, `VACUUM FULL`); err != nil {
-		return fmt.Errorf("vacuum full: %w", err)
+	if _, err := s.db.ExecContext(ctx, `VACUUM`); err != nil {
+		return fmt.Errorf("vacuum: %w", err)
 	}
 	return nil
 }

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  Save,
   Bell,
   Mail,
   Clock,
@@ -10,6 +9,7 @@ import {
   ExternalLink,
   CheckCircle2,
   RefreshCw,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ChipButton } from "@/components/ui/ChipButton";
@@ -28,12 +28,11 @@ const ALERT_COUNT_OPTIONS = [1, 3, 5, 10, 20];
 
 export function SettingsPage() {
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
 
-  const [telegramEnabled, setTelegramEnabled] = useState(true);
-  const [emailEnabled, setEmailEnabled] = useState(false);
-  const [scanFrequency, setScanFrequency] = useState(30);
-  const [alertCount, setAlertCount] = useState(5);
+  const [telegramEnabled] = useState(true);
+  const [emailEnabled] = useState(false);
+  const [scanFrequency] = useState(30);
+  const [alertCount] = useState(5);
 
   const [tgStatus, setTgStatus] = useState<TelegramStatus | null>(null);
   const [tgLoading, setTgLoading] = useState(true);
@@ -67,13 +66,6 @@ export function SettingsPage() {
     } finally {
       setLinkLoading(false);
     }
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 600));
-    setSaving(false);
-    toast("ההגדרות נשמרו בהצלחה", "success");
   }
 
   return (
@@ -145,8 +137,16 @@ export function SettingsPage() {
         )}
       </section>
 
+      {/* Read-only notice */}
+      <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+        <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          ההגדרות הבאות הן לקריאה בלבד כרגע. ניתן לשנות את ההגדרות דרך פקודות הבוט בטלגרם.
+        </p>
+      </div>
+
       {/* Notifications */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
+      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5 opacity-60 pointer-events-none">
         <h2 className="text-sm font-semibold text-foreground">התראות</h2>
 
         <ToggleRow
@@ -154,7 +154,7 @@ export function SettingsPage() {
           label="התראות Telegram"
           description="קבל עדכונים על מודעות חדשות בטלגרם"
           enabled={telegramEnabled}
-          onToggle={() => setTelegramEnabled((v) => !v)}
+          onToggle={() => {}}
         />
 
         <div className="border-t border-border/30" />
@@ -164,12 +164,12 @@ export function SettingsPage() {
           label="התראות אימייל"
           description="קבל עדכונים על מודעות חדשות באימייל"
           enabled={emailEnabled}
-          onToggle={() => setEmailEnabled((v) => !v)}
+          onToggle={() => {}}
         />
       </section>
 
       {/* Scan Frequency */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-4">
+      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-4 opacity-60 pointer-events-none">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
             <Clock className="h-4 w-4 text-primary" />
@@ -188,7 +188,7 @@ export function SettingsPage() {
             <ChipButton
               key={opt.value}
               selected={scanFrequency === opt.value}
-              onClick={() => setScanFrequency(opt.value)}
+              onClick={() => {}}
             >
               {opt.label}
             </ChipButton>
@@ -197,7 +197,7 @@ export function SettingsPage() {
       </section>
 
       {/* Alert Count */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-4">
+      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-4 opacity-60 pointer-events-none">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-score-good/10">
             <Hash className="h-4 w-4 text-score-good" />
@@ -216,30 +216,13 @@ export function SettingsPage() {
             <ChipButton
               key={count}
               selected={alertCount === count}
-              onClick={() => setAlertCount(count)}
+              onClick={() => {}}
             >
               {count}
             </ChipButton>
           ))}
         </div>
       </section>
-
-      {/* Save */}
-      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0">
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          size="lg"
-          className="w-full md:w-auto"
-        >
-          {saving ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-          שמור הגדרות
-        </Button>
-      </div>
     </div>
   );
 }

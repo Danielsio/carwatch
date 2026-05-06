@@ -837,6 +837,10 @@ func TestWizardFlow_WinWin(t *testing.T) {
 	tb.simulateText(ctx, chatID, "2024")
 	tb.simulateText(ctx, chatID, "150000")
 	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"2000")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"0")
+	tb.simulateCallback(ctx, chatID, cbSkipKeywords)
+	tb.simulateCallback(ctx, chatID, cbSkipExcludeKeys)
 	tb.simulateCallback(ctx, chatID, cbConfirm)
 
 	searches, _ := tb.store.ListSearches(ctx, chatID)

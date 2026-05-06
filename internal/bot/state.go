@@ -1,6 +1,10 @@
 package bot
 
-import "github.com/dsionov/carwatch/internal/botcore"
+import (
+	"context"
+
+	"github.com/dsionov/carwatch/internal/botcore"
+)
 
 const (
 	StateIdle               = botcore.StateIdle
@@ -21,3 +25,12 @@ const (
 )
 
 type WizardData = botcore.WizardData
+
+func (b *Bot) expectState(ctx context.Context, chatID int64, expected string) bool {
+	user, err := b.users.GetUser(ctx, chatID)
+	if err != nil || user == nil || user.State != expected {
+		return false
+	}
+	return true
+}
+

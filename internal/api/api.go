@@ -50,6 +50,7 @@ type Server struct {
 	botUsername string
 	startTime time.Time
 	rl        *rateLimiter
+	ipRL      *ipRateLimiter
 	vacuumMu  sync.Mutex
 }
 
@@ -60,6 +61,9 @@ func (s *Server) SetPollTrigger(p PollTrigger) {
 func (s *Server) Shutdown() {
 	if s.rl != nil {
 		s.rl.stop()
+	}
+	if s.ipRL != nil {
+		s.ipRL.stop()
 	}
 }
 
@@ -102,6 +106,7 @@ func New(c Config) *Server {
 		botUsername: c.BotUsername,
 		startTime: time.Now(),
 		rl:        newRateLimiter(60, time.Second/60),
+		ipRL:      newIPRateLimiter(120, time.Second/120),
 	}
 }
 
@@ -164,7 +169,7 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/history", s.listHistory)
 	}
 
-	return s.corsMiddleware(s.authMiddleware(s.withRateLimit(s.withMaxBody(mux))))
+	return s.corsMiddleware(s.withIPRateLimit(s.authMiddleware(s.withRateLimit(s.withMaxBody(mux)))))
 }
 
 const maxRequestBody = 1 << 20 // 1 MB

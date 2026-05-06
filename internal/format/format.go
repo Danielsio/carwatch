@@ -11,6 +11,9 @@ var telegramMarkdownEscaper = strings.NewReplacer(
 	"[", "\\[",
 	"]", "\\]",
 	"`", "\\`",
+	"(", "\\(",
+	")", "\\)",
+	"~", "\\~",
 )
 
 func EscapeMarkdown(s string) string {
