@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, Link } from "react-router";
 import {
   ExternalLink,
-  ChevronDown,
   Bookmark,
   Car,
 } from "lucide-react";
@@ -12,8 +11,11 @@ import { safeHref, cn, formatPrice } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { ListingCardBody } from "@/components/ListingCardBody";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell } from "@/components/ui/PageShell";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { Pagination } from "@/components/ui/Pagination";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 
@@ -48,27 +50,27 @@ export function ListingsPage() {
 
   if (!searchId || Number.isNaN(searchId)) {
     return (
-      <div className="space-y-4">
+      <PageShell gap="sm">
         <PageHeader backTo="/dashboard" title="חיפוש לא נמצא" />
-      </div>
+      </PageShell>
     );
   }
 
   if (isError) {
     return (
-      <div className="space-y-4">
+      <PageShell gap="sm">
         <PageHeader backTo="/dashboard" title="תוצאות" />
-        <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center dir-rtl">
-          <p className="text-destructive font-medium">שגיאה בטעינת התוצאות</p>
-          <p className="text-sm text-muted-foreground mt-1">נסה לרענן את הדף</p>
-        </div>
-      </div>
+        <ErrorState
+          title="שגיאה בטעינת התוצאות"
+          description="נסה לרענן את הדף"
+        />
+      </PageShell>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="space-y-5 pb-20 md:pb-4">
+      <PageShell gap="sm">
         <PageHeader backTo="/dashboard" title="תוצאות" />
         <div className="flex flex-wrap gap-2">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -80,7 +82,7 @@ export function ListingsPage() {
             <Skeleton key={i} className="h-72 rounded-2xl" />
           ))}
         </div>
-      </div>
+      </PageShell>
     );
   }
 
@@ -88,7 +90,7 @@ export function ListingsPage() {
     data != null ? `${data.total.toLocaleString("he-IL")} מודעות` : undefined;
 
   return (
-    <div className="space-y-5 pb-20 md:pb-4">
+    <PageShell gap="sm">
       <PageHeader
         backTo="/dashboard"
         title="תוצאות"
@@ -119,6 +121,11 @@ export function ListingsPage() {
           icon={Car}
           title="אין תוצאות עדיין"
           description="רכבים חדשים יופיעו כאן כשהם ימצאו"
+          action={
+            <Button asChild variant="secondary" size="sm">
+              <Link to="/dashboard">חזרה ללוח הבקרה</Link>
+            </Button>
+          }
         />
       ) : (
         <>
@@ -128,38 +135,16 @@ export function ListingsPage() {
             ))}
           </div>
 
-          {data.total > PAGE_SIZE && (
-            <div className="flex items-center justify-center gap-3 pt-4 dir-rtl">
-              {offset > 0 && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="md"
-                  onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-                >
-                  הקודם
-                </Button>
-              )}
-              <span className="text-sm text-muted-foreground tabular-nums">
-                {offset + 1}–{Math.min(offset + PAGE_SIZE, data.total)} מתוך{" "}
-                {data.total}
-              </span>
-              {offset + PAGE_SIZE < data.total && (
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  onClick={() => setOffset(offset + PAGE_SIZE)}
-                >
-                  <ChevronDown className="h-4 w-4" />
-                  הבא
-                </Button>
-              )}
-            </div>
-          )}
+          <Pagination
+            offset={offset}
+            total={data.total}
+            pageSize={PAGE_SIZE}
+            onPrev={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+            onNext={() => setOffset(offset + PAGE_SIZE)}
+          />
         </>
       )}
-    </div>
+    </PageShell>
   );
 }
 

@@ -190,7 +190,7 @@ export function Shell() {
           </button>
           {appVersion ? (
             <p
-              className="mt-2 text-center text-[11px] text-sidebar-foreground/30 tabular-nums"
+              className="mt-2 text-center text-[11px] text-sidebar-foreground/60 tabular-nums"
               title={`v${appVersion}`}
             >
               v{appVersion}
@@ -199,16 +199,16 @@ export function Shell() {
         </div>
       </aside>
 
-      <main className="h-[100dvh] overflow-y-auto scroll-smooth pb-[5.5rem] landscape:pb-16 md:mr-64 md:pb-0">
-        <div className="mx-auto max-w-5xl px-4 py-8 landscape:py-4 sm:px-6 lg:px-8 md:py-8">
+      <main className="h-[100dvh] overflow-y-auto scroll-smooth pb-[calc(4rem+env(safe-area-inset-bottom,0px))] landscape:pb-16 md:mr-64 md:pb-0">
+        <div className="mx-auto max-w-5xl px-4 py-5 landscape:py-4 sm:px-6 sm:py-6 lg:px-8 md:py-8">
           <div key={location.pathname} className="animate-fade-in">
             <Outlet />
           </div>
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/40 bg-card/80 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.15)] dark:shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 md:hidden">
-        <div className="flex justify-around px-1 py-3 landscape:py-1.5">
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/40 bg-card/80 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.15)] dark:shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 pb-[env(safe-area-inset-bottom,0px)] md:hidden">
+        <div className="flex justify-around px-1 py-2 landscape:py-1.5">
           {visibleNavItems.filter((item) => item.mobile).map((item) => {
             const Icon = item.icon;
             const isActive = isNavActive(location.pathname, item.path);
@@ -219,7 +219,7 @@ export function Shell() {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  "group flex min-w-0 flex-1 flex-col items-center gap-1 landscape:gap-0.5 px-2 py-1 landscape:py-0.5 text-[11px] font-medium transition-all duration-200",
+                  "group flex min-w-0 flex-1 flex-col items-center gap-1 landscape:gap-0.5 px-2 py-2 landscape:py-0.5 text-[11px] font-medium transition-all duration-200",
                   "active:scale-[0.94] motion-reduce:active:scale-100",
                   isActive ? "text-primary" : "text-muted-foreground",
                 )}
@@ -250,7 +250,7 @@ export function Shell() {
             type="button"
             onClick={toggleTheme}
             aria-label={theme === "dark" ? "הפעל מצב בהיר" : "הפעל מצב כהה"}
-            className="flex min-w-0 flex-1 flex-col items-center gap-1 landscape:gap-0.5 px-2 py-1 landscape:py-0.5 text-[11px] font-medium text-muted-foreground transition-all duration-200 active:scale-[0.94]"
+            className="flex min-w-0 flex-1 flex-col items-center gap-1 landscape:gap-0.5 px-2 py-2 landscape:py-0.5 text-[11px] font-medium text-muted-foreground transition-all duration-200 active:scale-[0.94]"
           >
             <span className="flex flex-col items-center gap-1 landscape:gap-0">
               {theme === "dark" ? (

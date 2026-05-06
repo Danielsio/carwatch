@@ -320,7 +320,7 @@ export function NewSearchPage() {
       </section>
 
       {/* Actions — sticky on mobile */}
-      <div className="sticky bottom-[5.5rem] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0">
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0">
         <div className="flex items-center gap-3">
           <Button onClick={handleSubmit} disabled={!canSubmit} size="lg" className="flex-1 md:flex-none">
             {createSearch.isPending ? (

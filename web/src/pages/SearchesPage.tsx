@@ -16,6 +16,7 @@ import { formatPrice, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchCard } from "@/components/SearchCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -86,12 +87,10 @@ export function SearchesPage() {
     return (
       <div className="space-y-8">
         <DashboardHeader />
-        <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center">
-          <p className="text-destructive font-medium">
-            שגיאה בטעינת החיפושים
-          </p>
-          <p className="text-sm text-muted-foreground mt-1">נסה לרענן את הדף</p>
-        </div>
+        <ErrorState
+          title="שגיאה בטעינת החיפושים"
+          description="נסה לרענן את הדף"
+        />
       </div>
     );
   }

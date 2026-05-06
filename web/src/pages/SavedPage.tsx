@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
 import { useSavedListings, useRemoveBookmark } from "@/hooks/useBookmarks";
 import { safeHref } from "@/lib/utils";
@@ -6,7 +7,10 @@ import { ListingCardBody } from "@/components/ListingCardBody";
 import {
   Button,
   EmptyState,
+  ErrorState,
   PageHeader,
+  PageShell,
+  Pagination,
   Skeleton,
   useToast,
 } from "@/components/ui";
@@ -30,30 +34,31 @@ export function SavedPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 pb-20 md:pb-4">
+      <PageShell>
         <PageHeader title="שמורים" />
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2].map((i) => (
             <Skeleton key={i} className="h-72 rounded-2xl" />
           ))}
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   if (isError) {
     return (
-      <div className="space-y-6 pb-20 md:pb-4">
+      <PageShell>
         <PageHeader title="שמורים" />
-        <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center">
-          <p className="text-destructive font-medium">שגיאה בטעינת המודעות</p>
-        </div>
-      </div>
+        <ErrorState
+          title="שגיאה בטעינת המודעות"
+          description="נסה לרענן את הדף"
+        />
+      </PageShell>
     );
   }
 
   return (
-    <div className="space-y-6 pb-20 md:pb-4">
+    <PageShell>
       <PageHeader
         title="שמורים"
         action={
@@ -70,6 +75,11 @@ export function SavedPage() {
           icon={Bookmark}
           title="אין מודעות שמורות"
           description="לחץ על סמל השמירה במודעה כדי לשמור אותה"
+          action={
+            <Button asChild variant="secondary" size="sm">
+              <Link to="/dashboard">חזרה ללוח הבקרה</Link>
+            </Button>
+          }
         />
       ) : (
         <>
@@ -99,18 +109,16 @@ export function SavedPage() {
             ))}
           </div>
 
-          {(data.total > PAGE_SIZE || offset > 0) && (
-            <Pagination
-              offset={offset}
-              total={data.total}
-              pageSize={PAGE_SIZE}
-              onPrev={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-              onNext={() => setOffset(offset + PAGE_SIZE)}
-            />
-          )}
+          <Pagination
+            offset={offset}
+            total={data.total}
+            pageSize={PAGE_SIZE}
+            onPrev={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+            onNext={() => setOffset(offset + PAGE_SIZE)}
+          />
         </>
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -158,34 +166,3 @@ function SavedCard({
   );
 }
 
-function Pagination({
-  offset,
-  total,
-  pageSize,
-  onPrev,
-  onNext,
-}: {
-  offset: number;
-  total: number;
-  pageSize: number;
-  onPrev: () => void;
-  onNext: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-center gap-3 pt-4">
-      {offset > 0 && (
-        <Button variant="secondary" size="sm" onClick={onPrev}>
-          הקודם
-        </Button>
-      )}
-      <span className="text-sm text-muted-foreground tabular-nums">
-        {offset + 1}–{Math.min(offset + pageSize, total)} מתוך {total}
-      </span>
-      {offset + pageSize < total && (
-        <Button variant="primary" size="sm" onClick={onNext}>
-          הבא
-        </Button>
-      )}
-    </div>
-  );
-}
