@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,7 +85,7 @@ func TestCircuitBreaker_OpenState_IncludesResetTime(t *testing.T) {
 	if !errors.Is(err, ErrCircuitOpen) {
 		t.Errorf("expected ErrCircuitOpen, got: %v", err)
 	}
-	if !contains(errMsg, "resets in") {
+	if !strings.Contains(errMsg, "resets in") {
 		t.Errorf("expected 'resets in' in error message, got: %s", errMsg)
 	}
 }
@@ -235,15 +236,3 @@ func TestCircuitBreaker_PartialResultsNoData_CountsAsFailure(t *testing.T) {
 	}
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
-}
-
-func containsSubstring(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
-}

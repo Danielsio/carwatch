@@ -40,7 +40,10 @@ func (f *PaginatingFetcher) Fetch(ctx context.Context, params model.SourceParams
 			delay := f.pageDelay + jitter
 			select {
 			case <-ctx.Done():
-				return all, ctx.Err()
+				if len(all) > 0 {
+					return all, fmt.Errorf("%w: canceled after page %d: %v", ErrPartialResults, page-1, ctx.Err())
+				}
+				return nil, ctx.Err()
 			case <-time.After(delay):
 			}
 		}

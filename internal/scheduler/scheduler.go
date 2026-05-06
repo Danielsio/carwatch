@@ -1406,6 +1406,9 @@ func (s *Scheduler) carName(manufacturerID, modelID int) string {
 	}
 	mfr := s.carNames.ManufacturerName(manufacturerID)
 	mdl := s.carNames.ModelName(manufacturerID, modelID)
+	if mfr == "" || mdl == "" {
+		return fmt.Sprintf("%d/%d", manufacturerID, modelID)
+	}
 	return mfr + " " + mdl
 }
 

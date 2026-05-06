@@ -143,7 +143,7 @@ func (s *Store) LookupEnrichmentData(ctx context.Context, tokens []string) (map[
 
 		q := `SELECT token, MAX(km), MAX(city), MAX(image_url)
 			FROM listing_history
-			WHERE token IN (` + strings.Join(placeholders, ", ") + `) AND km > 0
+			WHERE token IN (` + strings.Join(placeholders, ", ") + `) AND (km > 0 OR city != '' OR image_url != '')
 			GROUP BY token`
 
 		rows, err := s.db.QueryContext(ctx, q, args...)

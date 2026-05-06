@@ -32,8 +32,6 @@ type EnricherConfig struct {
 	// ChallengeBackoff is how long to wait after a bot challenge before retrying.
 	// 0 (default) uses 7 seconds.
 	ChallengeBackoff time.Duration
-	// ProxyPool enables proxy rotation on challenge. Optional.
-	ProxyPool *fetcher.ProxyPool
 }
 
 // Enricher fills in missing km data by fetching individual listing pages.
@@ -117,9 +115,6 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 		if err != nil {
 			if errors.Is(err, fetcher.ErrChallenge) {
 				challengeRetries++
-				if e.cfg.ProxyPool != nil {
-					e.cfg.ProxyPool.MarkUnhealthy(e.currentProxy())
-				}
 				if challengeRetries >= maxChallengeRetries {
 					e.logger.Warn("enrichment aborted after repeated challenges",
 						"challenges", challengeRetries,
@@ -187,20 +182,3 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 	return enriched
 }
 
-// currentProxy returns the last proxy URL used by the fetcher's pool, or empty string.
-func (e *Enricher) currentProxy() string {
-	if e.cfg.ProxyPool == nil {
-		return ""
-	}
-	return e.cfg.ProxyPool.Next()
-}
-
-func countNeedingEnrichment(listings []model.RawListing) int {
-	n := 0
-	for _, l := range listings {
-		if l.Km <= 0 || l.ImageURL == "" || l.City == "" {
-			n++
-		}
-	}
-	return n
-}
