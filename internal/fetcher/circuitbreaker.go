@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -42,14 +43,28 @@ type CircuitBreaker struct {
 	cooldown         time.Duration
 	openedAt         time.Time
 	probing          bool
+	logger           *slog.Logger
 }
 
-func NewCircuitBreaker(inner Fetcher, threshold int, cooldown time.Duration) *CircuitBreaker {
-	return &CircuitBreaker{
+func NewCircuitBreaker(inner Fetcher, threshold int, cooldown time.Duration, opts ...func(*CircuitBreaker)) *CircuitBreaker {
+	cb := &CircuitBreaker{
 		inner:            inner,
 		state:            StateClosed,
 		failureThreshold: threshold,
 		cooldown:         cooldown,
+		logger:           slog.Default(),
+	}
+	for _, o := range opts {
+		o(cb)
+	}
+	return cb
+}
+
+func WithCBLogger(l *slog.Logger) func(*CircuitBreaker) {
+	return func(cb *CircuitBreaker) {
+		if l != nil {
+			cb.logger = l
+		}
 	}
 }
 
@@ -58,10 +73,15 @@ func (cb *CircuitBreaker) Fetch(ctx context.Context, params model.SourceParams) 
 	switch cb.state {
 	case StateOpen:
 		if time.Since(cb.openedAt) >= cb.cooldown {
+			cb.logger.Info("circuit breaker cooldown expired, transitioning to half-open",
+				"cooldown", cb.cooldown.String(),
+				"was_open_for", time.Since(cb.openedAt).Round(time.Second).String(),
+			)
 			cb.state = StateHalfOpen
 		} else {
+			remaining := cb.cooldown - time.Since(cb.openedAt)
 			cb.mu.Unlock()
-			return nil, ErrCircuitOpen
+			return nil, fmt.Errorf("%w (resets in %s)", ErrCircuitOpen, remaining.Round(time.Second))
 		}
 	case StateHalfOpen:
 		if cb.probing {
@@ -85,18 +105,34 @@ func (cb *CircuitBreaker) Fetch(ctx context.Context, params model.SourceParams) 
 
 	if err != nil {
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			// Partial results with data indicate degradation but not total failure;
+			// don't count them toward opening the circuit.
+			if errors.Is(err, ErrPartialResults) && len(listings) > 0 {
+				return listings, err
+			}
 			cb.failures++
 			if cb.failures >= cb.failureThreshold || cb.state == StateHalfOpen {
+				prev := cb.state
 				cb.state = StateOpen
 				cb.openedAt = time.Now()
+				cb.logger.Warn("circuit breaker opened",
+					"previous_state", prev.String(),
+					"failures", cb.failures,
+					"threshold", cb.failureThreshold,
+					"cooldown", cb.cooldown.String(),
+					"last_error", err.Error(),
+				)
 			}
-		}
-		if errors.Is(err, ErrPartialResults) && len(listings) > 0 {
-			return listings, err
 		}
 		return nil, err
 	}
 
+	if cb.state != StateClosed {
+		cb.logger.Info("circuit breaker recovered, closing",
+			"previous_state", cb.state.String(),
+			"failures_before_reset", cb.failures,
+		)
+	}
 	cb.failures = 0
 	cb.state = StateClosed
 	return listings, nil

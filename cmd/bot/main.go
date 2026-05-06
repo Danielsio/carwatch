@@ -182,7 +182,8 @@ func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, 
 
 	paginatingFetcher := fetcher.NewPaginatingFetcher(yad2Fetcher, cfg.HTTP.MaxPages)
 	cachingFetcher := fetcher.NewCachingFetcher(paginatingFetcher, 5*time.Minute)
-	yad2CB := fetcher.NewCircuitBreaker(cachingFetcher, 5, 30*time.Minute)
+	yad2CB := fetcher.NewCircuitBreaker(cachingFetcher, 5, 10*time.Minute,
+		fetcher.WithCBLogger(logger.With("component", "circuit_breaker", "source", "yad2")))
 
 	winwinLogger := logger.With("component", "winwin")
 	var winwinFetcher *winwin.WinWinFetcher
@@ -195,7 +196,8 @@ func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, 
 		return nil, nil, nil, fmt.Errorf("create winwin fetcher: %w", err)
 	}
 	cachingWinwin := fetcher.NewCachingFetcher(winwinFetcher, 5*time.Minute)
-	winwinCB := fetcher.NewCircuitBreaker(cachingWinwin, 5, 30*time.Minute)
+	winwinCB := fetcher.NewCircuitBreaker(cachingWinwin, 5, 10*time.Minute,
+		fetcher.WithCBLogger(logger.With("component", "circuit_breaker", "source", "winwin")))
 
 	fetcherFactory := fetcher.NewFactory()
 	fetcherFactory.Register("yad2", yad2CB)

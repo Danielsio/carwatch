@@ -464,7 +464,19 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 			"msg_preview", truncateStr(p.Payload, 100),
 		)
 		if err := s.notifier.NotifyRaw(ctx, p.Recipient, p.Payload); err != nil {
+			if errors.Is(err, notifier.ErrRecipientBlocked) {
+				s.logger.Warn("purging notification for unreachable recipient",
+					"id", p.ID,
+					"recipient", maskPhone(p.Recipient),
+					"error", err,
+				)
+				if ackErr := s.stores.Queue.AckNotification(ctx, p.ID); ackErr != nil {
+					s.logger.Error("ack unreachable notification failed", "id", p.ID, "error", ackErr)
+				}
+				continue
+			}
 			s.logger.Error("retry notification failed",
+				"id", p.ID,
 				"recipient", maskPhone(p.Recipient),
 				"error", err,
 			)

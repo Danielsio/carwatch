@@ -296,6 +296,25 @@ func TestSendMessage_APIError_Blocked(t *testing.T) {
 	}
 }
 
+func TestSendMessage_APIError_ChatNotFound(t *testing.T) {
+	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		resp, _ := json.Marshal(map[string]any{
+			"ok":          false,
+			"description": "Bad Request: chat not found",
+		})
+		_, _ = w.Write(resp)
+	}))
+
+	err := n.NotifyRaw(context.Background(), "123", "test message body")
+	if err == nil {
+		t.Fatal("expected error for chat not found")
+	}
+	if !errors.Is(err, notifier.ErrRecipientBlocked) {
+		t.Errorf("expected ErrRecipientBlocked for chat not found, got: %v", err)
+	}
+}
+
 func TestSendMessage_LargeMessage_MultipleChunks(t *testing.T) {
 	var sendCalls atomic.Int32
 	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {

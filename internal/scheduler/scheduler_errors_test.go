@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -526,7 +528,37 @@ func TestRetryPending_NotifyRawFails(t *testing.T) {
 	s.retryPending(context.Background())
 
 	if q.acked != nil && q.acked[1] {
-		t.Error("should not ack notification when retry fails")
+		t.Error("should not ack notification when retry fails with transient error")
+	}
+}
+
+func TestRetryPending_PurgesUnreachableRecipient(t *testing.T) {
+	n := &errNotifier{rawErr: fmt.Errorf("%w: chat not found", notifier.ErrRecipientBlocked)}
+	q := &errNotificationQueue{
+		mockNotificationQueue: mockNotificationQueue{
+			pending: []storage.PendingNotification{
+				{ID: 1, Recipient: "200000000001", Payload: "valid notification message"},
+				{ID: 2, Recipient: "200000000001", Payload: "another valid notification"},
+			},
+		},
+	}
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	s, _ := NewWithOptions(testConfig(), nil, nil, n, logger, Options{Queue: q})
+	s.retryPending(context.Background())
+
+	if !q.acked[1] {
+		t.Error("unreachable notification id=1 should be acked (purged)")
+	}
+	if !q.acked[2] {
+		t.Error("unreachable notification id=2 should be acked (purged)")
+	}
+
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "purging notification for unreachable recipient") {
+		t.Errorf("expected purge log message, got: %s", logOutput)
 	}
 }
 
