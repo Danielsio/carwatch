@@ -92,7 +92,7 @@ func (b *Bot) manufacturerKeyboard(ctx context.Context, chatID int64, page int, 
 			var row []tgmodels.InlineKeyboardButton
 			for i, e := range recent {
 				row = append(row, tgmodels.InlineKeyboardButton{
-					Text:         e.Name,
+					Text:         e.DisplayName(),
 					CallbackData: cbPrefixMfr + strconv.Itoa(e.ID),
 				})
 				if len(row) == colsPerRow || i == len(recent)-1 {
@@ -121,6 +121,12 @@ func (b *Bot) recentManufacturers(ctx context.Context, chatID int64) []catalog.E
 		return nil
 	}
 
+	allMfrs := b.catalog.Manufacturers()
+	mfrByID := make(map[int]catalog.Entry, len(allMfrs))
+	for _, m := range allMfrs {
+		mfrByID[m.ID] = m
+	}
+
 	seen := make(map[int]bool)
 	var recent []catalog.Entry
 	for _, s := range searches {
@@ -128,11 +134,11 @@ func (b *Bot) recentManufacturers(ctx context.Context, chatID int64) []catalog.E
 			continue
 		}
 		seen[s.Manufacturer] = true
-		name := b.catalog.ManufacturerName(s.Manufacturer)
-		if name == "" {
+		entry, ok := mfrByID[s.Manufacturer]
+		if !ok || entry.Name == "" {
 			continue
 		}
-		recent = append(recent, catalog.Entry{ID: s.Manufacturer, Name: name})
+		recent = append(recent, entry)
 		if len(recent) >= maxRecentManufacturers {
 			break
 		}
@@ -185,7 +191,7 @@ func paginatedKeyboard(entries []catalog.Entry, page int, selectPrefix, pagePref
 	var row []tgmodels.InlineKeyboardButton
 	for i, e := range pageEntries {
 		row = append(row, tgmodels.InlineKeyboardButton{
-			Text:         e.Name,
+			Text:         e.DisplayName(),
 			CallbackData: selectPrefix + strconv.Itoa(e.ID),
 		})
 		if len(row) == colsPerRow || i == len(pageEntries)-1 {
@@ -226,7 +232,7 @@ func searchResultKeyboard(results []catalog.Entry, selectPrefix, backPageCB stri
 		var row []tgmodels.InlineKeyboardButton
 		for i, e := range results {
 			row = append(row, tgmodels.InlineKeyboardButton{
-				Text:         e.Name,
+				Text:         e.DisplayName(),
 				CallbackData: selectPrefix + strconv.Itoa(e.ID),
 			})
 			if len(row) == colsPerRow || i == len(results)-1 {

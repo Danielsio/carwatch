@@ -13,6 +13,13 @@ type Entry struct {
 	NameHe string
 }
 
+func (e Entry) DisplayName() string {
+	if e.NameHe != "" {
+		return e.NameHe
+	}
+	return e.Name
+}
+
 type Catalog interface {
 	Manufacturers() []Entry
 	Models(manufacturerID int) []Entry
