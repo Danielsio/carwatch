@@ -236,8 +236,8 @@ func TestKeyboards_ManufacturerKeyboard_RecentSection(t *testing.T) {
 		}
 		return false
 	}
-	if !hasManufacturer("Mazda") || !hasManufacturer("Toyota") {
-		t.Errorf("expected Mazda and Toyota in recent, got %v", names)
+	if !hasManufacturer("מאזדה") || !hasManufacturer("טויוטה") {
+		t.Errorf("expected מאזדה and טויוטה in recent, got %v", names)
 	}
 
 	// Row 2: separator.
@@ -396,13 +396,13 @@ func TestKeyboards_ManufacturerSearch(t *testing.T) {
 	found := false
 	for _, row := range kb.InlineKeyboard {
 		for _, btn := range row {
-			if btn.Text == "Mazda" {
+			if btn.Text == "מאזדה" {
 				found = true
 			}
 		}
 	}
 	if !found {
-		t.Error("search for 'maz' should find Mazda")
+		t.Error("search for 'maz' should find מאזדה")
 	}
 }
 

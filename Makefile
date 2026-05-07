@@ -1,7 +1,8 @@
 .PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
        vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
        vm-backup vm-backup-list \
-       web-install web-dev web-build
+       web-install web-dev web-build \
+       catalog-refresh
 
 all: build
 
@@ -21,6 +22,9 @@ LDFLAGS := -ldflags "-s -w \
 
 build:
 	go build $(LDFLAGS) -o bot ./cmd/bot
+
+catalog-refresh:
+	go run ./cmd/catalog-gen -output internal/catalog/catalog_data.json
 
 run: build
 	./bot -config config.yaml
