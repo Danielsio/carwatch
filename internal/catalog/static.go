@@ -36,11 +36,7 @@ func init() {
 
 	defaultManufacturers = make([]Entry, 0, len(data.Manufacturers))
 	for _, m := range data.Manufacturers {
-		defaultManufacturers = append(defaultManufacturers, Entry{
-			ID:     m.ID,
-			Name:   m.Name,
-			NameHe: m.NameHe,
-		})
+		defaultManufacturers = append(defaultManufacturers, Entry(m))
 	}
 	sort.Slice(defaultManufacturers, func(i, j int) bool {
 		return strings.ToLower(defaultManufacturers[i].Name) < strings.ToLower(defaultManufacturers[j].Name)
@@ -48,14 +44,13 @@ func init() {
 
 	defaultModels = make(map[int][]Entry, len(data.Models))
 	for mfrIDStr, models := range data.Models {
-		mfrID, _ := strconv.Atoi(mfrIDStr)
+		mfrID, err := strconv.Atoi(mfrIDStr)
+		if err != nil {
+			log.Fatalf("catalog: invalid manufacturer ID key %q in catalog_data.json: %v", mfrIDStr, err)
+		}
 		entries := make([]Entry, 0, len(models))
 		for _, m := range models {
-			entries = append(entries, Entry{
-				ID:     m.ID,
-				Name:   m.Name,
-				NameHe: m.NameHe,
-			})
+			entries = append(entries, Entry(m))
 		}
 		sort.Slice(entries, func(i, j int) bool {
 			return strings.ToLower(entries[i].Name) < strings.ToLower(entries[j].Name)

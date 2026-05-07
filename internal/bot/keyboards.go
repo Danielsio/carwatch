@@ -135,7 +135,7 @@ func (b *Bot) recentManufacturers(ctx context.Context, chatID int64) []catalog.E
 		}
 		seen[s.Manufacturer] = true
 		entry, ok := mfrByID[s.Manufacturer]
-		if !ok || entry.Name == "" {
+		if !ok || entry.DisplayName() == "" {
 			continue
 		}
 		recent = append(recent, entry)

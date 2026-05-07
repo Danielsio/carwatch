@@ -206,6 +206,7 @@ func loadExistingCatalog(path string) *catalogOutput {
 	}
 	var out catalogOutput
 	if err := json.Unmarshal(data, &out); err != nil {
+		slog.Warn("existing catalog is corrupt, ignoring", "path", path, "error", err)
 		return nil
 	}
 	if out.Models == nil {
