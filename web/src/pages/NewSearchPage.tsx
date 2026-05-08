@@ -7,6 +7,7 @@ import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { ChipButton } from "@/components/ui/ChipButton";
 import { Input } from "@/components/ui/Input";
+import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Select } from "@/components/ui/Select";
 import { FormField } from "@/components/ui/FormField";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -32,8 +33,12 @@ const SOURCE_OPTIONS = [
   { value: "winwin", label: "WinWin" },
 ];
 
-const KM_OPTIONS = [0, 50_000, 100_000, 150_000, 200_000];
 const HAND_OPTIONS = [0, 1, 2, 3, 4];
+
+function formatKmLabel(value: number): string {
+  if (value === 0) return "ללא הגבלה";
+  return `${value.toLocaleString("he-IL")} ק"מ`;
+}
 
 export function NewSearchPage() {
   const navigate = useNavigate();
@@ -260,17 +265,14 @@ export function NewSearchPage() {
         </div>
 
         <FormField label='ק"מ מקסימלי'>
-          <div className="flex flex-wrap gap-2">
-            {KM_OPTIONS.map((km) => (
-              <ChipButton
-                key={km}
-                selected={form.maxKm === km}
-                onClick={() => set("maxKm", km)}
-              >
-                {km === 0 ? "ללא הגבלה" : km.toLocaleString("he-IL")}
-              </ChipButton>
-            ))}
-          </div>
+          <RangeSlider
+            min={0}
+            max={400_000}
+            step={10_000}
+            value={form.maxKm}
+            onChange={(v) => set("maxKm", v)}
+            formatLabel={formatKmLabel}
+          />
         </FormField>
 
         <FormField label="יד מקסימלית">
