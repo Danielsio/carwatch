@@ -136,6 +136,7 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/admin/searches", s.requireAdmin(s.adminListSearches))
 		mux.HandleFunc("DELETE /api/v1/admin/searches/{id}", s.requireAdmin(s.adminDeleteSearch))
 		mux.HandleFunc("GET /api/v1/admin/users", s.requireAdmin(s.adminListUsers))
+		mux.HandleFunc("PATCH /api/v1/admin/users/{chatID}", s.requireAdmin(s.adminSetUserActive))
 		mux.HandleFunc("DELETE /api/v1/admin/users/{chatID}", s.requireAdmin(s.adminDeleteUser))
 		mux.HandleFunc("POST /api/v1/admin/purge", s.requireAdmin(s.adminPurgeTable))
 		mux.HandleFunc("POST /api/v1/admin/vacuum", s.requireAdmin(s.adminVacuum))
@@ -193,7 +194,7 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 		if origins[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			w.Header().Set("Access-Control-Max-Age", "86400")
 			w.Header().Set("Vary", "Origin")

@@ -27,6 +27,9 @@ func Apply(criteria model.FilterCriteria, listings []model.RawListing) []model.R
 }
 
 func matches(c model.FilterCriteria, l model.RawListing) bool {
+	if c.ModelID > 0 && l.ModelID > 0 && l.ModelID != c.ModelID {
+		return false
+	}
 	if c.PriceMax > 0 && l.Price > c.PriceMax {
 		return false
 	}

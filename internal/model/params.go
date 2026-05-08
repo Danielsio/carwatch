@@ -17,6 +17,7 @@ type SourceParams struct {
 // FilterCriteria defines the criteria used to filter raw listings
 // after they are fetched from a source.
 type FilterCriteria struct {
+	ModelID     int
 	YearMin     int
 	YearMax     int
 	PriceMax    int

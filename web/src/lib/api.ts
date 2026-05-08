@@ -332,6 +332,11 @@ export const adminApi = {
   users: () => fetchAPI<AdminUsersResponse>("/admin/users"),
   deleteUser: (chatId: number) =>
     fetchAPI<void>(`/admin/users/${chatId}`, { method: "DELETE" }),
+  setUserActive: (chatId: number, active: boolean) =>
+    fetchAPI<{ chat_id: number; active: boolean }>(`/admin/users/${chatId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ active }),
+    }),
   purgeTable: (table: string) =>
     fetchAPI<PurgeResult>("/admin/purge", {
       method: "POST",

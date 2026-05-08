@@ -893,6 +893,7 @@ func (s *Scheduler) backfillEnrichedListings(ctx context.Context, listings []mod
 
 func buildFilterCriteria(search storage.Search) model.FilterCriteria {
 	criteria := model.FilterCriteria{
+		ModelID:     search.Model,
 		YearMin:     search.YearMin,
 		YearMax:     search.YearMax,
 		PriceMax:    search.PriceMax,
