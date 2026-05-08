@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { AlertCircle, RefreshCw, Trash2, Users } from "lucide-react";
+import { AlertCircle, RefreshCw, ToggleLeft, ToggleRight, Trash2, Users } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { adminApi, type AdminUser } from "@/lib/api";
 import { EmptyState, Skeleton, Badge } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
-import { relativeTime } from "@/lib/utils";
+import { cn, relativeTime } from "@/lib/utils";
 import { ConfirmModal } from "./ConfirmModal";
 import { DetailModal } from "./DetailModal";
 
@@ -30,6 +30,18 @@ export function UsersTab() {
     },
     onError: () => {
       toast("שגיאה במחיקת המשתמש", "error");
+    },
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: ({ chatId, active }: { chatId: number; active: boolean }) =>
+      adminApi.setUserActive(chatId, active),
+    onSuccess: (_data, variables) => {
+      toast(variables.active ? "המשתמש הופעל" : "המשתמש הושבת", "success");
+      void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+    onError: () => {
+      toast("שגיאה בעדכון סטטוס המשתמש", "error");
     },
   });
 
@@ -116,6 +128,24 @@ export function UsersTab() {
                     </Badge>
                     <button
                       type="button"
+                      disabled={toggleActiveMutation.isPending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleActiveMutation.mutate({ chatId: user.chat_id, active: !user.active });
+                      }}
+                      aria-label={user.active ? "השבת משתמש" : "הפעל משתמש"}
+                      title={user.active ? "השבת משתמש" : "הפעל משתמש"}
+                      className={cn(
+                        "rounded-lg p-1.5 transition-colors opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-50",
+                        user.active
+                          ? "text-emerald-500 hover:text-amber-600 hover:bg-amber-100/50"
+                          : "text-muted-foreground/50 hover:text-emerald-600 hover:bg-emerald-100/50"
+                      )}
+                    >
+                      {user.active ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); setConfirmDelete(user); }}
                       aria-label={`מחק משתמש ${user.username || user.chat_id}`}
                       title="מחק משתמש"
@@ -150,14 +180,35 @@ export function UsersTab() {
             ]}
             onClose={() => setDetailUser(null)}
             actions={
-              <button
-                type="button"
-                onClick={() => { setDetailUser(null); setConfirmDelete(detailUser); }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                מחק משתמש
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={toggleActiveMutation.isPending}
+                  onClick={() => {
+                    toggleActiveMutation.mutate(
+                      { chatId: detailUser.chat_id, active: !detailUser.active },
+                      { onSuccess: () => setDetailUser(null) }
+                    );
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors disabled:opacity-50",
+                    detailUser.active
+                      ? "text-amber-700 bg-amber-100 hover:bg-amber-200"
+                      : "text-emerald-700 bg-emerald-100 hover:bg-emerald-200"
+                  )}
+                >
+                  {detailUser.active ? <ToggleRight className="h-3.5 w-3.5" /> : <ToggleLeft className="h-3.5 w-3.5" />}
+                  {detailUser.active ? "השבת" : "הפעל"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDetailUser(null); setConfirmDelete(detailUser); }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  מחק משתמש
+                </button>
+              </div>
             }
           />
         )}

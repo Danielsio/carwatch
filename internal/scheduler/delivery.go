@@ -52,6 +52,9 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 	if errors.Is(err, notifier.ErrRecipientBlocked) {
 		return err
 	}
+	if errors.Is(err, notifier.ErrNoChannelNotifier) {
+		d.logger.Debug("no push notifier for channel, falling back to queue", "chat_id", chatID)
+	}
 
 	if d.queue != nil {
 		msg := notifier.FormatBatch(listings, d.lang)
@@ -88,6 +91,9 @@ func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message 
 	}
 	if errors.Is(err, notifier.ErrRecipientBlocked) {
 		return err
+	}
+	if errors.Is(err, notifier.ErrNoChannelNotifier) {
+		d.logger.Debug("no push notifier for channel, falling back to queue", "chat_id", chatID)
 	}
 	enqCtx, enqCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer enqCancel()

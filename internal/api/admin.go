@@ -349,6 +349,31 @@ func (s *Server) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) adminSetUserActive(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("chatID")
+	chatID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || chatID <= 0 {
+		writeError(w, http.StatusBadRequest, "valid chat_id is required")
+		return
+	}
+
+	var body struct {
+		Active bool `json:"active"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	if err := s.users.SetUserActive(r.Context(), chatID, body.Active); err != nil {
+		s.logger.Error("admin: set user active", "chat_id", chatID, "active", body.Active, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to update user")
+		return
+	}
+	s.logger.Info("admin: updated user active status", "chat_id", chatID, "active", body.Active)
+	writeJSON(w, http.StatusOK, map[string]any{"chat_id": chatID, "active": body.Active})
+}
+
 func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {
 	if !s.vacuumMu.TryLock() {
 		writeError(w, http.StatusConflict, "vacuum already in progress")
