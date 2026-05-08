@@ -639,3 +639,32 @@ func migrateMissingIndexes(db *sql.DB) error {
 	}
 	return nil
 }
+
+func migrateListingVehicleDetails(db *sql.DB) error {
+	columns := []struct {
+		name string
+		def  string
+	}{
+		{"sub_model", "TEXT NOT NULL DEFAULT ''"},
+		{"engine_volume", "REAL NOT NULL DEFAULT 0"},
+		{"horse_power", "INTEGER NOT NULL DEFAULT 0"},
+		{"engine_type", "TEXT NOT NULL DEFAULT ''"},
+		{"gear_box", "TEXT NOT NULL DEFAULT ''"},
+		{"description", "TEXT NOT NULL DEFAULT ''"},
+	}
+	for _, col := range columns {
+		var exists int
+		if err := db.QueryRow(
+			"SELECT COUNT(*) FROM pragma_table_info('listing_history') WHERE name = ?", col.name,
+		).Scan(&exists); err != nil {
+			return fmt.Errorf("check listing_history %s: %w", col.name, err)
+		}
+		if exists == 0 {
+			if _, err := db.Exec(fmt.Sprintf(
+				"ALTER TABLE listing_history ADD COLUMN %s %s", col.name, col.def)); err != nil {
+				return fmt.Errorf("add column %s: %w", col.name, err)
+			}
+		}
+	}
+	return nil
+}

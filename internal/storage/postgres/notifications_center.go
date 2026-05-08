@@ -11,8 +11,10 @@ import (
 
 func (s *Store) NewListingsSince(ctx context.Context, chatID int64, since time.Time, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT token, search_name, manufacturer, model, year, price,
-			km, hand, city, page_link, image_url, fitness_score, first_seen_at
+		SELECT token, search_name, manufacturer, model, sub_model, year, price,
+			km, hand, city, page_link, image_url,
+			engine_volume, horse_power, engine_type, gear_box, description,
+			fitness_score, first_seen_at
 		FROM listing_history
 		WHERE chat_id = $1 AND first_seen_at > $2
 		ORDER BY first_seen_at DESC, token DESC

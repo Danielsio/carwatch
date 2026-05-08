@@ -106,16 +106,20 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 	var err error
 	if searchID > 0 {
 		rows, err = s.db.QueryContext(ctx, `
-			SELECT token, chat_id, search_id, search_name, manufacturer, model, year, price,
-				km, hand, city, page_link, image_url, fitness_score, first_seen_at
+			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price,
+				km, hand, city, page_link, image_url,
+				engine_volume, horse_power, engine_type, gear_box, description,
+				fitness_score, first_seen_at
 			FROM listing_history
 			WHERE search_id = ?
 			ORDER BY first_seen_at DESC
 			LIMIT ? OFFSET ?`, searchID, limit, offset)
 	} else {
 		rows, err = s.db.QueryContext(ctx, `
-			SELECT token, chat_id, search_id, search_name, manufacturer, model, year, price,
-				km, hand, city, page_link, image_url, fitness_score, first_seen_at
+			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price,
+				km, hand, city, page_link, image_url,
+				engine_volume, horse_power, engine_type, gear_box, description,
+				fitness_score, first_seen_at
 			FROM listing_history
 			ORDER BY first_seen_at DESC
 			LIMIT ? OFFSET ?`, limit, offset)
@@ -132,8 +136,9 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 		var firstSeen string
 		if err := rows.Scan(
 			&r.Token, &r.ChatID, &r.SearchID, &r.SearchName,
-			&r.Manufacturer, &r.Model, &r.Year, &r.Price,
+			&r.Manufacturer, &r.Model, &r.SubModel, &r.Year, &r.Price,
 			&r.Km, &r.Hand, &r.City, &r.PageLink, &r.ImageURL,
+			&r.EngineVolume, &r.HorsePower, &r.EngineType, &r.GearBox, &r.Description,
 			&score, &firstSeen,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan listing: %w", err)

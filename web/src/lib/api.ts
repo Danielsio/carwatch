@@ -100,6 +100,7 @@ export interface Listing {
   token: string;
   manufacturer: string;
   model: string;
+  sub_model?: string;
   year: number;
   price: number;
   km: number;
@@ -107,6 +108,11 @@ export interface Listing {
   city: string;
   page_link: string;
   image_url?: string;
+  engine_volume?: number;
+  horse_power?: number;
+  engine_type?: string;
+  gear_box?: string;
+  description?: string;
   fitness_score?: number;
   first_seen_at: string;
   /** Present when API includes bookmark state */
