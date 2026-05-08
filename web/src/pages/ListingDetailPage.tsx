@@ -9,6 +9,9 @@ import {
   MapPin,
   Clock,
   Car,
+  Fuel,
+  Cog,
+  Zap,
 } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, safeHref } from "@/lib/utils";
 import { api, ApiError } from "@/lib/api";
@@ -112,6 +115,9 @@ export function ListingDetailPage() {
     return null;
   }
 
+  const hasVehicleSpecs =
+    listing.engine_volume || listing.horse_power || listing.engine_type || listing.gear_box;
+
   return (
     <div className="space-y-6">
       <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground -mr-2">
@@ -135,7 +141,7 @@ export function ListingDetailPage() {
         </div>
       )}
 
-      {/* Title + score + Price (aligned with landing Smart Match row) */}
+      {/* Title + score + Price */}
       <div className="flex items-start gap-4">
         {listing.fitness_score != null ? (
           <MatchScoreBox score={listing.fitness_score} size="lg" />
@@ -144,6 +150,13 @@ export function ListingDetailPage() {
           <h1 className="text-2xl font-bold tracking-tight">
             {listing.manufacturer} {listing.model}
           </h1>
+          {listing.sub_model && (
+            <p className="mt-0.5 text-sm text-muted-foreground font-medium">
+              {listing.sub_model}
+              {listing.engine_volume ? ` ${listing.engine_volume}` : ""}
+              {listing.horse_power ? ` (${listing.horse_power} כ"ס)` : ""}
+            </p>
+          )}
           <p className="mt-0.5 text-muted-foreground">{listing.year}</p>
           {listing.fitness_score != null ? (
             <p
@@ -159,17 +172,41 @@ export function ListingDetailPage() {
         </span>
       </div>
 
-      {/* Specs grid */}
+      {/* Primary specs grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SpecCard icon={Gauge} label='ק"מ' value={formatKm(listing.km)} />
-        <SpecCard icon={Hand} label="יד" value={String(listing.hand)} />
+        <SpecCard icon={Calendar} label="שנה" value={String(listing.year)} />
         <SpecCard icon={MapPin} label="עיר" value={listing.city || "—"} />
-        <SpecCard
-          icon={Calendar}
-          label="שנה"
-          value={String(listing.year)}
-        />
+        <SpecCard icon={Hand} label="יד" value={String(listing.hand)} />
+        <SpecCard icon={Gauge} label='ק"מ' value={formatKm(listing.km)} />
       </div>
+
+      {/* Vehicle specs grid */}
+      {hasVehicleSpecs && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {listing.engine_volume ? (
+            <SpecCard icon={Fuel} label="נפח מנוע" value={`${listing.engine_volume}`} />
+          ) : null}
+          {listing.horse_power ? (
+            <SpecCard icon={Zap} label='כ"ס' value={String(listing.horse_power)} />
+          ) : null}
+          {listing.engine_type ? (
+            <SpecCard icon={Fuel} label="סוג מנוע" value={listing.engine_type} />
+          ) : null}
+          {listing.gear_box ? (
+            <SpecCard icon={Cog} label="תיבת הילוכים" value={listing.gear_box} />
+          ) : null}
+        </div>
+      )}
+
+      {/* Description */}
+      {listing.description && (
+        <div className="rounded-2xl border border-border/50 bg-card p-5">
+          <h2 className="text-sm font-semibold text-foreground mb-2">תיאור</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+            {listing.description}
+          </p>
+        </div>
+      )}
 
       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Clock className="h-4 w-4" />

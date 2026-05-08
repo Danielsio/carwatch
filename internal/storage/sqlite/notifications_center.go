@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
 
@@ -11,8 +10,10 @@ import (
 
 func (s *Store) NewListingsSince(ctx context.Context, chatID int64, since time.Time, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT token, search_name, manufacturer, model, year, price,
-			km, hand, city, page_link, image_url, fitness_score, first_seen_at
+		SELECT token, search_name, manufacturer, model, sub_model, year, price,
+			km, hand, city, page_link, image_url,
+			engine_volume, horse_power, engine_type, gear_box, description,
+			fitness_score, first_seen_at
 		FROM listing_history
 		WHERE chat_id = ? AND first_seen_at > ?
 		ORDER BY first_seen_at DESC, token DESC
@@ -24,14 +25,9 @@ func (s *Store) NewListingsSince(ctx context.Context, chatID int64, since time.T
 
 	var listings []storage.ListingRecord
 	for rows.Next() {
-		var l storage.ListingRecord
-		var fs sql.NullFloat64
-		if err := rows.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model,
-			&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.ImageURL, &fs, &l.FirstSeenAt); err != nil {
+		l, err := scanListingRow(rows)
+		if err != nil {
 			return nil, err
-		}
-		if fs.Valid {
-			l.FitnessScore = &fs.Float64
 		}
 		listings = append(listings, l)
 	}

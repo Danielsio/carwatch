@@ -133,6 +133,7 @@ type ListingRecord struct {
 	SearchName   string
 	Manufacturer string
 	Model        string
+	SubModel     string
 	Year         int
 	Price        int
 	Km           int
@@ -140,6 +141,11 @@ type ListingRecord struct {
 	City         string
 	PageLink     string
 	ImageURL     string
+	EngineVolume float64
+	HorsePower   int
+	EngineType   string
+	GearBox      string
+	Description  string
 	FitnessScore *float64
 	FirstSeenAt  time.Time
 }

@@ -11,6 +11,7 @@ type listingResponse struct {
 	SearchName   string   `json:"search_name,omitempty"`
 	Manufacturer string   `json:"manufacturer"`
 	Model        string   `json:"model"`
+	SubModel     string   `json:"sub_model,omitempty"`
 	Year         int      `json:"year"`
 	Price        int      `json:"price"`
 	Km           int      `json:"km"`
@@ -18,6 +19,11 @@ type listingResponse struct {
 	City         string   `json:"city"`
 	PageLink     string   `json:"page_link"`
 	ImageURL     string   `json:"image_url,omitempty"`
+	EngineVolume float64  `json:"engine_volume,omitempty"`
+	HorsePower   int      `json:"horse_power,omitempty"`
+	EngineType   string   `json:"engine_type,omitempty"`
+	GearBox      string   `json:"gear_box,omitempty"`
+	Description  string   `json:"description,omitempty"`
 	FitnessScore *float64 `json:"fitness_score,omitempty"`
 	FirstSeenAt  string   `json:"first_seen_at"`
 	Saved        bool     `json:"saved,omitempty"`
@@ -66,6 +72,7 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		SearchName:   l.SearchName,
 		Manufacturer: l.Manufacturer,
 		Model:        l.Model,
+		SubModel:     l.SubModel,
 		Year:         l.Year,
 		Price:        l.Price,
 		Km:           l.Km,
@@ -73,6 +80,11 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		City:         l.City,
 		PageLink:     l.PageLink,
 		ImageURL:     l.ImageURL,
+		EngineVolume: l.EngineVolume,
+		HorsePower:   l.HorsePower,
+		EngineType:   l.EngineType,
+		GearBox:      l.GearBox,
+		Description:  l.Description,
 		FitnessScore: l.FitnessScore,
 		FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
 		Saved:        savedFlag,

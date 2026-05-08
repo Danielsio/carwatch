@@ -982,9 +982,11 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 	if s.stores.Listings != nil {
 		if err := s.stores.Listings.SaveListing(ctx, storage.ListingRecord{
 			Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
-			Manufacturer: l.Manufacturer, Model: l.Model,
+			Manufacturer: l.Manufacturer, Model: l.Model, SubModel: l.SubModel,
 			Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 			City: l.City, PageLink: l.PageLink, ImageURL: l.ImageURL,
+			EngineVolume: l.EngineVolume, HorsePower: l.HorsePower,
+			EngineType: l.EngineType, GearBox: l.GearBox, Description: l.Description,
 			FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
 		}); err != nil {
 			s.logger.Error("save price-drop listing failed",
@@ -1037,9 +1039,11 @@ func buildNotifications(search storage.Search, listing model.Listing, out *searc
 	out.newListings = append(out.newListings, listing)
 	out.listingRecords = append(out.listingRecords, storage.ListingRecord{
 		Token: listing.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
-		Manufacturer: listing.Manufacturer, Model: listing.Model,
+		Manufacturer: listing.Manufacturer, Model: listing.Model, SubModel: listing.SubModel,
 		Year: listing.Year, Price: listing.Price, Km: listing.Km, Hand: listing.Hand,
 		City: listing.City, PageLink: listing.PageLink, ImageURL: listing.ImageURL,
+		EngineVolume: listing.EngineVolume, HorsePower: listing.HorsePower,
+		EngineType: listing.EngineType, GearBox: listing.GearBox, Description: listing.Description,
 		FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
 	})
 }
