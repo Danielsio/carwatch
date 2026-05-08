@@ -6,7 +6,6 @@ import (
 	"log"
 	"sort"
 	"strconv"
-	"strings"
 )
 
 //go:embed catalog_data.json
@@ -39,7 +38,11 @@ func init() {
 		defaultManufacturers = append(defaultManufacturers, Entry(m))
 	}
 	sort.Slice(defaultManufacturers, func(i, j int) bool {
-		return strings.ToLower(defaultManufacturers[i].Name) < strings.ToLower(defaultManufacturers[j].Name)
+		di, dj := defaultManufacturers[i].DisplayName(), defaultManufacturers[j].DisplayName()
+		if di == dj {
+			return defaultManufacturers[i].ID < defaultManufacturers[j].ID
+		}
+		return di < dj
 	})
 
 	defaultModels = make(map[int][]Entry, len(data.Models))
@@ -53,7 +56,11 @@ func init() {
 			entries = append(entries, Entry(m))
 		}
 		sort.Slice(entries, func(i, j int) bool {
-			return strings.ToLower(entries[i].Name) < strings.ToLower(entries[j].Name)
+			di, dj := entries[i].DisplayName(), entries[j].DisplayName()
+			if di == dj {
+				return entries[i].ID < entries[j].ID
+			}
+			return di < dj
 		})
 		defaultModels[mfrID] = entries
 	}

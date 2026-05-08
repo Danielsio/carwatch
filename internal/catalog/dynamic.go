@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"sort"
-	"strings"
 	"sync"
 )
 
@@ -199,11 +198,11 @@ func (d *DynamicCatalog) rebuildSlices() {
 		mfrs = append(mfrs, Entry{ID: id, Name: name, NameHe: d.mfrHeMap[id]})
 	}
 	sort.Slice(mfrs, func(i, j int) bool {
-		li, lj := strings.ToLower(mfrs[i].Name), strings.ToLower(mfrs[j].Name)
-		if li == lj {
+		di, dj := mfrs[i].DisplayName(), mfrs[j].DisplayName()
+		if di == dj {
 			return mfrs[i].ID < mfrs[j].ID
 		}
-		return li < lj
+		return di < dj
 	})
 	d.mfrs = mfrs
 
@@ -219,11 +218,11 @@ func (d *DynamicCatalog) rebuildSlices() {
 			list = append(list, Entry{ID: id, Name: name, NameHe: he})
 		}
 		sort.Slice(list, func(i, j int) bool {
-			li, lj := strings.ToLower(list[i].Name), strings.ToLower(list[j].Name)
-			if li == lj {
+			di, dj := list[i].DisplayName(), list[j].DisplayName()
+			if di == dj {
 				return list[i].ID < list[j].ID
 			}
-			return li < lj
+			return di < dj
 		})
 		models[mfrID] = list
 	}
