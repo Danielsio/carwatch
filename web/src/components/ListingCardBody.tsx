@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bookmark } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
@@ -28,6 +28,10 @@ export function ListingCardBody({
   const rawDesc = listing.description?.trim() ?? "";
   const descLines = rawDesc.split(/\r\n|\r|\n/).length;
   const descLong = rawDesc.length > 160 || descLines > 3;
+
+  useEffect(() => {
+    setDescExpanded(false);
+  }, [listing.token]);
 
   return (
     <>

@@ -117,8 +117,12 @@ func New(c Config) *Server {
 func requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var buf [8]byte
-		_, _ = rand.Read(buf[:])
-		id := hex.EncodeToString(buf[:])
+		var id string
+		if _, err := rand.Read(buf[:]); err != nil {
+			id = strconv.FormatInt(time.Now().UnixNano(), 36)
+		} else {
+			id = hex.EncodeToString(buf[:])
+		}
 
 		w.Header().Set("X-Request-ID", id)
 		ctx := context.WithValue(r.Context(), requestIDKey, id)
