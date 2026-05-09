@@ -316,7 +316,7 @@ export function LogsTab({ active }: { active: boolean }) {
           ) : (
             <div className="space-y-px">
               {filtered.map((entry, idx) => {
-                const key = `${entry.time}-${entry.level}-${entry.message}`;
+                const key = `${entry.time}-${entry.level}-${entry.component}-${entry.message}`;
                 return (
                   <LogLine
                     key={`${entry.time}-${idx}`}
