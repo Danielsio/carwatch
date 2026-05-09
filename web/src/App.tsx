@@ -1,8 +1,10 @@
 import { lazy, Suspense } from "react";
+import type { ReactNode } from "react";
 import { Routes, Route, Navigate } from "react-router";
 import { Loader2 } from "lucide-react";
 import { Shell } from "./components/layout/Shell";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useMe } from "./hooks/useMe";
 
 const LandingPage = lazy(() =>
@@ -76,6 +78,10 @@ function PageFallback() {
   );
 }
 
+function RouteGuard({ children }: { children: ReactNode }) {
+  return <ErrorBoundary routeLevel>{children}</ErrorBoundary>;
+}
+
 export default function App() {
   return (
     <Suspense fallback={<PageFallback />}>
@@ -85,16 +91,16 @@ export default function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<Shell />}>
-            <Route path="/dashboard" element={<SearchesPage />} />
-            <Route path="/searches/new" element={<NewSearchPage />} />
-            <Route path="/searches/:id/edit" element={<EditSearchPage />} />
-            <Route path="/searches/:id/listings" element={<ListingsPage />} />
-            <Route path="/listings/:token" element={<ListingDetailPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
-            <Route path="/saved" element={<SavedPage />} />
-            <Route path="/history" element={<HistoryPage />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/dashboard" element={<RouteGuard><SearchesPage /></RouteGuard>} />
+            <Route path="/searches/new" element={<RouteGuard><NewSearchPage /></RouteGuard>} />
+            <Route path="/searches/:id/edit" element={<RouteGuard><EditSearchPage /></RouteGuard>} />
+            <Route path="/searches/:id/listings" element={<RouteGuard><ListingsPage /></RouteGuard>} />
+            <Route path="/listings/:token" element={<RouteGuard><ListingDetailPage /></RouteGuard>} />
+            <Route path="/settings" element={<RouteGuard><SettingsPage /></RouteGuard>} />
+            <Route path="/admin" element={<AdminGuard><RouteGuard><AdminPage /></RouteGuard></AdminGuard>} />
+            <Route path="/saved" element={<RouteGuard><SavedPage /></RouteGuard>} />
+            <Route path="/history" element={<RouteGuard><HistoryPage /></RouteGuard>} />
+            <Route path="/notifications" element={<RouteGuard><NotificationsPage /></RouteGuard>} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>

@@ -4,6 +4,8 @@ import { AlertTriangle, RotateCcw, Home } from "lucide-react";
 
 interface Props {
   children: ReactNode;
+  /** When true, renders a page-level fallback (no min-h-screen) instead of the full-page fallback. */
+  routeLevel?: boolean;
 }
 
 interface State {
@@ -40,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
       const isDev = import.meta.env.DEV;
 
       return (
-        <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-8 text-center">
+        <div className={`flex flex-col items-center justify-center gap-4 p-8 text-center ${this.props.routeLevel ? "min-h-[40vh]" : "min-h-screen bg-background"}`}>
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
             <AlertTriangle className="h-7 w-7 text-destructive" />
           </div>

@@ -107,8 +107,8 @@ export function ListingsTab({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="חפש לפי יצרן, דגם, עיר..."
-            className="w-full bg-secondary/50 border border-border rounded-xl pr-10 pl-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
+            placeholder="סנן עמוד נוכחי לפי יצרן, דגם, עיר..."
+            className="w-full bg-secondary/50 border border-border rounded-xl pe-10 ps-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
           />
         </div>
         <button
