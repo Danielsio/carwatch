@@ -58,6 +58,20 @@ type searchResponse struct {
 	ListingsCount    int64  `json:"listings_count"`
 }
 
+func (s *Server) ensureUserActive(ctx context.Context, chatID int64) {
+	user, err := s.users.GetUser(ctx, chatID)
+	if err != nil || user == nil {
+		return
+	}
+	if !user.Active {
+		if err := s.users.SetUserActive(ctx, chatID, true); err != nil {
+			s.logger.Error("reactivate user on search create", "chat_id", chatID, "error", err)
+			return
+		}
+		s.logger.Info("reactivated inactive user on search action", "chat_id", chatID)
+	}
+}
+
 func isValidSource(source string) bool {
 	switch source {
 	case "yad2", "winwin", "yad2,winwin", "winwin,yad2":
@@ -262,6 +276,7 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.ensureUserActive(r.Context(), chatID)
 	s.writeCreatedSearch(w, r, chatID, id)
 }
 
@@ -374,6 +389,10 @@ func (s *Server) pauseSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) resumeSearch(w http.ResponseWriter, r *http.Request) {
+	chatID, ok := chatIDFromContext(r.Context())
+	if ok {
+		s.ensureUserActive(r.Context(), chatID)
+	}
 	s.setSearchActive(w, r, true)
 }
 

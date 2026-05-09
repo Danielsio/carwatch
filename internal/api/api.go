@@ -165,6 +165,7 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("DELETE /api/v1/admin/users/{chatID}", s.requireAdmin(s.adminDeleteUser))
 		mux.HandleFunc("POST /api/v1/admin/purge", s.requireAdmin(s.adminPurgeTable))
 		mux.HandleFunc("POST /api/v1/admin/vacuum", s.requireAdmin(s.adminVacuum))
+		mux.HandleFunc("POST /api/v1/admin/sync-user-status", s.requireAdmin(s.adminSyncUserStatus))
 		if s.logHub != nil {
 			mux.HandleFunc("GET /api/v1/admin/logs", s.requireAdmin(s.adminLogs))
 			mux.HandleFunc("GET /api/v1/admin/logs/stream", s.requireAdmin(s.adminLogStream))

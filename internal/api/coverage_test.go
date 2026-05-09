@@ -954,3 +954,64 @@ func TestAdminDeleteUser_InvalidID(t *testing.T) {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestCreateSearch_ReactivatesInactiveUser(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.SetUserActive(ctx, 999, false); err != nil {
+		t.Fatal(err)
+	}
+
+	u, _ := store.GetUser(ctx, int64(999))
+	if u.Active {
+		t.Fatal("user should be inactive before test")
+	}
+
+	body := map[string]any{"manufacturer": 27, "model": 10332, "source": "yad2"}
+	w := doRequest(t, srv, "POST", "/api/v1/searches", body)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	u, _ = store.GetUser(ctx, int64(999))
+	if !u.Active {
+		t.Error("createSearch should reactivate an inactive user")
+	}
+}
+
+func TestAdminSyncUserStatus(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	if err := store.UpsertUser(ctx, 100, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "active-s", Source: "yad2",
+		Manufacturer: 27, Model: 10332, Active: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetUserActive(ctx, 100, false); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "POST", "/api/v1/admin/sync-user-status", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp["activated"] != float64(1) {
+		t.Errorf("expected 1 activated, got %v", resp["activated"])
+	}
+
+	u, _ := store.GetUser(ctx, 100)
+	if !u.Active {
+		t.Error("user should be active after sync")
+	}
+}
