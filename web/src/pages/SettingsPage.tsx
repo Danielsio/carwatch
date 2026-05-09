@@ -146,7 +146,7 @@ export function SettingsPage() {
       </div>
 
       {/* Notifications */}
-      <section aria-disabled="true" role="group" aria-label="הגדרות התראות — בקרוב" className="rounded-2xl border border-border/50 bg-card p-5 space-y-5 opacity-60 pointer-events-none">
+      <section inert aria-label="הגדרות התראות — בקרוב" className="rounded-2xl border border-border/50 bg-card p-5 space-y-5 opacity-60">
         <h2 className="text-sm font-semibold text-foreground">התראות</h2>
 
         <ToggleRow
@@ -169,7 +169,7 @@ export function SettingsPage() {
       </section>
 
       {/* Scan Frequency */}
-      <section aria-disabled="true" role="group" aria-label="תדירות סריקה — בקרוב" className="rounded-2xl border border-border/50 bg-card p-5 space-y-4 opacity-60 pointer-events-none">
+      <section inert aria-label="תדירות סריקה — בקרוב" className="rounded-2xl border border-border/50 bg-card p-5 space-y-4 opacity-60">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
             <Clock className="h-4 w-4 text-primary" />
@@ -197,7 +197,7 @@ export function SettingsPage() {
       </section>
 
       {/* Alert Count */}
-      <section aria-disabled="true" role="group" aria-label="מודעות בהתראה — בקרוב" className="rounded-2xl border border-border/50 bg-card p-5 space-y-4 opacity-60 pointer-events-none">
+      <section inert aria-label="מודעות בהתראה — בקרוב" className="rounded-2xl border border-border/50 bg-card p-5 space-y-4 opacity-60">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-score-good/10">
             <Hash className="h-4 w-4 text-score-good" />
