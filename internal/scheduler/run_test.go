@@ -293,6 +293,10 @@ func (m *mockListingStore) CountSearchListings(_ context.Context, _ int64, _ int
 	return 0, nil
 }
 
+func (m *mockListingStore) CountSearchListingsForChat(_ context.Context, _ int64) (map[int64]int64, error) {
+	return nil, nil
+}
+
 func (m *mockListingStore) PruneListings(_ context.Context, _ time.Duration) (int64, error) {
 	m.pruneCalls++
 	return 0, nil

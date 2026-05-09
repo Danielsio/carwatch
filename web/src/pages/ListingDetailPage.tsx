@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
 import { useLocation, Link, useNavigate, useParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import type { ComponentType } from "react";
 import {
   ArrowRight,
   ExternalLink,
@@ -30,37 +31,43 @@ export function ListingDetailPage() {
   const stateListingForToken =
     stateListingRaw?.token === token ? stateListingRaw : undefined;
 
-  const [listing, setListing] = useState<Listing | undefined>(
-    stateListingForToken,
-  );
-  const [loading, setLoading] = useState(!stateListingForToken && !!token);
-  const [error, setError] = useState(false);
-  const [notFound, setNotFound] = useState(false);
+  const {
+    data: listing,
+    error,
+    isPending,
+  } = useQuery({
+    queryKey: ["listing", token ?? ""],
+    queryFn: async () => {
+      const t = token;
+      if (!t) {
+        throw new Error("missing token");
+      }
+      return api.listing(t);
+    },
+    enabled: Boolean(token),
+    initialData: stateListingForToken,
+    staleTime: 0,
+  });
 
-  useEffect(() => {
-    setListing(stateListingForToken);
-    setError(false);
-    setNotFound(false);
-    setLoading(!stateListingForToken && !!token);
-  }, [token, stateListingForToken]);
-
-  useEffect(() => {
-    if (listing || !token) return;
-    setLoading(true);
-    api
-      .listing(token)
-      .then((data) => setListing(data))
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 404) {
-          setNotFound(true);
-        } else {
-          setError(true);
+  if (!token) {
+    return (
+      <EmptyState
+        icon={Car}
+        title="מודעה לא נמצאה"
+        description="קישור לא תקין"
+        action={
+          <Button asChild>
+            <Link to="/dashboard">
+              <ArrowRight className="h-4 w-4" />
+              חזרה לחיפושים
+            </Link>
+          </Button>
         }
-      })
-      .finally(() => setLoading(false));
-  }, [listing, token]);
+      />
+    );
+  }
 
-  if (loading) {
+  if (isPending && !listing) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-40 rounded-lg" />
@@ -75,7 +82,7 @@ export function ListingDetailPage() {
     );
   }
 
-  if (notFound || (!listing && !error)) {
+  if (error instanceof ApiError && error.status === 404) {
     return (
       <EmptyState
         icon={Car}
@@ -202,7 +209,7 @@ export function ListingDetailPage() {
       {listing.description && (
         <div className="rounded-2xl border border-border/50 bg-card p-5">
           <h2 className="text-sm font-semibold text-foreground mb-2">תיאור</h2>
-          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line break-words">
             {listing.description}
           </p>
         </div>
@@ -234,7 +241,7 @@ function SpecCard({
   label,
   value,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   label: string;
   value: string;
 }) {

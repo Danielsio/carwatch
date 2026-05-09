@@ -344,6 +344,35 @@ func (s *Store) CountSearchListings(ctx context.Context, chatID int64, searchID 
 	return count, err
 }
 
+func (s *Store) CountSearchListingsForChat(ctx context.Context, chatID int64) (map[int64]int64, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT lh.search_id, COUNT(*)
+		FROM listing_history lh
+		INNER JOIN searches s ON s.id = lh.search_id AND s.chat_id = lh.chat_id
+		WHERE lh.chat_id = ?
+		  AND (s.price_max <= 0 OR lh.price <= s.price_max)
+		  AND (s.year_min <= 0 OR lh.year >= s.year_min)
+		  AND (s.year_max <= 0 OR lh.year <= s.year_max)
+		  AND (s.max_km <= 0 OR (lh.km > 0 AND lh.km <= s.max_km))
+		  AND (s.max_hand <= 0 OR lh.hand <= s.max_hand)
+		GROUP BY lh.search_id`, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[int64]int64)
+	for rows.Next() {
+		var searchID int64
+		var n int64
+		if err := rows.Scan(&searchID, &n); err != nil {
+			return nil, err
+		}
+		out[searchID] = n
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
 	result, err := s.db.ExecContext(ctx, `

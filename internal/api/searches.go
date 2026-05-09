@@ -153,8 +153,24 @@ func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var counts map[int64]int64
+	if s.listings != nil {
+		var err error
+		counts, err = s.listings.CountSearchListingsForChat(r.Context(), chatID)
+		if err != nil {
+			s.logger.Error("count search listings batch", "error", err)
+			counts = nil
+		}
+	}
+
 	resp := make([]searchResponse, 0, len(searches))
 	for _, sr := range searches {
+		if counts != nil {
+			item := s.toSearchResponse(sr)
+			item.ListingsCount = counts[sr.ID]
+			resp = append(resp, item)
+			continue
+		}
 		resp = append(resp, s.searchResponseWithListingCount(r.Context(), chatID, sr))
 	}
 	writeJSON(w, http.StatusOK, resp)

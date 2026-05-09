@@ -2424,6 +2424,74 @@ func TestListSearchListings(t *testing.T) {
 	})
 }
 
+func TestCountSearchListingsForChat(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	idCapped, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "capped", Source: "yad2",
+		Manufacturer: 8, Model: 10061, Active: true,
+		PriceMax: 100000,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	idOpen, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "open", Source: "yad2",
+		Manufacturer: 9, Model: 10062, Active: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "cfc-1", ChatID: 100, SearchID: idCapped, SearchName: "capped",
+		Manufacturer: "Mazda", Model: "3", Year: 2022, Price: 90000, Km: 30000, Hand: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "cfc-2", ChatID: 100, SearchID: idCapped, SearchName: "capped",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 120000, Km: 50000, Hand: 2,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "cfc-3", ChatID: 100, SearchID: idOpen, SearchName: "open",
+		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 80000, Km: 70000, Hand: 3,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.CountSearchListingsForChat(ctx, 100)
+	if err != nil {
+		t.Fatalf("CountSearchListingsForChat: %v", err)
+	}
+	if got[idCapped] != 1 {
+		t.Errorf("capped search: got %d, want 1", got[idCapped])
+	}
+	if got[idOpen] != 1 {
+		t.Errorf("open search: got %d, want 1", got[idOpen])
+	}
+
+	wantOpen, err := store.CountSearchListings(ctx, 100, idOpen, storage.ListingFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if int64(got[idOpen]) != wantOpen {
+		t.Errorf("batch open %d vs CountSearchListings %d", got[idOpen], wantOpen)
+	}
+	f := storage.ListingFilter{PriceMax: 100000}
+	wantCapped, err := store.CountSearchListings(ctx, 100, idCapped, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if int64(got[idCapped]) != wantCapped {
+		t.Errorf("batch capped %d vs CountSearchListings %d", got[idCapped], wantCapped)
+	}
+}
+
 // --- New() edge cases ---
 
 func TestNew_CreatesDirectory(t *testing.T) {

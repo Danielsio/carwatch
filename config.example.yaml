@@ -42,5 +42,6 @@ api:
     - "http://localhost:5173"              # dev (Vite)
     - "https://${CARWATCH_DOMAIN}"         # production
   admin_email: ""             # Firebase email granted admin access in the web UI
+  # trust_forwarded_for: false  # set true only behind a trusted reverse proxy (X-Forwarded-For for IP rate limit)
   # dev_chat_id: 0       # chat_id to use in dev mode (no auth)
   # auth_token: ""       # bearer token for API auth (optional)
