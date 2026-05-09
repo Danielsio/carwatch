@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useAppVersion } from "@/hooks/useAppVersion";
 import {
   LandingNav,
   HeroSection,
@@ -10,19 +10,6 @@ import {
   FinalCTA,
   LandingFooter,
 } from "@/components/landing";
-
-function useAppVersion() {
-  const [version, setVersion] = useState<string | null>(null);
-  useEffect(() => {
-    fetch("/healthz")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.version) setVersion(d.version);
-      })
-      .catch(() => {});
-  }, []);
-  return version;
-}
 
 export function LandingPage() {
   const version = useAppVersion();

@@ -79,7 +79,7 @@ export function ListingDetailPage() {
     return (
       <EmptyState
         icon={Car}
-        title="Listing not found"
+        title="מודעה לא נמצאה"
         description="ניתן לגשת למודעה דרך רשימת התוצאות"
         action={
           <Button asChild>
@@ -97,7 +97,7 @@ export function ListingDetailPage() {
     return (
       <EmptyState
         icon={Car}
-        title="Something went wrong"
+        title="משהו השתבש"
         description="נסה שוב מאוחר יותר או חזור לרשימת התוצאות"
         action={
           <Button asChild>

@@ -36,6 +36,8 @@ export function relativeTime(dateStr: string): string {
   if (diffDays === 0) return "היום";
   if (diffDays === 1) return "אתמול";
   if (diffDays < 7) return `לפני ${diffDays} ימים`;
-  if (diffDays < 30) return `לפני ${Math.floor(diffDays / 7)} שבועות`;
-  return `לפני ${Math.floor(diffDays / 30)} חודשים`;
+  const weeks = Math.floor(diffDays / 7);
+  if (diffDays < 30) return weeks === 1 ? "לפני שבוע" : `לפני ${weeks} שבועות`;
+  const months = Math.floor(diffDays / 30);
+  return months === 1 ? "לפני חודש" : `לפני ${months} חודשים`;
 }

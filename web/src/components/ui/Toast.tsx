@@ -150,7 +150,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
     <ToastContext.Provider value={value}>
       {children}
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col-reverse items-center gap-2 p-4"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col-reverse items-center gap-2 p-4 pb-20 md:pb-4"
         aria-relevant="additions text"
       >
         {toasts.map((t) => (

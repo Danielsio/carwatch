@@ -90,6 +90,7 @@ export function SearchesPage() {
         <ErrorState
           title="שגיאה בטעינת החיפושים"
           description="נסה לרענן את הדף"
+          onRetry={() => window.location.reload()}
         />
       </div>
     );

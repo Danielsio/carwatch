@@ -102,7 +102,7 @@ export function LogsTab({ active }: { active: boolean }) {
   const [levelFilter, setLevelFilter] = useState<Set<string>>(
     new Set(ALL_LEVELS),
   );
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [backendLevel, setBackendLevel] = useState("INFO");
@@ -315,17 +315,20 @@ export function LogsTab({ active }: { active: boolean }) {
             />
           ) : (
             <div className="space-y-px">
-              {filtered.map((entry, idx) => (
-                <LogLine
-                  key={`${entry.time}-${idx}`}
-                  entry={entry}
-                  expanded={expandedIdx === idx}
-                  onToggle={() =>
-                    setExpandedIdx(expandedIdx === idx ? null : idx)
-                  }
-                  formatTime={formatTime}
-                />
-              ))}
+              {filtered.map((entry, idx) => {
+                const key = `${entry.time}-${entry.level}-${entry.component}-${entry.message}`;
+                return (
+                  <LogLine
+                    key={`${entry.time}-${idx}`}
+                    entry={entry}
+                    expanded={expandedKey === key}
+                    onToggle={() =>
+                      setExpandedKey(expandedKey === key ? null : key)
+                    }
+                    formatTime={formatTime}
+                  />
+                );
+              })}
               <div ref={bottomRef} />
             </div>
           )}

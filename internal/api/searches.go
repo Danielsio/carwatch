@@ -230,6 +230,19 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.cfg.MaxSearches > 0 {
+		count, err := s.searches.CountSearches(r.Context(), chatID)
+		if err != nil {
+			s.logger.Error("count searches for limit", "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to check search limit")
+			return
+		}
+		if count >= int64(s.cfg.MaxSearches) {
+			writeError(w, http.StatusForbidden, "search limit reached")
+			return
+		}
+	}
+
 	var req createSearchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")

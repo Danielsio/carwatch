@@ -52,6 +52,7 @@ export function SavedPage() {
         <ErrorState
           title="שגיאה בטעינת המודעות"
           description="נסה לרענן את הדף"
+          onRetry={() => window.location.reload()}
         />
       </PageShell>
     );
@@ -113,8 +114,14 @@ export function SavedPage() {
             offset={offset}
             total={data.total}
             pageSize={PAGE_SIZE}
-            onPrev={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-            onNext={() => setOffset(offset + PAGE_SIZE)}
+            onPrev={() => {
+              setOffset(Math.max(0, offset - PAGE_SIZE));
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            onNext={() => {
+              setOffset(offset + PAGE_SIZE);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
           />
         </>
       )}

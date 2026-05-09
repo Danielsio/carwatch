@@ -261,6 +261,7 @@ func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 	}
 
 	cfg.API.AdminChatID = cfg.Telegram.AdminChatID
+	cfg.API.MaxSearches = cfg.Telegram.MaxSearches
 	apiServer := api.New(api.Config{
 		Catalog:      dynCatalog,
 		Searches:     store,
