@@ -232,6 +232,13 @@ export interface AdminStats {
     mem_sys_mb: number;
     uptime: string;
   };
+  http: {
+    requests_total: number;
+    status_2xx: number;
+    status_4xx: number;
+    status_5xx: number;
+    avg_duration_ms: number;
+  };
 }
 
 export interface AdminListing extends Listing {

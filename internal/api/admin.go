@@ -34,9 +34,10 @@ type adminListingResponse struct {
 }
 
 type adminStatsResponse struct {
-	DB      dbStats      `json:"db"`
+	DB      dbStats          `json:"db"`
 	Tables  map[string]int64 `json:"tables"`
-	Runtime runtimeStats `json:"runtime"`
+	Runtime runtimeStats     `json:"runtime"`
+	HTTP    httpStats        `json:"http"`
 }
 
 type dbStats struct {
@@ -45,10 +46,18 @@ type dbStats struct {
 }
 
 type runtimeStats struct {
-	Goroutines int    `json:"goroutines"`
+	Goroutines int     `json:"goroutines"`
 	MemAllocMB float64 `json:"mem_alloc_mb"`
 	MemSysMB   float64 `json:"mem_sys_mb"`
-	Uptime     string `json:"uptime"`
+	Uptime     string  `json:"uptime"`
+}
+
+type httpStats struct {
+	RequestsTotal uint64  `json:"requests_total"`
+	Status2xx     uint64  `json:"status_2xx"`
+	Status4xx     uint64  `json:"status_4xx"`
+	Status5xx     uint64  `json:"status_5xx"`
+	AvgDurationMs float64 `json:"avg_duration_ms"`
 }
 
 func (s *Server) isAdmin(chatID int64, email string) bool {
@@ -99,6 +108,12 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 
+	total, n2xx, n4xx, n5xx, durSum := s.httpMetricsSnapshot()
+	var avgMs float64
+	if total > 0 {
+		avgMs = float64(durSum) / float64(total)
+	}
+
 	writeJSON(w, http.StatusOK, adminStatsResponse{
 		DB: dbStats{
 			FileSizeBytes: fileSize,
@@ -110,6 +125,13 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 			MemAllocMB: float64(mem.Alloc) / 1024 / 1024,
 			MemSysMB:   float64(mem.Sys) / 1024 / 1024,
 			Uptime:     time.Since(s.startTime).Truncate(time.Second).String(),
+		},
+		HTTP: httpStats{
+			RequestsTotal: total,
+			Status2xx:     n2xx,
+			Status4xx:     n4xx,
+			Status5xx:     n5xx,
+			AvgDurationMs: avgMs,
 		},
 	})
 }

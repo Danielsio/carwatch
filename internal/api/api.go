@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	fbauth "firebase.google.com/go/v4/auth"
@@ -56,6 +57,13 @@ type Server struct {
 	rl        *rateLimiter
 	ipRL      *ipRateLimiter
 	vacuumMu  sync.Mutex
+
+	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
+	httpReqTotal   atomic.Uint64
+	http2xx        atomic.Uint64
+	http4xx        atomic.Uint64
+	http5xx        atomic.Uint64
+	httpDurationMs atomic.Uint64
 }
 
 func (s *Server) SetPollTrigger(p PollTrigger) {
@@ -250,13 +258,6 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHdr := r.Header.Get("Authorization")
 		bearer := bearerFromAuthHeader(authHdr)
-
-		// Allow token via query param for SSE only (EventSource can't set headers).
-		if bearer == "" && strings.HasPrefix(r.URL.Path, "/api/v1/admin/logs/") {
-			if qt := r.URL.Query().Get("token"); qt != "" {
-				bearer = qt
-			}
-		}
 
 		var chatID int64
 

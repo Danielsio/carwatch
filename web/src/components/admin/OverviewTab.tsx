@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Activity,
   Cpu,
   Database,
   HardDrive,
@@ -195,6 +196,38 @@ export function OverviewTab({
               value={`${data.runtime.mem_sys_mb.toFixed(1)} MB`}
             />
           </div>
+        </div>
+      </div>
+
+      {/* HTTP API aggregates (since server start) */}
+      <div className="rounded-2xl border border-border/50 bg-card p-6">
+        <div className="flex items-center gap-2.5 mb-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-chart-3/10">
+            <Activity className="h-[18px] w-[18px] text-chart-3" />
+          </div>
+          <h2 className="text-base font-semibold">בקשות API (מאז הפעלת השרת)</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <RuntimeStat
+            label="סה״כ בקשות"
+            value={data.http.requests_total.toLocaleString("he-IL")}
+          />
+          <RuntimeStat
+            label="2xx"
+            value={data.http.status_2xx.toLocaleString("he-IL")}
+          />
+          <RuntimeStat
+            label="4xx"
+            value={data.http.status_4xx.toLocaleString("he-IL")}
+          />
+          <RuntimeStat
+            label="5xx"
+            value={data.http.status_5xx.toLocaleString("he-IL")}
+          />
+          <RuntimeStat
+            label="זמן תגובה ממוצע"
+            value={`${data.http.avg_duration_ms.toFixed(2)} ms`}
+          />
         </div>
       </div>
 
