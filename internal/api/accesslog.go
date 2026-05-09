@@ -25,6 +25,8 @@ func (s *Server) withAccessLog(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
+		dur := time.Since(start)
+		s.observeHTTPRequest(rec.status, dur)
 
 		reqID := ""
 		if v, ok := r.Context().Value(requestIDKey).(string); ok {
@@ -34,7 +36,7 @@ func (s *Server) withAccessLog(next http.Handler) http.Handler {
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rec.status,
-			"duration_ms", time.Since(start).Milliseconds(),
+			"duration_ms", dur.Milliseconds(),
 			"request_id", reqID,
 		)
 	})

@@ -1,6 +1,7 @@
 import { getAuthToken } from "@/lib/auth-token";
 
-const BASE_URL = "/api/v1";
+/** Base path for versioned REST API (same origin). */
+export const BASE_URL = "/api/v1";
 
 class ApiError extends Error {
   constructor(
@@ -231,6 +232,13 @@ export interface AdminStats {
     mem_alloc_mb: number;
     mem_sys_mb: number;
     uptime: string;
+  };
+  http: {
+    requests_total: number;
+    status_2xx: number;
+    status_4xx: number;
+    status_5xx: number;
+    avg_duration_ms: number;
   };
 }
 
