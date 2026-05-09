@@ -35,6 +35,7 @@ type APIConfig struct {
 	AuthToken   string   `yaml:"auth_token"`
 	AdminChatID int64    `yaml:"-"`
 	AdminEmail  string   `yaml:"admin_email"`
+	MaxSearches int      `yaml:"-"`
 }
 
 type PollingConfig struct {

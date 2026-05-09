@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -122,7 +123,11 @@ func (rl *ipRateLimiter) allow(ip string) bool {
 	defer rl.mu.Unlock()
 
 	if len(rl.ips) >= maxIPBuckets {
-		return true
+		_, exists := rl.ips[ip]
+		if !exists {
+			slog.Warn("IP rate limiter full, rejecting unknown IP", "ip", ip)
+			return false
+		}
 	}
 
 	b, ok := rl.ips[ip]
@@ -179,7 +184,7 @@ func extractIP(r *http.Request, trustProxy bool) string {
 	}
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[len(parts)-1])
+		return strings.TrimSpace(parts[0])
 	}
 	return host
 }

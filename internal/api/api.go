@@ -13,6 +13,7 @@ import (
 
 	fbauth "firebase.google.com/go/v4/auth"
 
+	"github.com/dsionov/carwatch/internal/botcore"
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/logstream"
@@ -110,6 +111,15 @@ func New(c Config) *Server {
 	}
 }
 
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
@@ -170,7 +180,7 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/history", s.listHistory)
 	}
 
-	return s.corsMiddleware(s.withIPRateLimit(s.authMiddleware(s.withRateLimit(s.withMaxBody(mux)))))
+	return securityHeaders(s.corsMiddleware(s.withIPRateLimit(s.authMiddleware(s.withRateLimit(s.withMaxBody(mux))))))
 }
 
 const maxRequestBody = 1 << 20 // 1 MB
@@ -360,5 +370,5 @@ func parseSortParam(r *http.Request) string {
 }
 
 func splitKeywords(s string) string {
-	return strings.TrimSpace(s)
+	return botcore.NormalizeKeywords(s)
 }

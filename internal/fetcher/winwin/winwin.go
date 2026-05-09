@@ -75,6 +75,9 @@ func (f *WinWinFetcher) Fetch(ctx context.Context, params model.SourceParams) ([
 				f.proxyMu.Unlock()
 				return nil, fmt.Errorf("winwin proxy client: %w", err)
 			}
+			if f.cachedClient != nil {
+				f.cachedClient.CloseIdleConnections()
+			}
 			f.cachedProxy = proxyURL
 			f.cachedClient = c
 			cli = c

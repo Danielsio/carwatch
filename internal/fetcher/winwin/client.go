@@ -68,6 +68,11 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	return c.httpClient.Do(req)
 }
 
+// CloseIdleConnections closes any idle connections on the client's transport.
+func (c *Client) CloseIdleConnections() {
+	c.httpClient.CloseIdleConnections()
+}
+
 func readResponseBody(resp *http.Response) ([]byte, error) {
 	reader := io.LimitReader(resp.Body, maxResponseSize)
 	if strings.Contains(strings.ToLower(resp.Header.Get("Content-Encoding")), "gzip") {

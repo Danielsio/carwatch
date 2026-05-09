@@ -63,6 +63,7 @@ export function ListingsPage() {
         <ErrorState
           title="שגיאה בטעינת התוצאות"
           description="נסה לרענן את הדף"
+          onRetry={() => window.location.reload()}
         />
       </PageShell>
     );
@@ -139,8 +140,14 @@ export function ListingsPage() {
             offset={offset}
             total={data.total}
             pageSize={PAGE_SIZE}
-            onPrev={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-            onNext={() => setOffset(offset + PAGE_SIZE)}
+            onPrev={() => {
+              setOffset(Math.max(0, offset - PAGE_SIZE));
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            onNext={() => {
+              setOffset(offset + PAGE_SIZE);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
           />
         </>
       )}

@@ -9,7 +9,7 @@ export function ProtectedRoute() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <span className="sr-only" role="status">Loading...</span>
+        <span className="sr-only" role="status">טוען...</span>
         <Loader2
           className="h-10 w-10 animate-spin text-primary"
           aria-hidden
