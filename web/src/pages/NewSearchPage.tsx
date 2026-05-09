@@ -75,8 +75,13 @@ export function NewSearchPage() {
     (form.yearMin === 0 || form.yearMax === 0 || form.yearMin <= form.yearMax) &&
     !createSearch.isPending;
 
-  function handleSubmit() {
+  function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setError(null);
+    if (form.manufacturer === 0 || form.model === 0) {
+      setError("נא לבחור יצרן ודגם");
+      return;
+    }
     createSearch.mutate(
       {
         name: form.name || undefined,
@@ -120,6 +125,7 @@ export function NewSearchPage() {
         </div>
       )}
 
+      <form onSubmit={handleFormSubmit} className="contents">
       {/* Section: Search Name */}
       <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
         <FormField
@@ -324,7 +330,7 @@ export function NewSearchPage() {
       {/* Actions — sticky on mobile */}
       <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0">
         <div className="flex items-center gap-3">
-          <Button onClick={handleSubmit} disabled={!canSubmit} size="lg" className="flex-1 md:flex-none">
+          <Button type="submit" disabled={!canSubmit} size="lg" className="flex-1 md:flex-none">
             {createSearch.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -337,6 +343,7 @@ export function NewSearchPage() {
           </Button>
         </div>
       </div>
+      </form>
     </div>
   );
 }

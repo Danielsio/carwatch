@@ -70,7 +70,10 @@ export function Shell() {
   return (
     <div className="min-h-screen bg-background">
       <ConnectionBanner status={connectionStatus} />
-      <aside className="fixed inset-y-0 right-0 z-40 hidden h-full w-64 flex-col border-l border-[color-mix(in_srgb,var(--color-sidebar-border)_100%,transparent)] bg-sidebar md:flex">
+      <aside
+        aria-label="ניווט ראשי"
+        className="fixed inset-y-0 right-0 z-40 hidden h-full w-64 flex-col border-l border-[color-mix(in_srgb,var(--color-sidebar-border)_100%,transparent)] bg-sidebar md:flex"
+      >
         {/* Base44-style header */}
         <div className="flex items-center gap-3 border-b border-[color-mix(in_srgb,white_6%,transparent)] px-5 py-5">
           <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#3b82f6] via-[#3b82f6] to-[#2563eb] text-white shadow-[0_8px_28px_-6px_rgba(59,130,246,0.55),inset_0_1px_0_rgba(255,255,255,0.12)]">
@@ -105,6 +108,7 @@ export function Shell() {
               <Link
                 key={item.path}
                 to={item.path}
+                aria-current={active ? "page" : undefined}
                 className={cn(
                   "group relative flex items-center gap-3 rounded-xl py-2.5 pe-3 ps-4 text-sm font-medium outline-none transition-[background-color,color,box-shadow] duration-200 ease-out",
                   "focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-sidebar-primary)_38%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
@@ -207,7 +211,10 @@ export function Shell() {
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/40 bg-card/80 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.15)] dark:shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 pb-[env(safe-area-inset-bottom,0px)] md:hidden">
+      <nav
+        aria-label="ניווט"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-border/40 bg-card/80 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.15)] dark:shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 pb-[env(safe-area-inset-bottom,0px)] md:hidden"
+      >
         <div className="flex justify-around px-1 py-2 landscape:py-1.5">
           {visibleNavItems.filter((item) => item.mobile).map((item) => {
             const Icon = item.icon;
@@ -218,6 +225,7 @@ export function Shell() {
               <Link
                 key={item.path}
                 to={item.path}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "group flex min-w-0 flex-1 flex-col items-center gap-1 landscape:gap-0.5 px-2 py-2 landscape:py-0.5 text-[11px] font-medium transition-all duration-200",
                   "active:scale-[0.94] motion-reduce:active:scale-100",

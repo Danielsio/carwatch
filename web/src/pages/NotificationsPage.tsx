@@ -5,6 +5,7 @@ import {
   useNotifications,
   useMarkNotificationsSeen,
 } from "@/hooks/useNotifications";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { ListingCardBody } from "@/components/ListingCardBody";
 import {
   Button,
@@ -20,6 +21,7 @@ import type { Listing } from "@/lib/api";
 const PAGE_SIZE = 20;
 
 export function NotificationsPage() {
+  usePageTitle("התראות");
   const [offset, setOffset] = useState(0);
   const { data, isLoading, isSuccess, isFetching, isError } =
     useNotifications(PAGE_SIZE, offset);

@@ -19,13 +19,43 @@ export function ConfirmModal({
     modalRef.current?.focus();
   }, []);
 
-  // Prevent background scrolling while modal is open
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "";
     };
   }, []);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape") {
+      onCancel();
+      return;
+    }
+    if (e.key !== "Tab" || !modalRef.current) return;
+    const root = modalRef.current;
+    const selector =
+      'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusable = [...root.querySelectorAll<HTMLElement>(selector)].filter(
+      (el) => !el.hasAttribute("disabled") && !el.closest("[inert]"),
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const activeEl = document.activeElement;
+    const activeIndex =
+      activeEl instanceof HTMLElement && root.contains(activeEl)
+        ? focusable.indexOf(activeEl)
+        : -1;
+    if (e.shiftKey) {
+      if (activeIndex <= 0) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else if (activeIndex === -1 || activeIndex >= focusable.length - 1) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   return (
     <div
@@ -36,7 +66,7 @@ export function ConfirmModal({
       aria-modal="true"
       aria-labelledby="confirm-title"
       aria-describedby="confirm-desc"
-      onKeyDown={(e) => e.key === "Escape" && onCancel()}
+      onKeyDown={handleKeyDown}
     >
       <motion.div
         initial={{ opacity: 0 }}

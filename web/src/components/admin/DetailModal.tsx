@@ -14,19 +14,58 @@ export function DetailModal({
   actions?: React.ReactNode;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
-  // Focus trap: auto-focus the close button on mount
   useEffect(() => {
     closeRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape") {
+      onClose();
+      return;
+    }
+    if (e.key !== "Tab" || !rootRef.current) return;
+    const root = rootRef.current;
+    const selector =
+      'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusable = [...root.querySelectorAll<HTMLElement>(selector)].filter(
+      (el) => !el.hasAttribute("disabled") && !el.closest("[inert]"),
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const activeEl = document.activeElement;
+    const activeIndex =
+      activeEl instanceof HTMLElement && root.contains(activeEl)
+        ? focusable.indexOf(activeEl)
+        : -1;
+    if (e.shiftKey) {
+      if (activeIndex <= 0) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else if (activeIndex === -1 || activeIndex >= focusable.length - 1) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
   return (
     <div
+      ref={rootRef}
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="detail-title"
-      onKeyDown={(e) => e.key === "Escape" && onClose()}
+      onKeyDown={handleKeyDown}
     >
       <motion.div
         initial={{ opacity: 0 }}

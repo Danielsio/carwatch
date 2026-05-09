@@ -1,6 +1,7 @@
 import { useState, FormEvent, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { Loader2, Eye, EyeOff, Check, X } from "lucide-react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import {
   createUserWithEmailAndPassword,
   signInWithPopup,
@@ -39,6 +40,7 @@ const PASSWORD_RULES = [
 ];
 
 export function SignupPage() {
+  usePageTitle("הרשמה");
   const navigate = useNavigate();
   const { user } = useAuth();
   const [email, setEmail] = useState("");

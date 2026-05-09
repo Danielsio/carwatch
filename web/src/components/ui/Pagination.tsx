@@ -18,7 +18,7 @@ export function Pagination({
   if (total <= pageSize && offset === 0) return null;
 
   return (
-    <div className="flex items-center justify-center gap-3 pt-4">
+    <nav aria-label="ניווט עמודים" className="flex items-center justify-center gap-3 pt-4">
       {offset > 0 && (
         <Button variant="secondary" size="sm" onClick={onPrev}>
           הקודם
@@ -32,6 +32,6 @@ export function Pagination({
           הבא
         </Button>
       )}
-    </div>
+    </nav>
   );
 }
