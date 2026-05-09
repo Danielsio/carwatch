@@ -732,6 +732,10 @@ func (f *failingAdminStore) VacuumDB(_ context.Context) error {
 	return nil
 }
 
+func (f *failingAdminStore) SyncUserActiveStatus(_ context.Context) (int64, int64, error) {
+	return 0, 0, nil
+}
+
 func TestAdminStats_DBFileSizeError(t *testing.T) {
 	srv, _ := setupTestServer(t)
 	srv.admin = &failingAdminStore{failDBFileSize: true}

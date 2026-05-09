@@ -2986,3 +2986,111 @@ func TestPruneListings_PreservesSaved(t *testing.T) {
 	}
 }
 
+func TestUpsertUser_ReactivatesInactiveUser(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	seedUser(t, store, 100)
+	if err := store.SetUserActive(ctx, 100, false); err != nil {
+		t.Fatal(err)
+	}
+
+	u, _ := store.GetUser(ctx, 100)
+	if u.Active {
+		t.Fatal("user should be inactive before re-upsert")
+	}
+
+	if err := store.UpsertUser(ctx, 100, "alice"); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	u, _ = store.GetUser(ctx, 100)
+	if !u.Active {
+		t.Error("UpsertUser should reactivate an inactive user")
+	}
+}
+
+func TestUpsertWebUser_ReactivatesInactiveUser(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	id, err := store.UpsertWebUser(ctx, "firebase-uid-1", "a@example.com")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	if err := store.SetUserActive(ctx, id, false); err != nil {
+		t.Fatal(err)
+	}
+
+	u, _ := store.GetUser(ctx, id)
+	if u.Active {
+		t.Fatal("user should be inactive before re-login")
+	}
+
+	id2, err := store.UpsertWebUser(ctx, "firebase-uid-1", "a@example.com")
+	if err != nil {
+		t.Fatalf("re-login: %v", err)
+	}
+	if id2 != id {
+		t.Error("should return same ID")
+	}
+
+	u, _ = store.GetUser(ctx, id)
+	if !u.Active {
+		t.Error("UpsertWebUser should reactivate an inactive user on login")
+	}
+}
+
+func TestSyncUserActiveStatus(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+	seedUser(t, store, 300)
+
+	if _, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "s1", Source: "yad2", Manufacturer: 27, Model: 10332, Active: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetUserActive(ctx, 100, false); err != nil {
+		t.Fatal(err)
+	}
+
+	id3, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 300, Name: "s3", Source: "yad2", Manufacturer: 19, Model: 10226, Active: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSearchActive(ctx, id3, 300, false); err != nil {
+		t.Fatal(err)
+	}
+
+	activated, deactivated, err := store.SyncUserActiveStatus(ctx)
+	if err != nil {
+		t.Fatalf("SyncUserActiveStatus: %v", err)
+	}
+	if activated != 1 {
+		t.Errorf("expected 1 activated, got %d", activated)
+	}
+	if deactivated != 2 {
+		t.Errorf("expected 2 deactivated, got %d", deactivated)
+	}
+
+	u100, _ := store.GetUser(ctx, 100)
+	if !u100.Active {
+		t.Error("user 100 should be active (has active search)")
+	}
+	u200, _ := store.GetUser(ctx, 200)
+	if u200.Active {
+		t.Error("user 200 should be inactive (no searches)")
+	}
+	u300, _ := store.GetUser(ctx, 300)
+	if u300.Active {
+		t.Error("user 300 should be inactive (only paused search)")
+	}
+}
+

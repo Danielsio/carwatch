@@ -374,6 +374,20 @@ func (s *Server) adminSetUserActive(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"chat_id": chatID, "active": body.Active})
 }
 
+func (s *Server) adminSyncUserStatus(w http.ResponseWriter, r *http.Request) {
+	activated, deactivated, err := s.admin.SyncUserActiveStatus(r.Context())
+	if err != nil {
+		s.logger.Error("admin: sync user status", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to sync user status")
+		return
+	}
+	s.logger.Info("admin: synced user active status", "activated", activated, "deactivated", deactivated)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"activated":   activated,
+		"deactivated": deactivated,
+	})
+}
+
 func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {
 	if !s.vacuumMu.TryLock() {
 		writeError(w, http.StatusConflict, "vacuum already in progress")

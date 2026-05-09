@@ -22,6 +22,7 @@ func (s *Store) UpsertUser(ctx context.Context, chatID int64, username string) e
 		INSERT INTO users (chat_id, username, channel_id) VALUES (?, ?, ?)
 		ON CONFLICT(chat_id) DO UPDATE SET
 			username = excluded.username,
+			active = true,
 			channel_id = CASE WHEN users.channel_id = '' THEN excluded.channel_id ELSE users.channel_id END`,
 		chatID, username, channelID)
 	return err
@@ -77,6 +78,8 @@ func (s *Store) upsertChannelUser(ctx context.Context, channel, channelID, usern
 		"SELECT chat_id FROM users WHERE channel = ? AND channel_id = ?",
 		channel, channelID).Scan(&existingID)
 	if err == nil {
+		_, _ = tx.ExecContext(ctx, "UPDATE users SET active = true WHERE chat_id = ?", existingID)
+		_ = tx.Commit()
 		return existingID, nil
 	}
 	if err != sql.ErrNoRows {

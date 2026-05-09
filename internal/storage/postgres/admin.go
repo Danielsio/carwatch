@@ -233,3 +233,25 @@ func (s *Store) VacuumDB(ctx context.Context) error {
 	}
 	return nil
 }
+
+func (s *Store) SyncUserActiveStatus(ctx context.Context) (activated, deactivated int64, err error) {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE users SET active = true
+		WHERE active = false
+		  AND chat_id IN (SELECT DISTINCT chat_id FROM searches WHERE active = true)`)
+	if err != nil {
+		return 0, 0, fmt.Errorf("activate users with searches: %w", err)
+	}
+	activated, _ = res.RowsAffected()
+
+	res, err = s.db.ExecContext(ctx, `
+		UPDATE users SET active = false
+		WHERE active = true
+		  AND chat_id NOT IN (SELECT DISTINCT chat_id FROM searches WHERE active = true)`)
+	if err != nil {
+		return activated, 0, fmt.Errorf("deactivate users without searches: %w", err)
+	}
+	deactivated, _ = res.RowsAffected()
+
+	return activated, deactivated, nil
+}

@@ -253,6 +253,7 @@ type AdminStore interface {
 	AdminListUsers(ctx context.Context) ([]User, error)
 	AdminDeleteUser(ctx context.Context, chatID int64) error
 	VacuumDB(ctx context.Context) error
+	SyncUserActiveStatus(ctx context.Context) (activated, deactivated int64, err error)
 }
 
 type NotificationStore interface {
