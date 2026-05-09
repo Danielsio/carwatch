@@ -30,8 +30,11 @@ func TestRateLimiter_ExhaustedRecovery(t *testing.T) {
 	rl := newRateLimiter(burst, every)
 	t.Cleanup(rl.stop)
 
-	if !rl.allow(7) || !rl.allow(7) {
-		t.Fatal("expected to consume initial burst")
+	if !rl.allow(7) {
+		t.Fatal("expected first token to be allowed")
+	}
+	if !rl.allow(7) {
+		t.Fatal("expected second token to be allowed")
 	}
 	if rl.allow(7) {
 		t.Fatal("expected burst exhausted")
