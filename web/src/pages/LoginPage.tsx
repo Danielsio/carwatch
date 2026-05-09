@@ -196,7 +196,7 @@ export function LoginPage() {
                     required
                     aria-invalid={!!passwordErr}
                     className={cn(
-                      "w-full rounded-xl border bg-secondary py-3 pl-11 pr-4 text-sm text-foreground outline-none transition-[box-shadow,border-color]",
+                      "w-full rounded-xl border bg-secondary py-3 ps-11 pe-4 text-sm text-foreground outline-none transition-[box-shadow,border-color]",
                       "placeholder:text-muted-foreground/60",
                       "focus:border-primary/50 focus:ring-2 focus:ring-ring/40",
                       passwordErr
@@ -209,7 +209,7 @@ export function LoginPage() {
                     type="button"
                     tabIndex={-1}
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
                     aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
                   >
                     {showPassword ? (

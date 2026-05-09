@@ -42,7 +42,7 @@ const navItems: NavItem[] = [
     badge: true,
     mobile: true,
   },
-  { path: "/settings", label: "הגדרות", icon: Settings, mobile: true },
+  { path: "/settings", label: "הגדרות", icon: Settings, mobile: false },
   { path: "/admin", label: "ניהול", icon: Wrench, mobile: false, adminOnly: true },
 ];
 
@@ -246,23 +246,6 @@ export function Shell() {
               </Link>
             );
           })}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label={theme === "dark" ? "הפעל מצב בהיר" : "הפעל מצב כהה"}
-            className="flex min-w-0 flex-1 flex-col items-center gap-1 landscape:gap-0.5 px-2 py-2 landscape:py-0.5 text-[11px] font-medium text-muted-foreground transition-all duration-200 active:scale-[0.94]"
-          >
-            <span className="flex flex-col items-center gap-1 landscape:gap-0">
-              {theme === "dark" ? (
-                <Sun className="h-5 w-5 landscape:h-4 landscape:w-4" />
-              ) : (
-                <Moon className="h-5 w-5 landscape:h-4 landscape:w-4" />
-              )}
-            </span>
-            <span className="line-clamp-1 text-center leading-tight landscape:text-[10px]">
-              {theme === "dark" ? "בהיר" : "כהה"}
-            </span>
-          </button>
         </div>
       </nav>
     </div>

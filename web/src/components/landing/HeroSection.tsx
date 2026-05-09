@@ -36,7 +36,7 @@ export function HeroSection() {
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 end-1/4 h-96 w-96 rounded-full bg-primary/10 blur-[120px]" />
         <div className="absolute bottom-1/3 start-1/4 h-72 w-72 rounded-full bg-purple-500/8 blur-[100px]" />
-        <div className="absolute top-1/2 start-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[150px]" />
+        <div className="absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[150px]" />
       </div>
 
       <div className="landing-grid-bg pointer-events-none absolute inset-0 opacity-[0.03]" />
@@ -252,7 +252,7 @@ export function HeroSection() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: reduceMotion ? 0 : 1.5 }}
-        className="absolute bottom-8 start-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5"
+        className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5"
       >
         <span className="text-xs text-muted-foreground/50">גלול למטה</span>
         <div className="flex h-8 w-5 items-start justify-center rounded-full border-2 border-border/50 p-1">

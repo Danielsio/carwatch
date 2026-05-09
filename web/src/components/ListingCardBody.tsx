@@ -89,7 +89,7 @@ export function ListingCardBody({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="mr-auto text-xs text-muted-foreground">
+          <span className="me-auto text-xs text-muted-foreground">
             {relativeTime(listing.first_seen_at)}
           </span>
           {actions}

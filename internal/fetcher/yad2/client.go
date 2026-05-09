@@ -3,13 +3,18 @@ package yad2
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	azuretls "github.com/Noooste/azuretls-client"
 )
+
+// outstandingGoroutines tracks orphaned azuretls goroutines that outlived their context.
+var outstandingGoroutines atomic.Int64
 
 // HTTPResult holds the outcome of an HTTP GET request.
 type HTTPResult struct {
@@ -79,6 +84,14 @@ func (c *stealthClient) Get(ctx context.Context, reqURL string) (*HTTPResult, er
 	var resp *azuretls.Response
 	select {
 	case <-ctx.Done():
+		n := outstandingGoroutines.Add(1)
+		if n >= 5 {
+			slog.Warn("azuretls orphaned goroutines accumulating", "outstanding", n)
+		}
+		go func() {
+			<-ch
+			outstandingGoroutines.Add(-1)
+		}()
 		return nil, ctx.Err()
 	case result := <-ch:
 		if result.err != nil {
