@@ -2,6 +2,7 @@ import { useState, FormEvent, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { auth, firebaseAuthErrorCode, googleProvider } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ function isValidEmail(v: string) {
 }
 
 export function LoginPage() {
+  usePageTitle("התחברות");
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();

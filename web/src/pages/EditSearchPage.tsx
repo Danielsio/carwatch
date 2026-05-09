@@ -68,7 +68,8 @@ export function EditSearchPage() {
     (form.yearMin === 0 || form.yearMax === 0 || form.yearMin <= form.yearMax) &&
     !updateSearch.isPending;
 
-  function handleSubmit() {
+  function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setError(null);
     updateSearch.mutate(
       {
@@ -137,6 +138,7 @@ export function EditSearchPage() {
         </div>
       )}
 
+      <form onSubmit={handleFormSubmit} className="contents">
       <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">
         <h2 className="text-sm font-semibold text-foreground">טווח שנים</h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -268,7 +270,7 @@ export function EditSearchPage() {
 
       <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0">
         <div className="flex items-center gap-3">
-          <Button onClick={handleSubmit} disabled={!canSubmit} size="lg" className="flex-1 md:flex-none">
+          <Button type="submit" disabled={!canSubmit} size="lg" className="flex-1 md:flex-none">
             {updateSearch.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -281,6 +283,7 @@ export function EditSearchPage() {
           </Button>
         </div>
       </div>
+      </form>
     </div>
   );
 }

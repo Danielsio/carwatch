@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -23,8 +25,9 @@ import (
 type contextKey string
 
 const (
-	chatIDKey contextKey = "chatID"
-	emailKey  contextKey = "email"
+	chatIDKey    contextKey = "chatID"
+	emailKey     contextKey = "email"
+	requestIDKey contextKey = "requestID"
 )
 
 type PollTrigger interface {
@@ -111,6 +114,18 @@ func New(c Config) *Server {
 	}
 }
 
+func requestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var buf [8]byte
+		_, _ = rand.Read(buf[:])
+		id := hex.EncodeToString(buf[:])
+
+		w.Header().Set("X-Request-ID", id)
+		ctx := context.WithValue(r.Context(), requestIDKey, id)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Frame-Options", "DENY")
@@ -180,7 +195,7 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/history", s.listHistory)
 	}
 
-	return securityHeaders(s.corsMiddleware(s.withIPRateLimit(s.authMiddleware(s.withRateLimit(s.withMaxBody(mux))))))
+	return requestIDMiddleware(securityHeaders(s.corsMiddleware(s.withIPRateLimit(s.authMiddleware(s.withRateLimit(s.withMaxBody(mux)))))))
 }
 
 const maxRequestBody = 1 << 20 // 1 MB

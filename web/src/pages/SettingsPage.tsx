@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import {
   Bell,
   Mail,
@@ -27,6 +28,7 @@ const SCAN_FREQ_OPTIONS = [
 const ALERT_COUNT_OPTIONS = [1, 3, 5, 10, 20];
 
 export function SettingsPage() {
+  usePageTitle("הגדרות");
   const { toast } = useToast();
 
   const telegramEnabled = true;

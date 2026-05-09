@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
 import { useSavedListings, useRemoveBookmark } from "@/hooks/useBookmarks";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { safeHref } from "@/lib/utils";
 import { ListingCardBody } from "@/components/ListingCardBody";
 import {
@@ -19,6 +20,7 @@ import type { Listing } from "@/lib/api";
 const PAGE_SIZE = 20;
 
 export function SavedPage() {
+  usePageTitle("שמורים");
   const { toast } = useToast();
   const [offset, setOffset] = useState(0);
   const [removingTokens, setRemovingTokens] = useState<Set<string>>(new Set());

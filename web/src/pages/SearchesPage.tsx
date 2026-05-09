@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Plus, Search as SearchIcon, Activity, Bell, Car } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import {
@@ -41,6 +42,7 @@ function useFadeUpVariants() {
 }
 
 export function SearchesPage() {
+  usePageTitle("לוח בקרה");
   const fadeUp = useFadeUpVariants();
   const reduceMotion = useReducedMotion();
   const { toast } = useToast();

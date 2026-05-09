@@ -192,6 +192,7 @@ export function SearchCard({
             size="sm"
             onClick={onDelete}
             disabled={disabled}
+            aria-label="אישור מחיקת חיפוש"
           >
             אישור מחיקה
           </Button>
@@ -200,6 +201,7 @@ export function SearchCard({
             variant="secondary"
             size="sm"
             onClick={onCancelDelete}
+            aria-label="ביטול מחיקה"
           >
             ביטול
           </Button>

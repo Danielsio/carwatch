@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Clock } from "lucide-react";
 import { useHistory } from "@/hooks/useBookmarks";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { ListingCardBody } from "@/components/ListingCardBody";
 import {
   Button,
@@ -17,6 +18,7 @@ import type { Listing } from "@/lib/api";
 const PAGE_SIZE = 20;
 
 export function HistoryPage() {
+  usePageTitle("היסטוריה");
   const [offset, setOffset] = useState(0);
   const { data, isLoading, isError } = useHistory(PAGE_SIZE, offset);
 
