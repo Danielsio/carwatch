@@ -26,7 +26,7 @@ async function openLogStream(signal: AbortSignal): Promise<Response | null> {
     return h;
   };
 
-  let token = await getAuthToken().catch(() => null);
+  const token = await getAuthToken().catch(() => null);
   if (!token) {
     return null;
   }
