@@ -110,15 +110,19 @@ func New(c Config) *Server {
 		botUsername: c.BotUsername,
 		startTime: time.Now(),
 		rl:        newRateLimiter(60, time.Second/60),
-		ipRL:      newIPRateLimiter(20, time.Second/10, true),
+		ipRL:      newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
 	}
 }
 
 func requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var buf [8]byte
-		_, _ = rand.Read(buf[:])
-		id := hex.EncodeToString(buf[:])
+		var id string
+		if _, err := rand.Read(buf[:]); err != nil {
+			id = strconv.FormatInt(time.Now().UnixNano(), 36)
+		} else {
+			id = hex.EncodeToString(buf[:])
+		}
 
 		w.Header().Set("X-Request-ID", id)
 		ctx := context.WithValue(r.Context(), requestIDKey, id)
@@ -196,7 +200,14 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/history", s.listHistory)
 	}
 
-	return requestIDMiddleware(securityHeaders(s.corsMiddleware(s.withIPRateLimit(s.authMiddleware(s.withRateLimit(s.withMaxBody(mux)))))))
+	chain := s.withMaxBody(mux)
+	chain = s.withRateLimit(chain)
+	chain = s.authMiddleware(chain)
+	chain = s.withIPRateLimit(chain)
+	chain = s.corsMiddleware(chain)
+	chain = securityHeaders(chain)
+	chain = s.withAccessLog(chain)
+	return requestIDMiddleware(chain)
 }
 
 const maxRequestBody = 1 << 20 // 1 MB

@@ -182,6 +182,9 @@ type ListingStore interface {
 	CountUserListings(ctx context.Context, chatID int64) (int64, error)
 	ListSearchListings(ctx context.Context, chatID int64, searchID int64, f ListingFilter, limit, offset int, sort string) ([]ListingRecord, error)
 	CountSearchListings(ctx context.Context, chatID int64, searchID int64, f ListingFilter) (int64, error)
+	// CountSearchListingsForChat returns listing counts per search_id for chatID,
+	// applying each search row's price/year/km/hand constraints like CountSearchListings.
+	CountSearchListingsForChat(ctx context.Context, chatID int64) (map[int64]int64, error)
 	PruneListings(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 

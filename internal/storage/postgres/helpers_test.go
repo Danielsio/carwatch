@@ -7,6 +7,21 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
+func TestCountSearchListingsForChatQuery_Contract(t *testing.T) {
+	for _, frag := range []string{
+		"FROM listing_history lh",
+		"INNER JOIN searches s",
+		"s.price_max <= 0 OR lh.price <= s.price_max",
+		"s.year_min <= 0 OR lh.year >= s.year_min",
+		"max_km <= 0 OR (lh.km > 0 AND lh.km <= s.max_km)",
+		"GROUP BY lh.search_id",
+	} {
+		if !strings.Contains(countSearchListingsForChatSQL, frag) {
+			t.Errorf("countSearchListingsForChatSQL missing %q", frag)
+		}
+	}
+}
+
 func TestQuoteIdent(t *testing.T) {
 	tests := []struct {
 		input string

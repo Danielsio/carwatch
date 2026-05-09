@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useState, useEffect } from "react";
 import { Bookmark } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
@@ -23,6 +24,15 @@ export function ListingCardBody({
   /** When true, show a bookmark icon on the image (e.g. saved listing). */
   showBookmarkOverlay?: boolean;
 }) {
+  const [descExpanded, setDescExpanded] = useState(false);
+  const rawDesc = listing.description?.trim() ?? "";
+  const descLines = rawDesc.split(/\r\n|\r|\n/).length;
+  const descLong = rawDesc.length > 160 || descLines > 3;
+
+  useEffect(() => {
+    setDescExpanded(false);
+  }, [listing.token]);
+
   return (
     <>
       {listing.image_url ? (
@@ -87,6 +97,31 @@ export function ListingCardBody({
             </>
           )}
         </div>
+
+        {rawDesc ? (
+          <div className="mb-3 min-w-0">
+            <p
+              className={cn(
+                "text-xs text-muted-foreground leading-relaxed break-words whitespace-pre-line",
+                !descExpanded && descLong && "line-clamp-3",
+              )}
+            >
+              {rawDesc}
+            </p>
+            {descLong ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDescExpanded((v) => !v);
+                }}
+                className="mt-1 text-xs font-medium text-primary hover:underline"
+              >
+                {descExpanded ? "הצג פחות" : "המשך קריאה"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-2">
           <span className="me-auto text-xs text-muted-foreground">

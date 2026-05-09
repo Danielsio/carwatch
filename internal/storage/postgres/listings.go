@@ -10,6 +10,20 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
+// countSearchListingsForChatSQL batches per-search listing counts using each search row's caps.
+// Keep in sync with sqlite ListSearchListings filter semantics.
+const countSearchListingsForChatSQL = `
+SELECT lh.search_id, COUNT(*)
+FROM listing_history lh
+INNER JOIN searches s ON s.id = lh.search_id AND s.chat_id = lh.chat_id
+WHERE lh.chat_id = $1
+  AND (s.price_max <= 0 OR lh.price <= s.price_max)
+  AND (s.year_min <= 0 OR lh.year >= s.year_min)
+  AND (s.year_max <= 0 OR lh.year <= s.year_max)
+  AND (s.max_km <= 0 OR (lh.km > 0 AND lh.km <= s.max_km))
+  AND (s.max_hand <= 0 OR lh.hand <= s.max_hand)
+GROUP BY lh.search_id`
+
 const upsertListingSQL = `
 	INSERT INTO listing_history
 	(token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price, km, hand, city, page_link, image_url, engine_volume, horse_power, engine_type, gear_box, description, fitness_score, first_seen_at)
@@ -347,6 +361,25 @@ func (s *Store) CountSearchListings(ctx context.Context, chatID int64, searchID 
 		SELECT COUNT(*) FROM listing_history
 		WHERE chat_id = $1 AND search_id = $2%s`, filterSQL), args...).Scan(&count)
 	return count, err
+}
+
+func (s *Store) CountSearchListingsForChat(ctx context.Context, chatID int64) (map[int64]int64, error) {
+	rows, err := s.db.QueryContext(ctx, countSearchListingsForChatSQL, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[int64]int64)
+	for rows.Next() {
+		var searchID int64
+		var n int64
+		if err := rows.Scan(&searchID, &n); err != nil {
+			return nil, err
+		}
+		out[searchID] = n
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int64, error) {

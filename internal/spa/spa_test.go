@@ -48,6 +48,14 @@ func TestHandler_ServesIndexForSPARoutes(t *testing.T) {
 					t.Errorf("Cache-Control = %q, want %q", got, tt.wantCache)
 				}
 			}
+			if tt.path == "/" || tt.path == "/searches/new" {
+				if got := w.Header().Get("Content-Security-Policy"); got == "" {
+					t.Error("expected Content-Security-Policy on HTML responses")
+				}
+				if got := w.Header().Get("Referrer-Policy"); got != "no-referrer" {
+					t.Errorf("Referrer-Policy = %q, want no-referrer", got)
+				}
+			}
 		})
 	}
 }
