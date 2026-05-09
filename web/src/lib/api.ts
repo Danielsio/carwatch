@@ -1,6 +1,7 @@
 import { getAuthToken } from "@/lib/auth-token";
 
-const BASE_URL = "/api/v1";
+/** Base path for versioned REST API (same origin). */
+export const BASE_URL = "/api/v1";
 
 class ApiError extends Error {
   constructor(

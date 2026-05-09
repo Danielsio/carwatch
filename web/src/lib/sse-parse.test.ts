@@ -43,4 +43,10 @@ describe("feedSSE", () => {
     expect(onData).toHaveBeenNthCalledWith(1, "a");
     expect(onData).toHaveBeenNthCalledWith(2, "b");
   });
+
+  it("strips at most one space after data: per SSE spec", () => {
+    const onData = vi.fn();
+    feedSSE("data:  spaced\n\n", "", onData);
+    expect(onData).toHaveBeenCalledWith(" spaced");
+  });
 });

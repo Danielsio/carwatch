@@ -1,18 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { getAuthToken } from "@/lib/auth-token";
-import { adminApi, type LogEntry } from "@/lib/api";
+import { adminApi, BASE_URL, type LogEntry } from "@/lib/api";
 import { feedSSE } from "@/lib/sse-parse";
 
 const MAX_ENTRIES = 2000;
-const STREAM_URL = "/api/v1/admin/logs/stream";
+const STREAM_URL = `${BASE_URL}/admin/logs/stream`;
 const RECONNECT_MS = 2000;
-
-const STYLE_BY_LEVEL: Record<string, string> = {
-  DEBUG: "color: #8b8b8b",
-  INFO: "color: #3b82f6",
-  WARN: "color: #f59e0b; font-weight: bold",
-  ERROR: "color: #ef4444; font-weight: bold",
-};
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -112,12 +105,6 @@ export function useLogStream(enabled: boolean) {
             sseBuf = feedSSE(text, sseBuf, (payload) => {
               try {
                 const entry: LogEntry = JSON.parse(payload);
-                const style = STYLE_BY_LEVEL[entry.level] ?? "";
-                console.log(
-                  `%c[${entry.component}] ${entry.level}: ${entry.message}`,
-                  style,
-                  entry.attrs ?? "",
-                );
                 if (!cancelled) {
                   setLogs((prev) => {
                     const next = [...prev, entry];

@@ -28,7 +28,8 @@ function dataPayloadFromSSEBlock(block: string): string | null {
   const parts: string[] = [];
   for (const line of lines) {
     if (line.startsWith("data:")) {
-      parts.push(line.slice(5).trimStart());
+      const val = line.slice(5);
+      parts.push(val.startsWith(" ") ? val.slice(1) : val);
     }
   }
   if (parts.length === 0) {
