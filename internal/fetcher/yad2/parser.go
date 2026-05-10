@@ -54,7 +54,7 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 
 	if logger != nil && len(items) > 0 && logger.Enabled(context.Background(), slog.LevelDebug) {
 		var probe feedItem
-		if err := json.Unmarshal(items[0], &probe); err == nil {
+		if err := json.Unmarshal(items[0].raw, &probe); err == nil {
 			logger.Debug("yad2 feed item summary",
 				"token", probe.Token,
 				"km", probe.Km,
@@ -63,14 +63,14 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 				"price", probe.Price,
 			)
 		}
-		logger.Debug("raw feed item sample", "json", string(items[0]))
+		logger.Debug("raw feed item sample", "json", string(items[0].raw))
 	}
 
 	listings := make([]model.RawListing, 0, len(items))
 	seen := make(map[string]struct{}, len(items))
 	skipped := 0
-	for _, item := range items {
-		l, err := itemToListing(item)
+	for _, tagged := range items {
+		l, err := itemToListing(tagged.raw, tagged.commercial)
 		if err != nil {
 			skipped++
 			if logger != nil {
@@ -98,7 +98,26 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 
 var listingKeys = []string{"private", "commercial", "platinum", "solo", "boost"}
 
-func extractItems(nd nextDataEnvelope) ([]json.RawMessage, error) {
+type feedTaggedItem struct {
+	raw        json.RawMessage
+	commercial *bool // nil: legacy feed (unknown); false: private; true: dealer/commercial buckets
+}
+
+// listingKeyCommercial maps Yad2 __NEXT_DATA__ bucket keys to seller type.
+func listingKeyCommercial(key string) *bool {
+	switch key {
+	case "private":
+		v := false
+		return &v
+	case "commercial", "platinum", "solo", "boost":
+		v := true
+		return &v
+	default:
+		return nil
+	}
+}
+
+func extractItems(nd nextDataEnvelope) ([]feedTaggedItem, error) {
 	queries := nd.Props.PageProps.DehydratedState.Queries
 	for _, q := range queries {
 		var bucket map[string]json.RawMessage
@@ -106,8 +125,7 @@ func extractItems(nd nextDataEnvelope) ([]json.RawMessage, error) {
 			continue
 		}
 
-		// New format: listings split across private/commercial/platinum/solo/boost keys.
-		var allItems []json.RawMessage
+		var all []feedTaggedItem
 		found := false
 		for _, key := range listingKeys {
 			raw, ok := bucket[key]
@@ -119,10 +137,13 @@ func extractItems(nd nextDataEnvelope) ([]json.RawMessage, error) {
 				continue
 			}
 			found = true
-			allItems = append(allItems, items...)
+			tag := listingKeyCommercial(key)
+			for _, item := range items {
+				all = append(all, feedTaggedItem{raw: item, commercial: tag})
+			}
 		}
 		if found {
-			return allItems, nil
+			return all, nil
 		}
 
 		// Legacy format: data.feed.feed_items.
@@ -135,18 +156,22 @@ func extractItems(nd nextDataEnvelope) ([]json.RawMessage, error) {
 		}
 		if err := json.Unmarshal(q.State.Data, &legacy); err == nil && legacy.Data.Feed.FeedItems != nil {
 			if string(legacy.Data.Feed.FeedItems) == "null" {
-				return []json.RawMessage{}, nil
+				return []feedTaggedItem{}, nil
 			}
 			var items []json.RawMessage
 			if json.Unmarshal(legacy.Data.Feed.FeedItems, &items) == nil {
-				return items, nil
+				out := make([]feedTaggedItem, 0, len(items))
+				for _, item := range items {
+					out = append(out, feedTaggedItem{raw: item, commercial: nil})
+				}
+				return out, nil
 			}
 		}
 	}
 	return nil, fmt.Errorf("no feed items found in __NEXT_DATA__")
 }
 
-func itemToListing(raw json.RawMessage) (model.RawListing, error) {
+func itemToListing(raw json.RawMessage, commercial *bool) (model.RawListing, error) {
 	var item feedItem
 	if err := json.Unmarshal(raw, &item); err != nil {
 		return model.RawListing{}, err
@@ -203,12 +228,7 @@ func itemToListing(raw json.RawMessage) (model.RawListing, error) {
 			listing.CreatedAt = t
 		}
 	}
-	if updatedAt != "" {
-		if t, err := time.Parse(time.RFC3339, updatedAt); err == nil {
-			listing.UpdatedAt = t
-		}
-	}
-
+	listing.Commercial = commercial
 	return listing, nil
 }
 

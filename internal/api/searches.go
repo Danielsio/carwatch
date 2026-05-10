@@ -24,6 +24,8 @@ type createSearchRequest struct {
 	MaxHand      int    `json:"max_hand"`
 	Keywords     string `json:"keywords"`
 	ExcludeKeys  string `json:"exclude_keys"`
+	// SellerFilter: any (default), private, commercial (also accepts dealer, dealership for commercial).
+	SellerFilter string `json:"seller_filter,omitempty"`
 }
 
 type updateSearchRequest struct {
@@ -35,6 +37,7 @@ type updateSearchRequest struct {
 	MaxHand     int    `json:"max_hand"`
 	Keywords    string `json:"keywords"`
 	ExcludeKeys string `json:"exclude_keys"`
+	SellerFilter *string `json:"seller_filter,omitempty"`
 }
 
 type searchResponse struct {
@@ -53,6 +56,7 @@ type searchResponse struct {
 	MaxHand          int    `json:"max_hand"`
 	Keywords         string `json:"keywords,omitempty"`
 	ExcludeKeys      string `json:"exclude_keys,omitempty"`
+	SellerFilter     string `json:"seller_filter,omitempty"`
 	Active           bool   `json:"active"`
 	CreatedAt        string `json:"created_at"`
 	ListingsCount    int64  `json:"listings_count"`
@@ -123,6 +127,7 @@ func (s *Server) toSearchResponse(sr storage.Search) searchResponse {
 		MaxHand:          sr.MaxHand,
 		Keywords:         sr.Keywords,
 		ExcludeKeys:      sr.ExcludeKeys,
+		SellerFilter:     storage.NormalizeSellerFilter(sr.SellerFilter),
 		Active:           sr.Active,
 		CreatedAt:        sr.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 	}
@@ -235,6 +240,7 @@ func createSearchRecord(chatID int64, name string, req createSearchRequest) stor
 		MaxHand:      req.MaxHand,
 		Keywords:     splitKeywords(req.Keywords),
 		ExcludeKeys:  splitKeywords(req.ExcludeKeys),
+		SellerFilter: storage.NormalizeSellerFilter(req.SellerFilter),
 		Active:       true,
 	}
 }
@@ -362,6 +368,9 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 	existing.MaxHand = req.MaxHand
 	existing.Keywords = splitKeywords(req.Keywords)
 	existing.ExcludeKeys = splitKeywords(req.ExcludeKeys)
+	if req.SellerFilter != nil {
+		existing.SellerFilter = storage.NormalizeSellerFilter(*req.SellerFilter)
+	}
 
 	if err := s.searches.UpdateSearch(r.Context(), *existing); err != nil {
 		if errors.Is(err, storage.ErrNotFound) {

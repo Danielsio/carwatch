@@ -22,12 +22,15 @@ WHERE lh.chat_id = $1
   AND (s.year_max <= 0 OR lh.year <= s.year_max)
   AND (s.max_km <= 0 OR (lh.km > 0 AND lh.km <= s.max_km))
   AND (s.max_hand <= 0 OR lh.hand <= s.max_hand)
+  AND (LOWER(TRIM(COALESCE(NULLIF(s.seller_filter, ''), 'any'))) = 'any'
+       OR (LOWER(TRIM(COALESCE(NULLIF(s.seller_filter, ''), 'any'))) = 'private' AND lh.is_commercial = 0)
+       OR (LOWER(TRIM(COALESCE(NULLIF(s.seller_filter, ''), 'any'))) = 'commercial' AND lh.is_commercial = 1))
 GROUP BY lh.search_id`
 
 const upsertListingSQL = `
 	INSERT INTO listing_history
-	(token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price, km, hand, city, page_link, image_url, engine_volume, horse_power, engine_type, gear_box, description, fitness_score, first_seen_at)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+	(token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price, km, hand, city, page_link, image_url, engine_volume, horse_power, engine_type, gear_box, description, is_commercial, fitness_score, first_seen_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 	ON CONFLICT (token, chat_id) DO UPDATE SET
 		search_id = CASE WHEN EXCLUDED.search_id > 0 THEN EXCLUDED.search_id ELSE listing_history.search_id END,
 		search_name = CASE WHEN EXCLUDED.search_id > 0 THEN EXCLUDED.search_name ELSE listing_history.search_name END,
@@ -46,6 +49,7 @@ const upsertListingSQL = `
 		engine_type = CASE WHEN EXCLUDED.engine_type != '' THEN EXCLUDED.engine_type ELSE listing_history.engine_type END,
 		gear_box = CASE WHEN EXCLUDED.gear_box != '' THEN EXCLUDED.gear_box ELSE listing_history.gear_box END,
 		description = CASE WHEN EXCLUDED.description != '' THEN EXCLUDED.description ELSE listing_history.description END,
+		is_commercial = COALESCE(EXCLUDED.is_commercial, listing_history.is_commercial),
 		fitness_score = EXCLUDED.fitness_score`
 
 type listingScanner interface {
@@ -55,12 +59,14 @@ type listingScanner interface {
 func scanListingRow(sc listingScanner) (storage.ListingRecord, error) {
 	var l storage.ListingRecord
 	var fs sql.NullFloat64
+	var ic sql.NullInt64
 	if err := sc.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model, &l.SubModel,
 		&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.ImageURL,
 		&l.EngineVolume, &l.HorsePower, &l.EngineType, &l.GearBox, &l.Description,
-		&fs, &l.FirstSeenAt); err != nil {
+		&ic, &fs, &l.FirstSeenAt); err != nil {
 		return l, err
 	}
+	l.IsCommercial = storage.ListingCommercialFromSQL(ic)
 	if fs.Valid {
 		l.FitnessScore = &fs.Float64
 	}
@@ -72,6 +78,7 @@ func upsertListingArgs(r storage.ListingRecord) []any {
 		r.Token, r.ChatID, r.SearchID, r.SearchName, r.Manufacturer, r.Model, r.SubModel, r.Year, r.Price,
 		r.Km, r.Hand, r.City, r.PageLink, r.ImageURL,
 		r.EngineVolume, r.HorsePower, r.EngineType, r.GearBox, r.Description,
+		storage.ListingCommercialToSQL(r.IsCommercial),
 		r.FitnessScore, r.FirstSeenAt.UTC(),
 	}
 }
@@ -196,7 +203,7 @@ func (s *Store) GetListing(ctx context.Context, chatID int64, token string) (*st
 		SELECT token, search_name, manufacturer, model, sub_model, year, price,
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
-			fitness_score, first_seen_at
+			is_commercial, fitness_score, first_seen_at
 		FROM listing_history
 		WHERE chat_id = $1 AND token = $2
 		ORDER BY first_seen_at DESC
@@ -216,7 +223,7 @@ func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offse
 		SELECT token, search_name, manufacturer, model, sub_model, year, price,
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
-			fitness_score, first_seen_at
+			is_commercial, fitness_score, first_seen_at
 		FROM listing_history
 		WHERE chat_id = $1
 		ORDER BY first_seen_at DESC, token DESC
@@ -249,7 +256,7 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT token, search_name, manufacturer, model, sub_model, year, price, km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
-			fitness_score, first_seen_at
+			is_commercial, fitness_score, first_seen_at
 		FROM listing_history
 		ORDER BY first_seen_at DESC
 		LIMIT $1`, limit)
@@ -298,6 +305,16 @@ func buildFilterClauses(f storage.ListingFilter, paramStart int) (string, []any,
 		args = append(args, f.MaxHand)
 		n++
 	}
+	if f.Commercial != nil {
+		if *f.Commercial {
+			clauses = append(clauses, fmt.Sprintf("is_commercial = $%d", n))
+			args = append(args, 1)
+		} else {
+			clauses = append(clauses, fmt.Sprintf("is_commercial = $%d", n))
+			args = append(args, 0)
+		}
+		n++
+	}
 	if len(clauses) == 0 {
 		return "", nil, paramStart
 	}
@@ -330,7 +347,7 @@ func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID i
 		SELECT token, search_name, manufacturer, model, sub_model, year, price,
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
-			fitness_score, first_seen_at
+			is_commercial, fitness_score, first_seen_at
 		FROM listing_history
 		WHERE chat_id = $1 AND search_id = $2%s
 		ORDER BY %s
@@ -420,7 +437,7 @@ func (s *Store) ListSaved(ctx context.Context, chatID int64, limit, offset int) 
 		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.sub_model, lh.year, lh.price,
 			lh.km, lh.hand, lh.city, lh.page_link, lh.image_url,
 			lh.engine_volume, lh.horse_power, lh.engine_type, lh.gear_box, lh.description,
-			lh.fitness_score, lh.first_seen_at
+			lh.is_commercial, lh.fitness_score, lh.first_seen_at
 		FROM saved_listings sl
 		JOIN listing_history lh ON sl.token = lh.token AND sl.chat_id = lh.chat_id
 		WHERE sl.chat_id = $1

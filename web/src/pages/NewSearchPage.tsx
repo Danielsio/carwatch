@@ -26,7 +26,14 @@ interface FormData {
   maxHand: number;
   keywords: string;
   excludeKeys: string;
+  sellerFilter: "any" | "private" | "commercial";
 }
+
+const SELLER_FILTER_OPTIONS: { value: FormData["sellerFilter"]; label: string }[] = [
+  { value: "any", label: "הכל" },
+  { value: "private", label: "מוכר פרטי" },
+  { value: "commercial", label: "מוסך / סוכנות" },
+];
 
 const SOURCE_OPTIONS = [
   { value: "yad2", label: "יד2" },
@@ -58,6 +65,7 @@ export function NewSearchPage() {
     maxHand: 0,
     keywords: "",
     excludeKeys: "",
+    sellerFilter: "any",
   });
 
   const { data: manufacturers } = useManufacturers();
@@ -96,6 +104,7 @@ export function NewSearchPage() {
         max_hand: form.maxHand,
         keywords: form.keywords || undefined,
         exclude_keys: form.excludeKeys || undefined,
+        seller_filter: form.sellerFilter,
       },
       {
         onSuccess: () => {
@@ -153,6 +162,24 @@ export function NewSearchPage() {
               onClick={() => set("source", src.value)}
             >
               {src.label}
+            </ChipButton>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
+        <h2 className="text-sm font-semibold text-foreground">סוג מוכר</h2>
+        <p className="text-xs text-muted-foreground">
+          מסנן לפי מודעות ממוכר פרטי או ממוסך/סוכנות (כשהמקור זיהוי זאת במודעה).
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {SELLER_FILTER_OPTIONS.map((opt) => (
+            <ChipButton
+              key={opt.value}
+              selected={form.sellerFilter === opt.value}
+              onClick={() => set("sellerFilter", opt.value)}
+            >
+              {opt.label}
             </ChipButton>
           ))}
         </div>

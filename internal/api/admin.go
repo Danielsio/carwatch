@@ -31,6 +31,7 @@ type adminListingResponse struct {
 	ImageURL     string   `json:"image_url,omitempty"`
 	FitnessScore *float64 `json:"fitness_score,omitempty"`
 	FirstSeenAt  string   `json:"first_seen_at"`
+	IsCommercial *bool    `json:"is_commercial,omitempty"`
 }
 
 type adminStatsResponse struct {
@@ -223,6 +224,7 @@ func (s *Server) adminListListings(w http.ResponseWriter, r *http.Request) {
 			ImageURL:     l.ImageURL,
 			FitnessScore: l.FitnessScore,
 			FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
+			IsCommercial: l.IsCommercial,
 		})
 	}
 
@@ -278,6 +280,10 @@ func (s *Server) adminListSearches(w http.ResponseWriter, r *http.Request) {
 		PriceMax     int    `json:"price_max"`
 		MaxKm        int    `json:"max_km"`
 		MaxHand      int    `json:"max_hand"`
+		EngineMinCC  int    `json:"engine_min_cc"`
+		Keywords     string `json:"keywords,omitempty"`
+		ExcludeKeys  string `json:"exclude_keys,omitempty"`
+		SellerFilter string `json:"seller_filter,omitempty"`
 		Active       bool   `json:"active"`
 		CreatedAt    string `json:"created_at"`
 	}
@@ -296,6 +302,10 @@ func (s *Server) adminListSearches(w http.ResponseWriter, r *http.Request) {
 			PriceMax:     s.PriceMax,
 			MaxKm:        s.MaxKm,
 			MaxHand:      s.MaxHand,
+			EngineMinCC:  s.EngineMinCC,
+			Keywords:     s.Keywords,
+			ExcludeKeys:  s.ExcludeKeys,
+			SellerFilter: storage.NormalizeSellerFilter(s.SellerFilter),
 			Active:       s.Active,
 			CreatedAt:    s.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		})

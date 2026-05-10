@@ -198,6 +198,7 @@ func toListingResponses(records []storage.ListingRecord, saved map[string]bool) 
 			FitnessScore: l.FitnessScore,
 			FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
 			Saved:        savedFlag,
+			IsCommercial: l.IsCommercial,
 		})
 	}
 	return items

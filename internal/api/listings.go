@@ -27,6 +27,8 @@ type listingResponse struct {
 	FitnessScore *float64 `json:"fitness_score,omitempty"`
 	FirstSeenAt  string   `json:"first_seen_at"`
 	Saved        bool     `json:"saved,omitempty"`
+	// IsCommercial: omitted when unknown; false = private seller; true = dealer/commercial.
+	IsCommercial *bool `json:"is_commercial,omitempty"`
 }
 
 type listingsPageResponse struct {
@@ -88,17 +90,27 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		FitnessScore: l.FitnessScore,
 		FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
 		Saved:        savedFlag,
+		IsCommercial: l.IsCommercial,
 	})
 }
 
 func listingFilterFromSearch(sr *storage.Search) storage.ListingFilter {
-	return storage.ListingFilter{
+	f := storage.ListingFilter{
 		PriceMax: sr.PriceMax,
 		YearMin:  sr.YearMin,
 		YearMax:  sr.YearMax,
 		MaxKm:    sr.MaxKm,
 		MaxHand:  sr.MaxHand,
 	}
+	switch storage.NormalizeSellerFilter(sr.SellerFilter) {
+	case storage.SellerFilterPrivate:
+		v := false
+		f.Commercial = &v
+	case storage.SellerFilterCommercial:
+		v := true
+		f.Commercial = &v
+	}
+	return f
 }
 
 func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {

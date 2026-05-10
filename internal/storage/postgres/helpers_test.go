@@ -14,6 +14,8 @@ func TestCountSearchListingsForChatQuery_Contract(t *testing.T) {
 		"s.price_max <= 0 OR lh.price <= s.price_max",
 		"s.year_min <= 0 OR lh.year >= s.year_min",
 		"max_km <= 0 OR (lh.km > 0 AND lh.km <= s.max_km)",
+		"s.seller_filter",
+		"lh.is_commercial",
 		"GROUP BY lh.search_id",
 	} {
 		if !strings.Contains(countSearchListingsForChatSQL, frag) {
@@ -127,6 +129,28 @@ func TestBuildFilterClauses_MaxKmIncludesPositiveCheck(t *testing.T) {
 	}
 	if !strings.Contains(clause, "km > 0") {
 		t.Errorf("MaxKm clause should include 'km > 0' check, got: %s", clause)
+	}
+}
+
+func TestBuildFilterClauses_Commercial(t *testing.T) {
+	tVal := true
+	f := storage.ListingFilter{Commercial: &tVal}
+	clause, args, next := buildFilterClauses(f, 2)
+	if !strings.Contains(clause, "is_commercial = $2") {
+		t.Fatalf("expected is_commercial placeholder, got %q", clause)
+	}
+	if len(args) != 1 || next != 3 {
+		t.Fatalf("args=%v next=%d", args, next)
+	}
+
+	fVal := false
+	f2 := storage.ListingFilter{Commercial: &fVal}
+	clause2, args2, next2 := buildFilterClauses(f2, 1)
+	if !strings.Contains(clause2, "is_commercial = $1") {
+		t.Fatalf("expected private clause, got %q", clause2)
+	}
+	if len(args2) != 1 || next2 != 2 {
+		t.Fatalf("args2=%v next2=%d", args2, next2)
 	}
 }
 

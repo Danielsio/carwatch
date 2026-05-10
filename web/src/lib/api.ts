@@ -78,6 +78,8 @@ export interface Search {
   exclude_keys: string;
   active: boolean;
   created_at: string;
+  /** any | private | commercial */
+  seller_filter?: string;
   /** Total listings found for this search; from API when supported. */
   listings_count?: number;
 }
@@ -95,6 +97,8 @@ export interface CreateSearchRequest {
   max_hand?: number;
   keywords?: string;
   exclude_keys?: string;
+  /** any (default), private, commercial */
+  seller_filter?: string;
 }
 
 export interface Listing {
@@ -118,6 +122,8 @@ export interface Listing {
   first_seen_at: string;
   /** Present when API includes bookmark state */
   saved?: boolean;
+  /** From Yad2 bucket: true = dealer/commercial, false = private, absent when unknown. */
+  is_commercial?: boolean | null;
 }
 
 export interface ListingsResponse {

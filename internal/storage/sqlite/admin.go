@@ -109,7 +109,7 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price,
 				km, hand, city, page_link, image_url,
 				engine_volume, horse_power, engine_type, gear_box, description,
-				fitness_score, first_seen_at
+				is_commercial, fitness_score, first_seen_at
 			FROM listing_history
 			WHERE search_id = ?
 			ORDER BY first_seen_at DESC
@@ -119,7 +119,7 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price,
 				km, hand, city, page_link, image_url,
 				engine_volume, horse_power, engine_type, gear_box, description,
-				fitness_score, first_seen_at
+				is_commercial, fitness_score, first_seen_at
 			FROM listing_history
 			ORDER BY first_seen_at DESC
 			LIMIT ? OFFSET ?`, limit, offset)
@@ -133,16 +133,18 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 	for rows.Next() {
 		var r storage.ListingRecord
 		var score *float64
+		var ic sql.NullInt64
 		var firstSeen string
 		if err := rows.Scan(
 			&r.Token, &r.ChatID, &r.SearchID, &r.SearchName,
 			&r.Manufacturer, &r.Model, &r.SubModel, &r.Year, &r.Price,
 			&r.Km, &r.Hand, &r.City, &r.PageLink, &r.ImageURL,
 			&r.EngineVolume, &r.HorsePower, &r.EngineType, &r.GearBox, &r.Description,
-			&score, &firstSeen,
+			&ic, &score, &firstSeen,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan listing: %w", err)
 		}
+		r.IsCommercial = storage.ListingCommercialFromSQL(ic)
 		r.FitnessScore = score
 		parsed, parseErr := parseFlexibleTime(firstSeen)
 		if parseErr != nil {
@@ -166,7 +168,8 @@ func (s *Store) AdminDeleteListing(ctx context.Context, token string, chatID int
 func (s *Store) AdminListSearches(ctx context.Context) ([]storage.Search, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max,
-			price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, active, created_at,
+			price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys,
+			COALESCE(seller_filter, 'any'), active, created_at,
 			COALESCE(share_token, '')
 		FROM searches
 		ORDER BY created_at DESC`)
