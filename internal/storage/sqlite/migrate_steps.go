@@ -668,3 +668,29 @@ func migrateListingVehicleDetails(db *sql.DB) error {
 	}
 	return nil
 }
+
+func migrateSellerFilterAndListingCommercial(db *sql.DB) error {
+	var hasSF int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('searches') WHERE name = 'seller_filter'",
+	).Scan(&hasSF); err != nil {
+		return fmt.Errorf("check searches seller_filter: %w", err)
+	}
+	if hasSF == 0 {
+		if _, err := db.Exec(`ALTER TABLE searches ADD COLUMN seller_filter TEXT NOT NULL DEFAULT 'any'`); err != nil {
+			return fmt.Errorf("add searches seller_filter: %w", err)
+		}
+	}
+	var hasIC int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('listing_history') WHERE name = 'is_commercial'",
+	).Scan(&hasIC); err != nil {
+		return fmt.Errorf("check listing_history is_commercial: %w", err)
+	}
+	if hasIC == 0 {
+		if _, err := db.Exec(`ALTER TABLE listing_history ADD COLUMN is_commercial INTEGER`); err != nil {
+			return fmt.Errorf("add listing_history is_commercial: %w", err)
+		}
+	}
+	return nil
+}

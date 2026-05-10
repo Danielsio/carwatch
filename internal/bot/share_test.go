@@ -46,6 +46,7 @@ func TestCloneSearch(t *testing.T) {
 		EngineMinCC:  2000,
 		MaxKm:        120000,
 		MaxHand:      3,
+		SellerFilter: storage.SellerFilterCommercial,
 	})
 	if err != nil {
 		t.Fatalf("create source search: %v", err)
@@ -69,6 +70,7 @@ func TestCloneSearch(t *testing.T) {
 		EngineMinCC:  src.EngineMinCC,
 		MaxKm:        src.MaxKm,
 		MaxHand:      src.MaxHand,
+		SellerFilter: src.SellerFilter,
 	})
 	if err != nil {
 		t.Fatalf("clone search: %v", err)
@@ -108,6 +110,9 @@ func TestCloneSearch(t *testing.T) {
 	}
 	if clone.MaxHand != src.MaxHand {
 		t.Errorf("MaxHand = %d, want %d", clone.MaxHand, src.MaxHand)
+	}
+	if storage.NormalizeSellerFilter(clone.SellerFilter) != storage.NormalizeSellerFilter(src.SellerFilter) {
+		t.Errorf("SellerFilter = %q, want %q", clone.SellerFilter, src.SellerFilter)
 	}
 	if clone.Name != src.Name {
 		t.Errorf("Name = %q, want %q", clone.Name, src.Name)

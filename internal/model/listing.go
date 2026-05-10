@@ -25,6 +25,8 @@ type RawListing struct {
 	Description  string
 	ImageURL     string
 	PageLink     string
+	// Commercial: nil unknown; false private; true dealer/commercial (Yad2 feed bucket).
+	Commercial *bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

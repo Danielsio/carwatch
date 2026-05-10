@@ -27,6 +27,8 @@ func seedUser(t *testing.T, store *Store, chatID int64) {
 	}
 }
 
+func ptrBool(b bool) *bool { return &b }
+
 // --- User Tests ---
 
 func TestUpsertUser(t *testing.T) {
@@ -2265,12 +2267,14 @@ func TestListSearchListings(t *testing.T) {
 	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "lsl-1", ChatID: 100, SearchID: idMazda3, SearchName: "mazda3",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 120000, Km: 50000, Hand: 2,
+		IsCommercial: ptrBool(true),
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "lsl-2", ChatID: 100, SearchID: idMazda3, SearchName: "mazda3",
 		Manufacturer: "Mazda", Model: "3", Year: 2022, Price: 90000, Km: 30000, Hand: 1,
+		IsCommercial: ptrBool(false),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -2395,6 +2399,16 @@ func TestListSearchListings(t *testing.T) {
 				filter: storage.ListingFilter{PriceMax: 50000},
 				want:   nil,
 			},
+			{
+				name:   "is_commercial private only",
+				filter: storage.ListingFilter{Commercial: ptrBool(false)},
+				want:   []string{"lsl-2"},
+			},
+			{
+				name:   "is_commercial dealer only",
+				filter: storage.ListingFilter{Commercial: ptrBool(true)},
+				want:   []string{"lsl-1"},
+			},
 		}
 
 		for _, tc := range cases {
@@ -2489,6 +2503,51 @@ func TestCountSearchListingsForChat(t *testing.T) {
 	}
 	if int64(got[idCapped]) != wantCapped {
 		t.Errorf("batch capped %d vs CountSearchListings %d", got[idCapped], wantCapped)
+	}
+}
+
+func TestCountSearchListingsForChat_SellerFilter(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	idPriv, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "seller_priv", Source: "yad2",
+		Manufacturer: 8, Model: 10061, Active: true,
+		SellerFilter: storage.SellerFilterPrivate,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "sf-1", ChatID: 100, SearchID: idPriv, SearchName: "seller_priv",
+		Manufacturer: "Mazda", Model: "3", Year: 2022, Price: 90000, Km: 30000, Hand: 1,
+		IsCommercial: ptrBool(false),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "sf-2", ChatID: 100, SearchID: idPriv, SearchName: "seller_priv",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 120000, Km: 50000, Hand: 2,
+		IsCommercial: ptrBool(true),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.CountSearchListingsForChat(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[idPriv] != 1 {
+		t.Fatalf("batch count: got %d, want 1", got[idPriv])
+	}
+	f := storage.ListingFilter{Commercial: ptrBool(false)}
+	want, err := store.CountSearchListings(ctx, 100, idPriv, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want != 1 {
+		t.Fatalf("CountSearchListings: got %d, want 1", want)
 	}
 }
 

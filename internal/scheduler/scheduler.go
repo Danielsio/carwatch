@@ -988,6 +988,7 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 			City: l.City, PageLink: l.PageLink, ImageURL: l.ImageURL,
 			EngineVolume: l.EngineVolume, HorsePower: l.HorsePower,
 			EngineType: l.EngineType, GearBox: l.GearBox, Description: l.Description,
+			IsCommercial: l.Commercial,
 			FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
 		}); err != nil {
 			s.logger.Error("save price-drop listing failed",
@@ -1045,6 +1046,7 @@ func buildNotifications(search storage.Search, listing model.Listing, out *searc
 		City: listing.City, PageLink: listing.PageLink, ImageURL: listing.ImageURL,
 		EngineVolume: listing.EngineVolume, HorsePower: listing.HorsePower,
 		EngineType: listing.EngineType, GearBox: listing.GearBox, Description: listing.Description,
+		IsCommercial: listing.Commercial,
 		FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
 	})
 }
@@ -1053,6 +1055,9 @@ func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Se
 	var out searchResult
 	hidden := s.loadHiddenTokens(ctx, search.ChatID)
 	for _, l := range filterHiddenListings(filtered, hidden) {
+		if !storage.RawListingMatchesSellerFilter(l.Commercial, search.SellerFilter) {
+			continue
+		}
 		isNew, ok := s.deduplicateListings(ctx, l.Token, search.ChatID, search.ID)
 		if !ok {
 			continue

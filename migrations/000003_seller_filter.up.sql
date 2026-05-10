@@ -1,0 +1,3 @@
+ALTER TABLE searches ADD COLUMN IF NOT EXISTS seller_filter TEXT NOT NULL DEFAULT 'any';
+
+ALTER TABLE listing_history ADD COLUMN IF NOT EXISTS is_commercial INTEGER;

@@ -15,6 +15,24 @@ import { useToast } from "@/components/ui/Toast";
 
 const HAND_OPTIONS = [0, 1, 2, 3, 4];
 
+const SELLER_FILTER_OPTIONS: {
+  value: "any" | "private" | "commercial";
+  label: string;
+}[] = [
+  { value: "any", label: "הכל" },
+  { value: "private", label: "מוכר פרטי" },
+  { value: "commercial", label: "מוסך / סוכנות" },
+];
+
+function normalizeSellerFilter(v: string | undefined): "any" | "private" | "commercial" {
+  const s = (v ?? "any").toLowerCase().trim();
+  if (s === "private") return "private";
+  if (s === "commercial" || s === "dealer" || s === "dealership") {
+    return "commercial";
+  }
+  return "any";
+}
+
 function formatKmLabel(value: number): string {
   if (value === 0) return "ללא הגבלה";
   return `${value.toLocaleString("he-IL")} ק"מ`;
@@ -38,6 +56,7 @@ export function EditSearchPage() {
     maxHand: 0,
     keywords: "",
     excludeKeys: "",
+    sellerFilter: "any" as "any" | "private" | "commercial",
   });
 
   const initializedSearchIdRef = useRef<number | null>(null);
@@ -53,6 +72,7 @@ export function EditSearchPage() {
         maxHand: search.max_hand,
         keywords: search.keywords,
         excludeKeys: search.exclude_keys,
+        sellerFilter: normalizeSellerFilter(search.seller_filter),
       });
       initializedSearchIdRef.current = search.id;
     }
@@ -83,6 +103,7 @@ export function EditSearchPage() {
           max_hand: form.maxHand,
           keywords: form.keywords || undefined,
           exclude_keys: form.excludeKeys || undefined,
+          seller_filter: form.sellerFilter,
         },
       },
       {
@@ -236,6 +257,24 @@ export function EditSearchPage() {
             ))}
           </div>
         </FormField>
+
+        <div className="space-y-3">
+          <h3 className="text-xs font-medium text-muted-foreground">סוג מוכר</h3>
+          <p className="text-xs text-muted-foreground">
+            מסנן לפי מודעות ממוכר פרטי או ממוסך/סוכנות.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {SELLER_FILTER_OPTIONS.map((opt) => (
+              <ChipButton
+                key={opt.value}
+                selected={form.sellerFilter === opt.value}
+                onClick={() => set("sellerFilter", opt.value)}
+              >
+                {opt.label}
+              </ChipButton>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-5">

@@ -46,6 +46,8 @@ type Search struct {
 	MaxHand      int
 	Keywords     string
 	ExcludeKeys  string
+	// SellerFilter: any (default), private (מוכר פרטי), commercial (מוסך/סוכנות).
+	SellerFilter string
 	Active       bool
 	CreatedAt    time.Time
 	ShareToken   string
@@ -146,6 +148,8 @@ type ListingRecord struct {
 	EngineType   string
 	GearBox      string
 	Description  string
+	// IsCommercial: nil = unknown; false = private seller; true = dealer/commercial (Yad2 bucket).
+	IsCommercial *bool
 	FitnessScore *float64
 	FirstSeenAt  time.Time
 }
@@ -170,6 +174,8 @@ type ListingFilter struct {
 	YearMax  int
 	MaxKm    int
 	MaxHand  int
+	// Commercial: non-nil restricts to private (false) or commercial/dealer (true).
+	Commercial *bool
 }
 
 type ListingStore interface {
