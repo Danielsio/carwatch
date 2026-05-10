@@ -4,9 +4,12 @@ import {
   ExternalLink,
   Bookmark,
   Car,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useListings } from "@/hooks/useListings";
 import { useSaveBookmark, useRemoveBookmark } from "@/hooks/useBookmarks";
+import { useMarkListingSeen, useUnmarkListingSeen } from "@/hooks/useListingSeen";
 import { safeHref, cn, formatPrice } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { ListingCardBody } from "@/components/ListingCardBody";
@@ -159,12 +162,19 @@ function ListingCard({ listing }: { listing: Listing }) {
   const navigate = useNavigate();
   const saveBookmark = useSaveBookmark();
   const removeBookmark = useRemoveBookmark();
+  const markListingSeen = useMarkListingSeen();
+  const unmarkListingSeen = useUnmarkListingSeen();
   const { toast } = useToast();
   const [saved, setSaved] = useState(() => listing.saved ?? false);
+  const [seen, setSeen] = useState(() => listing.seen ?? false);
 
   useEffect(() => {
     setSaved(listing.saved ?? false);
   }, [listing.token, listing.saved]);
+
+  useEffect(() => {
+    setSeen(listing.seen ?? false);
+  }, [listing.token, listing.seen]);
 
   return (
     <div
@@ -190,6 +200,32 @@ function ListingCard({ listing }: { listing: Listing }) {
         showBookmarkOverlay={saved}
         actions={
           <>
+            <button
+              type="button"
+              aria-label={seen ? "החזר לרשימת החדשות" : "סמן כנצפה"}
+              aria-pressed={seen}
+              onClick={(e) => {
+                e.stopPropagation();
+                const next = !seen;
+                setSeen(next);
+                const mutation = next ? markListingSeen : unmarkListingSeen;
+                mutation.mutate(listing.token, {
+                  onError: () => setSeen(!next),
+                });
+              }}
+              className={cn(
+                "rounded-lg p-1.5 transition-all duration-200",
+                seen
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-primary/5 hover:text-primary",
+              )}
+            >
+              {seen ? (
+                <EyeOff className="h-3.5 w-3.5" />
+              ) : (
+                <Eye className="h-3.5 w-3.5" />
+              )}
+            </button>
             <button
               type="button"
               aria-label={saved ? "הסר משמורים" : "שמור מודעה"}

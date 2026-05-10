@@ -27,6 +27,8 @@ type listingResponse struct {
 	FitnessScore *float64 `json:"fitness_score,omitempty"`
 	FirstSeenAt  string   `json:"first_seen_at"`
 	Saved        bool     `json:"saved,omitempty"`
+	// Seen: user dismissed this listing from the new-items feed (notifications).
+	Seen         bool     `json:"seen,omitempty"`
 	// IsCommercial: omitted when unknown; false = private seller; true = dealer/commercial.
 	IsCommercial *bool `json:"is_commercial,omitempty"`
 }
@@ -69,6 +71,12 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	seenFlag := false
+	seenMap := s.seenLookupForRecords(r.Context(), chatID, []storage.ListingRecord{{Token: token}})
+	if seenMap != nil && seenMap[token] {
+		seenFlag = true
+	}
+
 	writeJSON(w, http.StatusOK, listingResponse{
 		Token:        l.Token,
 		SearchName:   l.SearchName,
@@ -90,6 +98,7 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		FitnessScore: l.FitnessScore,
 		FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
 		Saved:        savedFlag,
+		Seen:         seenFlag,
 		IsCommercial: l.IsCommercial,
 	})
 }
@@ -166,9 +175,10 @@ func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	savedMap := s.savedLookupForRecords(r.Context(), chatID, listings)
+	seenMap := s.seenLookupForRecords(r.Context(), chatID, listings)
 
 	writeJSON(w, http.StatusOK, listingsPageResponse{
-		Items:  toListingResponses(listings, savedMap),
+		Items:  toListingResponses(listings, savedMap, seenMap),
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,

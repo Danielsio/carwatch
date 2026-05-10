@@ -73,6 +73,7 @@ var purgeable = map[string]bool{
 	"listing_history":         true,
 	"price_history":           true,
 	"seen_listings":           true,
+	"listing_user_seen":       true,
 	"pending_notifications":   true,
 	"saved_listings":          true,
 	"hidden_listings":         true,
@@ -215,7 +216,7 @@ func (s *Store) AdminDeleteUser(ctx context.Context, chatID int64) error {
 	defer func() { _ = tx.Rollback() }()
 
 	for _, table := range []string{
-		"searches", "listing_history", "seen_listings",
+		"searches", "listing_history", "seen_listings", "listing_user_seen",
 		"saved_listings", "hidden_listings",
 		"pending_digest",
 	} {

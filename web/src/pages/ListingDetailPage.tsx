@@ -1,5 +1,6 @@
 import { useLocation, Link, useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, type ReactNode } from "react";
 import type { ComponentType } from "react";
 import {
   ArrowRight,
@@ -13,6 +14,8 @@ import {
   Fuel,
   Cog,
   Zap,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, safeHref } from "@/lib/utils";
 import { api, ApiError } from "@/lib/api";
@@ -20,6 +23,7 @@ import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
+import { useMarkListingSeen, useUnmarkListingSeen } from "@/hooks/useListingSeen";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 
@@ -122,15 +126,40 @@ export function ListingDetailPage() {
     return null;
   }
 
+  return (
+    <ListingDetailContent
+      listing={listing}
+      backButton={
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground -mr-2">
+          <ArrowRight className="h-4 w-4" />
+          חזרה לתוצאות
+        </Button>
+      }
+    />
+  );
+}
+
+function ListingDetailContent({
+  listing,
+  backButton,
+}: {
+  listing: Listing;
+  backButton: ReactNode;
+}) {
+  const markSeen = useMarkListingSeen();
+  const unmarkSeen = useUnmarkListingSeen();
+  const [seen, setSeen] = useState(() => listing.seen ?? false);
+
+  useEffect(() => {
+    setSeen(listing.seen ?? false);
+  }, [listing.token, listing.seen]);
+
   const hasVehicleSpecs =
     listing.engine_volume || listing.horse_power || listing.engine_type || listing.gear_box;
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground -mr-2">
-        <ArrowRight className="h-4 w-4" />
-        חזרה לתוצאות
-      </Button>
+      {backButton}
 
       {/* Hero image */}
       {listing.image_url ? (
@@ -220,18 +249,44 @@ export function ListingDetailPage() {
         {relativeTime(listing.first_seen_at)}
       </div>
 
-      {safeHref(listing.page_link) && (
+      <div className="flex flex-wrap gap-3">
         <Button
-          as="a"
-          href={safeHref(listing.page_link)!}
-          target="_blank"
-          rel="noopener noreferrer"
+          type="button"
+          variant="secondary"
           size="lg"
+          disabled={seen ? unmarkSeen.isPending : markSeen.isPending}
+          onClick={() => {
+            const next = !seen;
+            setSeen(next);
+            const mutation = next ? markSeen : unmarkSeen;
+            mutation.mutate(listing.token, { onError: () => setSeen(!next) });
+          }}
         >
-          <ExternalLink className="h-4 w-4" />
-          צפה במודעה המקורית
+          {seen ? (
+            <>
+              <EyeOff className="h-4 w-4" />
+              החזר לחדשות
+            </>
+          ) : (
+            <>
+              <Eye className="h-4 w-4" />
+              סמן כנצפה
+            </>
+          )}
         </Button>
-      )}
+        {safeHref(listing.page_link) ? (
+          <Button
+            as="a"
+            href={safeHref(listing.page_link)!}
+            target="_blank"
+            rel="noopener noreferrer"
+            size="lg"
+          >
+            <ExternalLink className="h-4 w-4" />
+            צפה במודעה המקורית
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -269,5 +269,9 @@ type NotificationStore interface {
 	NewListingsSince(ctx context.Context, chatID int64, since time.Time, limit, offset int) ([]ListingRecord, error)
 	CountNewListingsSince(ctx context.Context, chatID int64, since time.Time) (int64, error)
 	GetLastSeenAt(ctx context.Context, chatID int64) (time.Time, error)
+	// MarkListingUserSeen removes a listing from the user's "new" notification feed (per token).
+	MarkListingUserSeen(ctx context.Context, chatID int64, token string) error
+	UnmarkListingUserSeen(ctx context.Context, chatID int64, token string) error
+	ListingUserSeenAmong(ctx context.Context, chatID int64, tokens []string) (map[string]bool, error)
 }
 

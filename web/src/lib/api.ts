@@ -122,6 +122,8 @@ export interface Listing {
   first_seen_at: string;
   /** Present when API includes bookmark state */
   saved?: boolean;
+  /** User dismissed this listing from the new / notifications feed */
+  seen?: boolean;
   /** From Yad2 bucket: true = dealer/commercial, false = private, absent when unknown. */
   is_commercial?: boolean | null;
 }
@@ -171,6 +173,14 @@ export const api = {
       fetchAPI<void>(`/searches/${id}/resume`, { method: "POST" }),
   },
   listing: (token: string) => fetchAPI<Listing>(`/listings/${encodeURIComponent(token)}`),
+  markListingSeen: (token: string) =>
+    fetchAPI<void>(`/listings/${encodeURIComponent(token)}/seen`, {
+      method: "POST",
+    }),
+  unmarkListingSeen: (token: string) =>
+    fetchAPI<void>(`/listings/${encodeURIComponent(token)}/seen`, {
+      method: "DELETE",
+    }),
   saved: {
     list: (params?: ListingsParams) => {
       const query = new URLSearchParams();

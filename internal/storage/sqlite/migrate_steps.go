@@ -694,3 +694,28 @@ func migrateSellerFilterAndListingCommercial(db *sql.DB) error {
 	}
 	return nil
 }
+
+func migrateListingUserSeen(db *sql.DB) error {
+	var n int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='listing_user_seen'",
+	).Scan(&n); err != nil {
+		return fmt.Errorf("check listing_user_seen table: %w", err)
+	}
+	if n > 0 {
+		return nil
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE listing_user_seen (
+			chat_id  INTEGER NOT NULL,
+			token    TEXT NOT NULL,
+			seen_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (chat_id, token)
+		)`); err != nil {
+		return fmt.Errorf("create listing_user_seen: %w", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_listing_user_seen_chat ON listing_user_seen (chat_id)`); err != nil {
+		return fmt.Errorf("index listing_user_seen: %w", err)
+	}
+	return nil
+}
