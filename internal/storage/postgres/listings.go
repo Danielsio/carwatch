@@ -22,9 +22,13 @@ WHERE lh.chat_id = $1
   AND (s.year_max <= 0 OR lh.year <= s.year_max)
   AND (s.max_km <= 0 OR (lh.km > 0 AND lh.km <= s.max_km))
   AND (s.max_hand <= 0 OR lh.hand <= s.max_hand)
-  AND (LOWER(TRIM(COALESCE(NULLIF(s.seller_filter, ''), 'any'))) = 'any'
-       OR (LOWER(TRIM(COALESCE(NULLIF(s.seller_filter, ''), 'any'))) = 'private' AND lh.is_commercial = 0)
-       OR (LOWER(TRIM(COALESCE(NULLIF(s.seller_filter, ''), 'any'))) = 'commercial' AND lh.is_commercial = 1))
+  AND CASE LOWER(TRIM(COALESCE(NULLIF(s.seller_filter, ''), 'any')))
+    WHEN 'private' THEN lh.is_commercial = 0
+    WHEN 'commercial' THEN lh.is_commercial = 1
+    WHEN 'dealer' THEN lh.is_commercial = 1
+    WHEN 'dealership' THEN lh.is_commercial = 1
+    ELSE TRUE
+  END
 GROUP BY lh.search_id`
 
 const upsertListingSQL = `

@@ -282,8 +282,13 @@ export interface AdminSearch {
   year_min: number;
   year_max: number;
   price_max: number;
+  engine_min_cc: number;
   max_km: number;
   max_hand: number;
+  keywords?: string;
+  exclude_keys?: string;
+  /** any | private | commercial */
+  seller_filter?: string;
   active: boolean;
   created_at: string;
 }

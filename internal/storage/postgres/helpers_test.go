@@ -15,6 +15,7 @@ func TestCountSearchListingsForChatQuery_Contract(t *testing.T) {
 		"s.year_min <= 0 OR lh.year >= s.year_min",
 		"max_km <= 0 OR (lh.km > 0 AND lh.km <= s.max_km)",
 		"s.seller_filter",
+		"WHEN 'dealer'",
 		"lh.is_commercial",
 		"GROUP BY lh.search_id",
 	} {
