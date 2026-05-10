@@ -1260,3 +1260,67 @@ func TestNotificationsMarkSeen(t *testing.T) {
 		t.Errorf("expected 0 after mark seen, got %d", countResp.Count)
 	}
 }
+
+func TestMarkListingUserSeen(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	setLastSeenAt(t, store, 999, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "seen-token-1", ChatID: 999, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		FirstSeenAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var countResp notifCountResponse
+	w := doRequest(t, srv, "GET", "/api/v1/notifications/count", nil)
+	mustUnmarshal(t, w.Body.Bytes(), &countResp)
+	if countResp.Count != 1 {
+		t.Fatalf("expected count 1 before per-listing seen, got %d", countResp.Count)
+	}
+
+	w = doRequest(t, srv, "POST", "/api/v1/listings/seen-token-1/seen", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("mark listing seen: expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequest(t, srv, "GET", "/api/v1/notifications/count", nil)
+	mustUnmarshal(t, w.Body.Bytes(), &countResp)
+	if countResp.Count != 0 {
+		t.Errorf("expected count 0 after per-listing seen, got %d", countResp.Count)
+	}
+
+	w = doRequest(t, srv, "GET", "/api/v1/notifications", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list notifications: expected 200, got %d", w.Code)
+	}
+	var listResp listingsPageResponse
+	mustUnmarshal(t, w.Body.Bytes(), &listResp)
+	if listResp.Total != 0 {
+		t.Errorf("expected 0 notification rows, got %d", listResp.Total)
+	}
+
+	w = doRequest(t, srv, "GET", "/api/v1/listings/seen-token-1", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get listing: expected 200, got %d", w.Code)
+	}
+	var one listingResponse
+	mustUnmarshal(t, w.Body.Bytes(), &one)
+	if !one.Seen {
+		t.Error("expected listing.seen true")
+	}
+
+	w = doRequest(t, srv, "DELETE", "/api/v1/listings/seen-token-1/seen", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unmark listing seen: expected 204, got %d", w.Code)
+	}
+
+	w = doRequest(t, srv, "GET", "/api/v1/notifications/count", nil)
+	mustUnmarshal(t, w.Body.Bytes(), &countResp)
+	if countResp.Count != 1 {
+		t.Errorf("expected count 1 after unmark, got %d", countResp.Count)
+	}
+}

@@ -63,7 +63,7 @@ func (s *Server) listNotifications(w http.ResponseWriter, r *http.Request) {
 	savedMap := s.savedLookupForRecords(r.Context(), chatID, listings)
 
 	writeJSON(w, http.StatusOK, listingsPageResponse{
-		Items:  toListingResponses(listings, savedMap),
+		Items:  toListingResponses(listings, savedMap, nil),
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,

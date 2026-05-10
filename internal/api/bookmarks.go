@@ -73,9 +73,10 @@ func (s *Server) listSaved(w http.ResponseWriter, r *http.Request) {
 	for _, l := range listings {
 		savedMap[l.Token] = true
 	}
+	seenMap := s.seenLookupForRecords(r.Context(), chatID, listings)
 
 	writeJSON(w, http.StatusOK, listingsPageResponse{
-		Items:  toListingResponses(listings, savedMap),
+		Items:  toListingResponses(listings, savedMap, seenMap),
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,
@@ -145,9 +146,10 @@ func (s *Server) listHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	savedMap := s.savedLookupForRecords(r.Context(), chatID, listings)
+	seenMap := s.seenLookupForRecords(r.Context(), chatID, listings)
 
 	writeJSON(w, http.StatusOK, listingsPageResponse{
-		Items:  toListingResponses(listings, savedMap),
+		Items:  toListingResponses(listings, savedMap, seenMap),
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,
@@ -170,12 +172,32 @@ func (s *Server) savedLookupForRecords(ctx context.Context, chatID int64, record
 	return m
 }
 
-func toListingResponses(records []storage.ListingRecord, saved map[string]bool) []listingResponse {
+func (s *Server) seenLookupForRecords(ctx context.Context, chatID int64, records []storage.ListingRecord) map[string]bool {
+	if s.notifs == nil || len(records) == 0 {
+		return nil
+	}
+	tokens := make([]string, len(records))
+	for i, l := range records {
+		tokens[i] = l.Token
+	}
+	m, err := s.notifs.ListingUserSeenAmong(ctx, chatID, tokens)
+	if err != nil {
+		s.logger.Error("listing seen among", "error", err)
+		return nil
+	}
+	return m
+}
+
+func toListingResponses(records []storage.ListingRecord, saved, seen map[string]bool) []listingResponse {
 	items := make([]listingResponse, 0, len(records))
 	for _, l := range records {
 		savedFlag := false
 		if saved != nil && saved[l.Token] {
 			savedFlag = true
+		}
+		seenFlag := false
+		if seen != nil && seen[l.Token] {
+			seenFlag = true
 		}
 		items = append(items, listingResponse{
 			Token:        l.Token,
@@ -198,6 +220,7 @@ func toListingResponses(records []storage.ListingRecord, saved map[string]bool) 
 			FitnessScore: l.FitnessScore,
 			FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
 			Saved:        savedFlag,
+			Seen:         seenFlag,
 			IsCommercial: l.IsCommercial,
 		})
 	}

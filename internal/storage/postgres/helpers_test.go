@@ -178,6 +178,7 @@ func TestPurgeableAllowlist(t *testing.T) {
 		"listing_history",
 		"price_history",
 		"seen_listings",
+		"listing_user_seen",
 		"pending_notifications",
 		"saved_listings",
 		"hidden_listings",

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { Bell } from "lucide-react";
+import { Bell, Eye } from "lucide-react";
 import {
   useNotifications,
   useMarkNotificationsSeen,
 } from "@/hooks/useNotifications";
+import { useMarkListingSeen } from "@/hooks/useListingSeen";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { ListingCardBody } from "@/components/ListingCardBody";
 import {
@@ -23,17 +24,8 @@ const PAGE_SIZE = 20;
 export function NotificationsPage() {
   usePageTitle("התראות");
   const [offset, setOffset] = useState(0);
-  const { data, isLoading, isSuccess, isFetching, isError } =
-    useNotifications(PAGE_SIZE, offset);
+  const { data, isLoading, isError } = useNotifications(PAGE_SIZE, offset);
   const markSeen = useMarkNotificationsSeen();
-  const markedRef = useRef(false);
-
-  useEffect(() => {
-    if (!markedRef.current && isSuccess && !isFetching) {
-      markedRef.current = true;
-      markSeen.mutate();
-    }
-  }, [isSuccess, isFetching, markSeen]);
 
   useEffect(() => {
     if (!data || data.total === 0) return;
@@ -74,9 +66,20 @@ export function NotificationsPage() {
         title="התראות"
         action={
           data && data.total > 0 ? (
-            <span className="text-sm text-muted-foreground tabular-nums">
-              ({data.total} חדשות)
-            </span>
+            <div className="flex flex-wrap items-center gap-2 justify-end">
+              <span className="text-sm text-muted-foreground tabular-nums">
+                ({data.total} חדשות)
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={markSeen.isPending}
+                onClick={() => markSeen.mutate()}
+              >
+                סמן הכל כנקרא
+              </Button>
+            </div>
           ) : null
         }
       />
@@ -120,17 +123,30 @@ export function NotificationsPage() {
 }
 
 function NotificationCard({ listing }: { listing: Listing }) {
+  const markOne = useMarkListingSeen();
+
   return (
-    <Link
-      to={`/listings/${listing.token}`}
-      aria-label={`פתח מודעה: ${listing.manufacturer} ${listing.model}`}
-      className="group block rounded-2xl border border-border/50 bg-card overflow-hidden transition-all duration-300 hover:border-border hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:-translate-y-0.5"
-    >
-      <ListingCardBody
-        listing={listing}
-        hoverScale
-        showBookmarkOverlay={!!listing.saved}
-      />
-    </Link>
+    <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-card transition-all duration-300 hover:border-border hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:-translate-y-0.5">
+      <button
+        type="button"
+        className="absolute top-2 end-2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-background/90 text-muted-foreground shadow-sm ring-1 ring-border/60 backdrop-blur-[2px] hover:bg-background hover:text-foreground"
+        aria-label="סמן כנצפה והסר מהחדשות"
+        disabled={markOne.isPending}
+        onClick={() => markOne.mutate(listing.token)}
+      >
+        <Eye className="h-4 w-4" />
+      </button>
+      <Link
+        to={`/listings/${listing.token}`}
+        aria-label={`פתח מודעה: ${listing.manufacturer} ${listing.model}`}
+        className="group block"
+      >
+        <ListingCardBody
+          listing={listing}
+          hoverScale
+          showBookmarkOverlay={!!listing.saved}
+        />
+      </Link>
+    </div>
   );
 }

@@ -14,9 +14,13 @@ func (s *Store) NewListingsSince(ctx context.Context, chatID int64, since time.T
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
 			is_commercial, fitness_score, first_seen_at
-		FROM listing_history
-		WHERE chat_id = ? AND first_seen_at > ?
-		ORDER BY first_seen_at DESC, token DESC
+		FROM listing_history lh
+		WHERE lh.chat_id = ? AND lh.first_seen_at > ?
+		AND NOT EXISTS (
+			SELECT 1 FROM listing_user_seen u
+			WHERE u.chat_id = lh.chat_id AND u.token = lh.token
+		)
+		ORDER BY lh.first_seen_at DESC, lh.token DESC
 		LIMIT ? OFFSET ?`, chatID, since, limit, offset)
 	if err != nil {
 		return nil, err
@@ -37,7 +41,12 @@ func (s *Store) NewListingsSince(ctx context.Context, chatID int64, since time.T
 func (s *Store) CountNewListingsSince(ctx context.Context, chatID int64, since time.Time) (int64, error) {
 	var count int64
 	err := s.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM listing_history WHERE chat_id = ? AND first_seen_at > ?",
+		`SELECT COUNT(*) FROM listing_history lh
+		WHERE lh.chat_id = ? AND lh.first_seen_at > ?
+		AND NOT EXISTS (
+			SELECT 1 FROM listing_user_seen u
+			WHERE u.chat_id = lh.chat_id AND u.token = lh.token
+		)`,
 		chatID, since).Scan(&count)
 	return count, err
 }

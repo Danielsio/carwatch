@@ -192,6 +192,8 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /api/v1/notifications", s.listNotifications)
 		mux.HandleFunc("GET /api/v1/notifications/count", s.notificationCount)
 		mux.HandleFunc("POST /api/v1/notifications/seen", s.markNotificationsSeen)
+		mux.HandleFunc("POST /api/v1/listings/{token}/seen", s.markListingSeen)
+		mux.HandleFunc("DELETE /api/v1/listings/{token}/seen", s.unmarkListingSeen)
 	}
 
 	mux.HandleFunc("GET /api/v1/telegram/status", s.getTelegramStatus)

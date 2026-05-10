@@ -2660,6 +2660,41 @@ func TestCountNewListingsSince(t *testing.T) {
 	}
 }
 
+func TestNewListingsSince_RespectsListingUserSeen(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	cutoff := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "lus-1", ChatID: 100, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		FirstSeenAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkListingUserSeen(ctx, 100, "lus-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	listings, err := store.NewListingsSince(ctx, 100, cutoff, 20, 0)
+	if err != nil {
+		t.Fatalf("NewListingsSince: %v", err)
+	}
+	if len(listings) != 0 {
+		t.Errorf("expected 0 listings when marked user-seen, got %d", len(listings))
+	}
+
+	count, err := store.CountNewListingsSince(ctx, 100, cutoff)
+	if err != nil {
+		t.Fatalf("CountNewListingsSince: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected count 0, got %d", count)
+	}
+}
+
 func TestGetLastSeenAt(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
