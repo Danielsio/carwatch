@@ -228,6 +228,11 @@ func itemToListing(raw json.RawMessage, commercial *bool) (model.RawListing, err
 			listing.CreatedAt = t
 		}
 	}
+	if updatedAt != "" {
+		if t, err := time.Parse(time.RFC3339, updatedAt); err == nil {
+			listing.UpdatedAt = t
+		}
+	}
 	listing.Commercial = commercial
 	return listing, nil
 }
