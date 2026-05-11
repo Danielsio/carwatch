@@ -166,10 +166,10 @@ func abs(x int) int {
 }
 
 const (
-	weightPrice  = 0.35
-	weightKm     = 0.25
+	weightPrice  = 0.25
+	weightKm     = 0.30
 	weightHand   = 0.20
-	weightYear   = 0.15
+	weightYear   = 0.20
 	weightEngine = 0.05
 
 	avgKmPerYear       = 15000 // Israeli average annual mileage
