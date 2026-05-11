@@ -15,6 +15,15 @@ import { cn, formatPrice, relativeTime } from "@/lib/utils";
 import { ConfirmModal } from "./ConfirmModal";
 import { DetailModal } from "./DetailModal";
 
+function formatSellerFilter(v: string | undefined): string | null {
+  if (v == null || v === "") return null;
+  const x = v.toLowerCase();
+  if (x === "any") return "הכל";
+  if (x === "private") return "פרטי";
+  if (x === "commercial") return "מסחרי";
+  return v;
+}
+
 export function SearchesTab({ onViewListings }: { onViewListings: (searchId: number) => void }) {
   const [detailSearch, setDetailSearch] = useState<AdminSearch | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<AdminSearch | null>(null);
@@ -164,6 +173,19 @@ export function SearchesTab({ onViewListings }: { onViewListings: (searchId: num
               { label: "מקור", value: detailSearch.source },
               { label: "יצרן", value: detailSearch.manufacturer || null },
               { label: "דגם", value: detailSearch.model || null },
+              { label: "מילות חיפוש", value: detailSearch.keywords },
+              { label: "מילות לא כלולות", value: detailSearch.exclude_keys },
+              {
+                label: "סינון מוכר",
+                value: formatSellerFilter(detailSearch.seller_filter),
+              },
+              {
+                label: "נפח מנוע מינימום",
+                value:
+                  detailSearch.engine_min_cc > 0
+                    ? `${detailSearch.engine_min_cc.toLocaleString("he-IL")} סמ״ק`
+                    : null,
+              },
               { label: "שנה מ-", value: detailSearch.year_min || null },
               { label: "שנה עד", value: detailSearch.year_max || null },
               {

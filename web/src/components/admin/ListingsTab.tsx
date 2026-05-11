@@ -300,6 +300,33 @@ export function ListingsTab({
               { label: "קילומטרז'", value: formatKm(detailListing.km) },
               { label: "יד", value: detailListing.hand || null },
               { label: "עיר", value: detailListing.city },
+              { label: "תת-דגם", value: detailListing.sub_model },
+              {
+                label: "נפח מנוע (סמ״ק)",
+                value:
+                  detailListing.engine_volume != null
+                    ? String(detailListing.engine_volume)
+                    : null,
+              },
+              {
+                label: "כוח סוס",
+                value:
+                  detailListing.horse_power != null
+                    ? String(detailListing.horse_power)
+                    : null,
+              },
+              { label: "סוג מנוע", value: detailListing.engine_type },
+              { label: "תיבת הילוכים", value: detailListing.gear_box },
+              { label: "תיאור", value: detailListing.description },
+              {
+                label: "סוג מוכר",
+                value:
+                  detailListing.is_commercial === true
+                    ? "מסחרי"
+                    : detailListing.is_commercial === false
+                      ? "פרטי"
+                      : "לא ידוע",
+              },
               {
                 label: "ציון התאמה",
                 value: detailListing.fitness_score != null

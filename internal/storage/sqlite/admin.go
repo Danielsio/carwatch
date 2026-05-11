@@ -273,3 +273,176 @@ func (s *Store) SyncUserActiveStatus(ctx context.Context) (activated, deactivate
 
 	return activated, deactivated, nil
 }
+
+func (s *Store) AdminListPriceHistory(ctx context.Context, limit, offset int, token string) ([]storage.AdminPriceRecord, int64, error) {
+	var total int64
+	var countQ, dataQ string
+	var countArgs, dataArgs []any
+
+	if token != "" {
+		countQ = "SELECT COUNT(*) FROM price_history WHERE token = ?"
+		countArgs = []any{token}
+		dataQ = `SELECT ph.token, ph.price, ph.observed_at,
+				COALESCE(lh.manufacturer,''), COALESCE(lh.model,''), COALESCE(lh.year,0)
+			FROM price_history ph
+			LEFT JOIN (
+				SELECT token, manufacturer, model, year
+				FROM listing_history
+				GROUP BY token
+			) lh ON ph.token = lh.token
+			WHERE ph.token = ?
+			ORDER BY ph.observed_at DESC
+			LIMIT ? OFFSET ?`
+		dataArgs = []any{token, limit, offset}
+	} else {
+		countQ = "SELECT COUNT(*) FROM price_history"
+		dataQ = `SELECT ph.token, ph.price, ph.observed_at,
+				COALESCE(lh.manufacturer,''), COALESCE(lh.model,''), COALESCE(lh.year,0)
+			FROM price_history ph
+			LEFT JOIN (
+				SELECT token, manufacturer, model, year
+				FROM listing_history
+				GROUP BY token
+			) lh ON ph.token = lh.token
+			ORDER BY ph.observed_at DESC
+			LIMIT ? OFFSET ?`
+		dataArgs = []any{limit, offset}
+	}
+
+	if err := s.db.QueryRowContext(ctx, countQ, countArgs...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count price history: %w", err)
+	}
+
+	rows, err := s.db.QueryContext(ctx, dataQ, dataArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query price history: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []storage.AdminPriceRecord
+	for rows.Next() {
+		var r storage.AdminPriceRecord
+		var observed string
+		if err := rows.Scan(&r.Token, &r.Price, &observed, &r.Manufacturer, &r.Model, &r.Year); err != nil {
+			return nil, 0, fmt.Errorf("scan price history: %w", err)
+		}
+		parsed, parseErr := parseFlexibleTime(observed)
+		if parseErr != nil {
+			return nil, 0, fmt.Errorf("parse observed_at: %w", parseErr)
+		}
+		r.ObservedAt = parsed
+		items = append(items, r)
+	}
+	return items, total, rows.Err()
+}
+
+func (s *Store) AdminListSeenListings(ctx context.Context, limit, offset int, searchID int64) ([]storage.AdminSeenRecord, int64, error) {
+	var total int64
+	var countQ, dataQ string
+	var countArgs, dataArgs []any
+
+	if searchID > 0 {
+		countQ = "SELECT COUNT(*) FROM seen_listings WHERE search_id = ?"
+		countArgs = []any{searchID}
+		dataQ = `SELECT token, chat_id, search_id, first_seen_at
+			FROM seen_listings WHERE search_id = ?
+			ORDER BY first_seen_at DESC LIMIT ? OFFSET ?`
+		dataArgs = []any{searchID, limit, offset}
+	} else {
+		countQ = "SELECT COUNT(*) FROM seen_listings"
+		dataQ = `SELECT token, chat_id, search_id, first_seen_at
+			FROM seen_listings ORDER BY first_seen_at DESC LIMIT ? OFFSET ?`
+		dataArgs = []any{limit, offset}
+	}
+
+	if err := s.db.QueryRowContext(ctx, countQ, countArgs...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count seen listings: %w", err)
+	}
+
+	rows, err := s.db.QueryContext(ctx, dataQ, dataArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query seen listings: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []storage.AdminSeenRecord
+	for rows.Next() {
+		var r storage.AdminSeenRecord
+		var firstSeen string
+		if err := rows.Scan(&r.Token, &r.ChatID, &r.SearchID, &firstSeen); err != nil {
+			return nil, 0, fmt.Errorf("scan seen listing: %w", err)
+		}
+		parsed, parseErr := parseFlexibleTime(firstSeen)
+		if parseErr != nil {
+			return nil, 0, fmt.Errorf("parse first_seen_at: %w", parseErr)
+		}
+		r.FirstSeenAt = parsed
+		items = append(items, r)
+	}
+	return items, total, rows.Err()
+}
+
+func (s *Store) AdminActivityStats(ctx context.Context, days int) ([]storage.AdminDayActivity, error) {
+	if days <= 0 {
+		days = 30
+	}
+	cutoff := time.Now().AddDate(0, 0, -days).Format("2006-01-02")
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT d.day,
+			COALESCE(l.cnt, 0),
+			COALESCE(p.cnt, 0),
+			COALESCE(u.cnt, 0)
+		FROM (
+			WITH RECURSIVE dates(day) AS (
+				VALUES(?)
+				UNION ALL
+				SELECT date(day, '+1 day') FROM dates WHERE day < date('now')
+			) SELECT day FROM dates
+		) d
+		LEFT JOIN (
+			SELECT date(first_seen_at) AS day, COUNT(*) AS cnt
+			FROM listing_history
+			WHERE first_seen_at >= ?
+			GROUP BY date(first_seen_at)
+		) l ON d.day = l.day
+		LEFT JOIN (
+			SELECT date(observed_at) AS day, COUNT(*) AS cnt
+			FROM price_history
+			WHERE observed_at >= ?
+			GROUP BY date(observed_at)
+		) p ON d.day = p.day
+		LEFT JOIN (
+			SELECT date(created_at) AS day, COUNT(*) AS cnt
+			FROM users
+			WHERE created_at >= ?
+			GROUP BY date(created_at)
+		) u ON d.day = u.day
+		ORDER BY d.day`, cutoff, cutoff, cutoff, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("activity stats: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []storage.AdminDayActivity
+	for rows.Next() {
+		var a storage.AdminDayActivity
+		if err := rows.Scan(&a.Date, &a.NewListings, &a.PriceDrops, &a.NewUsers); err != nil {
+			return nil, fmt.Errorf("scan activity: %w", err)
+		}
+		items = append(items, a)
+	}
+	return items, rows.Err()
+}
+
+func (s *Store) DBPoolStats() *storage.DBPoolStats {
+	stats := s.db.Stats()
+	return &storage.DBPoolStats{
+		MaxOpenConnections: stats.MaxOpenConnections,
+		OpenConnections:    stats.OpenConnections,
+		InUse:              stats.InUse,
+		Idle:               stats.Idle,
+		WaitCount:          stats.WaitCount,
+		WaitDuration:       stats.WaitDuration.String(),
+	}
+}

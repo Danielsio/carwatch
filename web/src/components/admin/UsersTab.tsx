@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, RefreshCw, ToggleLeft, ToggleRight, Trash2, Users } from "lucide-react";
+import { AlertCircle, RefreshCcw, RefreshCw, ToggleLeft, ToggleRight, Trash2, Users } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { adminApi, type AdminUser } from "@/lib/api";
@@ -45,9 +45,34 @@ export function UsersTab() {
     },
   });
 
+  const syncUserStatusMutation = useMutation({
+    mutationFn: () => adminApi.syncUserStatus(),
+    onSuccess: (res) => {
+      toast(
+        `סנכרון הושלם: ${res.activated.toLocaleString("he-IL")} הופעלו, ${res.deactivated.toLocaleString("he-IL")} הושבתו`,
+        "success",
+      );
+      void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+    onError: () => {
+      toast("שגיאה בסנכרון סטטוס משתמשים", "error");
+    },
+  });
+
   return (
     <div className="space-y-4">
-      <div className="flex gap-3 justify-end">
+      <div className="flex flex-wrap gap-3 justify-end">
+        <button
+          type="button"
+          onClick={() => void syncUserStatusMutation.mutate()}
+          disabled={syncUserStatusMutation.isPending}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-card hover:bg-secondary text-sm font-medium text-foreground transition-colors disabled:opacity-50"
+        >
+          <RefreshCcw
+            className={`h-3.5 w-3.5 ${syncUserStatusMutation.isPending ? "animate-spin" : ""}`}
+          />
+          סנכרן סטטוס
+        </button>
         <button
           type="button"
           onClick={() => void refetch()}

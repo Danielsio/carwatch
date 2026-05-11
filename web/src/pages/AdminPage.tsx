@@ -4,6 +4,7 @@ import {
   Car,
   Database,
   FileSearch,
+  History,
   RefreshCw,
   ScrollText,
   Shield,
@@ -20,15 +21,17 @@ import {
   SearchesTab,
   UsersTab,
   LogsTab,
+  PriceHistoryTab,
 } from "@/components/admin";
 
-type TabKey = "overview" | "listings" | "searches" | "users" | "logs";
+type TabKey = "overview" | "listings" | "searches" | "users" | "logs" | "priceHistory";
 
 const TABS: { key: TabKey; label: string; icon: typeof Car }[] = [
   { key: "overview", label: "סקירה כללית", icon: Database },
   { key: "listings", label: "מודעות", icon: Car },
   { key: "searches", label: "חיפושים", icon: FileSearch },
   { key: "users", label: "משתמשים", icon: Users },
+  { key: "priceHistory", label: "היסטוריית מחירים", icon: History },
   { key: "logs", label: "לוגים", icon: ScrollText },
 ];
 
@@ -194,6 +197,7 @@ export function AdminPage() {
             <SearchesTab onViewListings={viewListingsForSearch} />
           )}
           {activeTab === "users" && <UsersTab />}
+          {activeTab === "priceHistory" && <PriceHistoryTab />}
           {activeTab === "logs" && (
             <LogsTab active={activeTab === "logs"} />
           )}

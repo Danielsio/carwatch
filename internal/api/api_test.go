@@ -22,9 +22,9 @@ import (
 )
 
 type fakeTokenVerifier struct {
-	uid    string
-	email  string
-	err    error
+	uid   string
+	email string
+	err   error
 }
 
 func (f *fakeTokenVerifier) VerifyIDToken(_ context.Context, _ string) (*fbauth.Token, error) {
@@ -52,17 +52,17 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 	cat.Ingest(context.Background(), catalog.IngestEntry{ManufacturerID: 8, ManufacturerName: "Honda", ManufacturerNameHe: "הונדה", ModelID: 10061, ModelName: "Civic", ModelNameHe: "סיוויק"})
 
 	srv := New(Config{
-		Catalog:  cat,
-		Searches: store,
-		Listings: store,
-		Users:    store,
-		LinkTokens: store,
-		Prices:   store,
-		Admin:    store,
-		Saved:    store,
-		Hidden:   store,
-		Notifs:   store,
-		Logger:   slog.Default(),
+		Catalog:     cat,
+		Searches:    store,
+		Listings:    store,
+		Users:       store,
+		LinkTokens:  store,
+		Prices:      store,
+		Admin:       store,
+		Saved:       store,
+		Hidden:      store,
+		Notifs:      store,
+		Logger:      slog.Default(),
 		BotUsername: "carwatch_test_bot",
 		API: config.APIConfig{
 			CORSOrigins: []string{"http://localhost:5173"},
@@ -736,6 +736,22 @@ func (f *failingAdminStore) SyncUserActiveStatus(_ context.Context) (int64, int6
 	return 0, 0, nil
 }
 
+func (f *failingAdminStore) AdminListPriceHistory(_ context.Context, _, _ int, _ string) ([]storage.AdminPriceRecord, int64, error) {
+	return nil, 0, nil
+}
+
+func (f *failingAdminStore) AdminListSeenListings(_ context.Context, _, _ int, _ int64) ([]storage.AdminSeenRecord, int64, error) {
+	return nil, 0, nil
+}
+
+func (f *failingAdminStore) AdminActivityStats(_ context.Context, _ int) ([]storage.AdminDayActivity, error) {
+	return nil, nil
+}
+
+func (f *failingAdminStore) DBPoolStats() *storage.DBPoolStats {
+	return &storage.DBPoolStats{}
+}
+
 func TestAdminStats_DBFileSizeError(t *testing.T) {
 	srv, _ := setupTestServer(t)
 	srv.admin = &failingAdminStore{failDBFileSize: true}
@@ -1031,9 +1047,9 @@ func TestAdminStats(t *testing.T) {
 	}
 
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token:      "tok-1",
-		ChatID:     999,
-		SearchName: "test-search",
+		Token:        "tok-1",
+		ChatID:       999,
+		SearchName:   "test-search",
 		Manufacturer: "Toyota",
 		Model:        "Corolla",
 		Year:         2020,
@@ -1099,13 +1115,13 @@ func TestAdminStats_FirebaseAdmin(t *testing.T) {
 	cat.Load(context.Background())
 
 	srv := New(Config{
-		Catalog:  cat,
-		Searches: store,
-		Listings: store,
-		Users:    store,
-		Prices:   store,
-		Admin:    store,
-		Logger:   slog.Default(),
+		Catalog:      cat,
+		Searches:     store,
+		Listings:     store,
+		Users:        store,
+		Prices:       store,
+		Admin:        store,
+		Logger:       slog.Default(),
 		FirebaseAuth: &fakeTokenVerifier{uid: "admin-uid", email: "admin@example.com"},
 		API: config.APIConfig{
 			CORSOrigins: []string{"http://localhost:5173"},
@@ -1133,13 +1149,13 @@ func TestAdminStats_FirebaseNonAdmin(t *testing.T) {
 	cat.Load(context.Background())
 
 	srv := New(Config{
-		Catalog:  cat,
-		Searches: store,
-		Listings: store,
-		Users:    store,
-		Prices:   store,
-		Admin:    store,
-		Logger:   slog.Default(),
+		Catalog:      cat,
+		Searches:     store,
+		Listings:     store,
+		Users:        store,
+		Prices:       store,
+		Admin:        store,
+		Logger:       slog.Default(),
 		FirebaseAuth: &fakeTokenVerifier{uid: "user-uid", email: "user@example.com"},
 		API: config.APIConfig{
 			CORSOrigins: []string{"http://localhost:5173"},

@@ -12,6 +12,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import type { useAdminStats } from "@/hooks/useAdmin";
 import { adminApi } from "@/lib/api";
+import { ActivityChart } from "./ActivityChart";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 
@@ -117,6 +118,11 @@ export function OverviewTab({
 
   return (
     <div className="space-y-6">
+      <div className="rounded-2xl border border-border/50 bg-card p-5">
+        <h3 className="mb-4 text-sm font-semibold">פעילות יומית (30 ימים)</h3>
+        <ActivityChart />
+      </div>
+
       {/* DB Storage + Runtime — two-column */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* DB Storage card */}
@@ -200,6 +206,26 @@ export function OverviewTab({
           </div>
         </div>
       </div>
+
+      {data.pool && (
+        <div className="rounded-2xl border border-border/50 bg-card p-5">
+          <h3 className="mb-3 text-sm font-semibold">מאגר חיבורים</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-secondary/40 p-3">
+              <p className="text-xs text-muted-foreground">פעיל</p>
+              <p className="text-lg font-bold">{data.pool.in_use}</p>
+            </div>
+            <div className="rounded-xl bg-secondary/40 p-3">
+              <p className="text-xs text-muted-foreground">במנוחה</p>
+              <p className="text-lg font-bold">{data.pool.idle}</p>
+            </div>
+            <div className="rounded-xl bg-secondary/40 p-3">
+              <p className="text-xs text-muted-foreground">מקסימום</p>
+              <p className="text-lg font-bold">{data.pool.max_open_connections}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HTTP API aggregates (since server start) */}
       <div className="rounded-2xl border border-border/50 bg-card p-6">

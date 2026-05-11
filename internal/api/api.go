@@ -36,27 +36,27 @@ type PollTrigger interface {
 }
 
 type Server struct {
-	catalog       catalog.Catalog
-	searches      storage.SearchStore
-	listings      storage.ListingStore
-	users         storage.UserStore
-	linkTokens    storage.LinkTokenStore
-	firebaseAuth  TokenVerifier
-	prices        storage.PriceTracker
-	admin     storage.AdminStore
-	saved     storage.SavedListingStore
-	hidden    storage.HiddenListingStore
-	notifs    storage.NotificationStore
-	logHub    *logstream.Hub
-	logLevel  *slog.LevelVar
-	poller    PollTrigger
-	logger    *slog.Logger
-	cfg       config.APIConfig
-	botUsername string
-	startTime time.Time
-	rl        *rateLimiter
-	ipRL      *ipRateLimiter
-	vacuumMu  sync.Mutex
+	catalog      catalog.Catalog
+	searches     storage.SearchStore
+	listings     storage.ListingStore
+	users        storage.UserStore
+	linkTokens   storage.LinkTokenStore
+	firebaseAuth TokenVerifier
+	prices       storage.PriceTracker
+	admin        storage.AdminStore
+	saved        storage.SavedListingStore
+	hidden       storage.HiddenListingStore
+	notifs       storage.NotificationStore
+	logHub       *logstream.Hub
+	logLevel     *slog.LevelVar
+	poller       PollTrigger
+	logger       *slog.Logger
+	cfg          config.APIConfig
+	botUsername  string
+	startTime    time.Time
+	rl           *rateLimiter
+	ipRL         *ipRateLimiter
+	vacuumMu     sync.Mutex
 
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
 	httpReqTotal   atomic.Uint64
@@ -80,14 +80,14 @@ func (s *Server) Shutdown() {
 }
 
 type Config struct {
-	Catalog  catalog.Catalog
-	Searches storage.SearchStore
-	Listings storage.ListingStore
-	Users    storage.UserStore
-	LinkTokens storage.LinkTokenStore
-	Prices   storage.PriceTracker
-	Admin    storage.AdminStore
-	Saved    storage.SavedListingStore
+	Catalog      catalog.Catalog
+	Searches     storage.SearchStore
+	Listings     storage.ListingStore
+	Users        storage.UserStore
+	LinkTokens   storage.LinkTokenStore
+	Prices       storage.PriceTracker
+	Admin        storage.AdminStore
+	Saved        storage.SavedListingStore
 	Hidden       storage.HiddenListingStore
 	Notifs       storage.NotificationStore
 	LogHub       *logstream.Hub
@@ -107,18 +107,18 @@ func New(c Config) *Server {
 		linkTokens:   c.LinkTokens,
 		firebaseAuth: c.FirebaseAuth,
 		prices:       c.Prices,
-		admin:     c.Admin,
-		saved:     c.Saved,
-		hidden:    c.Hidden,
-		notifs:    c.Notifs,
-		logHub:    c.LogHub,
-		logLevel:  c.LogLevel,
-		logger:    c.Logger,
-		cfg:       c.API,
-		botUsername: c.BotUsername,
-		startTime: time.Now(),
-		rl:        newRateLimiter(60, time.Second/60),
-		ipRL:      newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
+		admin:        c.Admin,
+		saved:        c.Saved,
+		hidden:       c.Hidden,
+		notifs:       c.Notifs,
+		logHub:       c.LogHub,
+		logLevel:     c.LogLevel,
+		logger:       c.Logger,
+		cfg:          c.API,
+		botUsername:  c.BotUsername,
+		startTime:    time.Now(),
+		rl:           newRateLimiter(60, time.Second/60),
+		ipRL:         newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
 	}
 }
 
@@ -178,6 +178,9 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("POST /api/v1/admin/purge", s.requireAdmin(s.adminPurgeTable))
 		mux.HandleFunc("POST /api/v1/admin/vacuum", s.requireAdmin(s.adminVacuum))
 		mux.HandleFunc("POST /api/v1/admin/sync-user-status", s.requireAdmin(s.adminSyncUserStatus))
+		mux.HandleFunc("GET /api/v1/admin/price-history", s.requireAdmin(s.adminListPriceHistory))
+		mux.HandleFunc("GET /api/v1/admin/seen-listings", s.requireAdmin(s.adminListSeenListings))
+		mux.HandleFunc("GET /api/v1/admin/activity", s.requireAdmin(s.adminActivity))
 		if s.logHub != nil {
 			mux.HandleFunc("GET /api/v1/admin/logs", s.requireAdmin(s.adminLogs))
 			mux.HandleFunc("GET /api/v1/admin/logs/stream", s.requireAdmin(s.adminLogStream))
