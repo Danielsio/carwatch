@@ -5,6 +5,7 @@ import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
+import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 
 /**
  * Shared card body for listing display. When `hoverScale` is true the image
@@ -32,6 +33,8 @@ export function ListingCardBody({
   useEffect(() => {
     setDescExpanded(false);
   }, [listing.token]);
+
+  const logoSrc = manufacturerLogoSrc(listing.manufacturer);
 
   return (
     <>
@@ -64,6 +67,15 @@ export function ListingCardBody({
 
       <div className="p-4">
         <div className="mb-2 flex items-start gap-3">
+          {logoSrc ? (
+            <img
+              src={logoSrc}
+              alt=""
+              className="h-10 w-10 shrink-0 object-contain"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : null}
           {listing.fitness_score != null ? (
             <MatchScoreBox score={listing.fitness_score} size="md" />
           ) : null}

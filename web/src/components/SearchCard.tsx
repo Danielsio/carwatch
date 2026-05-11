@@ -10,6 +10,7 @@ import {
 import { cn, formatKm, formatPrice, relativeTime } from "@/lib/utils";
 import type { Search } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
+import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 
 export type SearchCardProps = {
   search: Search;
@@ -33,6 +34,8 @@ export function SearchCard({
   const navigate = useNavigate();
   const isActive = search.active;
   const listingsPath = `/searches/${search.id}/listings`;
+
+  const mfrLogo = manufacturerLogoSrc(search.manufacturer_name);
 
   const filterTags = [
     `${search.manufacturer_name} ${search.model_name}`.trim(),
@@ -69,16 +72,26 @@ export function SearchCard({
         >
           <div
             className={cn(
-              "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl",
+              "flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl",
               isActive ? "bg-primary/15" : "bg-muted",
             )}
           >
-            <Car
-              size={16}
-              className={
-                isActive ? "text-primary" : "text-muted-foreground"
-              }
-            />
+            {mfrLogo ? (
+              <img
+                src={mfrLogo}
+                alt=""
+                className="h-7 w-7 object-contain"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <Car
+                size={16}
+                className={
+                  isActive ? "text-primary" : "text-muted-foreground"
+                }
+              />
+            )}
           </div>
           <div className="min-w-0">
             <h3 className="text-sm leading-tight font-semibold text-foreground">
