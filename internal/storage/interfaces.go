@@ -16,18 +16,18 @@ var (
 )
 
 type User struct {
-	ChatID       int64
-	Username     string
-	State        string
-	StateData    string
-	CreatedAt    time.Time
-	Active       bool
-	Language     string
-	Tier         string
-	TierExpires  time.Time
-	TrialUsed    bool
-	Channel      string
-	ChannelID    string
+	ChatID      int64
+	Username    string
+	State       string
+	StateData   string
+	CreatedAt   time.Time
+	Active      bool
+	Language    string
+	Tier        string
+	TierExpires time.Time
+	TrialUsed   bool
+	Channel     string
+	ChannelID   string
 }
 
 type Search struct {
@@ -159,6 +159,38 @@ type PricePoint struct {
 	ObservedAt time.Time
 }
 
+type AdminPriceRecord struct {
+	Token        string
+	Price        int
+	ObservedAt   time.Time
+	Manufacturer string
+	Model        string
+	Year         int
+}
+
+type AdminSeenRecord struct {
+	Token       string
+	ChatID      int64
+	SearchID    int64
+	FirstSeenAt time.Time
+}
+
+type AdminDayActivity struct {
+	Date        string
+	NewListings int
+	PriceDrops  int
+	NewUsers    int
+}
+
+type DBPoolStats struct {
+	MaxOpenConnections int    `json:"max_open_connections"`
+	OpenConnections    int    `json:"open_connections"`
+	InUse              int    `json:"in_use"`
+	Idle               int    `json:"idle"`
+	WaitCount          int64  `json:"wait_count"`
+	WaitDuration       string `json:"wait_duration"`
+}
+
 // EnrichmentRecord holds km/city/image data previously learned for a listing token.
 type EnrichmentRecord struct {
 	Km       int
@@ -263,6 +295,10 @@ type AdminStore interface {
 	AdminDeleteUser(ctx context.Context, chatID int64) error
 	VacuumDB(ctx context.Context) error
 	SyncUserActiveStatus(ctx context.Context) (activated, deactivated int64, err error)
+	AdminListPriceHistory(ctx context.Context, limit, offset int, token string) ([]AdminPriceRecord, int64, error)
+	AdminListSeenListings(ctx context.Context, limit, offset int, searchID int64) ([]AdminSeenRecord, int64, error)
+	AdminActivityStats(ctx context.Context, days int) ([]AdminDayActivity, error)
+	DBPoolStats() *DBPoolStats
 }
 
 type NotificationStore interface {
@@ -274,4 +310,3 @@ type NotificationStore interface {
 	UnmarkListingUserSeen(ctx context.Context, chatID int64, token string) error
 	ListingUserSeenAmong(ctx context.Context, chatID int64, tokens []string) (map[string]bool, error)
 }
-

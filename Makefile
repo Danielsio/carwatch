@@ -1,6 +1,6 @@
 .PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
        vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
-       vm-backup vm-backup-list \
+       vm-backup vm-backup-list vm-pg-shell vm-migrate-sqlite-to-pg \
        web-install web-dev web-build \
        catalog-refresh
 
@@ -128,8 +128,17 @@ vm-deploy-all: vm-sync
 		&& sleep 3 && docker exec carwatch /bot -version"
 
 vm-backup: vm-check-env
-	$(SSH) "docker exec carwatch sqlite3 /data/carwatch.db \".backup '/data/backups/carwatch-\$$(date +%Y%m%d-%H%M%S).db'\" \
-		&& echo 'Backup created' && ls -lh /data/backups/ 2>/dev/null || echo 'No backups dir outside container — use scripts/backup-db.sh on the VM'"
+	$(SSH) "mkdir -p ~/carwatch/backups && set -o pipefail && \
+		docker exec carwatch-pg pg_dump -U carwatch carwatch | gzip > ~/carwatch/backups/carwatch-\$$(date +%Y%m%d-%H%M%S).sql.gz \
+		&& echo 'Backup created' && ls -lhS ~/carwatch/backups/"
 
 vm-backup-list: vm-check-env
-	$(SSH) "docker exec carwatch ls -lhS /data/backups/ 2>/dev/null || echo 'No backups found'"
+	$(SSH) "ls -lhS ~/carwatch/backups/ 2>/dev/null || echo 'No backups found'"
+
+vm-pg-shell: vm-check-env
+	$(SSH) -t "docker exec -it carwatch-pg psql -U carwatch carwatch"
+
+vm-migrate-sqlite-to-pg: vm-check-env
+	$(SSH) 'docker exec carwatch /bot -migrate-sqlite-to-pg \
+		-sqlite /data/carwatch.db \
+		-pg "postgres://carwatch:$${POSTGRES_PASSWORD}@postgres:5432/carwatch?sslmode=disable"'

@@ -1,14 +1,37 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: carwatch-pg
+    networks:
+      - carwatch-net
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: carwatch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: carwatch
+      TZ: Asia/Jerusalem
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U carwatch"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   carwatch:
     image: ghcr.io/danielsio/carwatch:latest
     container_name: carwatch
     networks:
       - carwatch-net
+    depends_on:
+      postgres:
+        condition: service_healthy
     expose:
       - "8080"
     volumes:
       - carwatch-data:/data
       - ./config.yaml:/config.yaml:ro
+      - ./migrations:/migrations:ro
       - ./firebase-sa.json:/config/firebase-sa.json:ro
     environment:
       - TZ=Asia/Jerusalem
@@ -57,5 +80,7 @@ networks:
 volumes:
   carwatch-data:
     name: carwatch_carwatch-data
+  pgdata:
+    name: carwatch_pgdata
   caddy-data:
   caddy-config:

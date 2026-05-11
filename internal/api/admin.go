@@ -32,13 +32,20 @@ type adminListingResponse struct {
 	FitnessScore *float64 `json:"fitness_score,omitempty"`
 	FirstSeenAt  string   `json:"first_seen_at"`
 	IsCommercial *bool    `json:"is_commercial,omitempty"`
+	SubModel     string   `json:"sub_model,omitempty"`
+	EngineVolume float64  `json:"engine_volume,omitempty"`
+	HorsePower   int      `json:"horse_power,omitempty"`
+	EngineType   string   `json:"engine_type,omitempty"`
+	GearBox      string   `json:"gear_box,omitempty"`
+	Description  string   `json:"description,omitempty"`
 }
 
 type adminStatsResponse struct {
-	DB      dbStats          `json:"db"`
-	Tables  map[string]int64 `json:"tables"`
-	Runtime runtimeStats     `json:"runtime"`
-	HTTP    httpStats        `json:"http"`
+	DB      dbStats              `json:"db"`
+	Tables  map[string]int64     `json:"tables"`
+	Runtime runtimeStats         `json:"runtime"`
+	HTTP    httpStats            `json:"http"`
+	Pool    *storage.DBPoolStats `json:"pool,omitempty"`
 }
 
 type dbStats struct {
@@ -115,6 +122,8 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 		avgMs = float64(durSum) / float64(total)
 	}
 
+	pool := s.admin.DBPoolStats()
+
 	writeJSON(w, http.StatusOK, adminStatsResponse{
 		DB: dbStats{
 			FileSizeBytes: fileSize,
@@ -134,6 +143,7 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 			Status5xx:     n5xx,
 			AvgDurationMs: avgMs,
 		},
+		Pool: pool,
 	})
 }
 
@@ -225,6 +235,12 @@ func (s *Server) adminListListings(w http.ResponseWriter, r *http.Request) {
 			FitnessScore: l.FitnessScore,
 			FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
 			IsCommercial: l.IsCommercial,
+			SubModel:     l.SubModel,
+			EngineVolume: l.EngineVolume,
+			HorsePower:   l.HorsePower,
+			EngineType:   l.EngineType,
+			GearBox:      l.GearBox,
+			Description:  l.Description,
 		})
 	}
 
@@ -540,4 +556,118 @@ func (s *Server) adminSetLogLevel(w http.ResponseWriter, r *http.Request) {
 	s.logLevel.Set(lvl)
 	s.logger.Info("log level changed", "level", body.Level)
 	writeJSON(w, http.StatusOK, map[string]string{"level": s.logLevel.Level().String()})
+}
+
+func (s *Server) adminListPriceHistory(w http.ResponseWriter, r *http.Request) {
+	limit, ok := parseIntParam(w, r, "limit", 50)
+	if !ok {
+		return
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	offset, ok := parseIntParam(w, r, "offset", 0)
+	if !ok {
+		return
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	token := r.URL.Query().Get("token")
+
+	items, total, err := s.admin.AdminListPriceHistory(r.Context(), limit, offset, token)
+	if err != nil {
+		s.logger.Error("admin: list price history", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to list price history")
+		return
+	}
+
+	type priceResp struct {
+		Token        string `json:"token"`
+		Price        int    `json:"price"`
+		ObservedAt   string `json:"observed_at"`
+		Manufacturer string `json:"manufacturer,omitempty"`
+		Model        string `json:"model,omitempty"`
+		Year         int    `json:"year,omitempty"`
+	}
+
+	resp := make([]priceResp, 0, len(items))
+	for _, p := range items {
+		resp = append(resp, priceResp{
+			Token:        p.Token,
+			Price:        p.Price,
+			ObservedAt:   p.ObservedAt.UTC().Format("2006-01-02T15:04:05Z"),
+			Manufacturer: p.Manufacturer,
+			Model:        p.Model,
+			Year:         p.Year,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": resp, "total": total, "limit": limit, "offset": offset})
+}
+
+func (s *Server) adminListSeenListings(w http.ResponseWriter, r *http.Request) {
+	limit, ok := parseIntParam(w, r, "limit", 50)
+	if !ok {
+		return
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	offset, ok := parseIntParam(w, r, "offset", 0)
+	if !ok {
+		return
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	searchIDVal, ok := parseIntParam(w, r, "search_id", 0)
+	if !ok {
+		return
+	}
+
+	items, total, err := s.admin.AdminListSeenListings(r.Context(), limit, offset, int64(searchIDVal))
+	if err != nil {
+		s.logger.Error("admin: list seen listings", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to list seen listings")
+		return
+	}
+
+	type seenResp struct {
+		Token       string `json:"token"`
+		ChatID      int64  `json:"chat_id"`
+		SearchID    int64  `json:"search_id"`
+		FirstSeenAt string `json:"first_seen_at"`
+	}
+
+	resp := make([]seenResp, 0, len(items))
+	for _, sr := range items {
+		resp = append(resp, seenResp{
+			Token:       sr.Token,
+			ChatID:      sr.ChatID,
+			SearchID:    sr.SearchID,
+			FirstSeenAt: sr.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": resp, "total": total, "limit": limit, "offset": offset})
+}
+
+func (s *Server) adminActivity(w http.ResponseWriter, r *http.Request) {
+	days, ok := parseIntParam(w, r, "days", 30)
+	if !ok {
+		return
+	}
+	if days < 1 {
+		days = 1
+	}
+	if days > 365 {
+		days = 365
+	}
+
+	stats, err := s.admin.AdminActivityStats(r.Context(), days)
+	if err != nil {
+		s.logger.Error("admin: activity stats", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get activity stats")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": stats})
 }

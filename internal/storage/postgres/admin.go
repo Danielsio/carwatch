@@ -70,14 +70,14 @@ func quoteIdent(ident string) string {
 }
 
 var purgeable = map[string]bool{
-	"listing_history":         true,
-	"price_history":           true,
-	"seen_listings":           true,
-	"listing_user_seen":       true,
-	"pending_notifications":   true,
-	"saved_listings":          true,
-	"hidden_listings":         true,
-	"pending_digest":          true,
+	"listing_history":       true,
+	"price_history":         true,
+	"seen_listings":         true,
+	"listing_user_seen":     true,
+	"pending_notifications": true,
+	"saved_listings":        true,
+	"hidden_listings":       true,
+	"pending_digest":        true,
 }
 
 func (s *Store) PurgeTable(ctx context.Context, table string) (int64, error) {
@@ -258,4 +258,145 @@ func (s *Store) SyncUserActiveStatus(ctx context.Context) (activated, deactivate
 	deactivated, _ = res.RowsAffected()
 
 	return activated, deactivated, nil
+}
+
+func (s *Store) AdminListPriceHistory(ctx context.Context, limit, offset int, token string) ([]storage.AdminPriceRecord, int64, error) {
+	var total int64
+	if token != "" {
+		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM price_history WHERE token = $1`, token).Scan(&total); err != nil {
+			return nil, 0, fmt.Errorf("count price history: %w", err)
+		}
+	} else {
+		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM price_history`).Scan(&total); err != nil {
+			return nil, 0, fmt.Errorf("count price history: %w", err)
+		}
+	}
+
+	var rows *sql.Rows
+	var err error
+	baseQ := `SELECT ph.token, ph.price, ph.observed_at, COALESCE(lh.manufacturer,''), COALESCE(lh.model,''), COALESCE(lh.year,0)
+		FROM price_history ph
+		LEFT JOIN (SELECT DISTINCT ON (token) token, manufacturer, model, year FROM listing_history ORDER BY token, first_seen_at DESC) lh ON ph.token = lh.token`
+	if token != "" {
+		rows, err = s.db.QueryContext(ctx, baseQ+` WHERE ph.token = $1 ORDER BY ph.observed_at DESC LIMIT $2 OFFSET $3`, token, limit, offset)
+	} else {
+		rows, err = s.db.QueryContext(ctx, baseQ+` ORDER BY ph.observed_at DESC LIMIT $1 OFFSET $2`, limit, offset)
+	}
+	if err != nil {
+		return nil, 0, fmt.Errorf("query price history: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []storage.AdminPriceRecord
+	for rows.Next() {
+		var r storage.AdminPriceRecord
+		if err := rows.Scan(&r.Token, &r.Price, &r.ObservedAt, &r.Manufacturer, &r.Model, &r.Year); err != nil {
+			return nil, 0, fmt.Errorf("scan price history: %w", err)
+		}
+		items = append(items, r)
+	}
+	return items, total, rows.Err()
+}
+
+func (s *Store) AdminListSeenListings(ctx context.Context, limit, offset int, searchID int64) ([]storage.AdminSeenRecord, int64, error) {
+	var total int64
+	if searchID > 0 {
+		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM seen_listings WHERE search_id = $1`, searchID).Scan(&total); err != nil {
+			return nil, 0, fmt.Errorf("count seen listings: %w", err)
+		}
+	} else {
+		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM seen_listings`).Scan(&total); err != nil {
+			return nil, 0, fmt.Errorf("count seen listings: %w", err)
+		}
+	}
+
+	var rows *sql.Rows
+	var err error
+	if searchID > 0 {
+		rows, err = s.db.QueryContext(ctx, `SELECT token, chat_id, search_id, first_seen_at
+			FROM seen_listings WHERE search_id = $1
+			ORDER BY first_seen_at DESC LIMIT $2 OFFSET $3`, searchID, limit, offset)
+	} else {
+		rows, err = s.db.QueryContext(ctx, `SELECT token, chat_id, search_id, first_seen_at
+			FROM seen_listings ORDER BY first_seen_at DESC LIMIT $1 OFFSET $2`, limit, offset)
+	}
+	if err != nil {
+		return nil, 0, fmt.Errorf("query seen listings: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []storage.AdminSeenRecord
+	for rows.Next() {
+		var r storage.AdminSeenRecord
+		if err := rows.Scan(&r.Token, &r.ChatID, &r.SearchID, &r.FirstSeenAt); err != nil {
+			return nil, 0, fmt.Errorf("scan seen listing: %w", err)
+		}
+		items = append(items, r)
+	}
+	return items, total, rows.Err()
+}
+
+func (s *Store) AdminActivityStats(ctx context.Context, days int) ([]storage.AdminDayActivity, error) {
+	if days <= 0 {
+		days = 30
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		WITH days AS (
+			SELECT generate_series(
+				CURRENT_DATE - ($1 || ' days')::interval,
+				CURRENT_DATE,
+				'1 day'::interval
+			)::date AS day
+		)
+		SELECT d.day::text,
+			COALESCE(l.cnt, 0),
+			COALESCE(p.cnt, 0),
+			COALESCE(u.cnt, 0)
+		FROM days d
+		LEFT JOIN (
+			SELECT first_seen_at::date AS day, COUNT(*) AS cnt
+			FROM listing_history
+			WHERE first_seen_at >= CURRENT_DATE - ($1 || ' days')::interval
+			GROUP BY first_seen_at::date
+		) l ON d.day = l.day
+		LEFT JOIN (
+			SELECT observed_at::date AS day, COUNT(*) AS cnt
+			FROM price_history
+			WHERE observed_at >= CURRENT_DATE - ($1 || ' days')::interval
+			GROUP BY observed_at::date
+		) p ON d.day = p.day
+		LEFT JOIN (
+			SELECT created_at::date AS day, COUNT(*) AS cnt
+			FROM users
+			WHERE created_at >= CURRENT_DATE - ($1 || ' days')::interval
+			GROUP BY created_at::date
+		) u ON d.day = u.day
+		ORDER BY d.day`, days)
+	if err != nil {
+		return nil, fmt.Errorf("activity stats: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []storage.AdminDayActivity
+	for rows.Next() {
+		var a storage.AdminDayActivity
+		if err := rows.Scan(&a.Date, &a.NewListings, &a.PriceDrops, &a.NewUsers); err != nil {
+			return nil, fmt.Errorf("scan activity: %w", err)
+		}
+		items = append(items, a)
+	}
+	return items, rows.Err()
+}
+
+func (s *Store) DBPoolStats() *storage.DBPoolStats {
+	stats := s.db.Stats()
+	return &storage.DBPoolStats{
+		MaxOpenConnections: stats.MaxOpenConnections,
+		OpenConnections:    stats.OpenConnections,
+		InUse:              stats.InUse,
+		Idle:               stats.Idle,
+		WaitCount:          stats.WaitCount,
+		WaitDuration:       stats.WaitDuration.String(),
+	}
 }
