@@ -27,10 +27,10 @@ export type ScoreBreakdownPct = {
   hand: number;
 };
 
-const W_PRICE = 0.35;
-const W_KM = 0.25;
+const W_PRICE = 0.25;
+const W_KM = 0.30;
 const W_HAND = 0.20;
-const W_YEAR = 0.15;
+const W_YEAR = 0.20;
 const W_ENGINE = 0.05;
 
 const AVG_KM_PER_YEAR = 15000;

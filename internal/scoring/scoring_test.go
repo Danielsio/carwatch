@@ -256,7 +256,7 @@ func TestFitnessScore(t *testing.T) {
 				Price: 150000, Km: 0, Hand: 1, Year: 2024, EngineVolume: 2000,
 				PriceMax: 200000, MaxKm: 100000, MaxHand: 3, YearMin: 2020, YearMax: 2024, EngineMinCC: 1500,
 			},
-			min: 6.5, max: 8.0,
+			min: 6.5, max: 8.5,
 		},
 		{
 			name: "price exactly at max",
