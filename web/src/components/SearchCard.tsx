@@ -10,7 +10,10 @@ import {
 import { cn, formatKm, formatPrice, relativeTime } from "@/lib/utils";
 import type { Search } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
-import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
+import {
+  manufacturerLogoSrc,
+  manufacturerLogoSrcFromCatalogId,
+} from "@/lib/manufacturerLogo";
 
 export type SearchCardProps = {
   search: Search;
@@ -35,7 +38,9 @@ export function SearchCard({
   const isActive = search.active;
   const listingsPath = `/searches/${search.id}/listings`;
 
-  const mfrLogo = manufacturerLogoSrc(search.manufacturer_name);
+  const mfrLogo =
+    manufacturerLogoSrcFromCatalogId(search.manufacturer_id) ??
+    manufacturerLogoSrc(search.manufacturer_name);
 
   const filterTags = [
     `${search.manufacturer_name} ${search.model_name}`.trim(),

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { manufacturerLogoSrc } from "./manufacturerLogo";
+import {
+  manufacturerLogoSrc,
+  manufacturerLogoSrcFromCatalogId,
+} from "./manufacturerLogo";
 
 function expectedManufacturerLogo(slug: string): string {
   let base = import.meta.env.BASE_URL;
@@ -20,6 +23,11 @@ describe("manufacturerLogoSrc", () => {
     );
   });
 
+  it("resolves Hebrew catalog display names (Yad2-primary catalog)", () => {
+    expect(manufacturerLogoSrc("טויוטה")).toBe(expectedManufacturerLogo("toyota"));
+    expect(manufacturerLogoSrc("מאזדה")).toBe(expectedManufacturerLogo("mazda"));
+  });
+
   it("maps DS catalog name to dsautomobiles asset", () => {
     expect(manufacturerLogoSrc("DS")).toBe(expectedManufacturerLogo("dsautomobiles"));
   });
@@ -27,5 +35,21 @@ describe("manufacturerLogoSrc", () => {
   it("returns null when no SVG is bundled for the brand", () => {
     expect(manufacturerLogoSrc("BYD")).toBeNull();
     expect(manufacturerLogoSrc("")).toBeNull();
+  });
+});
+
+describe("manufacturerLogoSrcFromCatalogId", () => {
+  it("resolves Toyota and Mazda by Yad2 manufacturer id", () => {
+    expect(manufacturerLogoSrcFromCatalogId(19)).toBe(
+      expectedManufacturerLogo("toyota"),
+    );
+    expect(manufacturerLogoSrcFromCatalogId(27)).toBe(
+      expectedManufacturerLogo("mazda"),
+    );
+  });
+
+  it("returns null for unknown or invalid ids", () => {
+    expect(manufacturerLogoSrcFromCatalogId(99999)).toBeNull();
+    expect(manufacturerLogoSrcFromCatalogId(0)).toBeNull();
   });
 });
