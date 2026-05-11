@@ -68,6 +68,15 @@ function siSlug(title: string): string {
     .replace(/[^a-z0-9]/g, "");
 }
 
+/** Vite base path + relative public file (no leading slash on rel). */
+function publicAssetUrl(relPath: string): string {
+  let base = import.meta.env.BASE_URL;
+  if (!base) base = "/";
+  if (!base.endsWith("/")) base = `${base}/`;
+  const clean = relPath.replace(/^\/+/, "");
+  return `${base}${clean}`;
+}
+
 /**
  * Public URL for the manufacturer mark, or null if none is bundled.
  */
@@ -75,7 +84,7 @@ export function manufacturerLogoSrc(manufacturerName: string): string | null {
   const raw = manufacturerName.trim();
   if (!raw) return null;
   const key = raw.toLowerCase();
-  let slug = SLUG_OVERRIDES[key] ?? siSlug(raw);
+  const slug = SLUG_OVERRIDES[key] ?? siSlug(raw);
   if (!MANUFACTURER_LOGO_SLUGS.has(slug)) return null;
-  return `/manufacturers/${slug}.svg`;
+  return publicAssetUrl(`manufacturers/${slug}.svg`);
 }
