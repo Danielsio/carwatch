@@ -24,6 +24,7 @@ func Handler(distFS fs.FS) http.Handler {
 				"connect-src 'self' https://*.googleapis.com https://accounts.google.com "+
 				"https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.googleapis.com "+
 				"https://www.gstatic.com https://*.firebaseapp.com https://*.firebaseio.com wss://*.firebaseio.com; "+
+				"frame-src https://accounts.google.com https://*.firebaseapp.com https://carwatch-5cabf.firebaseapp.com; "+
 				"frame-ancestors 'none'; base-uri 'self'; object-src 'none'")
 
 		path := strings.TrimPrefix(r.URL.Path, "/")
