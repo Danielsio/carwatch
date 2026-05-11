@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/Button";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
 import { useMarkListingSeen, useUnmarkListingSeen } from "@/hooks/useListingSeen";
+import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 
@@ -157,6 +158,8 @@ function ListingDetailContent({
   const hasVehicleSpecs =
     listing.engine_volume || listing.horse_power || listing.engine_type || listing.gear_box;
 
+  const detailLogoSrc = manufacturerLogoSrc(listing.manufacturer);
+
   return (
     <div className="space-y-6">
       {backButton}
@@ -179,6 +182,15 @@ function ListingDetailContent({
 
       {/* Title + score + Price */}
       <div className="flex items-start gap-4">
+        {detailLogoSrc ? (
+          <img
+            src={detailLogoSrc}
+            alt=""
+            className="mt-1 h-12 w-12 shrink-0 object-contain"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : null}
         {listing.fitness_score != null ? (
           <MatchScoreBox score={listing.fitness_score} size="lg" />
         ) : null}
