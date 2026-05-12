@@ -114,11 +114,23 @@ def detect_block(driver) -> str | None:
 
 
 def extract_price_from_text(text: str) -> int | None:
-    """Parse a Hebrew price string like '₪ 53,600' into 53600."""
+    """Parse a Hebrew price string like '₪ 53,600' into 53600.
+
+    Prefers the number immediately associated with the ₪ currency symbol.
+    Falls back to the last numeric token if no currency-adjacent number is found.
+    """
+    # First try: number directly adjacent to ₪ (e.g. "₪ 53,600" or "53,600 ₪")
+    currency_match = re.search(r"₪\s*([\d,]+)", text) or re.search(r"([\d,]+)\s*₪", text)
+    if currency_match:
+        val = int(currency_match.group(1).replace(",", ""))
+        if val > 0:
+            return val
+
+    # Fallback: take the last numeric token (least likely to be a year/model)
     cleaned = text.replace(",", "").replace("₪", "").replace("\u200f", "").strip()
-    match = re.search(r"\d+", cleaned)
-    if match:
-        return int(match.group())
+    tokens = re.findall(r"\d+", cleaned)
+    if tokens:
+        return int(tokens[-1])
     return None
 
 
@@ -315,7 +327,13 @@ def main():
     parser.add_argument("year", nargs="?", type=int, help="Car year")
     parser.add_argument("--url", type=str, help="Direct Yad2 price-list URL")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
-    parser.add_argument("--retries", type=int, default=RETRY_ATTEMPTS)
+    def positive_int(value):
+        ival = int(value)
+        if ival < 1:
+            raise argparse.ArgumentTypeError(f"retries must be >= 1, got {ival}")
+        return ival
+
+    parser.add_argument("--retries", type=positive_int, default=RETRY_ATTEMPTS)
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -334,6 +352,8 @@ def main():
 
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
+        if not result.get("base_price"):
+            sys.exit(1)
     elif result.get("base_price"):
         print(result["base_price"])
     else:
