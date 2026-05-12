@@ -30,6 +30,9 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 
 	if l.Price > 0 {
 		b.WriteString(locale.Tf(lang, "fmt_price", format.Number(l.Price)))
+		if l.DealScore != nil && l.DealScore.MedianPrice > 0 {
+			b.WriteString(marketValueLine(lang, l.DealScore, l.Price))
+		}
 	}
 
 	if l.Km > 0 {
@@ -185,6 +188,19 @@ func formatBreakdown(dims []model.FitnessDim, lang locale.Lang) string {
 		return locale.Tf(lang, "fmt_fitness_down_only", strings.Join(bad, ", "))
 	}
 	return ""
+}
+
+func marketValueLine(lang locale.Lang, score *model.ScoreInfo, price int) string {
+	medianStr := format.Number(score.MedianPrice)
+	pctDiff := int(math.Round(100.0 * (1.0 - float64(price)/float64(score.MedianPrice))))
+	if pctDiff > 5 {
+		return locale.Tf(lang, "fmt_market_value_below", medianStr, pctDiff, score.CohortSize)
+	}
+	if pctDiff >= -5 {
+		return locale.Tf(lang, "fmt_market_value_near", medianStr, score.CohortSize)
+	}
+	abovePct := -pctDiff
+	return locale.Tf(lang, "fmt_market_value_above", medianStr, abovePct, score.CohortSize)
 }
 
 func dealExplanation(lang locale.Lang, score *model.ScoreInfo, price int) string {

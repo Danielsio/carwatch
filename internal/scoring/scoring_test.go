@@ -696,7 +696,7 @@ func TestHondaAccordScoring(t *testing.T) {
 		dims[d.Name] = d.Score
 	}
 
-	// Price: 39999/50000 = 0.80 ratio, sqrt(0.20) ≈ 0.45 — cheap within budget is good.
+	// Price (budget fallback, no MedianPrice): 39999/50000 = 0.80 ratio, sqrt(0.20) ≈ 0.45.
 	if dims["price"] < 0.40 || dims["price"] > 0.55 {
 		t.Errorf("price dim = %.3f, want [0.40, 0.55]", dims["price"])
 	}
@@ -774,7 +774,7 @@ func TestKmScore_ZeroCarYear(t *testing.T) {
 	}
 }
 
-func TestPriceScore(t *testing.T) {
+func TestBudgetPriceScore(t *testing.T) {
 	tests := []struct {
 		name     string
 		price    int
@@ -787,15 +787,105 @@ func TestPriceScore(t *testing.T) {
 		{"price over max returns 0", 250000, 200000, 0.0, 0},
 		{"price at 50% of max", 100000, 200000, math.Sqrt(0.5), 0.01},
 		{"price at 80% of max", 160000, 200000, math.Sqrt(0.2), 0.01},
-		{"price at 0", 0, 200000, 1.0, 0}, // priceScore itself returns sqrt(1)=1; the dimension wrapper (NaN) handles this upstream
+		{"price at 0", 0, 200000, 1.0, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := priceScore(tt.price, tt.priceMax)
+			got := budgetPriceScore(tt.price, tt.priceMax)
 			if math.Abs(got-tt.want) > tt.tol {
-				t.Errorf("priceScore(%d, %d) = %.4f, want %.4f (±%.2f)", tt.price, tt.priceMax, got, tt.want, tt.tol)
+				t.Errorf("budgetPriceScore(%d, %d) = %.4f, want %.4f (±%.2f)", tt.price, tt.priceMax, got, tt.want, tt.tol)
 			}
 		})
+	}
+}
+
+func TestMarketPriceScore(t *testing.T) {
+	tests := []struct {
+		name   string
+		price  int
+		median int
+		want   float64
+		tol    float64
+	}{
+		{"70% of median → 1.0 (exceptional deal)", 70000, 100000, 1.0, 0.01},
+		{"85% of median → ~0.87 (good deal)", 85000, 100000, 0.87, 0.02},
+		{"at median → ~0.71 (fair price)", 100000, 100000, math.Sqrt(0.5), 0.01},
+		{"115% of median → 0.50 (above market)", 115000, 100000, 0.50, 0.02},
+		{"130% of median → 0 (overpriced)", 130000, 100000, 0.0, 0.01},
+		{"150% of median → 0 (clamped)", 150000, 100000, 0.0, 0.01},
+		{"50% of median → 1.0 (clamped at floor)", 50000, 100000, 1.0, 0.01},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := marketPriceScore(tt.price, tt.median)
+			if math.Abs(got-tt.want) > tt.tol {
+				t.Errorf("marketPriceScore(%d, %d) = %.4f, want %.4f (±%.2f)", tt.price, tt.median, got, tt.want, tt.tol)
+			}
+		})
+	}
+}
+
+func TestFitnessScore_MarketPricePreferred(t *testing.T) {
+	stubCurrentYear(t, 2026)
+
+	base := FitnessParams{
+		Km: 50000, Hand: 2, Year: 2022, EngineVolume: 2000,
+		PriceMax: 200000, MaxKm: 150000, MaxHand: 4,
+		YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+	}
+
+	// Car priced at 100k with median 130k → below market, good value.
+	belowMarket := base
+	belowMarket.Price = 100000
+	belowMarket.MedianPrice = 130000
+
+	// Same car priced at 100k with no market data → falls back to budget.
+	noBudget := base
+	noBudget.Price = 100000
+
+	belowResult := FitnessScoreDetailed(belowMarket)
+	budgetResult := FitnessScoreDetailed(noBudget)
+
+	var belowPriceDim, budgetPriceDim float64
+	for _, d := range belowResult.Dims {
+		if d.Name == "price" {
+			belowPriceDim = d.Score
+		}
+	}
+	for _, d := range budgetResult.Dims {
+		if d.Name == "price" {
+			budgetPriceDim = d.Score
+		}
+	}
+
+	// 100k/130k = 0.77 → market score ~0.88; 100k/200k = 0.5 → budget score ~0.71
+	if belowPriceDim <= budgetPriceDim {
+		t.Errorf("below-market car price dim (%.3f) should score higher than budget-only (%.3f)",
+			belowPriceDim, budgetPriceDim)
+	}
+}
+
+func TestFitnessScore_MarketPriceFallback(t *testing.T) {
+	stubCurrentYear(t, 2026)
+
+	// When MedianPrice=0, should fall back to budget-based scoring.
+	p := FitnessParams{
+		Price: 100000, Km: 50000, Hand: 2, Year: 2022, EngineVolume: 2000,
+		PriceMax: 200000, MaxKm: 150000, MaxHand: 4,
+		YearMin: 2018, YearMax: 2024, EngineMinCC: 1500,
+		MedianPrice: 0,
+	}
+	result := FitnessScoreDetailed(p)
+	var priceDim float64
+	for _, d := range result.Dims {
+		if d.Name == "price" {
+			priceDim = d.Score
+		}
+	}
+	// 100k/200k = 0.5 → sqrt(0.5) ≈ 0.707
+	want := math.Sqrt(0.5)
+	if math.Abs(priceDim-want) > 0.01 {
+		t.Errorf("fallback price dim = %.4f, want %.4f (budget-based)", priceDim, want)
 	}
 }
 

@@ -954,7 +954,7 @@ func (s *Scheduler) deduplicateListings(ctx context.Context, token string, chatI
 	return isNew, true
 }
 
-func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Search, l model.RawListing, lang locale.Lang, out *searchResult) bool {
+func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Search, l model.RawListing, lang locale.Lang, marketCache *scoring.MarketCache, out *searchResult) bool {
 	if s.stores.Prices == nil || l.Price <= 0 {
 		return false
 	}
@@ -972,13 +972,19 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 		"new_price", l.Price,
 	)
 	listing := model.Listing{RawListing: l, SearchName: search.Name}
-	listing.FitnessScore = scoring.FitnessScore(scoring.FitnessParams{
+	fp := scoring.FitnessParams{
 		Price: l.Price, Km: l.Km, Hand: l.Hand, Year: l.Year,
 		EngineVolume: l.EngineVolume, PriceMax: search.PriceMax,
 		MaxKm: search.MaxKm, MaxHand: search.MaxHand,
 		YearMin: search.YearMin, YearMax: search.YearMax,
 		EngineMinCC: search.EngineMinCC,
-	})
+	}
+	if marketCache != nil {
+		if median, _, _, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
+			fp.MedianPrice = median
+		}
+	}
+	listing.FitnessScore = scoring.FitnessScore(fp)
 	out.priceDropMessages = append(out.priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice, lang))
 	if s.stores.Listings != nil {
 		if err := s.stores.Listings.SaveListing(ctx, storage.ListingRecord{
@@ -1003,7 +1009,16 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 
 func (s *Scheduler) scoreAndRecordListings(search storage.Search, l model.RawListing, marketCache *scoring.MarketCache) model.Listing {
 	listing := model.Listing{RawListing: l, SearchName: search.Name}
-	detailed := scoring.FitnessScoreDetailed(scoring.FitnessParams{
+
+	// Look up market median before fitness scoring so the price dimension
+	// can score against market value instead of just the budget cap.
+	var medianPrice, medianKm, cohort int
+	var marketOK bool
+	if marketCache != nil && l.Price > 0 {
+		medianPrice, medianKm, cohort, marketOK = marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
+	}
+
+	fp := scoring.FitnessParams{
 		Price:        l.Price,
 		Km:           l.Km,
 		Hand:         l.Hand,
@@ -1015,7 +1030,12 @@ func (s *Scheduler) scoreAndRecordListings(search storage.Search, l model.RawLis
 		YearMin:      search.YearMin,
 		YearMax:      search.YearMax,
 		EngineMinCC:  search.EngineMinCC,
-	})
+	}
+	if marketOK {
+		fp.MedianPrice = medianPrice
+	}
+
+	detailed := scoring.FitnessScoreDetailed(fp)
 	listing.FitnessScore = detailed.Total
 	listing.FitnessBreakdown = make([]model.FitnessDim, len(detailed.Dims))
 	for i, d := range detailed.Dims {
@@ -1023,15 +1043,12 @@ func (s *Scheduler) scoreAndRecordListings(search storage.Search, l model.RawLis
 			Name: d.Name, Score: d.Score, Weight: d.Weight,
 		}
 	}
-	if marketCache != nil && l.Price > 0 {
-		median, medianKm, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
-		if ok {
-			listing.DealScore = &model.ScoreInfo{
-				Score:       scoring.ScoreWithKm(l.Price, l.Km, median, medianKm),
-				MedianPrice: median,
-				MedianKm:    medianKm,
-				CohortSize:  cohort,
-			}
+	if marketOK {
+		listing.DealScore = &model.ScoreInfo{
+			Score:       scoring.ScoreWithKm(l.Price, l.Km, medianPrice, medianKm),
+			MedianPrice: medianPrice,
+			MedianKm:    medianKm,
+			CohortSize:  cohort,
 		}
 	}
 	return listing
@@ -1062,7 +1079,7 @@ func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Se
 		if !ok {
 			continue
 		}
-		if s.tryPriceDropListing(ctx, search, l, lang, &out) {
+		if s.tryPriceDropListing(ctx, search, l, lang, marketCache, &out) {
 			continue
 		}
 		if !isNew {
