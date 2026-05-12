@@ -176,10 +176,10 @@ type AdminSeenRecord struct {
 }
 
 type AdminDayActivity struct {
-	Date        string
-	NewListings int
-	PriceDrops  int
-	NewUsers    int
+	Date        string `json:"date"`
+	NewListings int    `json:"new_listings"`
+	PriceDrops  int    `json:"price_drops"`
+	NewUsers    int    `json:"new_users"`
 }
 
 type DBPoolStats struct {
