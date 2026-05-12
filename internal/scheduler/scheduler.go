@@ -998,8 +998,8 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 			FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
 		}
 		if marketCache != nil {
-			if median, _, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
-				ds := scoring.ScoreWithKm(l.Price, l.Km, median, 0)
+			if median, medKm, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
+				ds := scoring.ScoreWithKm(l.Price, l.Km, median, medKm)
 				rec.MedianPrice = &median
 				rec.CohortSize = &cohort
 				rec.DealScore = &ds

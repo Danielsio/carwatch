@@ -148,6 +148,18 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 		if fs.Valid {
 			r.FitnessScore = &fs.Float64
 		}
+		if mp.Valid {
+			v := int(mp.Int64)
+			r.MedianPrice = &v
+		}
+		if cs.Valid {
+			v := int(cs.Int64)
+			r.CohortSize = &v
+		}
+		if ds.Valid {
+			v := int(ds.Int64)
+			r.DealScore = &v
+		}
 		items = append(items, r)
 	}
 	return items, total, rows.Err()
