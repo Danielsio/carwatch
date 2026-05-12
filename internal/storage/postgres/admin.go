@@ -344,7 +344,7 @@ func (s *Store) AdminActivityStats(ctx context.Context, days int) ([]storage.Adm
 	rows, err := s.db.QueryContext(ctx, `
 		WITH days AS (
 			SELECT generate_series(
-				CURRENT_DATE - ($1 || ' days')::interval,
+				CURRENT_DATE - $1 * interval '1 day',
 				CURRENT_DATE,
 				'1 day'::interval
 			)::date AS day
@@ -357,19 +357,19 @@ func (s *Store) AdminActivityStats(ctx context.Context, days int) ([]storage.Adm
 		LEFT JOIN (
 			SELECT first_seen_at::date AS day, COUNT(*) AS cnt
 			FROM listing_history
-			WHERE first_seen_at >= CURRENT_DATE - ($1 || ' days')::interval
+			WHERE first_seen_at >= CURRENT_DATE - $1 * interval '1 day'
 			GROUP BY first_seen_at::date
 		) l ON d.day = l.day
 		LEFT JOIN (
 			SELECT observed_at::date AS day, COUNT(*) AS cnt
 			FROM price_history
-			WHERE observed_at >= CURRENT_DATE - ($1 || ' days')::interval
+			WHERE observed_at >= CURRENT_DATE - $1 * interval '1 day'
 			GROUP BY observed_at::date
 		) p ON d.day = p.day
 		LEFT JOIN (
 			SELECT created_at::date AS day, COUNT(*) AS cnt
 			FROM users
-			WHERE created_at >= CURRENT_DATE - ($1 || ' days')::interval
+			WHERE created_at >= CURRENT_DATE - $1 * interval '1 day'
 			GROUP BY created_at::date
 		) u ON d.day = u.day
 		ORDER BY d.day`, days)
