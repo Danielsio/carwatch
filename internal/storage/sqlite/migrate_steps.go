@@ -695,6 +695,24 @@ func migrateSellerFilterAndListingCommercial(db *sql.DB) error {
 	return nil
 }
 
+func migrateListingMarketValue(db *sql.DB) error {
+	cols := []string{"median_price", "cohort_size", "deal_score"}
+	for _, col := range cols {
+		var exists int
+		if err := db.QueryRow(
+			"SELECT COUNT(*) FROM pragma_table_info('listing_history') WHERE name = ?", col,
+		).Scan(&exists); err != nil {
+			return fmt.Errorf("check listing_history %s: %w", col, err)
+		}
+		if exists == 0 {
+			if _, err := db.Exec(fmt.Sprintf("ALTER TABLE listing_history ADD COLUMN %s INTEGER", col)); err != nil {
+				return fmt.Errorf("add listing_history %s: %w", col, err)
+			}
+		}
+	}
+	return nil
+}
+
 func migrateListingUserSeen(db *sql.DB) error {
 	var n int
 	if err := db.QueryRow(

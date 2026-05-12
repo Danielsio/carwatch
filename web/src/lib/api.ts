@@ -119,6 +119,9 @@ export interface Listing {
   gear_box?: string;
   description?: string;
   fitness_score?: number;
+  median_price?: number;
+  cohort_size?: number;
+  deal_score?: number;
   first_seen_at: string;
   /** Present when API includes bookmark state */
   saved?: boolean;

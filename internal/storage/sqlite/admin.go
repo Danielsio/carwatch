@@ -110,7 +110,7 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price,
 				km, hand, city, page_link, image_url,
 				engine_volume, horse_power, engine_type, gear_box, description,
-				is_commercial, fitness_score, first_seen_at
+				is_commercial, fitness_score, median_price, cohort_size, deal_score, first_seen_at
 			FROM listing_history
 			WHERE search_id = ?
 			ORDER BY first_seen_at DESC
@@ -120,7 +120,7 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price,
 				km, hand, city, page_link, image_url,
 				engine_volume, horse_power, engine_type, gear_box, description,
-				is_commercial, fitness_score, first_seen_at
+				is_commercial, fitness_score, median_price, cohort_size, deal_score, first_seen_at
 			FROM listing_history
 			ORDER BY first_seen_at DESC
 			LIMIT ? OFFSET ?`, limit, offset)
@@ -135,18 +135,31 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 		var r storage.ListingRecord
 		var score *float64
 		var ic sql.NullInt64
+		var mp, cs, ds sql.NullInt64
 		var firstSeen string
 		if err := rows.Scan(
 			&r.Token, &r.ChatID, &r.SearchID, &r.SearchName,
 			&r.Manufacturer, &r.Model, &r.SubModel, &r.Year, &r.Price,
 			&r.Km, &r.Hand, &r.City, &r.PageLink, &r.ImageURL,
 			&r.EngineVolume, &r.HorsePower, &r.EngineType, &r.GearBox, &r.Description,
-			&ic, &score, &firstSeen,
+			&ic, &score, &mp, &cs, &ds, &firstSeen,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan listing: %w", err)
 		}
 		r.IsCommercial = storage.ListingCommercialFromSQL(ic)
 		r.FitnessScore = score
+		if mp.Valid {
+			v := int(mp.Int64)
+			r.MedianPrice = &v
+		}
+		if cs.Valid {
+			v := int(cs.Int64)
+			r.CohortSize = &v
+		}
+		if ds.Valid {
+			v := int(ds.Int64)
+			r.DealScore = &v
+		}
 		parsed, parseErr := parseFlexibleTime(firstSeen)
 		if parseErr != nil {
 			return nil, 0, fmt.Errorf("parse first_seen_at %q for token %s: %w", firstSeen, r.Token, parseErr)

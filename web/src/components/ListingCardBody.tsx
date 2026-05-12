@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
 import { Bookmark } from "lucide-react";
-import { formatPrice, formatKm, relativeTime, cn } from "@/lib/utils";
+import { formatPrice, formatKm, relativeTime, cn, marketComparison } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
@@ -93,9 +93,20 @@ export function ListingCardBody({
               </p>
             ) : null}
           </div>
-          <span className="shrink-0 text-lg font-bold tabular-nums text-primary">
-            {formatPrice(listing.price)}
-          </span>
+          <div className="shrink-0 text-end">
+            <span className="text-lg font-bold tabular-nums text-primary">
+              {formatPrice(listing.price)}
+            </span>
+            {(() => {
+              const mc = marketComparison(listing.price, listing.median_price);
+              if (!mc) return null;
+              return (
+                <p className={cn("text-[11px] font-medium mt-0.5", mc.color)}>
+                  {mc.label}
+                </p>
+              );
+            })()}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mb-3">

@@ -151,6 +151,9 @@ type ListingRecord struct {
 	// IsCommercial: nil = unknown; false = private seller; true = dealer/commercial (Yad2 bucket).
 	IsCommercial *bool
 	FitnessScore *float64
+	MedianPrice  *int
+	CohortSize   *int
+	DealScore    *int
 	FirstSeenAt  time.Time
 }
 

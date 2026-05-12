@@ -110,7 +110,7 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price,
 				km, hand, city, page_link, image_url,
 				engine_volume, horse_power, engine_type, gear_box, description,
-				is_commercial, fitness_score, first_seen_at
+				is_commercial, fitness_score, median_price, cohort_size, deal_score, first_seen_at
 			FROM listing_history
 			WHERE search_id = $1
 			ORDER BY first_seen_at DESC
@@ -120,7 +120,7 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price,
 				km, hand, city, page_link, image_url,
 				engine_volume, horse_power, engine_type, gear_box, description,
-				is_commercial, fitness_score, first_seen_at
+				is_commercial, fitness_score, median_price, cohort_size, deal_score, first_seen_at
 			FROM listing_history
 			ORDER BY first_seen_at DESC
 			LIMIT $1 OFFSET $2`, limit, offset)
@@ -134,19 +134,31 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 	for rows.Next() {
 		var r storage.ListingRecord
 		var fs sql.NullFloat64
-		var ic sql.NullInt64
+		var ic, mp, cs, ds sql.NullInt64
 		if err := rows.Scan(
 			&r.Token, &r.ChatID, &r.SearchID, &r.SearchName,
 			&r.Manufacturer, &r.Model, &r.SubModel, &r.Year, &r.Price,
 			&r.Km, &r.Hand, &r.City, &r.PageLink, &r.ImageURL,
 			&r.EngineVolume, &r.HorsePower, &r.EngineType, &r.GearBox, &r.Description,
-			&ic, &fs, &r.FirstSeenAt,
+			&ic, &fs, &mp, &cs, &ds, &r.FirstSeenAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan listing: %w", err)
 		}
 		r.IsCommercial = storage.ListingCommercialFromSQL(ic)
 		if fs.Valid {
 			r.FitnessScore = &fs.Float64
+		}
+		if mp.Valid {
+			v := int(mp.Int64)
+			r.MedianPrice = &v
+		}
+		if cs.Valid {
+			v := int(cs.Int64)
+			r.CohortSize = &v
+		}
+		if ds.Valid {
+			v := int(ds.Int64)
+			r.DealScore = &v
 		}
 		items = append(items, r)
 	}

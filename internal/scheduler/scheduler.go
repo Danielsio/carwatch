@@ -987,7 +987,7 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 	listing.FitnessScore = scoring.FitnessScore(fp)
 	out.priceDropMessages = append(out.priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice, lang))
 	if s.stores.Listings != nil {
-		if err := s.stores.Listings.SaveListing(ctx, storage.ListingRecord{
+		rec := storage.ListingRecord{
 			Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
 			Manufacturer: l.Manufacturer, Model: l.Model, SubModel: l.SubModel,
 			Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
@@ -996,7 +996,16 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 			EngineType: l.EngineType, GearBox: l.GearBox, Description: l.Description,
 			IsCommercial: l.Commercial,
 			FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
-		}); err != nil {
+		}
+		if marketCache != nil {
+			if median, medKm, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
+				ds := scoring.ScoreWithKm(l.Price, l.Km, median, medKm)
+				rec.MedianPrice = &median
+				rec.CohortSize = &cohort
+				rec.DealScore = &ds
+			}
+		}
+		if err := s.stores.Listings.SaveListing(ctx, rec); err != nil {
 			s.logger.Error("save price-drop listing failed",
 				"token", l.Token,
 				"chat_id", search.ChatID,
@@ -1056,7 +1065,7 @@ func (s *Scheduler) scoreAndRecordListings(search storage.Search, l model.RawLis
 
 func buildNotifications(search storage.Search, listing model.Listing, out *searchResult) {
 	out.newListings = append(out.newListings, listing)
-	out.listingRecords = append(out.listingRecords, storage.ListingRecord{
+	rec := storage.ListingRecord{
 		Token: listing.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
 		Manufacturer: listing.Manufacturer, Model: listing.Model, SubModel: listing.SubModel,
 		Year: listing.Year, Price: listing.Price, Km: listing.Km, Hand: listing.Hand,
@@ -1065,7 +1074,13 @@ func buildNotifications(search storage.Search, listing model.Listing, out *searc
 		EngineType: listing.EngineType, GearBox: listing.GearBox, Description: listing.Description,
 		IsCommercial: listing.Commercial,
 		FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
-	})
+	}
+	if listing.DealScore != nil {
+		rec.MedianPrice = &listing.DealScore.MedianPrice
+		rec.CohortSize = &listing.DealScore.CohortSize
+		rec.DealScore = &listing.DealScore.Score
+	}
+	out.listingRecords = append(out.listingRecords, rec)
 }
 
 func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Search, filtered []model.RawListing, marketCache *scoring.MarketCache, lang locale.Lang) searchResult {
