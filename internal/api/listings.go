@@ -25,6 +25,9 @@ type listingResponse struct {
 	GearBox      string   `json:"gear_box,omitempty"`
 	Description  string   `json:"description,omitempty"`
 	FitnessScore *float64 `json:"fitness_score,omitempty"`
+	MedianPrice  *int     `json:"median_price,omitempty"`
+	CohortSize   *int     `json:"cohort_size,omitempty"`
+	DealScore    *int     `json:"deal_score,omitempty"`
 	FirstSeenAt  string   `json:"first_seen_at"`
 	Saved        bool     `json:"saved,omitempty"`
 	// Seen: user dismissed this listing from the new-items feed (notifications).
@@ -96,6 +99,9 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		GearBox:      l.GearBox,
 		Description:  l.Description,
 		FitnessScore: l.FitnessScore,
+		MedianPrice:  l.MedianPrice,
+		CohortSize:   l.CohortSize,
+		DealScore:    l.DealScore,
 		FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
 		Saved:        savedFlag,
 		Seen:         seenFlag,

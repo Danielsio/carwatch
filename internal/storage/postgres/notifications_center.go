@@ -13,7 +13,7 @@ func (s *Store) NewListingsSince(ctx context.Context, chatID int64, since time.T
 		SELECT token, search_name, manufacturer, model, sub_model, year, price,
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
-			is_commercial, fitness_score, first_seen_at
+			is_commercial, fitness_score, median_price, cohort_size, deal_score, first_seen_at
 		FROM listing_history lh
 		WHERE lh.chat_id = $1 AND lh.first_seen_at > $2
 		AND NOT EXISTS (

@@ -26,6 +26,44 @@ export function safeHref(raw: string): string | null {
   return null;
 }
 
+export type MarketComparison = {
+  pctDiff: number;
+  absDiff: number;
+  label: string;
+  color: string;
+};
+
+export function marketComparison(
+  price: number,
+  medianPrice: number | undefined,
+): MarketComparison | null {
+  if (!medianPrice || medianPrice <= 0 || price <= 0) return null;
+  const pctDiff = Math.round(100 * (1 - price / medianPrice));
+  const absDiff = medianPrice - price;
+  if (pctDiff > 5) {
+    return {
+      pctDiff,
+      absDiff,
+      label: `${pctDiff}% מתחת לשוק`,
+      color: "text-emerald-500",
+    };
+  }
+  if (pctDiff >= -5) {
+    return {
+      pctDiff,
+      absDiff,
+      label: "קרוב למחיר השוק",
+      color: "text-muted-foreground",
+    };
+  }
+  return {
+    pctDiff,
+    absDiff,
+    label: `${-pctDiff}% מעל השוק`,
+    color: "text-amber-500",
+  };
+}
+
 export function relativeTime(dateStr: string): string {
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) return "—";

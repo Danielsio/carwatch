@@ -695,6 +695,14 @@ func migrateSellerFilterAndListingCommercial(db *sql.DB) error {
 	return nil
 }
 
+func migrateListingMarketValue(db *sql.DB) error {
+	cols := []string{"median_price", "cohort_size", "deal_score"}
+	for _, col := range cols {
+		_, _ = db.Exec(fmt.Sprintf("ALTER TABLE listing_history ADD COLUMN %s INTEGER", col))
+	}
+	return nil
+}
+
 func migrateListingUserSeen(db *sql.DB) error {
 	var n int
 	if err := db.QueryRow(
