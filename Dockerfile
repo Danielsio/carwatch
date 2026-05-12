@@ -32,6 +32,7 @@ RUN apk add --no-cache ca-certificates tzdata \
     && adduser -D -u 1000 bot
 USER bot
 COPY --from=builder /bot /bot
+COPY --from=builder /app/migrations /migrations
 VOLUME /data
 HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
   CMD wget -q --spider http://localhost:8080/healthz || exit 1
