@@ -4,11 +4,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import type { User } from "firebase/auth";
 import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { setAuthTokenGetter } from "@/lib/auth-token";
@@ -39,6 +41,8 @@ function AuthLoadingScreen() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const prevUidRef = useRef<string | null>(null);
 
   useEffect(() => {
     setAuthTokenGetter(async (forceRefresh?: boolean) => {
@@ -53,10 +57,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
+      const newUid = u?.uid ?? null;
+      if (prevUidRef.current !== null && prevUidRef.current !== newUid) {
+        queryClient.clear();
+      }
+      prevUidRef.current = newUid;
       setUser(u);
       setLoading(false);
     });
-  }, []);
+  }, [queryClient]);
 
   const signOut = useCallback(() => firebaseSignOut(auth), []);
 

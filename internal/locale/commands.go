@@ -144,8 +144,9 @@ var heCommands = map[string]string{
 	// keyboard buttons
 	"btn_done":        "סיום ✓",
 	"btn_search":      "חיפוש",
-	"btn_any_model":   "כל דגם",
-	"btn_previous":    "הקודם",
+	"btn_any_model":          "כל דגם",
+	"btn_any_manufacturer":   "כל היצרנים 🚗",
+	"btn_previous":           "הקודם",
 	"btn_next":        "הבא",
 	"btn_no_results":  "לא נמצאו תוצאות",
 	"btn_back":        "חזרה לרשימה",
@@ -410,8 +411,9 @@ var enCommands = map[string]string{
 	// keyboard buttons
 	"btn_done":        "Done ✓",
 	"btn_search":      "Search",
-	"btn_any_model":   "Any model",
-	"btn_previous":    "Previous",
+	"btn_any_model":          "Any model",
+	"btn_any_manufacturer":   "Any manufacturer 🚗",
+	"btn_previous":           "Previous",
 	"btn_next":        "Next",
 	"btn_no_results":  "No results found",
 	"btn_back":        "Back to list",

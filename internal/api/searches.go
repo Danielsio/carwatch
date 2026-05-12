@@ -111,14 +111,22 @@ func validateSearchRanges(yearMin, yearMax, priceMax, maxKm, maxHand, engineMinC
 }
 
 func (s *Server) toSearchResponse(sr storage.Search) searchResponse {
+	mfrName := "כל היצרנים"
+	if sr.Manufacturer > 0 {
+		mfrName = s.catalog.ManufacturerName(sr.Manufacturer)
+	}
+	mdlName := "כל הדגמים"
+	if sr.Model > 0 {
+		mdlName = s.catalog.ModelName(sr.Manufacturer, sr.Model)
+	}
 	return searchResponse{
 		ID:               sr.ID,
 		Name:             sr.Name,
 		Source:           sr.Source,
 		ManufacturerID:   sr.Manufacturer,
-		ManufacturerName: s.catalog.ManufacturerName(sr.Manufacturer),
+		ManufacturerName: mfrName,
 		ModelID:          sr.Model,
-		ModelName:        s.catalog.ModelName(sr.Manufacturer, sr.Model),
+		ModelName:        mdlName,
 		YearMin:          sr.YearMin,
 		YearMax:          sr.YearMax,
 		PriceMax:         sr.PriceMax,
@@ -182,10 +190,11 @@ func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
 }
 
 // validateCreateSearchInput checks catalog IDs, range validation, and duplicate names.
+// Manufacturer and model are both optional (0 = all).
 // On success returns (name, 0, ""). On failure returns ("", HTTP status, error message).
 func (s *Server) validateCreateSearchInput(ctx context.Context, chatID int64, req *createSearchRequest) (string, int, string) {
-	if req.Manufacturer <= 0 || req.Model <= 0 {
-		return "", http.StatusBadRequest, "manufacturer and model are required"
+	if req.Manufacturer < 0 || req.Model < 0 {
+		return "", http.StatusBadRequest, "manufacturer and model must not be negative"
 	}
 
 	if req.Source == "" {
@@ -199,17 +208,33 @@ func (s *Server) validateCreateSearchInput(ctx context.Context, chatID int64, re
 		return "", http.StatusBadRequest, msg
 	}
 
-	mfrName := s.catalog.ManufacturerName(req.Manufacturer)
-	if mfrName == "" {
-		return "", http.StatusBadRequest, "unknown manufacturer id"
+	var mfrName, modelName string
+	if req.Manufacturer > 0 {
+		mfrName = s.catalog.ManufacturerName(req.Manufacturer)
+		if mfrName == "" {
+			return "", http.StatusBadRequest, "unknown manufacturer id"
+		}
 	}
-	modelName := s.catalog.ModelName(req.Manufacturer, req.Model)
-	if modelName == "" {
-		return "", http.StatusBadRequest, "unknown model id"
+	if req.Model > 0 {
+		if req.Manufacturer <= 0 {
+			return "", http.StatusBadRequest, "model requires a manufacturer"
+		}
+		modelName = s.catalog.ModelName(req.Manufacturer, req.Model)
+		if modelName == "" {
+			return "", http.StatusBadRequest, "unknown model id"
+		}
 	}
+
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
-		name = strings.ToLower(fmt.Sprintf("%s-%s", mfrName, modelName))
+		switch {
+		case req.Manufacturer == 0:
+			name = "all-cars"
+		case req.Model == 0:
+			name = strings.ToLower(mfrName) + "-all"
+		default:
+			name = strings.ToLower(fmt.Sprintf("%s-%s", mfrName, modelName))
+		}
 	}
 
 	existing, err := s.searches.ListSearches(ctx, chatID)
