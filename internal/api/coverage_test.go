@@ -200,6 +200,23 @@ func TestCreateSearch_AllCars(t *testing.T) {
 	}
 }
 
+func TestCreateSearch_ManufacturerAllModels(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{Manufacturer: 19})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for manufacturer-only search, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp searchResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if resp.ManufacturerID != 19 || resp.ModelID != 0 {
+		t.Fatalf("unexpected IDs: manufacturer=%d model=%d", resp.ManufacturerID, resp.ModelID)
+	}
+	if !strings.HasSuffix(resp.Name, "-all") || resp.Name == "all-cars" {
+		t.Errorf("name = %q, want '<manufacturer>-all'", resp.Name)
+	}
+}
+
 func TestCreateSearch_ModelRequiresManufacturer(t *testing.T) {
 	srv, _ := setupTestServer(t)
 

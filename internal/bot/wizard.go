@@ -120,9 +120,15 @@ func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data str
 		return
 	}
 
+	lang := b.getUserLang(ctx, chatID)
+	if id < 0 {
+		b.logger.Warn("negative manufacturer ID in callback", "chat_id", chatID, "id", id)
+		b.send(ctx, chatID, locale.T(lang, "error_wrong_state"))
+		return
+	}
+
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Manufacturer = id
-	lang := b.getUserLang(ctx, chatID)
 
 	if id == 0 {
 		wd.ManufacturerName = locale.T(lang, "btn_any_manufacturer")
