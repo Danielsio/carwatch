@@ -194,6 +194,11 @@ type FitnessParams struct {
 	YearMin     int
 	YearMax     int
 	EngineMinCC int
+
+	// MedianPrice is the market median price for this car's manufacturer+model+year
+	// cohort. When > 0 the price dimension scores against market value instead of
+	// the user's budget cap.
+	MedianPrice int
 }
 
 type DimScore struct {
@@ -222,10 +227,16 @@ func DefaultDimensions() []Dimension {
 			Name:   "price",
 			Weight: weightPrice,
 			Score: func(p FitnessParams) float64 {
-				if p.PriceMax <= 0 || p.Price <= 0 {
+				if p.Price <= 0 {
 					return math.NaN()
 				}
-				return priceScore(p.Price, p.PriceMax)
+				if p.MedianPrice > 0 {
+					return marketPriceScore(p.Price, p.MedianPrice)
+				}
+				if p.PriceMax <= 0 {
+					return math.NaN()
+				}
+				return budgetPriceScore(p.Price, p.PriceMax)
 			},
 		},
 		{Name: "km", Weight: weightKm, Score: func(p FitnessParams) float64 { return kmScore(p.Km, p.MaxKm, p.Year) }},
@@ -277,10 +288,20 @@ func FitnessScoreDetailed(p FitnessParams) FitnessResult {
 	return FitnessResult{Total: total, Dims: dims}
 }
 
-// priceScore: cheaper within budget = better value.
+// marketPriceScore scores the listing price against the market median.
+// Maps [0.7×median, 1.3×median] → [1.0, 0.0] via a sqrt curve.
+// At median the score is ~0.71 (fair asking price); 30%+ above is 0.
+func marketPriceScore(price, medianPrice int) float64 {
+	ratio := float64(price) / float64(medianPrice)
+	normalized := (ratio - 0.7) / 0.6 // 0.7→0, 1.0→0.5, 1.3→1.0
+	normalized = clamp01(normalized)
+	return math.Sqrt(1.0 - normalized)
+}
+
+// budgetPriceScore: cheaper within budget = better value (legacy fallback).
 // sqrt curve so savings have diminishing returns — 50% of budget is great,
 // 80% is decent, at-cap is low but not zero.
-func priceScore(price, priceMax int) float64 {
+func budgetPriceScore(price, priceMax int) float64 {
 	if priceMax <= 0 {
 		return 0.5
 	}

@@ -9,6 +9,7 @@ export type DemoSearchCriteria = {
   price_max: number;
   mileage_max: number;
   hand_max: number;
+  median_price?: number;
 };
 
 export type DemoListingInput = {
@@ -50,11 +51,17 @@ export function scoreListingAgainstSearch(
   listing: DemoListingInput,
   search: DemoSearchCriteria,
 ): { score: number; breakdown: ScoreBreakdownPct } {
-  // Price: cheaper within budget = better (sqrt curve).
-  // Omit dimension when price is unknown (matches Go NaN guard).
+  // Price: when market median is available, score against market value;
+  // otherwise fall back to budget-based scoring (matches Go logic).
   let priceFactor: number;
-  if (listing.price <= 0 || search.price_max <= 0) {
-    priceFactor = listing.price <= 0 ? NaN : 0.5;
+  if (listing.price <= 0) {
+    priceFactor = NaN;
+  } else if (search.median_price && search.median_price > 0) {
+    const ratio = listing.price / search.median_price;
+    const normalized = clamp01((ratio - 0.7) / 0.6);
+    priceFactor = Math.sqrt(1 - normalized);
+  } else if (search.price_max <= 0) {
+    priceFactor = NaN;
   } else {
     const ratio = listing.price / search.price_max;
     priceFactor = ratio >= 1 ? 0 : Math.sqrt(1 - ratio);
