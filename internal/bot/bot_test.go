@@ -219,8 +219,13 @@ func TestKeyboards_ManufacturerKeyboard_RecentSection(t *testing.T) {
 		t.Errorf("row 0 should be search button, got %q", kb.InlineKeyboard[0][0].CallbackData)
 	}
 
-	// Row 1: recent manufacturers (most recent first — Toyota was created last).
-	recentRow := kb.InlineKeyboard[1]
+	// Row 1: "Any manufacturer" button.
+	if kb.InlineKeyboard[1][0].CallbackData != cbAnyMfr {
+		t.Errorf("row 1 should be any-manufacturer button, got %q", kb.InlineKeyboard[1][0].CallbackData)
+	}
+
+	// Row 2: recent manufacturers (most recent first — Toyota was created last).
+	recentRow := kb.InlineKeyboard[2]
 	if len(recentRow) != 2 {
 		t.Fatalf("expected 2 recent buttons, got %d", len(recentRow))
 	}
@@ -240,8 +245,8 @@ func TestKeyboards_ManufacturerKeyboard_RecentSection(t *testing.T) {
 		t.Errorf("expected מאזדה and טויוטה in recent, got %v", names)
 	}
 
-	// Row 2: separator.
-	if kb.InlineKeyboard[2][0].CallbackData != "noop" {
+	// Row 3: separator.
+	if kb.InlineKeyboard[3][0].CallbackData != "noop" {
 		t.Error("expected separator row after recent manufacturers")
 	}
 }
@@ -255,12 +260,15 @@ func TestKeyboards_ManufacturerKeyboard_NoRecentForNewUser(t *testing.T) {
 
 	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0, locale.English)
 
-	// Row 0: search button, row 1: first manufacturer (no recent section).
+	// Row 0: search button, row 1: any-manufacturer button, row 2: first manufacturer (no recent section).
 	if kb.InlineKeyboard[0][0].CallbackData != cbMfrSearch {
 		t.Errorf("row 0 should be search button, got %q", kb.InlineKeyboard[0][0].CallbackData)
 	}
-	// Second row should be actual manufacturers, not a separator.
-	if kb.InlineKeyboard[1][0].CallbackData == "noop" {
+	if kb.InlineKeyboard[1][0].CallbackData != cbAnyMfr {
+		t.Errorf("row 1 should be any-manufacturer button, got %q", kb.InlineKeyboard[1][0].CallbackData)
+	}
+	// Third row should be actual manufacturers, not a separator.
+	if kb.InlineKeyboard[2][0].CallbackData == "noop" {
 		t.Error("new user should not have a recent/separator row")
 	}
 }
@@ -308,9 +316,9 @@ func TestKeyboards_ManufacturerKeyboard_RecentCappedAt4(t *testing.T) {
 
 	kb := tb.bot.manufacturerKeyboard(ctx, chatID, 0, locale.English)
 
-	// Count recent manufacturer buttons (between search row and separator).
+	// Count recent manufacturer buttons (between any-mfr row and separator).
 	recentCount := 0
-	for i := 1; i < len(kb.InlineKeyboard); i++ {
+	for i := 2; i < len(kb.InlineKeyboard); i++ {
 		if kb.InlineKeyboard[i][0].CallbackData == "noop" {
 			break
 		}
@@ -341,7 +349,7 @@ func TestKeyboards_ManufacturerKeyboard_RecentDeduplicates(t *testing.T) {
 
 	// Should have exactly 1 recent button (Mazda), not 3.
 	recentCount := 0
-	for i := 1; i < len(kb.InlineKeyboard); i++ {
+	for i := 2; i < len(kb.InlineKeyboard); i++ {
 		if kb.InlineKeyboard[i][0].CallbackData == "noop" {
 			break
 		}

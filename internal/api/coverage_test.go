@@ -186,12 +186,26 @@ func TestCreateSearch_InvalidBody(t *testing.T) {
 	}
 }
 
-func TestCreateSearch_MissingManufacturerModel(t *testing.T) {
+func TestCreateSearch_AllCars(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
 	w := doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for all-cars search (manufacturer=0, model=0), got %d: %s", w.Code, w.Body.String())
+	}
+	var resp searchResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	if resp.Name != "all-cars" {
+		t.Errorf("name = %q, want all-cars", resp.Name)
+	}
+}
+
+func TestCreateSearch_ModelRequiresManufacturer(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{Model: 10226})
 	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for missing manufacturer/model, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("expected 400 when model is set without manufacturer, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

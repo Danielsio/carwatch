@@ -76,8 +76,6 @@ export function NewSearchPage() {
 
   const validYear = (y: number) => y === 0 || y >= 1990;
   const canSubmit =
-    form.manufacturer > 0 &&
-    form.model > 0 &&
     validYear(form.yearMin) &&
     validYear(form.yearMax) &&
     (form.yearMin === 0 || form.yearMax === 0 || form.yearMin <= form.yearMax) &&
@@ -86,8 +84,8 @@ export function NewSearchPage() {
   function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    if (form.manufacturer === 0 || form.model === 0) {
-      setError("נא לבחור יצרן ודגם");
+    if (form.model > 0 && form.manufacturer === 0) {
+      setError("יש לבחור יצרן כדי לבחור דגם");
       return;
     }
     createSearch.mutate(
@@ -215,7 +213,9 @@ export function NewSearchPage() {
               disabled={form.manufacturer === 0}
               onChange={(e) => set("model", Number(e.target.value))}
             >
-              <option value={0}>כל הדגמים</option>
+              <option value={0}>
+                {form.manufacturer === 0 ? "יש לבחור יצרן קודם" : "כל הדגמים"}
+              </option>
               {models?.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name_he && m.name_he !== m.name ? `${m.name_he} (${m.name})` : m.name}

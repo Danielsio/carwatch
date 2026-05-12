@@ -35,6 +35,7 @@ const (
 	cbMdlPage         = "mdl_pg:"
 	cbMdlSearch       = "mdl_search"
 	cbAnyModel        = "mdl:0"
+	cbAnyMfr          = "mfr:0"
 	cbHistoryPage     = "hist_pg:"
 	cbSourceToggle    = "src_toggle:"
 	cbSourceDone      = "src_done"
@@ -85,6 +86,10 @@ func (b *Bot) manufacturerKeyboard(ctx context.Context, chatID int64, page int, 
 	kb := paginatedKeyboard(mfrs, page, cbPrefixMfr, cbMfrPage, cbMfrSearch, "", lang)
 
 	if page == 0 {
+		anyMfrRow := []tgmodels.InlineKeyboardButton{
+			{Text: locale.T(lang, "btn_any_manufacturer"), CallbackData: cbAnyMfr},
+		}
+
 		recent := b.recentManufacturers(ctx, chatID)
 		if len(recent) > 0 {
 			var recentRows [][]tgmodels.InlineKeyboardButton
@@ -104,9 +109,16 @@ func (b *Bot) manufacturerKeyboard(ctx context.Context, chatID int64, page int, 
 				{Text: "───────────", CallbackData: "noop"},
 			})
 
-			newRows := make([][]tgmodels.InlineKeyboardButton, 0, len(kb.InlineKeyboard)+len(recentRows))
+			newRows := make([][]tgmodels.InlineKeyboardButton, 0, len(kb.InlineKeyboard)+len(recentRows)+1)
 			newRows = append(newRows, kb.InlineKeyboard[0]) // search button
+			newRows = append(newRows, anyMfrRow)
 			newRows = append(newRows, recentRows...)
+			newRows = append(newRows, kb.InlineKeyboard[1:]...)
+			kb.InlineKeyboard = newRows
+		} else {
+			newRows := make([][]tgmodels.InlineKeyboardButton, 0, len(kb.InlineKeyboard)+1)
+			newRows = append(newRows, kb.InlineKeyboard[0]) // search button
+			newRows = append(newRows, anyMfrRow)
 			newRows = append(newRows, kb.InlineKeyboard[1:]...)
 			kb.InlineKeyboard = newRows
 		}

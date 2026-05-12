@@ -122,11 +122,22 @@ func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data str
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Manufacturer = id
+	lang := b.getUserLang(ctx, chatID)
+
+	if id == 0 {
+		wd.ManufacturerName = locale.T(lang, "btn_any_manufacturer")
+		wd.Model = 0
+		wd.ModelName = locale.T(lang, "btn_any_model")
+		b.logger.Debug("any manufacturer selected, skipping model step", "chat_id", chatID)
+		b.saveWizardState(ctx, chatID, StateAskYearMin, wd)
+		b.send(ctx, chatID, locale.T(lang, "wizard_year_min"))
+		return
+	}
+
 	wd.ManufacturerName = b.catalog.ManufacturerName(id)
 	b.logger.Debug("manufacturer selected", "chat_id", chatID, "id", id, "name", wd.ManufacturerName)
 	b.saveWizardState(ctx, chatID, StateAskModel, wd)
 
-	lang := b.getUserLang(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID,
 		locale.Tf(lang, "wizard_model_prompt", wd.ManufacturerName),
 		b.modelKeyboard(id, 0, lang))
@@ -255,13 +266,6 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 	}
 
 	wd := b.loadWizardData(ctx, chatID)
-	if wd.Manufacturer == 0 {
-		if err := b.users.UpdateUserState(ctx, chatID, StateIdle, "{}"); err != nil {
-			b.logger.Error("reset wizard state failed", "chat_id", chatID, "error", err)
-		}
-		b.send(ctx, chatID, locale.T(lang, "wizard_session_expired"))
-		return
-	}
 	b.logger.Debug("confirm clicked", "chat_id", chatID, "wizard_data", wd)
 
 	source := wd.Source
@@ -269,7 +273,15 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 		source = "yad2,winwin"
 	}
 
-	name := fmt.Sprintf("%s-%s", strings.ToLower(wd.ManufacturerName), strings.ToLower(wd.ModelName))
+	var name string
+	switch {
+	case wd.Manufacturer == 0:
+		name = "all-cars"
+	case wd.Model == 0:
+		name = strings.ToLower(wd.ManufacturerName) + "-all"
+	default:
+		name = fmt.Sprintf("%s-%s", strings.ToLower(wd.ManufacturerName), strings.ToLower(wd.ModelName))
+	}
 
 	if wd.EditSearchID > 0 {
 		err := b.searches.UpdateSearch(ctx, storage.Search{
