@@ -136,6 +136,7 @@ type ListingRecord struct {
 	Manufacturer string
 	Model        string
 	SubModel     string
+	SubModelID   int
 	Year         int
 	Price        int
 	Km           int
@@ -154,6 +155,7 @@ type ListingRecord struct {
 	MedianPrice  *int
 	CohortSize   *int
 	DealScore    *int
+	BasePrice    *int
 	FirstSeenAt  time.Time
 }
 
@@ -248,6 +250,19 @@ type HiddenListingStore interface {
 	ListHidden(ctx context.Context, chatID int64, limit, offset int) ([]string, error)
 	CountHidden(ctx context.Context, chatID int64) (int64, error)
 	ClearHidden(ctx context.Context, chatID int64) error
+}
+
+type PriceListEntry struct {
+	SubModelID int
+	Year       int
+	BasePrice  int
+	Title      string
+	FetchedAt  time.Time
+}
+
+type PriceListStore interface {
+	GetPriceListEntry(ctx context.Context, subModelID, year int) (*PriceListEntry, error)
+	SetPriceListEntry(ctx context.Context, e PriceListEntry) error
 }
 
 type MarketListing struct {

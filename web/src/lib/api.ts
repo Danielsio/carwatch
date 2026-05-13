@@ -120,6 +120,7 @@ export interface Listing {
   description?: string;
   fitness_score?: number;
   median_price?: number;
+  base_price?: number;
   cohort_size?: number;
   deal_score?: number;
   first_seen_at: string;

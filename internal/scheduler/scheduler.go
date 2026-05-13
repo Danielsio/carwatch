@@ -21,6 +21,7 @@ import (
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
+	"github.com/dsionov/carwatch/internal/pricelist"
 	"github.com/dsionov/carwatch/internal/scoring"
 	"github.com/dsionov/carwatch/internal/storage"
 )
@@ -74,6 +75,7 @@ type Scheduler struct {
 	catalogIngester   CatalogIngester
 	carNames          CarNameResolver
 	kmEnricher        KmEnricher
+	priceListSvc      *pricelist.Service
 	triggerCh         chan struct{}
 
 	langCache   sync.Map
@@ -97,6 +99,7 @@ type Stores struct {
 	Digests      storage.DigestStore
 	Hidden       storage.HiddenListingStore
 	Market       storage.MarketStore
+	PriceList    storage.PriceListStore
 	DailyDigests storage.DailyDigestStore
 }
 
@@ -121,6 +124,7 @@ type Options struct {
 	CarNames         CarNameResolver
 	KmEnricher       KmEnricher
 	MarketStore      storage.MarketStore
+	PriceListStore   storage.PriceListStore
 	DailyDigestStore storage.DailyDigestStore
 }
 
@@ -151,6 +155,12 @@ func NewWithOptions(
 	if obs == nil {
 		obs = nopObserver{}
 	}
+
+	var plSvc *pricelist.Service
+	if opts.PriceListStore != nil {
+		plSvc = pricelist.NewService(opts.PriceListStore, logger)
+	}
+
 	return &Scheduler{
 		cfg:        cfg,
 		configPath: opts.ConfigPath,
@@ -165,6 +175,7 @@ func NewWithOptions(
 			Digests:      opts.DigestStore,
 			Hidden:       opts.HiddenStore,
 			Market:       opts.MarketStore,
+			PriceList:    opts.PriceListStore,
 			DailyDigests: opts.DailyDigestStore,
 		},
 		notifier:          n,
@@ -176,6 +187,7 @@ func NewWithOptions(
 		catalogIngester:   opts.CatalogIngester,
 		carNames:          opts.CarNames,
 		kmEnricher:        opts.KmEnricher,
+		priceListSvc:      plSvc,
 		triggerCh:         make(chan struct{}, 1),
 	}, nil
 }
@@ -505,6 +517,9 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 
 	s.langCache.Range(func(k, _ any) bool { s.langCache.Delete(k); return true })
 	s.digestCache.Range(func(k, _ any) bool { s.digestCache.Delete(k); return true })
+	if s.priceListSvc != nil {
+		s.priceListSvc.ResetCycleCounter()
+	}
 
 	searches, err := s.stores.Searches.ListAllActiveSearches(ctx)
 	if err != nil {
@@ -990,6 +1005,7 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 		rec := storage.ListingRecord{
 			Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
 			Manufacturer: l.Manufacturer, Model: l.Model, SubModel: l.SubModel,
+			SubModelID: l.SubModelID,
 			Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 			City: l.City, PageLink: l.PageLink, ImageURL: l.ImageURL,
 			EngineVolume: l.EngineVolume, HorsePower: l.HorsePower,
@@ -1014,6 +1030,16 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 		}
 	}
 	return true
+}
+
+func (s *Scheduler) enrichWithBasePrice(ctx context.Context, listing *model.Listing) {
+	if s.priceListSvc == nil || listing.SubModelID <= 0 || listing.Year <= 0 {
+		return
+	}
+	bp, ok := s.priceListSvc.Lookup(ctx, listing.SubModelID, listing.Year)
+	if ok && bp > 0 {
+		listing.BasePrice = &bp
+	}
 }
 
 func (s *Scheduler) scoreAndRecordListings(search storage.Search, l model.RawListing, marketCache *scoring.MarketCache) model.Listing {
@@ -1068,12 +1094,13 @@ func buildNotifications(search storage.Search, listing model.Listing, out *searc
 	rec := storage.ListingRecord{
 		Token: listing.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
 		Manufacturer: listing.Manufacturer, Model: listing.Model, SubModel: listing.SubModel,
+		SubModelID: listing.SubModelID,
 		Year: listing.Year, Price: listing.Price, Km: listing.Km, Hand: listing.Hand,
 		City: listing.City, PageLink: listing.PageLink, ImageURL: listing.ImageURL,
 		EngineVolume: listing.EngineVolume, HorsePower: listing.HorsePower,
 		EngineType: listing.EngineType, GearBox: listing.GearBox, Description: listing.Description,
 		IsCommercial: listing.Commercial,
-		FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
+		FitnessScore: &listing.FitnessScore, BasePrice: listing.BasePrice, FirstSeenAt: time.Now(),
 	}
 	if listing.DealScore != nil {
 		rec.MedianPrice = &listing.DealScore.MedianPrice
@@ -1101,6 +1128,7 @@ func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Se
 			continue
 		}
 		listing := s.scoreAndRecordListings(search, l, marketCache)
+		s.enrichWithBasePrice(ctx, &listing)
 		buildNotifications(search, listing, &out)
 	}
 	return out

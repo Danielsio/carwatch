@@ -98,7 +98,11 @@ export function ListingCardBody({
               {formatPrice(listing.price)}
             </span>
             {(() => {
-              const mc = marketComparison(listing.price, listing.median_price);
+              const mc = marketComparison(
+                listing.price,
+                listing.median_price,
+                listing.base_price,
+              );
               if (!mc) return null;
               return (
                 <p className={cn("text-[11px] font-medium mt-0.5", mc.color)}>

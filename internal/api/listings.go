@@ -28,6 +28,7 @@ type listingResponse struct {
 	MedianPrice  *int     `json:"median_price,omitempty"`
 	CohortSize   *int     `json:"cohort_size,omitempty"`
 	DealScore    *int     `json:"deal_score,omitempty"`
+	BasePrice    *int     `json:"base_price,omitempty"`
 	FirstSeenAt  string   `json:"first_seen_at"`
 	Saved        bool     `json:"saved,omitempty"`
 	// Seen: user dismissed this listing from the new-items feed (notifications).
@@ -102,6 +103,7 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		MedianPrice:  l.MedianPrice,
 		CohortSize:   l.CohortSize,
 		DealScore:    l.DealScore,
+		BasePrice:    l.BasePrice,
 		FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
 		Saved:        savedFlag,
 		Seen:         seenFlag,

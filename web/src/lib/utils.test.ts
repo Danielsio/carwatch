@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { formatPrice, formatKm, safeHref, relativeTime, cn } from "./utils";
+import { formatPrice, formatKm, safeHref, relativeTime, cn, marketComparison } from "./utils";
 
 describe("cn", () => {
   it("merges class names", () => {
@@ -78,6 +78,47 @@ describe("safeHref", () => {
 
   it("returns null for data: protocol", () => {
     expect(safeHref("data:text/html,<h1>hi</h1>")).toBeNull();
+  });
+});
+
+describe("marketComparison", () => {
+  it("returns null when neither median nor base is usable", () => {
+    expect(marketComparison(100_000)).toBeNull();
+    expect(marketComparison(100_000, undefined, 0)).toBeNull();
+    expect(marketComparison(100_000, -1)).toBeNull();
+  });
+
+  it("prefers base_price over median when both are set", () => {
+    const r = marketComparison(80_000, 100_000, 90_000);
+    expect(r).not.toBeNull();
+    expect(r!.source).toBe("base");
+    expect(r!.diffPercent).toBe(11); // 100*(1-80000/90000)
+    expect(r!.label).toContain("מחירון");
+    expect(r!.label).not.toContain("ממוצע");
+  });
+
+  it("uses median when base is absent", () => {
+    const r = marketComparison(85_000, 100_000);
+    expect(r).not.toBeNull();
+    expect(r!.source).toBe("median");
+    expect(r!.diffPercent).toBe(15);
+    expect(r!.label).toContain("ממוצע");
+    expect(r!.isBelow).toBe(true);
+  });
+
+  it("uses base when median is absent", () => {
+    const r = marketComparison(95_000, undefined, 100_000);
+    expect(r).not.toBeNull();
+    expect(r!.source).toBe("base");
+    expect(r!.diffPercent).toBe(5); // boundary: neutral band
+    expect(r!.label).toBe("קרוב למחירון");
+  });
+
+  it("marks listing above reference", () => {
+    const r = marketComparison(120_000, 100_000);
+    expect(r!.isBelow).toBe(false);
+    expect(r!.diffPercent).toBe(-20);
+    expect(r!.label).toContain("מעל הממוצע");
   });
 });
 

@@ -33,6 +33,7 @@ RUN apk add --no-cache ca-certificates tzdata \
 USER bot
 COPY --from=builder /bot /bot
 COPY --from=builder /app/migrations /migrations
+COPY --from=builder /app/scripts/yad2_price_scraper.py /scripts/yad2_price_scraper.py
 VOLUME /data
 HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
   CMD wget -q --spider http://localhost:8080/healthz || exit 1

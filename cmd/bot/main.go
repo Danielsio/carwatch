@@ -145,6 +145,7 @@ func run(configPath string, logger *slog.Logger) error {
 		CarNames:         dynCatalog,
 		KmEnricher:       kmEnricher,
 		MarketStore:      store,
+		PriceListStore:   store,
 		DailyDigestStore: store,
 	})
 	if err != nil {

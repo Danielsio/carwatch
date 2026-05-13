@@ -198,6 +198,7 @@ func itemToListing(raw json.RawMessage, commercial *bool) (model.RawListing, err
 		ModelID:            item.Model.ID,
 		ModelNameHe:        item.Model.Text,
 		SubModel:         textFromField(item.SubModel),
+		SubModelID:       item.SubModel.ID,
 		Year:         year,
 		Month:        item.Month,
 		EngineVolume: engineVol,

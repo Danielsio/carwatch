@@ -713,6 +713,51 @@ func migrateListingMarketValue(db *sql.DB) error {
 	return nil
 }
 
+func migrateListingSubModelIDAndBasePrice(db *sql.DB) error {
+	columns := []struct {
+		name string
+		def  string
+	}{
+		{"sub_model_id", "INTEGER NOT NULL DEFAULT 0"},
+		{"base_price", "INTEGER"},
+	}
+	for _, col := range columns {
+		var exists int
+		if err := db.QueryRow(
+			"SELECT COUNT(*) FROM pragma_table_info('listing_history') WHERE name = ?", col.name,
+		).Scan(&exists); err != nil {
+			return fmt.Errorf("check listing_history %s: %w", col.name, err)
+		}
+		if exists == 0 {
+			if _, err := db.Exec(fmt.Sprintf(
+				"ALTER TABLE listing_history ADD COLUMN %s %s", col.name, col.def)); err != nil {
+				return fmt.Errorf("add listing_history %s: %w", col.name, err)
+			}
+		}
+	}
+
+	var tblCount int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='price_list_cache'",
+	).Scan(&tblCount); err != nil {
+		return fmt.Errorf("check price_list_cache table: %w", err)
+	}
+	if tblCount == 0 {
+		if _, err := db.Exec(`
+			CREATE TABLE price_list_cache (
+				sub_model_id INTEGER NOT NULL,
+				year         INTEGER NOT NULL,
+				base_price   INTEGER NOT NULL,
+				title        TEXT,
+				fetched_at   TEXT NOT NULL DEFAULT (datetime('now')),
+				PRIMARY KEY (sub_model_id, year)
+			)`); err != nil {
+			return fmt.Errorf("create price_list_cache: %w", err)
+		}
+	}
+	return nil
+}
+
 func migrateListingUserSeen(db *sql.DB) error {
 	var n int
 	if err := db.QueryRow(

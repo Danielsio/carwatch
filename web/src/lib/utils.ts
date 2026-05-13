@@ -27,41 +27,75 @@ export function safeHref(raw: string): string | null {
 }
 
 export type MarketComparison = {
-  pctDiff: number;
-  absDiff: number;
   label: string;
+  /** Positive when listing price is below reference (better deal vs reference). */
+  diffPercent: number;
+  isBelow: boolean;
+  source: "base" | "median";
+  /** Signed reference − listing (positive when listing is cheaper than reference). */
+  absDiff: number;
   color: string;
 };
 
-export function marketComparison(
+function marketComparisonAgainstRef(
   price: number,
-  medianPrice: number | undefined,
+  referencePrice: number,
+  source: "base" | "median",
 ): MarketComparison | null {
-  if (!medianPrice || medianPrice <= 0 || price <= 0) return null;
-  const pctDiff = Math.round(100 * (1 - price / medianPrice));
-  const absDiff = medianPrice - price;
-  if (pctDiff > 5) {
+  if (!referencePrice || referencePrice <= 0 || price <= 0) return null;
+  const diffPercent = Math.round(100 * (1 - price / referencePrice));
+  const absDiff = referencePrice - price;
+  const isBelow = price < referencePrice;
+
+  if (diffPercent > 5) {
     return {
-      pctDiff,
+      diffPercent,
       absDiff,
-      label: `${pctDiff}% מתחת לשוק`,
+      isBelow,
+      source,
+      label:
+        source === "base"
+          ? `${diffPercent}% מתחת למחירון`
+          : `${diffPercent}% מתחת לממוצע`,
       color: "text-emerald-500",
     };
   }
-  if (pctDiff >= -5) {
+  if (diffPercent >= -5) {
     return {
-      pctDiff,
+      diffPercent,
       absDiff,
-      label: "קרוב למחיר השוק",
+      isBelow,
+      source,
+      label: source === "base" ? "קרוב למחירון" : "קרוב לממוצע",
       color: "text-muted-foreground",
     };
   }
   return {
-    pctDiff,
+    diffPercent,
     absDiff,
-    label: `${-pctDiff}% מעל השוק`,
+    isBelow,
+    source,
+    label:
+      source === "base"
+        ? `${-diffPercent}% מעל המחירון`
+        : `${-diffPercent}% מעל הממוצע`,
     color: "text-amber-500",
   };
+}
+
+/** Compare listing price to Yad2 price list (base) when present, else to cohort median. */
+export function marketComparison(
+  price: number,
+  medianPrice?: number,
+  basePrice?: number,
+): MarketComparison | null {
+  if (basePrice != null && basePrice > 0) {
+    return marketComparisonAgainstRef(price, basePrice, "base");
+  }
+  if (medianPrice != null && medianPrice > 0) {
+    return marketComparisonAgainstRef(price, medianPrice, "median");
+  }
+  return null;
 }
 
 export function relativeTime(dateStr: string): string {

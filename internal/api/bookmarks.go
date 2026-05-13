@@ -221,6 +221,7 @@ func toListingResponses(records []storage.ListingRecord, saved, seen map[string]
 			MedianPrice:  l.MedianPrice,
 			CohortSize:   l.CohortSize,
 			DealScore:    l.DealScore,
+			BasePrice:    l.BasePrice,
 			FirstSeenAt:  l.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
 			Saved:        savedFlag,
 			Seen:         seenFlag,
