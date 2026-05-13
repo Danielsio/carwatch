@@ -229,7 +229,12 @@ function ListingDetailContent({
       </div>
 
       {/* Market value comparison */}
-      <MarketValueCard price={listing.price} medianPrice={listing.median_price} cohortSize={listing.cohort_size} />
+      <MarketValueCard
+        price={listing.price}
+        medianPrice={listing.median_price}
+        basePrice={listing.base_price}
+        cohortSize={listing.cohort_size}
+      />
 
       {/* Vehicle specs grid */}
       {hasVehicleSpecs && (
@@ -309,63 +314,71 @@ function ListingDetailContent({
 function MarketValueCard({
   price,
   medianPrice,
+  basePrice,
   cohortSize,
 }: {
   price: number;
   medianPrice?: number;
+  basePrice?: number;
   cohortSize?: number;
 }) {
-  const mc = marketComparison(price, medianPrice);
-  if (!mc || !medianPrice) return null;
+  const hasBase = basePrice != null && basePrice > 0;
+  const hasMedian = medianPrice != null && medianPrice > 0;
 
-  const ratio = Math.min(Math.max(price / medianPrice, 0.5), 1.5);
+  if (!hasBase && !hasMedian) return null;
+
+  const referenceForBar = hasBase ? basePrice! : medianPrice!;
+  const mc = marketComparison(price, medianPrice, basePrice);
+  if (!mc) return null;
+
+  const ratio = Math.min(Math.max(price / referenceForBar, 0.5), 1.5);
   const pct = ((ratio - 0.5) / 1.0) * 100;
+
+  const barTint =
+    mc.diffPercent > 5
+      ? "bg-emerald-500/30"
+      : mc.diffPercent >= -5
+        ? "bg-muted-foreground/20"
+        : "bg-amber-500/30";
+  const markerTint =
+    mc.diffPercent > 5
+      ? "bg-emerald-500"
+      : mc.diffPercent >= -5
+        ? "bg-muted-foreground"
+        : "bg-amber-500";
 
   return (
     <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-3">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-foreground">שווי שוק</h2>
+        <h2 className="text-sm font-semibold text-foreground">
+          {hasBase ? "מחירון Yad2" : "שווי שוק"}
+        </h2>
         <span className="text-xl font-bold tabular-nums text-foreground">
-          {formatPrice(medianPrice)}
+          {formatPrice(referenceForBar)}
         </span>
       </div>
 
       <div className="flex items-baseline justify-between gap-2">
-        <span className={cn("text-sm font-medium", mc.color)}>
-          {mc.absDiff > 0
-            ? `₪${Math.abs(mc.absDiff).toLocaleString("he-IL")} ${mc.pctDiff > 5 ? "מתחת" : mc.pctDiff >= -5 ? "קרוב" : "מעל"} לשוק`
-            : mc.label}
-        </span>
+        <span className={cn("text-sm font-medium", mc.color)}>{mc.label}</span>
         <span className={cn("text-sm font-semibold tabular-nums", mc.color)}>
-          {mc.pctDiff > 5
-            ? `${mc.pctDiff}%−`
-            : mc.pctDiff >= -5
+          {mc.diffPercent > 5
+            ? `${mc.diffPercent}%−`
+            : mc.diffPercent >= -5
               ? "≈"
-              : `${-mc.pctDiff}%+`}
+              : `${-mc.diffPercent}%+`}
         </span>
       </div>
 
-      {/* Visual bar */}
+      {/* Visual bar — listing vs reference (Yad2 price list or cohort median) */}
       <div className="relative h-2 rounded-full bg-secondary overflow-hidden">
         <div
-          className={cn(
-            "absolute inset-y-0 start-0 rounded-full transition-all",
-            mc.pctDiff > 5
-              ? "bg-emerald-500/30"
-              : mc.pctDiff >= -5
-                ? "bg-muted-foreground/20"
-                : "bg-amber-500/30",
-          )}
+          className={cn("absolute inset-y-0 start-0 rounded-full transition-all", barTint)}
           style={{ width: `${pct}%` }}
         />
         <div
           className={cn(
             "absolute top-1/2 -translate-y-1/2 h-4 w-1 rounded-full",
-            mc.pctDiff > 5
-              ? "bg-emerald-500"
-              : mc.pctDiff >= -5
-                ? "bg-muted-foreground"
-                : "bg-amber-500",
+            markerTint,
           )}
           style={{ insetInlineStart: `${pct}%` }}
         />
@@ -376,8 +389,17 @@ function MarketValueCard({
       </div>
       <div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
         <span>{formatPrice(price)}</span>
-        <span>חציון</span>
+        <span>{hasBase ? "מחירון" : "חציון"}</span>
       </div>
+
+      {hasBase && hasMedian ? (
+        <p className="text-xs text-muted-foreground text-center">
+          מחיר ממוצע במודעות:{" "}
+          <span className="tabular-nums font-medium text-foreground/90">
+            {formatPrice(medianPrice!)}
+          </span>
+        </p>
+      ) : null}
 
       {cohortSize != null && cohortSize > 0 && (
         <p className="text-[11px] text-muted-foreground text-center">

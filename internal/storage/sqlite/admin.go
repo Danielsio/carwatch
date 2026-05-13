@@ -107,20 +107,20 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 	var err error
 	if searchID > 0 {
 		rows, err = s.db.QueryContext(ctx, `
-			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price,
+			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
 				km, hand, city, page_link, image_url,
 				engine_volume, horse_power, engine_type, gear_box, description,
-				is_commercial, fitness_score, median_price, cohort_size, deal_score, first_seen_at
+				is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at
 			FROM listing_history
 			WHERE search_id = ?
 			ORDER BY first_seen_at DESC
 			LIMIT ? OFFSET ?`, searchID, limit, offset)
 	} else {
 		rows, err = s.db.QueryContext(ctx, `
-			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, year, price,
+			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
 				km, hand, city, page_link, image_url,
 				engine_volume, horse_power, engine_type, gear_box, description,
-				is_commercial, fitness_score, median_price, cohort_size, deal_score, first_seen_at
+				is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at
 			FROM listing_history
 			ORDER BY first_seen_at DESC
 			LIMIT ? OFFSET ?`, limit, offset)
@@ -135,14 +135,14 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 		var r storage.ListingRecord
 		var score *float64
 		var ic sql.NullInt64
-		var mp, cs, ds sql.NullInt64
+		var mp, cs, ds, bp sql.NullInt64
 		var firstSeen string
 		if err := rows.Scan(
 			&r.Token, &r.ChatID, &r.SearchID, &r.SearchName,
-			&r.Manufacturer, &r.Model, &r.SubModel, &r.Year, &r.Price,
+			&r.Manufacturer, &r.Model, &r.SubModel, &r.SubModelID, &r.Year, &r.Price,
 			&r.Km, &r.Hand, &r.City, &r.PageLink, &r.ImageURL,
 			&r.EngineVolume, &r.HorsePower, &r.EngineType, &r.GearBox, &r.Description,
-			&ic, &score, &mp, &cs, &ds, &firstSeen,
+			&ic, &score, &mp, &cs, &ds, &bp, &firstSeen,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan listing: %w", err)
 		}
@@ -159,6 +159,10 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 		if ds.Valid {
 			v := int(ds.Int64)
 			r.DealScore = &v
+		}
+		if bp.Valid {
+			v := int(bp.Int64)
+			r.BasePrice = &v
 		}
 		parsed, parseErr := parseFlexibleTime(firstSeen)
 		if parseErr != nil {

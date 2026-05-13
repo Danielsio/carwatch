@@ -16,6 +16,7 @@ type Store interface {
 	SavedListingStore
 	HiddenListingStore
 	MarketStore
+	PriceListStore
 	DailyDigestStore
 	AdminStore
 	NotificationStore

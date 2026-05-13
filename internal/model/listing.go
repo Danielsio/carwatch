@@ -11,6 +11,7 @@ type RawListing struct {
 	ModelID            int
 	ModelNameHe        string
 	SubModel     string
+	SubModelID   int
 	Year         int
 	Month        int
 	EngineVolume float64
@@ -50,4 +51,5 @@ type Listing struct {
 	DealScore        *ScoreInfo
 	FitnessScore     float64
 	FitnessBreakdown []FitnessDim
+	BasePrice        *int
 }

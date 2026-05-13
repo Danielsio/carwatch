@@ -10,10 +10,10 @@ import (
 
 func (s *Store) NewListingsSince(ctx context.Context, chatID int64, since time.Time, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT token, search_name, manufacturer, model, sub_model, year, price,
+		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
-			is_commercial, fitness_score, median_price, cohort_size, deal_score, first_seen_at
+			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at
 		FROM listing_history lh
 		WHERE lh.chat_id = ? AND lh.first_seen_at > ?
 		AND NOT EXISTS (

@@ -44,6 +44,7 @@ func migrate(db *sql.DB) error {
 		migrateListingVehicleDetails,
 		migrateSellerFilterAndListingCommercial,
 		migrateListingMarketValue,
+		migrateListingSubModelIDAndBasePrice,
 		migrateListingUserSeen,
 	}
 	for _, step := range steps {
