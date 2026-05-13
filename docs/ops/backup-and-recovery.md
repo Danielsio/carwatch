@@ -129,7 +129,7 @@ start again:
 3. Create the config:
 
    ```bash
-   scp config.yaml firebase-sa.json <user>@<new-ip>:~/carwatch/
+   scp config.yaml firebase-service-account.json <user>@<new-ip>:~/carwatch/
    ```
 
 4. Start the container (creates the named volume with an empty DB):
