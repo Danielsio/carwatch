@@ -197,6 +197,10 @@ func (b *Bot) rateLimited(next tgbot.HandlerFunc) tgbot.HandlerFunc {
 }
 
 func (b *Bot) RegisterHandlers() {
+	if b.bot == nil {
+		b.logger.Warn("RegisterHandlers called with nil bot instance, skipping")
+		return
+	}
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/start", tgbot.MatchTypePrefix, b.rateLimited(b.handleStart))
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/watch", tgbot.MatchTypeExact, b.rateLimited(b.handleWatch))
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/list", tgbot.MatchTypeExact, b.rateLimited(b.handleList))
@@ -250,11 +254,21 @@ func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string, k
 }
 
 func (b *Bot) lockChat(chatID int64) func() {
-	v, _ := b.chatMu.LoadOrStore(chatID, &chatMuEntry{})
-	entry := v.(*chatMuEntry)
-	entry.mu.Lock()
-	entry.lastUsed.Store(time.Now().UnixNano())
-	return entry.mu.Unlock
+	for {
+		v, _ := b.chatMu.LoadOrStore(chatID, &chatMuEntry{})
+		entry, ok := v.(*chatMuEntry)
+		if ok {
+			entry.mu.Lock()
+			entry.lastUsed.Store(time.Now().UnixNano())
+			return entry.mu.Unlock
+		}
+		candidate := &chatMuEntry{}
+		if b.chatMu.CompareAndSwap(chatID, v, candidate) {
+			candidate.mu.Lock()
+			candidate.lastUsed.Store(time.Now().UnixNano())
+			return candidate.mu.Unlock
+		}
+	}
 }
 
 const staleThreshold = 1 * time.Hour
@@ -299,7 +313,11 @@ func (b *Bot) sweepStaleMaps() {
 	})
 
 	b.chatMu.Range(func(key, value any) bool {
-		entry := value.(*chatMuEntry)
+		entry, ok := value.(*chatMuEntry)
+		if !ok {
+			b.chatMu.CompareAndDelete(key, value)
+			return true
+		}
 		if !entry.mu.TryLock() {
 			return true
 		}
