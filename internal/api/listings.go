@@ -121,9 +121,26 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 			MaxHand:      sr.MaxHand,
 			EngineMinCC:  sr.EngineMinCC,
 		}
-		raw, fetchErr := f.Fetch(r.Context(), params)
+
+		var raw []model.RawListing
+		var fetchErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			raw, fetchErr = f.Fetch(r.Context(), params)
+			if fetchErr == nil {
+				break
+			}
+			log.Warn("fetch attempt failed", "source", src,
+				"attempt", fmt.Sprintf("%d/3", attempt+1), "error", fetchErr)
+			if attempt < 2 {
+				delay := time.Duration(1<<attempt) * time.Second
+				select {
+				case <-r.Context().Done():
+					break
+				case <-time.After(delay):
+				}
+			}
+		}
 		if fetchErr != nil {
-			log.Warn("fetch failed", "source", src, "error", fetchErr)
 			continue
 		}
 		allRaw = append(allRaw, raw...)
