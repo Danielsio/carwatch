@@ -19,6 +19,7 @@ import (
 	"github.com/dsionov/carwatch/internal/botcore"
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/storage"
 )
@@ -57,6 +58,8 @@ type Server struct {
 	rl           *rateLimiter
 	ipRL         *ipRateLimiter
 	vacuumMu     sync.Mutex
+	fetchers     *fetcher.Factory
+	refreshMu    sync.Map
 
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
 	httpReqTotal   atomic.Uint64
@@ -96,6 +99,7 @@ type Config struct {
 	API          config.APIConfig
 	FirebaseAuth TokenVerifier
 	BotUsername  string
+	Fetchers     *fetcher.Factory
 }
 
 func New(c Config) *Server {
@@ -119,6 +123,7 @@ func New(c Config) *Server {
 		startTime:    time.Now(),
 		rl:           newRateLimiter(60, time.Second/60),
 		ipRL:         newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
+		fetchers:     c.Fetchers,
 	}
 }
 
@@ -164,6 +169,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/searches/{id}/resume", s.resumeSearch)
 
 	mux.HandleFunc("GET /api/v1/searches/{id}/listings", s.listListings)
+	mux.HandleFunc("POST /api/v1/searches/{id}/refresh", s.refreshListings)
 	mux.HandleFunc("GET /api/v1/listings/{token}", s.getListing)
 
 	if s.admin != nil {

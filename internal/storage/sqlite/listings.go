@@ -440,6 +440,47 @@ func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int
 	return result.RowsAffected()
 }
 
+func (s *Store) DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error) {
+	if len(keepTokens) == 0 {
+		result, err := s.db.ExecContext(ctx, `
+			DELETE FROM listing_history
+			WHERE chat_id = ? AND search_id = ?
+			  AND NOT EXISTS (
+			    SELECT 1 FROM saved_listings
+			    WHERE saved_listings.token = listing_history.token
+			      AND saved_listings.chat_id = listing_history.chat_id
+			  )`, chatID, searchID)
+		if err != nil {
+			return 0, err
+		}
+		return result.RowsAffected()
+	}
+
+	placeholders := make([]string, len(keepTokens))
+	args := make([]interface{}, 0, 2+len(keepTokens))
+	args = append(args, chatID, searchID)
+	for i, t := range keepTokens {
+		placeholders[i] = "?"
+		args = append(args, t)
+	}
+
+	query := fmt.Sprintf(`
+		DELETE FROM listing_history
+		WHERE chat_id = ? AND search_id = ?
+		  AND token NOT IN (%s)
+		  AND NOT EXISTS (
+		    SELECT 1 FROM saved_listings
+		    WHERE saved_listings.token = listing_history.token
+		      AND saved_listings.chat_id = listing_history.chat_id
+		  )`, strings.Join(placeholders, ","))
+
+	result, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 func (s *Store) SaveBookmark(ctx context.Context, chatID int64, token string) error {
 	_, err := s.db.ExecContext(ctx,
 		"INSERT OR IGNORE INTO saved_listings (chat_id, token) VALUES (?, ?)",

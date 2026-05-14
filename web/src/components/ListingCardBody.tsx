@@ -78,7 +78,9 @@ export function ListingCardBody({
           ) : null}
           {listing.fitness_score != null ? (
             <MatchScoreBox score={listing.fitness_score} size="md" />
-          ) : null}
+          ) : (
+            <div className="h-10 w-10 shrink-0 rounded-xl shimmer-skeleton" />
+          )}
           <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-card-foreground">
               {listing.manufacturer} {listing.model}
@@ -114,13 +116,22 @@ export function ListingCardBody({
         </div>
 
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mb-3">
-          <span className="tabular-nums">{formatKm(listing.km)}</span>
+          {listing.km > 0 ? (
+            <span className="tabular-nums">{formatKm(listing.km)}</span>
+          ) : (
+            <span className="inline-block h-3.5 w-14 rounded shimmer-skeleton align-middle" />
+          )}
           <span className="text-border">·</span>
           <span>יד {listing.hand}</span>
-          {listing.city && (
+          {listing.city ? (
             <>
               <span className="text-border">·</span>
               <span>{listing.city}</span>
+            </>
+          ) : (
+            <>
+              <span className="text-border">·</span>
+              <span className="inline-block h-3.5 w-12 rounded shimmer-skeleton align-middle" />
             </>
           )}
         </div>
