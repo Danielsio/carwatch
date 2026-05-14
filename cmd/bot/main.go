@@ -161,6 +161,7 @@ func run(configPath string, logger *slog.Logger) error {
 		"health", "http://"+cfg.HTTP.Bind+"/healthz",
 	)
 
+	h.MarkSchedulerStarted()
 	return sched.Run(ctx)
 }
 

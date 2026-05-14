@@ -291,6 +291,7 @@ func TestStatus_NoSourcesBeforeFetch(t *testing.T) {
 
 func TestStatus_StartingDuringGracePeriod(t *testing.T) {
 	s := New()
+	s.MarkSchedulerStarted()
 	s.RecordError()
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
@@ -313,6 +314,7 @@ func TestStatus_StartingDuringGracePeriod(t *testing.T) {
 func TestStatus_DegradedAfterGracePeriod(t *testing.T) {
 	s := New()
 	s.startTime = time.Now().Add(-10 * time.Minute)
+	s.MarkSchedulerStarted()
 	s.RecordError()
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
