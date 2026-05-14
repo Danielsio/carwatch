@@ -32,5 +32,6 @@ type WizardData struct {
 	MaxHand          int    `json:"max_hand,omitempty"`
 	Keywords         string `json:"keywords,omitempty"`
 	ExcludeKeys      string `json:"exclude_keys,omitempty"`
+	SellerFilter     string `json:"seller_filter,omitempty"`
 	EditSearchID     int64  `json:"edit_search_id,omitempty"`
 }
