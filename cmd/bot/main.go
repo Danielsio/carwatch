@@ -26,6 +26,7 @@ import (
 	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/notifier/telegram"
+	"github.com/dsionov/carwatch/internal/pricelist"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/spa"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -114,7 +115,8 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer func() { _ = multi.Disconnect() }()
 
-	apiServer, err := buildAPI(cfg, store, dynCatalog, logHub, &logLevelVar, logger, fetcherFactory)
+	apiPriceListSvc := pricelist.NewService(store, logger.With("component", "api-pricelist"))
+	apiServer, err := buildAPI(cfg, store, dynCatalog, logHub, &logLevelVar, logger, fetcherFactory, apiPriceListSvc)
 	if err != nil {
 		return err
 	}
@@ -252,7 +254,7 @@ func buildBot(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 	return botHandler, tgNotif, multi, nil
 }
 
-func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, logHub *logstream.Hub, logLevel *slog.LevelVar, logger *slog.Logger, fetchers *fetcher.Factory) (*api.Server, error) {
+func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, logHub *logstream.Hub, logLevel *slog.LevelVar, logger *slog.Logger, fetchers *fetcher.Factory, plSvc *pricelist.Service) (*api.Server, error) {
 	var firebaseAuth api.TokenVerifier
 	if cfg.Firebase.ProjectID != "" {
 		v, err := api.NewFirebaseVerifier(cfg.Firebase.CredentialsFile, cfg.Firebase.CredentialsJSON, cfg.Firebase.ProjectID)
@@ -282,6 +284,7 @@ func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 		LogHub:       logHub,
 		LogLevel:     logLevel,
 		Fetchers:     fetchers,
+		PriceListSvc: plSvc,
 	})
 
 	return apiServer, nil

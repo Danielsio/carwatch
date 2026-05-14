@@ -21,6 +21,7 @@ import (
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/logstream"
+	"github.com/dsionov/carwatch/internal/pricelist"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -59,6 +60,7 @@ type Server struct {
 	ipRL         *ipRateLimiter
 	vacuumMu     sync.Mutex
 	fetchers     *fetcher.Factory
+	priceListSvc *pricelist.Service
 	refreshMu    sync.Map
 
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
@@ -100,6 +102,7 @@ type Config struct {
 	FirebaseAuth TokenVerifier
 	BotUsername  string
 	Fetchers     *fetcher.Factory
+	PriceListSvc *pricelist.Service
 }
 
 func New(c Config) *Server {
@@ -124,6 +127,7 @@ func New(c Config) *Server {
 		rl:           newRateLimiter(60, time.Second/60),
 		ipRL:         newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
 		fetchers:     c.Fetchers,
+		priceListSvc: c.PriceListSvc,
 	}
 }
 
