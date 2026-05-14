@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import {
   ExternalLink,
@@ -6,20 +6,24 @@ import {
   Car,
   Eye,
   EyeOff,
+  RefreshCw,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useListings } from "@/hooks/useListings";
 import { useSaveBookmark, useRemoveBookmark } from "@/hooks/useBookmarks";
 import { useMarkListingSeen, useUnmarkListingSeen } from "@/hooks/useListingSeen";
 import { safeHref, cn, formatPrice } from "@/lib/utils";
-import type { Listing } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Listing, RefreshResponse } from "@/lib/api";
 import { ListingCardBody } from "@/components/ListingCardBody";
+import { ListingCardSkeleton } from "@/components/ListingCardSkeleton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageShell } from "@/components/ui/PageShell";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Pagination } from "@/components/ui/Pagination";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 
 const SORT_OPTIONS = [
@@ -32,6 +36,7 @@ const SORT_OPTIONS = [
 ];
 
 const PAGE_SIZE = 20;
+const REFRESH_COOLDOWN_S = 60;
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -43,6 +48,32 @@ export function ListingsPage() {
   const searchId = Number(id);
   const [sort, setSort] = useState("newest");
   const [offset, setOffset] = useState(0);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [cooldown, setCooldown] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startCooldown = useCallback(() => {
+    setCooldown(REFRESH_COOLDOWN_S);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          if (cooldownRef.current) clearInterval(cooldownRef.current);
+          cooldownRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (cooldownRef.current) clearInterval(cooldownRef.current);
+    };
+  }, []);
 
   const { data, isLoading, isError } = useListings(
     searchId,
@@ -50,6 +81,33 @@ export function ListingsPage() {
     PAGE_SIZE,
     offset,
   );
+
+  const refreshMutation = useMutation<RefreshResponse, Error>({
+    mutationFn: () => api.refreshListings(searchId),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["listings", searchId] });
+      queryClient.invalidateQueries({ queryKey: ["searches"] });
+      startCooldown();
+
+      if (res.removed > 0) {
+        toast(`הוסרו ${res.removed} מודעות שכבר לא זמינות`, "info");
+      }
+      toast(
+        `נטענו ${res.total} מודעות מעודכנות`,
+        "success",
+      );
+    },
+    onError: (err) => {
+      if (err.message.includes("wait")) {
+        toast(err.message, "info");
+        startCooldown();
+      } else {
+        toast("שגיאה בעת רענון המודעות", "error");
+      }
+    },
+  });
+
+  const isRefreshing = refreshMutation.isPending;
 
   if (!searchId || Number.isNaN(searchId)) {
     return (
@@ -72,55 +130,87 @@ export function ListingsPage() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <PageShell gap="sm">
-        <PageHeader backTo="/dashboard" title="תוצאות" />
-        <div className="flex flex-wrap gap-2">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-8 w-16 rounded-md" />
-          ))}
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-72 rounded-2xl" />
-          ))}
-        </div>
-      </PageShell>
-    );
-  }
+  const showSkeletons = isLoading || isRefreshing;
 
   const countSubtitle =
-    data != null ? `${data.total.toLocaleString("he-IL")} מודעות` : undefined;
+    !showSkeletons && data != null
+      ? `${data.total.toLocaleString("he-IL")} מודעות`
+      : undefined;
 
   return (
     <PageShell gap="sm">
       <PageHeader
         backTo="/dashboard"
         title="תוצאות"
-        subtitle={countSubtitle}
+        subtitle={
+          showSkeletons ? (
+            <span className="inline-block h-4 w-24 rounded shimmer-skeleton align-middle" />
+          ) : (
+            countSubtitle
+          )
+        }
       />
 
-      {/* Sort pills */}
-      <div className="flex flex-wrap gap-2 dir-rtl">
-        {SORT_OPTIONS.map((opt) => (
-          <Button
-            key={opt.value}
-            type="button"
-            size="sm"
-            variant={sort === opt.value ? "primary" : "secondary"}
-            onClick={() => {
-              setSort(opt.value);
-              setOffset(0);
-            }}
-          >
-            {opt.label}
-          </Button>
-        ))}
+      {/* Sort pills + refresh button */}
+      <div className="flex items-center gap-2 dir-rtl">
+        <div className={cn("flex flex-wrap gap-2 flex-1", isRefreshing && "opacity-60 pointer-events-none")}>
+          {SORT_OPTIONS.map((opt) => (
+            <Button
+              key={opt.value}
+              type="button"
+              size="sm"
+              variant={sort === opt.value ? "primary" : "secondary"}
+              onClick={() => {
+                setSort(opt.value);
+                setOffset(0);
+              }}
+            >
+              {opt.label}
+            </Button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => refreshMutation.mutate()}
+          disabled={isRefreshing || cooldown > 0}
+          aria-label={cooldown > 0 ? `רענון זמין בעוד ${cooldown} שניות` : "רענן מודעות"}
+          className={cn(
+            "relative flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-300",
+            "bg-primary/10 text-primary hover:bg-primary/20",
+            "disabled:opacity-50 disabled:cursor-not-allowed",
+            "focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2",
+          )}
+        >
+          <RefreshCw
+            className={cn(
+              "h-4 w-4 transition-transform duration-500",
+              isRefreshing && "animate-spin",
+            )}
+          />
+          {cooldown > 0 ? (
+            <span className="tabular-nums text-xs">{cooldown}s</span>
+          ) : (
+            <span className="hidden sm:inline">רענן</span>
+          )}
+        </button>
       </div>
 
       {/* Grid */}
-      {!data || data.items.length === 0 ? (
+      {showSkeletons ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <motion.div
+              key={`skel-${i}`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06, duration: 0.4, ease: "easeOut" }}
+            >
+              <ListingCardSkeleton />
+            </motion.div>
+          ))}
+        </div>
+      ) : !data || data.items.length === 0 ? (
         <EmptyState
           icon={Car}
           title="אין תוצאות עדיין"
@@ -134,9 +224,25 @@ export function ListingsPage() {
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
-            {data.items.map((listing) => (
-              <ListingCard key={listing.token} listing={listing} />
-            ))}
+            <AnimatePresence mode="popLayout">
+              {data.items.map((listing, i) => (
+                <motion.div
+                  key={listing.token}
+                  layout
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{
+                    delay: i * 0.05,
+                    duration: 0.35,
+                    ease: "easeOut",
+                    layout: { duration: 0.3 },
+                  }}
+                >
+                  <ListingCard listing={listing} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
 
           <Pagination

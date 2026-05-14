@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -1008,6 +1009,90 @@ func TestCreateSearch_ReactivatesInactiveUser(t *testing.T) {
 	u, _ = store.GetUser(ctx, int64(999))
 	if !u.Active {
 		t.Error("createSearch should reactivate an inactive user")
+	}
+}
+
+func TestRefreshListings_NoFetcher(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "POST", "/api/v1/searches/1/refresh", nil)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when no fetcher is wired, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRefreshListings_InvalidID(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	srv.fetchers = fetcher.NewFactory()
+
+	w := doRequest(t, srv, "POST", "/api/v1/searches/abc/refresh", nil)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid id, got %d", w.Code)
+	}
+}
+
+func TestRefreshListings_SearchNotFound(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	srv.fetchers = fetcher.NewFactory()
+
+	w := doRequest(t, srv, "POST", "/api/v1/searches/99999/refresh", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for nonexistent search, got %d", w.Code)
+	}
+}
+
+func TestRefreshListings_Cooldown(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	srv.fetchers = fetcher.NewFactory()
+
+	w := doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{
+		Manufacturer: 19, Model: 10226, YearMin: 2018, YearMax: 2024,
+	})
+	var created searchResponse
+	mustUnmarshal(t, w.Body.Bytes(), &created)
+
+	cooldownKey := fmt.Sprintf("%d:%d", 999, created.ID)
+	srv.refreshMu.Store(cooldownKey, time.Now())
+
+	w = doRequest(t, srv, "POST", "/api/v1/searches/"+itoa(created.ID)+"/refresh", nil)
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 during cooldown, got %d: %s", w.Code, w.Body.String())
+	}
+	if w.Header().Get("Retry-After") == "" {
+		t.Error("expected Retry-After header")
+	}
+}
+
+func TestBuildFilterCriteriaFromSearch(t *testing.T) {
+	sr := &storage.Search{
+		Model:       10226,
+		YearMin:     2020,
+		YearMax:     2024,
+		PriceMax:    200000,
+		EngineMinCC: 1800,
+		MaxKm:       100000,
+		MaxHand:     3,
+		PriceOnly:   true,
+		PhotoOnly:   true,
+		Keywords:    "automatic, sunroof",
+		ExcludeKeys: "salvage",
+	}
+	fc := buildFilterCriteriaFromSearch(sr)
+
+	if fc.ModelID != 10226 {
+		t.Errorf("ModelID = %d, want 10226", fc.ModelID)
+	}
+	if fc.YearMin != 2020 || fc.YearMax != 2024 {
+		t.Errorf("year range = %d-%d", fc.YearMin, fc.YearMax)
+	}
+	if !fc.PriceOnly || !fc.PhotoOnly {
+		t.Errorf("filters: priceOnly=%v photoOnly=%v", fc.PriceOnly, fc.PhotoOnly)
+	}
+	if len(fc.Keywords) != 2 || fc.Keywords[0] != "automatic" || fc.Keywords[1] != "sunroof" {
+		t.Errorf("keywords = %v", fc.Keywords)
+	}
+	if len(fc.ExcludeKeys) != 1 || fc.ExcludeKeys[0] != "salvage" {
+		t.Errorf("excludeKeys = %v", fc.ExcludeKeys)
 	}
 }
 

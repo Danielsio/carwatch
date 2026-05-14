@@ -432,6 +432,47 @@ func (s *Store) CountSearchListingsForChat(ctx context.Context, chatID int64) (m
 	return out, rows.Err()
 }
 
+func (s *Store) DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error) {
+	if len(keepTokens) == 0 {
+		result, err := s.db.ExecContext(ctx, `
+			DELETE FROM listing_history
+			WHERE chat_id = $1 AND search_id = $2
+			  AND NOT EXISTS (
+			    SELECT 1 FROM saved_listings
+			    WHERE saved_listings.token = listing_history.token
+			      AND saved_listings.chat_id = listing_history.chat_id
+			  )`, chatID, searchID)
+		if err != nil {
+			return 0, err
+		}
+		return result.RowsAffected()
+	}
+
+	args := make([]interface{}, 0, 2+len(keepTokens))
+	args = append(args, chatID, searchID)
+	placeholders := make([]string, len(keepTokens))
+	for i, t := range keepTokens {
+		placeholders[i] = fmt.Sprintf("$%d", i+3)
+		args = append(args, t)
+	}
+
+	query := fmt.Sprintf(`
+		DELETE FROM listing_history
+		WHERE chat_id = $1 AND search_id = $2
+		  AND token NOT IN (%s)
+		  AND NOT EXISTS (
+		    SELECT 1 FROM saved_listings
+		    WHERE saved_listings.token = listing_history.token
+		      AND saved_listings.chat_id = listing_history.chat_id
+		  )`, strings.Join(placeholders, ","))
+
+	result, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
 	result, err := s.db.ExecContext(ctx, `

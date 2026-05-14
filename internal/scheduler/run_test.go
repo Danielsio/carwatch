@@ -301,3 +301,7 @@ func (m *mockListingStore) PruneListings(_ context.Context, _ time.Duration) (in
 	m.pruneCalls++
 	return 0, nil
 }
+
+func (m *mockListingStore) DeleteStaleListings(_ context.Context, _ int64, _ int64, _ []string) (int64, error) {
+	return 0, nil
+}

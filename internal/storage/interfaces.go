@@ -233,6 +233,7 @@ type ListingStore interface {
 	// applying each search row's price/year/km/hand constraints like CountSearchListings.
 	CountSearchListingsForChat(ctx context.Context, chatID int64) (map[int64]int64, error)
 	PruneListings(ctx context.Context, olderThan time.Duration) (int64, error)
+	DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error)
 }
 
 type SavedListingStore interface {

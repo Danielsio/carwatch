@@ -114,7 +114,7 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer func() { _ = multi.Disconnect() }()
 
-	apiServer, err := buildAPI(cfg, store, dynCatalog, logHub, &logLevelVar, logger)
+	apiServer, err := buildAPI(cfg, store, dynCatalog, logHub, &logLevelVar, logger, fetcherFactory)
 	if err != nil {
 		return err
 	}
@@ -252,7 +252,7 @@ func buildBot(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 	return botHandler, tgNotif, multi, nil
 }
 
-func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, logHub *logstream.Hub, logLevel *slog.LevelVar, logger *slog.Logger) (*api.Server, error) {
+func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, logHub *logstream.Hub, logLevel *slog.LevelVar, logger *slog.Logger, fetchers *fetcher.Factory) (*api.Server, error) {
 	var firebaseAuth api.TokenVerifier
 	if cfg.Firebase.ProjectID != "" {
 		v, err := api.NewFirebaseVerifier(cfg.Firebase.CredentialsFile, cfg.Firebase.CredentialsJSON, cfg.Firebase.ProjectID)
@@ -281,6 +281,7 @@ func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 		BotUsername:  cfg.Telegram.BotUsername,
 		LogHub:       logHub,
 		LogLevel:     logLevel,
+		Fetchers:     fetchers,
 	})
 
 	return apiServer, nil

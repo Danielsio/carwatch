@@ -143,6 +143,12 @@ export interface ListingsResponse {
   offset: number;
 }
 
+export interface RefreshResponse {
+  items: Listing[];
+  total: number;
+  removed: number;
+}
+
 export interface ListingsParams {
   limit?: number;
   offset?: number;
@@ -223,6 +229,10 @@ export const api = {
       `/searches/${searchId}/listings${qs ? `?${qs}` : ""}`,
     );
   },
+  refreshListings: (searchId: number) =>
+    fetchAPI<RefreshResponse>(`/searches/${searchId}/refresh`, {
+      method: "POST",
+    }),
 };
 
 export interface NotificationCount {

@@ -1,8 +1,13 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
+	"github.com/dsionov/carwatch/internal/filter"
+	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -42,6 +47,189 @@ type listingsPageResponse struct {
 	Total  int64             `json:"total"`
 	Limit  int               `json:"limit"`
 	Offset int               `json:"offset"`
+}
+
+type refreshResponse struct {
+	Items   []listingResponse `json:"items"`
+	Total   int64             `json:"total"`
+	Removed int64             `json:"removed"`
+}
+
+func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
+	if s.fetchers == nil {
+		writeError(w, http.StatusServiceUnavailable, "refresh not available")
+		return
+	}
+
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
+	id, ok := parsePathID(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid search id")
+		return
+	}
+
+	cooldownKey := fmt.Sprintf("%d:%d", chatID, id)
+	if ts, loaded := s.refreshMu.Load(cooldownKey); loaded {
+		if last, ok := ts.(time.Time); ok {
+			remaining := 60*time.Second - time.Since(last)
+			if remaining > 0 {
+				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(remaining.Seconds())+1))
+				writeError(w, http.StatusTooManyRequests,
+					fmt.Sprintf("please wait %d seconds before refreshing again", int(remaining.Seconds())+1))
+				return
+			}
+		}
+	}
+
+	sr, err := s.searches.GetSearch(r.Context(), id, chatID)
+	if err != nil {
+		s.logger.Error("refresh: get search", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get search")
+		return
+	}
+	if sr == nil {
+		writeError(w, http.StatusNotFound, "search not found")
+		return
+	}
+
+	source := sr.Source
+	if source == "" {
+		source = "yad2"
+	}
+	sources := strings.Split(source, ",")
+	var allRaw []model.RawListing
+	for _, src := range sources {
+		src = strings.TrimSpace(src)
+		f, ok := s.fetchers.Get(src)
+		if !ok {
+			continue
+		}
+		params := model.SourceParams{
+			Manufacturer: sr.Manufacturer,
+			Model:        sr.Model,
+			YearMin:      sr.YearMin,
+			YearMax:      sr.YearMax,
+			PriceMax:     sr.PriceMax,
+			MaxKm:        sr.MaxKm,
+			MaxHand:      sr.MaxHand,
+			EngineMinCC:  sr.EngineMinCC,
+		}
+		raw, fetchErr := f.Fetch(r.Context(), params)
+		if fetchErr != nil {
+			s.logger.Warn("refresh: fetch failed", "source", src, "error", fetchErr)
+			continue
+		}
+		allRaw = append(allRaw, raw...)
+	}
+
+	s.refreshMu.Store(cooldownKey, time.Now())
+
+	criteria := buildFilterCriteriaFromSearch(sr)
+	filtered := filter.Apply(criteria, allRaw)
+
+	freshTokens := make([]string, len(filtered))
+	for i, l := range filtered {
+		freshTokens[i] = l.Token
+	}
+
+	removed, err := s.listings.DeleteStaleListings(r.Context(), chatID, sr.ID, freshTokens)
+	if err != nil {
+		s.logger.Error("refresh: delete stale", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to clean stale listings")
+		return
+	}
+
+	records := make([]storage.ListingRecord, 0, len(filtered))
+	for _, l := range filtered {
+		rec := storage.ListingRecord{
+			Token:        l.Token,
+			ChatID:       chatID,
+			SearchID:     sr.ID,
+			SearchName:   sr.Name,
+			Manufacturer: l.Manufacturer,
+			Model:        l.Model,
+			SubModel:     l.SubModel,
+			SubModelID:   l.SubModelID,
+			Year:         l.Year,
+			Price:        l.Price,
+			Km:           l.Km,
+			Hand:         l.Hand,
+			City:         l.City,
+			PageLink:     l.PageLink,
+			ImageURL:     l.ImageURL,
+			EngineVolume: l.EngineVolume,
+			HorsePower:   l.HorsePower,
+			EngineType:   l.EngineType,
+			GearBox:      l.GearBox,
+			Description:  l.Description,
+			IsCommercial: l.Commercial,
+			FirstSeenAt:  time.Now(),
+		}
+		records = append(records, rec)
+	}
+	if len(records) > 0 {
+		if err := s.listings.SaveListings(r.Context(), records); err != nil {
+			s.logger.Error("refresh: save listings", "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to save listings")
+			return
+		}
+	}
+
+	lf := listingFilterFromSearch(sr)
+	listings, err := s.listings.ListSearchListings(r.Context(), chatID, sr.ID, lf, 100, 0, "newest")
+	if err != nil {
+		s.logger.Error("refresh: list listings", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to list listings")
+		return
+	}
+	total, err := s.listings.CountSearchListings(r.Context(), chatID, sr.ID, lf)
+	if err != nil {
+		s.logger.Error("refresh: count listings", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to count listings")
+		return
+	}
+
+	savedMap := s.savedLookupForRecords(r.Context(), chatID, listings)
+	seenMap := s.seenLookupForRecords(r.Context(), chatID, listings)
+
+	writeJSON(w, http.StatusOK, refreshResponse{
+		Items:   toListingResponses(listings, savedMap, seenMap),
+		Total:   total,
+		Removed: removed,
+	})
+}
+
+func buildFilterCriteriaFromSearch(sr *storage.Search) model.FilterCriteria {
+	criteria := model.FilterCriteria{
+		ModelID:     sr.Model,
+		YearMin:     sr.YearMin,
+		YearMax:     sr.YearMax,
+		PriceMax:    sr.PriceMax,
+		EngineMinCC: float64(sr.EngineMinCC),
+		MaxKm:       sr.MaxKm,
+		MaxHand:     sr.MaxHand,
+		PriceOnly:   sr.PriceOnly,
+		PhotoOnly:   sr.PhotoOnly,
+	}
+
+	if sr.Keywords != "" {
+		for _, kw := range strings.Split(sr.Keywords, ",") {
+			if kw = strings.TrimSpace(kw); kw != "" {
+				criteria.Keywords = append(criteria.Keywords, kw)
+			}
+		}
+	}
+	if sr.ExcludeKeys != "" {
+		for _, ex := range strings.Split(sr.ExcludeKeys, ",") {
+			if ex = strings.TrimSpace(ex); ex != "" {
+				criteria.ExcludeKeys = append(criteria.ExcludeKeys, ex)
+			}
+		}
+	}
+	return criteria
 }
 
 func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
