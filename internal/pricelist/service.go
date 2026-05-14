@@ -55,7 +55,7 @@ func (s *Service) Lookup(ctx context.Context, subModelID, year int) (basePrice i
 		return 0, false
 	}
 
-	if entry != nil && time.Since(entry.FetchedAt) < cacheTTL {
+	if entry != nil && time.Since(entry.FetchedAt) < cacheTTL && entry.BasePrice > 0 {
 		s.logger.Debug("pricelist.Lookup: cache hit",
 			"sub_model_id", subModelID, "year", year,
 			"base_price", entry.BasePrice, "age", time.Since(entry.FetchedAt).Round(time.Minute))
