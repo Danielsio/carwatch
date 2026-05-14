@@ -1801,15 +1801,14 @@ func TestDailyStats_WithListings(t *testing.T) {
 	ctx := context.Background()
 	seedUser(t, store, 100)
 
-	_, _ = store.CreateSearch(ctx, storage.Search{
+	searchID, _ := store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "mazda-3", Source: "yad2",
 		Manufacturer: 27, Model: 10332, YearMin: 2018, YearMax: 2024,
 	})
 
-	// Insert enough listings to pass the HAVING COUNT(*) >= 5 threshold.
 	for i := range 6 {
 		_ = store.SaveListing(ctx, storage.ListingRecord{
-			Token: "tok" + string(rune('a'+i)), ChatID: 100, SearchName: "mazda-3",
+			Token: "tok" + string(rune('a'+i)), ChatID: 100, SearchID: searchID, SearchName: "mazda-3",
 			Manufacturer: "Mazda", Model: "3", Year: 2021,
 			Price: 90000 + i*5000, PageLink: "https://example.com/" + string(rune('a'+i)),
 		})
@@ -1849,15 +1848,14 @@ func TestDailyStats_BelowThreshold(t *testing.T) {
 	ctx := context.Background()
 	seedUser(t, store, 100)
 
-	_, _ = store.CreateSearch(ctx, storage.Search{
+	searchID, _ := store.CreateSearch(ctx, storage.Search{
 		ChatID: 100, Name: "test", Source: "yad2",
 		Manufacturer: 1, Model: 1,
 	})
 
-	// Only 3 listings -- below the HAVING COUNT(*) >= 5 threshold
 	for i := range 3 {
 		_ = store.SaveListing(ctx, storage.ListingRecord{
-			Token: "tok" + string(rune('a'+i)), ChatID: 100, SearchName: "test",
+			Token: "tok" + string(rune('a'+i)), ChatID: 100, SearchID: searchID, SearchName: "test",
 			Manufacturer: "Test", Model: "Car", Year: 2021, Price: 100000,
 		})
 	}

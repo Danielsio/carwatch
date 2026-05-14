@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
-import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -17,13 +17,9 @@ const queryClient = new QueryClient({
       retry: 1,
     },
   },
-  queryCache: new QueryCache({
-    onError: (error) => {
-      showGlobalToast(errorToHebrew(error), "error");
-    },
-  }),
   mutationCache: new MutationCache({
-    onError: (error) => {
+    onError: (error, _variables, _context, mutation) => {
+      if (mutation.options.meta?.suppressToast) return;
       showGlobalToast(errorToHebrew(error), "error");
     },
   }),

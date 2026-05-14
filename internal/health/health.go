@@ -46,6 +46,7 @@ type Status struct {
 	lastSuccessUnixNs atomic.Int64
 	listingsFound     atomic.Int64
 	notificationsSent atomic.Int64
+	schedulerStarted  atomic.Bool
 
 	sourceMu sync.RWMutex
 	sources  map[string]*SourceMetrics
@@ -91,6 +92,10 @@ func (s *Status) SetDBSizer(d DBSizer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.dbSizer = d
+}
+
+func (s *Status) MarkSchedulerStarted() {
+	s.schedulerStarted.Store(true)
 }
 
 func (s *Status) RecordSuccess() {
@@ -164,7 +169,7 @@ func (s *Status) coreMetrics() map[string]any {
 
 	status := "ok"
 	uptime := time.Since(s.startTime)
-	if cycles > 0 && (lastSuccessNs == 0 || time.Since(lastSuccess) > degradedThreshold) {
+	if s.schedulerStarted.Load() && cycles > 0 && (lastSuccessNs == 0 || time.Since(lastSuccess) > degradedThreshold) {
 		if uptime > startupGracePeriod {
 			status = "degraded"
 		} else {

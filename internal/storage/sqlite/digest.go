@@ -154,7 +154,7 @@ func (s *Store) DailyStats(ctx context.Context, chatID int64) ([]storage.DailySe
 			SELECT s.id AS search_id, s.name AS search_name,
 			       lh.price, lh.page_link, lh.first_seen_at
 			FROM listing_history lh
-			JOIN searches s ON s.name = lh.search_name AND s.chat_id = lh.chat_id
+			JOIN searches s ON s.id = lh.search_id AND s.chat_id = lh.chat_id
 			WHERE lh.chat_id = ? AND s.active = true AND lh.price > 0
 		)
 		SELECT

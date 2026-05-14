@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Car, Sun, Moon, Menu, X } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -9,12 +9,50 @@ export function LandingNav() {
   const mobileMenuId = useId();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20);
     fn();
     window.addEventListener("scroll", fn);
     return () => window.removeEventListener("scroll", fn);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen || !mobileMenuRef.current) return;
+
+    const menu = mobileMenuRef.current;
+    const focusable = menu.querySelectorAll<HTMLElement>(
+      'a[href], button, [tabindex]:not([tabindex="-1"])',
+    );
+    if (focusable.length > 0) focusable[0].focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMobileOpen(false);
+        menuToggleRef.current?.focus();
+        return;
+      }
+      if (e.key !== "Tab" || focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [mobileOpen]);
+
+  const closeMobileMenu = useCallback(() => {
+    setMobileOpen(false);
+    menuToggleRef.current?.focus();
   }, []);
 
   const links = [
@@ -73,6 +111,7 @@ export function LandingNav() {
             התחל עכשיו
           </Link>
           <button
+            ref={menuToggleRef}
             type="button"
             onClick={() => setMobileOpen((o) => !o)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground lg:hidden"
@@ -86,6 +125,7 @@ export function LandingNav() {
       </div>
 
       <div
+        ref={mobileMenuRef}
         id={mobileMenuId}
         role="navigation"
         aria-label="ניווט ראשי — נייד"
@@ -97,7 +137,7 @@ export function LandingNav() {
             <a
               key={l.href}
               href={l.href}
-              onClick={() => setMobileOpen(false)}
+              onClick={closeMobileMenu}
               className="block py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               {l.label}
@@ -105,7 +145,7 @@ export function LandingNav() {
           ))}
           <Link
             to="/signup"
-            onClick={() => setMobileOpen(false)}
+            onClick={closeMobileMenu}
             className="mt-2 block w-full rounded-xl bg-primary py-2.5 text-center text-sm font-semibold text-white"
           >
             התחל עכשיו

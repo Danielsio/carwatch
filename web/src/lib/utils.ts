@@ -103,7 +103,10 @@ export function relativeTime(dateStr: string): string {
   if (Number.isNaN(date.getTime())) return "—";
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  if (diffMs < 0) {
+    return date.toLocaleDateString("he-IL");
+  }
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) return "היום";
   if (diffDays === 1) return "אתמול";

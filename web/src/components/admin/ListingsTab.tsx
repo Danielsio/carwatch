@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
   Car,
@@ -34,11 +34,9 @@ export function ListingsTab({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const prevSearchId = useRef(searchId);
-  if (prevSearchId.current !== searchId) {
-    prevSearchId.current = searchId;
+  useEffect(() => {
     setPage(0);
-  }
+  }, [searchId]);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "listings", page, searchId],

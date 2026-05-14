@@ -58,19 +58,19 @@ const factors = [
     icon: TrendingUp,
     label: "מחיר מול תקציב",
     desc: "ציון גבוה לרכבים שנמצאים מתחת לתקציב שהגדרת",
-    weight: "35%",
+    weight: "25%",
   },
   {
     icon: Gauge,
     label: "קילומטרז",
     desc: "ק\"מ מותאם לגיל הרכב — פחות בלאי ביחס לצפוי = ציון גבוה",
-    weight: "25%",
+    weight: "30%",
   },
   {
     icon: Calendar,
     label: "שנת ייצור",
     desc: "רכבים חדשים יותר בטווח המבוקש מקבלים עדיפות",
-    weight: "15%",
+    weight: "20%",
   },
   {
     icon: Users,
