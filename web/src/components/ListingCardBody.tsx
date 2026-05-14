@@ -105,12 +105,19 @@ export function ListingCardBody({
                 listing.median_price,
                 listing.base_price,
               );
-              if (!mc) return null;
-              return (
-                <p className={cn("text-[11px] font-medium mt-0.5", mc.color)}>
-                  {mc.label}
-                </p>
-              );
+              if (mc) {
+                return (
+                  <p className={cn("text-[11px] font-medium mt-0.5", mc.color)}>
+                    {mc.label}
+                  </p>
+                );
+              }
+              if (listing.price > 0 && !listing.base_price && !listing.median_price) {
+                return (
+                  <span className="inline-block h-3 w-16 mt-1 rounded shimmer-skeleton" />
+                );
+              }
+              return null;
             })()}
           </div>
         </div>

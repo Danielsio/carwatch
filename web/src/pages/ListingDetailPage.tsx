@@ -325,7 +325,24 @@ function MarketValueCard({
   const hasBase = basePrice != null && basePrice > 0;
   const hasMedian = medianPrice != null && medianPrice > 0;
 
-  if (!hasBase && !hasMedian) return null;
+  if (!hasBase && !hasMedian) {
+    return (
+      <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="inline-block h-4 w-24 rounded shimmer-skeleton" />
+          <span className="inline-block h-6 w-20 rounded shimmer-skeleton" />
+        </div>
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="inline-block h-3.5 w-28 rounded shimmer-skeleton" />
+          <span className="inline-block h-3.5 w-10 rounded shimmer-skeleton" />
+        </div>
+        <div className="h-2 rounded-full shimmer-skeleton" />
+        <p className="text-[10px] text-muted-foreground text-center">
+          טוען נתוני מחירון...
+        </p>
+      </div>
+    );
+  }
 
   const referenceForBar = hasBase ? basePrice! : medianPrice!;
   const mc = marketComparison(price, medianPrice, basePrice);
