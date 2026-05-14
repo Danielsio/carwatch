@@ -32,7 +32,7 @@ services:
       - carwatch-data:/data
       - ./config.yaml:/config.yaml:ro
       - ./migrations:/migrations:ro
-      - ./firebase-sa.json:/config/firebase-sa.json:ro
+      - ./firebase-service-account.json:/config/firebase-sa.json:ro
     environment:
       - TZ=Asia/Jerusalem
       - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
@@ -58,7 +58,8 @@ services:
     restart: unless-stopped
 
   watchtower:
-    image: containrrr/watchtower:latest
+    # Pin to specific version; :latest + Docker socket = supply chain risk
+    image: containrrr/watchtower:1.7.1
     container_name: watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
