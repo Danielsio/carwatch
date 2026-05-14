@@ -29,6 +29,8 @@ WHERE lh.chat_id = $1
     WHEN 'dealership' THEN lh.is_commercial = 1
     ELSE TRUE
   END
+  AND (NOT s.price_only OR lh.price > 0)
+  AND (NOT s.photo_only OR lh.image_url != '')
 GROUP BY lh.search_id`
 
 const upsertListingSQL = `
