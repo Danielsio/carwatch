@@ -70,9 +70,10 @@ func (s *Service) Lookup(ctx context.Context, subModelID, year int, token ...str
 
 	s.mu.Lock()
 	if s.fetchCount >= maxFetchPerCycle {
+		fetchCount := s.fetchCount
 		s.mu.Unlock()
 		log.Warn("pricelist.Lookup: cycle fetch limit reached",
-			"fetch_count", s.fetchCount, "max", maxFetchPerCycle)
+			"fetch_count", fetchCount, "max", maxFetchPerCycle)
 		if entry != nil {
 			return entry.BasePrice, true
 		}
@@ -89,12 +90,13 @@ func (s *Service) Lookup(ctx context.Context, subModelID, year int, token ...str
 		return 0, false
 	}
 	s.fetchCount++
+	fetchCount := s.fetchCount
 	s.lastFetch = time.Now()
 	s.mu.Unlock()
 
 	url := priceListURL(subModelID, year)
 	log.Info("pricelist.Lookup: fetching from Yad2",
-		"url", url, "fetch_count", s.fetchCount)
+		"url", url, "fetch_count", fetchCount)
 
 	result := fetch(ctx, s.client, subModelID, year)
 	if result.Error != "" {

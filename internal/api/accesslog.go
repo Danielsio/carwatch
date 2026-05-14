@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -37,7 +38,11 @@ func (s *Server) withAccessLog(next http.Handler) http.Handler {
 		remoteAddr := r.RemoteAddr
 		if s.cfg.TrustForwardedFor {
 			if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-				remoteAddr = fwd
+				if i := strings.IndexByte(fwd, ','); i >= 0 {
+					remoteAddr = strings.TrimSpace(fwd[:i])
+				} else {
+					remoteAddr = strings.TrimSpace(fwd)
+				}
 			}
 		}
 
