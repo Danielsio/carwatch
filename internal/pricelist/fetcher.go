@@ -12,7 +12,6 @@ import (
 	"time"
 )
 
-var priceRe = regexp.MustCompile(`₪\s*([\d,]+)`)
 var basePriceLabelRe = regexp.MustCompile(`(?i)מחיר\s+בסיס[^₪]*₪\s*([\d,]+)`)
 
 var httpClient = &http.Client{
