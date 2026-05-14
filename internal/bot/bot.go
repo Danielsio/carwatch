@@ -197,6 +197,9 @@ func (b *Bot) rateLimited(next tgbot.HandlerFunc) tgbot.HandlerFunc {
 }
 
 func (b *Bot) RegisterHandlers() {
+	if b.bot == nil {
+		return
+	}
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/start", tgbot.MatchTypePrefix, b.rateLimited(b.handleStart))
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/watch", tgbot.MatchTypeExact, b.rateLimited(b.handleWatch))
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/list", tgbot.MatchTypeExact, b.rateLimited(b.handleList))
@@ -251,7 +254,11 @@ func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string, k
 
 func (b *Bot) lockChat(chatID int64) func() {
 	v, _ := b.chatMu.LoadOrStore(chatID, &chatMuEntry{})
-	entry := v.(*chatMuEntry)
+	entry, ok := v.(*chatMuEntry)
+	if !ok {
+		entry = &chatMuEntry{}
+		b.chatMu.Store(chatID, entry)
+	}
 	entry.mu.Lock()
 	entry.lastUsed.Store(time.Now().UnixNano())
 	return entry.mu.Unlock
@@ -299,7 +306,11 @@ func (b *Bot) sweepStaleMaps() {
 	})
 
 	b.chatMu.Range(func(key, value any) bool {
-		entry := value.(*chatMuEntry)
+		entry, ok := value.(*chatMuEntry)
+		if !ok {
+			b.chatMu.CompareAndDelete(key, value)
+			return true
+		}
 		if !entry.mu.TryLock() {
 			return true
 		}
