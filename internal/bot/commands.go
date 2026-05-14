@@ -502,6 +502,7 @@ func (b *Bot) handleEdit(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 		MaxHand:          search.MaxHand,
 		Keywords:         search.Keywords,
 		ExcludeKeys:      search.ExcludeKeys,
+		SellerFilter:     search.SellerFilter,
 		EditSearchID:     search.ID,
 	}
 	b.saveWizardState(ctx, chatID, StateAskSource, wd)
