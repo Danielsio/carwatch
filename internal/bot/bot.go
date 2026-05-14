@@ -36,7 +36,7 @@ type Bot struct {
 	catalog      catalog.Catalog
 	adminChatID  int64
 	maxSearches  int
-	botUsername   string
+	botUsername  string
 	pollInterval time.Duration
 	logger       *slog.Logger
 	health       *health.Status
@@ -95,18 +95,18 @@ func (b *Bot) isRateLimited(chatID int64) bool {
 }
 
 type Config struct {
-	AdminChatID    int64
-	MaxSearches    int
-	BotUsername     string
-	PollInterval   time.Duration
-	Health         *health.Status
-	Digests        storage.DigestStore
-	Listings       storage.ListingStore
-	Saved          storage.SavedListingStore
-	Hidden         storage.HiddenListingStore
-	DailyDigests   storage.DailyDigestStore
-	Catalog        catalog.Catalog
-	LinkTokens     storage.LinkTokenStore
+	AdminChatID  int64
+	MaxSearches  int
+	BotUsername  string
+	PollInterval time.Duration
+	Health       *health.Status
+	Digests      storage.DigestStore
+	Listings     storage.ListingStore
+	Saved        storage.SavedListingStore
+	Hidden       storage.HiddenListingStore
+	DailyDigests storage.DailyDigestStore
+	Catalog      catalog.Catalog
+	LinkTokens   storage.LinkTokenStore
 }
 
 func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cfg Config, logger *slog.Logger) *Bot {
@@ -138,7 +138,7 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		catalog:      cat,
 		adminChatID:  cfg.AdminChatID,
 		maxSearches:  cfg.MaxSearches,
-		botUsername:   cfg.BotUsername,
+		botUsername:  cfg.BotUsername,
 		pollInterval: cfg.PollInterval,
 		logger:       logger,
 		health:       cfg.Health,

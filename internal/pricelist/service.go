@@ -20,8 +20,8 @@ type Service struct {
 	store  storage.PriceListStore
 	logger *slog.Logger
 
-	mu        sync.Mutex
-	lastFetch time.Time
+	mu         sync.Mutex
+	lastFetch  time.Time
 	fetchCount int
 }
 

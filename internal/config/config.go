@@ -13,14 +13,14 @@ import (
 )
 
 type Config struct {
-	Polling   PollingConfig   `yaml:"polling"`
-	Telegram  TelegramConfig  `yaml:"telegram"`
-	Storage   StorageConfig   `yaml:"storage"`
-	HTTP      HTTPConfig      `yaml:"http"`
-	API       APIConfig       `yaml:"api"`
-	Firebase  FirebaseConfig  `yaml:"firebase"`
-	LogLevel  string          `yaml:"log_level"`
-	LogFormat string          `yaml:"log_format"`
+	Polling   PollingConfig  `yaml:"polling"`
+	Telegram  TelegramConfig `yaml:"telegram"`
+	Storage   StorageConfig  `yaml:"storage"`
+	HTTP      HTTPConfig     `yaml:"http"`
+	API       APIConfig      `yaml:"api"`
+	Firebase  FirebaseConfig `yaml:"firebase"`
+	LogLevel  string         `yaml:"log_level"`
+	LogFormat string         `yaml:"log_format"`
 }
 
 type FirebaseConfig struct {
@@ -33,12 +33,12 @@ type APIConfig struct {
 	CORSOrigins []string `yaml:"cors_origins"`
 	// TrustForwardedFor, when true, uses X-Forwarded-For (leftmost hop) for IP rate limiting.
 	// Enable only behind a trusted reverse proxy that overwrites client-controlled forwarded headers.
-	TrustForwardedFor bool `yaml:"trust_forwarded_for"`
-	DevChatID   int64    `yaml:"dev_chat_id"`
-	AuthToken   string   `yaml:"auth_token"`
-	AdminChatID int64    `yaml:"-"`
-	AdminEmail  string   `yaml:"admin_email"`
-	MaxSearches int      `yaml:"-"`
+	TrustForwardedFor bool   `yaml:"trust_forwarded_for"`
+	DevChatID         int64  `yaml:"dev_chat_id"`
+	AuthToken         string `yaml:"auth_token"`
+	AdminChatID       int64  `yaml:"-"`
+	AdminEmail        string `yaml:"admin_email"`
+	MaxSearches       int    `yaml:"-"`
 }
 
 type PollingConfig struct {
@@ -74,7 +74,7 @@ type HTTPConfig struct {
 	UserAgents []string `yaml:"user_agents"`
 	Proxy      string   `yaml:"proxy"`
 	Proxies    []string `yaml:"proxies"`
-	MaxPages int `yaml:"max_pages"`
+	MaxPages   int      `yaml:"max_pages"`
 }
 
 func Load(path string) (*Config, error) {

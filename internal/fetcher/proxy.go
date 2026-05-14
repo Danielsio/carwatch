@@ -12,9 +12,9 @@ type ProxyPool struct {
 }
 
 type proxyEntry struct {
-	url       string
-	healthy   bool
-	cooldown  time.Time
+	url      string
+	healthy  bool
+	cooldown time.Time
 }
 
 const proxyCooldown = 5 * time.Minute

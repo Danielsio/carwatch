@@ -172,13 +172,13 @@ const (
 	weightYear   = 0.20
 	weightEngine = 0.05
 
-	avgKmPerYear       = 15000 // Israeli average annual mileage
-	ageAdjustKmBlend   = 0.6  // weight of age-adjusted vs cap-based km score
-	kmAgeExponent      = 1.2  // age-adjusted km scoring curve
-	kmCapExponent      = 1.5  // cap-based km scoring curve
-	handAgeBonusMax    = 0.15 // max hand score bonus for older cars
-	handAgeBonusYears  = 15.0 // car age at which full bonus is reached
-	yearScoreFloor     = 0.3  // minimum year score within range
+	avgKmPerYear      = 15000 // Israeli average annual mileage
+	ageAdjustKmBlend  = 0.6   // weight of age-adjusted vs cap-based km score
+	kmAgeExponent     = 1.2   // age-adjusted km scoring curve
+	kmCapExponent     = 1.5   // cap-based km scoring curve
+	handAgeBonusMax   = 0.15  // max hand score bonus for older cars
+	handAgeBonusYears = 15.0  // car age at which full bonus is reached
+	yearScoreFloor    = 0.3   // minimum year score within range
 )
 
 type FitnessParams struct {

@@ -12,8 +12,8 @@ import (
 
 // CatalogResult holds manufacturers and models parsed from a Yad2 page.
 type CatalogResult struct {
-	Manufacturers map[int]Entry            // id -> Entry
-	Models        map[int]map[int]Entry    // mfr_id -> model_id -> Entry
+	Manufacturers map[int]Entry         // id -> Entry
+	Models        map[int]map[int]Entry // mfr_id -> model_id -> Entry
 }
 
 // Yad2PageFetcher abstracts fetching a raw Yad2 HTML page body so the

@@ -3253,4 +3253,3 @@ func TestSyncUserActiveStatus(t *testing.T) {
 		t.Error("user 300 should be inactive (only paused search)")
 	}
 }
-

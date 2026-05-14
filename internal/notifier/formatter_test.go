@@ -106,7 +106,6 @@ func TestFormatPriceDrop_MinimalFields(t *testing.T) {
 	}
 }
 
-
 func TestFormatListing_EscapesMarkdown(t *testing.T) {
 	l := model.Listing{
 		RawListing: model.RawListing{

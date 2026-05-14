@@ -10,26 +10,26 @@ type RawListing struct {
 	Model              string
 	ModelID            int
 	ModelNameHe        string
-	SubModel     string
-	SubModelID   int
-	Year         int
-	Month        int
-	EngineVolume float64
-	HorsePower   int
-	EngineType   string
-	GearBox      string
-	Km           int
-	Hand         int
-	Price        int
-	City         string
-	Area         string
-	Description  string
-	ImageURL     string
-	PageLink     string
+	SubModel           string
+	SubModelID         int
+	Year               int
+	Month              int
+	EngineVolume       float64
+	HorsePower         int
+	EngineType         string
+	GearBox            string
+	Km                 int
+	Hand               int
+	Price              int
+	City               string
+	Area               string
+	Description        string
+	ImageURL           string
+	PageLink           string
 	// Commercial: nil unknown; false private; true dealer/commercial (Yad2 feed bucket).
 	Commercial *bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type ScoreInfo struct {

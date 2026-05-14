@@ -235,4 +235,3 @@ func TestCircuitBreaker_PartialResultsNoData_CountsAsFailure(t *testing.T) {
 		t.Errorf("state = %v, want open (partial results with no data should count as failure)", cb.State())
 	}
 }
-

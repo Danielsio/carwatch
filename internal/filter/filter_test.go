@@ -143,7 +143,7 @@ func TestApply(t *testing.T) {
 			want:     []string{},
 		},
 		{
-			name: "multiple keywords all required",
+			name:     "multiple keywords all required",
 			criteria: model.FilterCriteria{Keywords: []string{"sunroof", "leather"}},
 			listings: []model.RawListing{
 				{Token: "a", Description: "sunroof and leather seats"},

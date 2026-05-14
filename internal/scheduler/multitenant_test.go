@@ -50,11 +50,11 @@ func (m *mockSearchStore) GetSearchBySeq(_ context.Context, chatID int64, seq in
 	return nil, nil
 }
 
-func (m *mockSearchStore) DeleteSearch(_ context.Context, id int64, _ int64) error    { return nil }
+func (m *mockSearchStore) DeleteSearch(_ context.Context, id int64, _ int64) error     { return nil }
 func (m *mockSearchStore) SetSearchActive(_ context.Context, _, _ int64, _ bool) error { return nil }
-func (m *mockSearchStore) CountSearches(_ context.Context, _ int64) (int64, error)    { return 0, nil }
-func (m *mockSearchStore) CountAllSearches(_ context.Context) (int64, error)          { return 0, nil }
-func (m *mockSearchStore) UpdateSearch(_ context.Context, _ storage.Search) error     { return nil }
+func (m *mockSearchStore) CountSearches(_ context.Context, _ int64) (int64, error)     { return 0, nil }
+func (m *mockSearchStore) CountAllSearches(_ context.Context) (int64, error)           { return 0, nil }
+func (m *mockSearchStore) UpdateSearch(_ context.Context, _ storage.Search) error      { return nil }
 
 func (m *mockSearchStore) GetSearchByShareToken(_ context.Context, token string) (*storage.Search, error) {
 	for i := range m.searches {
@@ -259,8 +259,8 @@ func (m *mockUserStore) GetUser(_ context.Context, chatID int64) (*storage.User,
 func (m *mockUserStore) UpdateUserState(_ context.Context, _ int64, _ string, _ string) error {
 	return nil
 }
-func (m *mockUserStore) ListActiveUsers(_ context.Context) ([]storage.User, error) { return nil, nil }
-func (m *mockUserStore) SetUserActive(_ context.Context, _ int64, _ bool) error    { return nil }
+func (m *mockUserStore) ListActiveUsers(_ context.Context) ([]storage.User, error)  { return nil, nil }
+func (m *mockUserStore) SetUserActive(_ context.Context, _ int64, _ bool) error     { return nil }
 func (m *mockUserStore) SetUserLanguage(_ context.Context, _ int64, _ string) error { return nil }
 func (m *mockUserStore) CountUsers(_ context.Context) (int64, error) {
 	return int64(len(m.users)), nil
@@ -283,8 +283,8 @@ func (m *mockUserStore) UpsertWhatsAppUser(_ context.Context, _ string) (int64, 
 	return 0, nil
 }
 func (m *mockUserStore) UpsertWebUser(_ context.Context, _, _ string) (int64, error) { return 0, nil }
-func (m *mockUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error { return nil }
-func (m *mockUserStore) LinkTelegramToWeb(_ context.Context, _, _ int64) error { return nil }
+func (m *mockUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error           { return nil }
+func (m *mockUserStore) LinkTelegramToWeb(_ context.Context, _, _ int64) error       { return nil }
 func (m *mockUserStore) GetLinkedTelegramUser(_ context.Context, _ int64) (*storage.User, error) {
 	return nil, nil
 }
@@ -303,10 +303,10 @@ func digestItems(payloads ...string) []digestItem {
 }
 
 type mockDigestStore struct {
-	mu       sync.Mutex
-	modes    map[int64]struct{ mode, interval string }
-	items    map[int64][]digestItem
-	flushed  map[int64]time.Time
+	mu      sync.Mutex
+	modes   map[int64]struct{ mode, interval string }
+	items   map[int64][]digestItem
+	flushed map[int64]time.Time
 }
 
 func newMockDigestStore() *mockDigestStore {
@@ -339,7 +339,6 @@ func (m *mockDigestStore) AddDigestItem(_ context.Context, chatID int64, payload
 	m.items[chatID] = append(m.items[chatID], digestItem{payload: payload, createdAt: time.Now()})
 	return nil
 }
-
 
 func (m *mockDigestStore) PeekDigest(_ context.Context, chatID int64) ([]string, time.Time, error) {
 	m.mu.Lock()
@@ -779,4 +778,3 @@ func TestRunMultiTenantCycle_HiddenStoreError(t *testing.T) {
 		t.Fatalf("expected 1 notification (hidden check failed gracefully), got %d", len(n.messages))
 	}
 }
-

@@ -82,12 +82,12 @@ func (m *errSearchStore) ListAllActiveSearches(_ context.Context) ([]storage.Sea
 
 type errDigestStore struct {
 	mockDigestStore
-	getModeErr      error
-	addItemErr      error
-	flushErr        error
-	ackErr          error
-	pendingErr      error
-	lastFlushedErr  error
+	getModeErr     error
+	addItemErr     error
+	flushErr       error
+	ackErr         error
+	pendingErr     error
+	lastFlushedErr error
 }
 
 func newErrDigestStore() *errDigestStore {
@@ -113,7 +113,6 @@ func (m *errDigestStore) AddDigestItem(ctx context.Context, chatID int64, payloa
 	}
 	return m.mockDigestStore.AddDigestItem(ctx, chatID, payload)
 }
-
 
 func (m *errDigestStore) PeekDigest(ctx context.Context, chatID int64) ([]string, time.Time, error) {
 	if m.flushErr != nil {
@@ -168,9 +167,9 @@ func (m *errNotifier) NotifyRaw(_ context.Context, recipient string, message str
 
 type errNotificationQueue struct {
 	mockNotificationQueue
-	pendingErr  error
-	enqueueErr  error
-	ackErr      error
+	pendingErr error
+	enqueueErr error
+	ackErr     error
 }
 
 func (m *errNotificationQueue) PendingNotifications(_ context.Context) ([]storage.PendingNotification, error) {

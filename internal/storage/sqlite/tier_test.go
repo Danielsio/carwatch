@@ -181,4 +181,3 @@ func TestGrantTrialTwice(t *testing.T) {
 		t.Fatal("expiry should not have changed on second grant attempt")
 	}
 }
-

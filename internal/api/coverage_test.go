@@ -709,8 +709,8 @@ func TestListListings_WithAllFields(t *testing.T) {
 		Token: "full-1", ChatID: 999, SearchID: created.ID, SearchName: created.Name,
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2022,
 		Price: 150000, Km: 30000, Hand: 1, City: "Haifa",
-		PageLink: "https://yad2.co.il/item/full-1",
-		ImageURL: "https://img.yad2.co.il/full-1.jpg",
+		PageLink:     "https://yad2.co.il/item/full-1",
+		ImageURL:     "https://img.yad2.co.il/full-1.jpg",
 		FitnessScore: &score,
 	}); err != nil {
 		t.Fatal(err)

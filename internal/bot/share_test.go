@@ -11,8 +11,8 @@ import (
 func TestShareLink(t *testing.T) {
 	tests := []struct {
 		botUsername string
-		shareToken string
-		want       string
+		shareToken  string
+		want        string
 	}{
 		{"CarWatchBot", "abc123def456", "https://t.me/CarWatchBot?start=share_abc123def456"},
 		{"CarWatchBot", "deadbeef01234567", "https://t.me/CarWatchBot?start=share_deadbeef01234567"},

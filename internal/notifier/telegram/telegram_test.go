@@ -779,4 +779,3 @@ func TestNotifyRaw_AllowsValidMessage(t *testing.T) {
 		t.Error("API should have been called for valid message")
 	}
 }
-

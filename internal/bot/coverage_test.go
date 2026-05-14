@@ -42,7 +42,7 @@ func newTestBotFull(t *testing.T) *testBot {
 		catalog:      catalog.NewStatic(),
 		adminChatID:  999,
 		maxSearches:  defaultMaxSearches,
-		botUsername:   "test_bot",
+		botUsername:  "test_bot",
 		logger:       logger,
 	}
 
