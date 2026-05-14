@@ -198,6 +198,7 @@ func (b *Bot) rateLimited(next tgbot.HandlerFunc) tgbot.HandlerFunc {
 
 func (b *Bot) RegisterHandlers() {
 	if b.bot == nil {
+		b.logger.Warn("RegisterHandlers called with nil bot instance, skipping")
 		return
 	}
 	b.bot.RegisterHandler(tgbot.HandlerTypeMessageText, "/start", tgbot.MatchTypePrefix, b.rateLimited(b.handleStart))
@@ -253,15 +254,21 @@ func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string, k
 }
 
 func (b *Bot) lockChat(chatID int64) func() {
-	v, _ := b.chatMu.LoadOrStore(chatID, &chatMuEntry{})
-	entry, ok := v.(*chatMuEntry)
-	if !ok {
-		entry = &chatMuEntry{}
-		b.chatMu.Store(chatID, entry)
+	for {
+		v, _ := b.chatMu.LoadOrStore(chatID, &chatMuEntry{})
+		entry, ok := v.(*chatMuEntry)
+		if ok {
+			entry.mu.Lock()
+			entry.lastUsed.Store(time.Now().UnixNano())
+			return entry.mu.Unlock
+		}
+		candidate := &chatMuEntry{}
+		if b.chatMu.CompareAndSwap(chatID, v, candidate) {
+			candidate.mu.Lock()
+			candidate.lastUsed.Store(time.Now().UnixNano())
+			return candidate.mu.Unlock
+		}
 	}
-	entry.mu.Lock()
-	entry.lastUsed.Store(time.Now().UnixNano())
-	return entry.mu.Unlock
 }
 
 const staleThreshold = 1 * time.Hour
