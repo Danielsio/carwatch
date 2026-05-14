@@ -115,7 +115,14 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer func() { _ = multi.Disconnect() }()
 
-	apiPriceListSvc := pricelist.NewService(store, logger.With("component", "api-pricelist"))
+	plClient, err := yad2.NewClient(cfg.HTTP.UserAgents, cfg.HTTP.Proxy)
+	if err != nil {
+		return fmt.Errorf("create pricelist client: %w", err)
+	}
+	defer plClient.Close()
+	plHTTP := pricelist.NewYad2Client(plClient)
+
+	apiPriceListSvc := pricelist.NewService(store, plHTTP, logger.With("component", "api-pricelist"))
 	apiServer, err := buildAPI(cfg, store, dynCatalog, logHub, &logLevelVar, logger, fetcherFactory, apiPriceListSvc)
 	if err != nil {
 		return err
@@ -148,6 +155,7 @@ func run(configPath string, logger *slog.Logger) error {
 		KmEnricher:       kmEnricher,
 		MarketStore:      store,
 		PriceListStore:   store,
+		PriceListHTTP:    plHTTP,
 		DailyDigestStore: store,
 	})
 	if err != nil {

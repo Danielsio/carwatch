@@ -18,6 +18,7 @@ const (
 
 type Service struct {
 	store  storage.PriceListStore
+	client HTTPDoer
 	logger *slog.Logger
 
 	mu         sync.Mutex
@@ -25,9 +26,10 @@ type Service struct {
 	fetchCount int
 }
 
-func NewService(store storage.PriceListStore, logger *slog.Logger) *Service {
+func NewService(store storage.PriceListStore, client HTTPDoer, logger *slog.Logger) *Service {
 	return &Service{
 		store:  store,
+		client: client,
 		logger: logger,
 	}
 }
@@ -93,7 +95,7 @@ func (s *Service) Lookup(ctx context.Context, subModelID, year int) (basePrice i
 		"sub_model_id", subModelID, "year", year, "url", url,
 		"fetch_count", s.fetchCount)
 
-	result := fetch(ctx, subModelID, year)
+	result := fetch(ctx, s.client, subModelID, year)
 	if result.Error != "" {
 		s.logger.Warn("pricelist.Lookup: fetch failed",
 			"sub_model_id", subModelID, "year", year,
