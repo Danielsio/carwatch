@@ -174,12 +174,38 @@ func (rl *ipRateLimiter) cleanup(ctx context.Context) {
 	}
 }
 
+// privateNets defines CIDRs that are considered trusted proxy sources.
+var privateNets = func() []*net.IPNet {
+	cidrs := []string{
+		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "::1/128",
+	}
+	nets := make([]*net.IPNet, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		_, n, _ := net.ParseCIDR(cidr)
+		nets = append(nets, n)
+	}
+	return nets
+}()
+
+func isPrivateIP(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	for _, n := range privateNets {
+		if n.Contains(parsed) {
+			return true
+		}
+	}
+	return false
+}
+
 func extractIP(r *http.Request, trustProxy bool) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		host = r.RemoteAddr
 	}
-	if !trustProxy {
+	if !trustProxy || !isPrivateIP(host) {
 		return host
 	}
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
