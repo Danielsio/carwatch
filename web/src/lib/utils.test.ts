@@ -155,4 +155,10 @@ describe("relativeTime", () => {
   it("returns dash for invalid date", () => {
     expect(relativeTime("not-a-date")).toBe("—");
   });
+
+  it("returns formatted date for future timestamps", () => {
+    const result = relativeTime("2026-06-10T06:00:00Z");
+    expect(result).not.toBe("היום");
+    expect(result.length).toBeGreaterThan(0);
+  });
 });

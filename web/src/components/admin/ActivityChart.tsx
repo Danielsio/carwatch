@@ -52,12 +52,12 @@ export function ActivityChart() {
         <AreaChart data={formatted} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="gradListings" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--color-chart-1)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--color-chart-1)" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="gradPriceDrops" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--color-chart-2)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--color-chart-2)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" />
@@ -65,10 +65,10 @@ export function ActivityChart() {
           <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" />
           <Tooltip
             contentStyle={{
-              backgroundColor: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
+              backgroundColor: "var(--color-popover)",
+              border: "1px solid var(--color-border)",
               borderRadius: "0.5rem",
-              color: "hsl(var(--popover-foreground))",
+              color: "var(--color-popover-foreground)",
               fontSize: 13,
             }}
           />
@@ -77,7 +77,7 @@ export function ActivityChart() {
             type="monotone"
             dataKey="new_listings"
             name="מודעות חדשות"
-            stroke="hsl(var(--chart-1))"
+            stroke="var(--color-chart-1)"
             fill="url(#gradListings)"
             strokeWidth={2}
           />
@@ -85,7 +85,7 @@ export function ActivityChart() {
             type="monotone"
             dataKey="price_drops"
             name="ירידות מחיר"
-            stroke="hsl(var(--chart-2))"
+            stroke="var(--color-chart-2)"
             fill="url(#gradPriceDrops)"
             strokeWidth={2}
           />
