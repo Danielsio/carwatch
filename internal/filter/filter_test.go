@@ -152,6 +152,46 @@ func TestApply(t *testing.T) {
 			},
 			want: []string{"a"},
 		},
+		{
+			name:     "price only filter",
+			criteria: model.FilterCriteria{PriceOnly: true},
+			listings: []model.RawListing{
+				{Token: "a", Price: 100000},
+				{Token: "b", Price: 0},
+				{Token: "c", Price: -1},
+			},
+			want: []string{"a"},
+		},
+		{
+			name:     "photo only filter",
+			criteria: model.FilterCriteria{PhotoOnly: true},
+			listings: []model.RawListing{
+				{Token: "a", ImageURL: "https://example.com/img.jpg"},
+				{Token: "b", ImageURL: ""},
+				{Token: "c"},
+			},
+			want: []string{"a"},
+		},
+		{
+			name:     "price only disabled passes all",
+			criteria: model.FilterCriteria{PriceOnly: false},
+			listings: []model.RawListing{
+				{Token: "a", Price: 100000},
+				{Token: "b", Price: 0},
+			},
+			want: []string{"a", "b"},
+		},
+		{
+			name:     "combined price and photo only",
+			criteria: model.FilterCriteria{PriceOnly: true, PhotoOnly: true},
+			listings: []model.RawListing{
+				{Token: "a", Price: 100000, ImageURL: "https://example.com/img.jpg"},
+				{Token: "b", Price: 100000, ImageURL: ""},
+				{Token: "c", Price: 0, ImageURL: "https://example.com/img.jpg"},
+				{Token: "d", Price: 0, ImageURL: ""},
+			},
+			want: []string{"a"},
+		},
 	}
 
 	for _, tt := range tests {

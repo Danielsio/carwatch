@@ -27,6 +27,8 @@ interface FormData {
   keywords: string;
   excludeKeys: string;
   sellerFilter: "any" | "private" | "commercial";
+  priceOnly: boolean;
+  photoOnly: boolean;
 }
 
 const SELLER_FILTER_OPTIONS: { value: FormData["sellerFilter"]; label: string }[] = [
@@ -66,6 +68,8 @@ export function NewSearchPage() {
     keywords: "",
     excludeKeys: "",
     sellerFilter: "any",
+    priceOnly: false,
+    photoOnly: false,
   });
 
   const { data: manufacturers } = useManufacturers();
@@ -103,6 +107,8 @@ export function NewSearchPage() {
         keywords: form.keywords || undefined,
         exclude_keys: form.excludeKeys || undefined,
         seller_filter: form.sellerFilter,
+        price_only: form.priceOnly || undefined,
+        photo_only: form.photoOnly || undefined,
       },
       {
         onSuccess: () => {
@@ -180,6 +186,28 @@ export function NewSearchPage() {
               {opt.label}
             </ChipButton>
           ))}
+        </div>
+      </section>
+
+      {/* Section: Listing quality filters */}
+      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
+        <h2 className="text-sm font-semibold text-foreground">סינון מודעות</h2>
+        <p className="text-xs text-muted-foreground">
+          הצג רק מודעות שעומדות בתנאים הבאים.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <ChipButton
+            selected={form.priceOnly}
+            onClick={() => set("priceOnly", !form.priceOnly)}
+          >
+            עם מחיר בלבד
+          </ChipButton>
+          <ChipButton
+            selected={form.photoOnly}
+            onClick={() => set("photoOnly", !form.photoOnly)}
+          >
+            עם תמונה בלבד
+          </ChipButton>
         </div>
       </section>
 

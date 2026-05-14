@@ -51,6 +51,12 @@ func matches(c model.FilterCriteria, l model.RawListing) bool {
 	if c.MaxHand > 0 && l.Hand > c.MaxHand {
 		return false
 	}
+	if c.PriceOnly && l.Price <= 0 {
+		return false
+	}
+	if c.PhotoOnly && l.ImageURL == "" {
+		return false
+	}
 
 	desc := strings.ToLower(l.Description)
 

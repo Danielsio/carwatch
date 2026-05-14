@@ -306,6 +306,8 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 			Keywords:     wd.Keywords,
 			ExcludeKeys:  wd.ExcludeKeys,
 			SellerFilter: wd.SellerFilter,
+			PriceOnly:    wd.PriceOnly,
+			PhotoOnly:    wd.PhotoOnly,
 		})
 		if err != nil {
 			b.logger.Error("update search failed", "error", err)
@@ -342,6 +344,8 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 		Keywords:     wd.Keywords,
 		ExcludeKeys:  wd.ExcludeKeys,
 		SellerFilter: wd.SellerFilter,
+		PriceOnly:    wd.PriceOnly,
+		PhotoOnly:    wd.PhotoOnly,
 	})
 	if err != nil {
 		b.logger.Error("create search failed", "error", err)

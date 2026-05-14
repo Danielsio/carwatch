@@ -314,6 +314,12 @@ func buildFilterClauses(f storage.ListingFilter) (string, []any) {
 			clauses = append(clauses, "is_commercial = 0")
 		}
 	}
+	if f.PriceOnly {
+		clauses = append(clauses, "price > 0")
+	}
+	if f.PhotoOnly {
+		clauses = append(clauses, "image_url != ''")
+	}
 	if len(clauses) == 0 {
 		return "", nil
 	}

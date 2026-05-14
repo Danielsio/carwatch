@@ -340,6 +340,12 @@ func buildFilterClauses(f storage.ListingFilter, paramStart int) (string, []any,
 		}
 		n++
 	}
+	if f.PriceOnly {
+		clauses = append(clauses, "price > 0")
+	}
+	if f.PhotoOnly {
+		clauses = append(clauses, "image_url != ''")
+	}
 	if len(clauses) == 0 {
 		return "", nil, paramStart
 	}

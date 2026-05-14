@@ -48,6 +48,8 @@ type Search struct {
 	ExcludeKeys  string
 	// SellerFilter: any (default), private (מוכר פרטי), commercial (מוסך/סוכנות).
 	SellerFilter string
+	PriceOnly    bool
+	PhotoOnly    bool
 	Active       bool
 	CreatedAt    time.Time
 	ShareToken   string
@@ -213,6 +215,8 @@ type ListingFilter struct {
 	MaxHand  int
 	// Commercial: non-nil restricts to private (false) or commercial/dealer (true).
 	Commercial *bool
+	PriceOnly  bool
+	PhotoOnly  bool
 }
 
 type ListingStore interface {

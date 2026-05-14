@@ -26,18 +26,22 @@ type createSearchRequest struct {
 	ExcludeKeys  string `json:"exclude_keys"`
 	// SellerFilter: any (default), private, commercial (also accepts dealer, dealership for commercial).
 	SellerFilter string `json:"seller_filter,omitempty"`
+	PriceOnly    bool   `json:"price_only,omitempty"`
+	PhotoOnly    bool   `json:"photo_only,omitempty"`
 }
 
 type updateSearchRequest struct {
-	YearMin     int    `json:"year_min"`
-	YearMax     int    `json:"year_max"`
-	PriceMax    int    `json:"price_max"`
-	EngineMinCC int    `json:"engine_min_cc"`
-	MaxKm       int    `json:"max_km"`
-	MaxHand     int    `json:"max_hand"`
-	Keywords    string `json:"keywords"`
-	ExcludeKeys string `json:"exclude_keys"`
+	YearMin      int     `json:"year_min"`
+	YearMax      int     `json:"year_max"`
+	PriceMax     int     `json:"price_max"`
+	EngineMinCC  int     `json:"engine_min_cc"`
+	MaxKm        int     `json:"max_km"`
+	MaxHand      int     `json:"max_hand"`
+	Keywords     string  `json:"keywords"`
+	ExcludeKeys  string  `json:"exclude_keys"`
 	SellerFilter *string `json:"seller_filter,omitempty"`
+	PriceOnly    *bool   `json:"price_only,omitempty"`
+	PhotoOnly    *bool   `json:"photo_only,omitempty"`
 }
 
 type searchResponse struct {
@@ -57,6 +61,8 @@ type searchResponse struct {
 	Keywords         string `json:"keywords,omitempty"`
 	ExcludeKeys      string `json:"exclude_keys,omitempty"`
 	SellerFilter     string `json:"seller_filter,omitempty"`
+	PriceOnly        bool   `json:"price_only,omitempty"`
+	PhotoOnly        bool   `json:"photo_only,omitempty"`
 	Active           bool   `json:"active"`
 	CreatedAt        string `json:"created_at"`
 	ListingsCount    int64  `json:"listings_count"`
@@ -136,6 +142,8 @@ func (s *Server) toSearchResponse(sr storage.Search) searchResponse {
 		Keywords:         sr.Keywords,
 		ExcludeKeys:      sr.ExcludeKeys,
 		SellerFilter:     storage.NormalizeSellerFilter(sr.SellerFilter),
+		PriceOnly:        sr.PriceOnly,
+		PhotoOnly:        sr.PhotoOnly,
 		Active:           sr.Active,
 		CreatedAt:        sr.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 	}
@@ -266,6 +274,8 @@ func createSearchRecord(chatID int64, name string, req createSearchRequest) stor
 		Keywords:     splitKeywords(req.Keywords),
 		ExcludeKeys:  splitKeywords(req.ExcludeKeys),
 		SellerFilter: storage.NormalizeSellerFilter(req.SellerFilter),
+		PriceOnly:    req.PriceOnly,
+		PhotoOnly:    req.PhotoOnly,
 		Active:       true,
 	}
 }
@@ -395,6 +405,12 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 	existing.ExcludeKeys = splitKeywords(req.ExcludeKeys)
 	if req.SellerFilter != nil {
 		existing.SellerFilter = storage.NormalizeSellerFilter(*req.SellerFilter)
+	}
+	if req.PriceOnly != nil {
+		existing.PriceOnly = *req.PriceOnly
+	}
+	if req.PhotoOnly != nil {
+		existing.PhotoOnly = *req.PhotoOnly
 	}
 
 	if err := s.searches.UpdateSearch(r.Context(), *existing); err != nil {
