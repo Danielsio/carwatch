@@ -14,7 +14,6 @@ import (
 	"time"
 )
 
-var priceRe = regexp.MustCompile(`₪\s*([\d,]+)`)
 var basePriceLabelRe = regexp.MustCompile(`(?i)מחיר\s+בסיס[^₪]*₪\s*([\d,]+)`)
 
 // fetch tries Go HTTP first, then falls back to the Python scraper.
