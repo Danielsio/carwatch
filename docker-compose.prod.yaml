@@ -32,7 +32,7 @@ services:
       - carwatch-data:/data
       - ./config.yaml:/config.yaml:ro
       - ./migrations:/migrations:ro
-      - ./firebase-service-account.json:/config/firebase-sa.json:ro
+      - ./firebase-sa.json:/config/firebase-sa.json:ro
     environment:
       - TZ=Asia/Jerusalem
       - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
