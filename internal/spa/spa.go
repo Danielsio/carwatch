@@ -14,7 +14,8 @@ func Handler(distFS fs.FS) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		// Reduce token leakage via Referer when navigating away from admin log streams, etc.
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		// Vite + Firebase need relaxed script/connect; tightened default-src and object-src.
+		// Firebase Auth SDK requires 'unsafe-inline' for scripts; nonce-based CSP
+		// is not supported by Firebase's inline script injection.
 		w.Header().Set("Content-Security-Policy",
 			"default-src 'self'; "+
 				"script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://www.google.com; "+
@@ -25,7 +26,7 @@ func Handler(distFS fs.FS) http.Handler {
 				"https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.googleapis.com "+
 				"https://www.gstatic.com https://*.firebaseapp.com https://*.firebaseio.com wss://*.firebaseio.com; "+
 				"frame-src https://accounts.google.com https://*.firebaseapp.com https://carwatch-5cabf.firebaseapp.com; "+
-				"frame-ancestors 'none'; base-uri 'self'; object-src 'none'")
+				"frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'")
 
 		path := strings.TrimPrefix(r.URL.Path, "/")
 

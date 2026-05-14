@@ -143,12 +143,24 @@ func TestExtractIP_RemoteAddr(t *testing.T) {
 func TestExtractIP_XForwardedFor(t *testing.T) {
 	t.Parallel()
 	r := &http.Request{
-		RemoteAddr: "198.51.100.2:9999",
-		Header:     http.Header{"X-Forwarded-For": {"10.0.0.1, 10.0.0.2"}},
+		RemoteAddr: "172.17.0.1:9999",
+		Header:     http.Header{"X-Forwarded-For": {"203.0.113.5, 10.0.0.2"}},
 	}
 	got := extractIP(r, true)
-	if got != "10.0.0.1" {
-		t.Fatalf("extractIP: got %q want %q", got, "10.0.0.1")
+	if got != "203.0.113.5" {
+		t.Fatalf("extractIP: got %q want %q", got, "203.0.113.5")
+	}
+}
+
+func TestExtractIP_XForwardedForUntrustedSource(t *testing.T) {
+	t.Parallel()
+	r := &http.Request{
+		RemoteAddr: "198.51.100.2:9999",
+		Header:     http.Header{"X-Forwarded-For": {"10.0.0.1"}},
+	}
+	got := extractIP(r, true)
+	if got != "198.51.100.2" {
+		t.Fatalf("extractIP: XFF should be ignored from non-private source, got %q want %q", got, "198.51.100.2")
 	}
 }
 
