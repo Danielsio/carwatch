@@ -26,9 +26,10 @@ func (s *Server) postTelegramLink(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	log := s.handlerLogger(r, "op", "telegram_link")
 	token, err := s.linkTokens.CreateLinkToken(r.Context(), chatID)
 	if err != nil {
-		s.logger.Error("create link token", "error", err)
+		log.Error("create link token failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -45,9 +46,10 @@ func (s *Server) getTelegramStatus(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	log := s.handlerLogger(r, "op", "telegram_status")
 	tgUser, err := s.users.GetLinkedTelegramUser(r.Context(), chatID)
 	if err != nil {
-		s.logger.Error("get linked telegram user", "error", err)
+		log.Error("get linked telegram user failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}

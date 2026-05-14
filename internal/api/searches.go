@@ -167,9 +167,11 @@ func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	log := s.handlerLogger(r, "op", "list_searches")
+
 	searches, err := s.searches.ListSearches(r.Context(), chatID)
 	if err != nil {
-		s.logger.Error("list searches", "error", err)
+		log.Error("list searches failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list searches")
 		return
 	}
@@ -179,7 +181,7 @@ func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
 		var err error
 		counts, err = s.listings.CountSearchListingsForChat(r.Context(), chatID)
 		if err != nil {
-			s.logger.Error("count search listings batch", "error", err)
+			log.Error("count search listings batch failed", "error", err)
 			counts = nil
 		}
 	}
@@ -301,10 +303,12 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "create_search")
+
 	if s.cfg.MaxSearches > 0 {
 		count, err := s.searches.CountSearches(r.Context(), chatID)
 		if err != nil {
-			s.logger.Error("count searches for limit", "error", err)
+			log.Error("count searches for limit check failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to check search limit")
 			return
 		}
@@ -328,11 +332,14 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 
 	id, err := s.searches.CreateSearch(r.Context(), createSearchRecord(chatID, name, req))
 	if err != nil {
-		s.logger.Error("create search", "error", err)
+		log.Error("create search failed", "name", name,
+			"manufacturer", req.Manufacturer, "model", req.Model, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to create search")
 		return
 	}
 
+	log.Info("search created", "search_id", id, "name", name,
+		"manufacturer", req.Manufacturer, "model", req.Model)
 	s.ensureUserActive(r.Context(), chatID)
 	s.writeCreatedSearch(w, r, chatID, id)
 }
@@ -348,9 +355,11 @@ func (s *Server) getSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "get_search", "search_id", id)
+
 	sr, err := s.searches.GetSearch(r.Context(), id, chatID)
 	if err != nil {
-		s.logger.Error("get search", "error", err)
+		log.Error("get search failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to get search")
 		return
 	}
@@ -373,9 +382,11 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "update_search", "search_id", id)
+
 	existing, err := s.searches.GetSearch(r.Context(), id, chatID)
 	if err != nil {
-		s.logger.Error("get search for update", "error", err)
+		log.Error("get search for update failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to get search")
 		return
 	}
@@ -418,10 +429,11 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "search not found")
 			return
 		}
-		s.logger.Error("update search", "error", err)
+		log.Error("update search failed", "search_name", existing.Name, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to update search")
 		return
 	}
+	log.Info("search updated", "search_name", existing.Name)
 
 	writeJSON(w, http.StatusOK, s.searchResponseWithListingCount(r.Context(), chatID, *existing))
 }
@@ -437,16 +449,19 @@ func (s *Server) deleteSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "delete_search", "search_id", id)
+
 	if err := s.searches.DeleteSearch(r.Context(), id, chatID); err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "search not found")
 			return
 		}
-		s.logger.Error("delete search", "error", err)
+		log.Error("delete search failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to delete search")
 		return
 	}
 
+	log.Info("search deleted")
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -473,12 +488,14 @@ func (s *Server) setSearchActive(w http.ResponseWriter, r *http.Request, active 
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "set_search_active", "search_id", id, "active", active)
+
 	if err := s.searches.SetSearchActive(r.Context(), id, chatID, active); err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "search not found")
 			return
 		}
-		s.logger.Error("set search active", "error", err, "active", active)
+		log.Error("set search active failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to update search")
 		return
 	}

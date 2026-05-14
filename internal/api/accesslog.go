@@ -32,12 +32,27 @@ func (s *Server) withAccessLog(next http.Handler) http.Handler {
 		if v, ok := r.Context().Value(requestIDKey).(string); ok {
 			reqID = v
 		}
-		s.logger.Info("http_request",
+
+		chatID, _ := chatIDFromContext(r.Context())
+		remoteAddr := r.RemoteAddr
+		if s.cfg.TrustForwardedFor {
+			if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+				remoteAddr = fwd
+			}
+		}
+
+		fields := []any{
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rec.status,
 			"duration_ms", dur.Milliseconds(),
 			"request_id", reqID,
-		)
+			"remote_addr", remoteAddr,
+			"user_agent", r.UserAgent(),
+		}
+		if chatID > 0 {
+			fields = append(fields, "chat_id", chatID)
+		}
+		s.logger.Info("http_request", fields...)
 	})
 }
