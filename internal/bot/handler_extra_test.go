@@ -284,4 +284,3 @@ func TestConfirmKeyboard_EmptySource(t *testing.T) {
 		t.Errorf("empty source should default to Yad2, got %q", summary)
 	}
 }
-

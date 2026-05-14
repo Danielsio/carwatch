@@ -29,16 +29,16 @@ import (
 const (
 	fetchTimeout = 60 * time.Second
 	// kmEnrichTimeout bounds per-item mileage/city fetches after the list crawl.
-	kmEnrichTimeout       = 25 * time.Minute
-	maxBackoff            = 4.0
-	minBackoff            = 1.0
-	pruneInterval         = 24 * time.Hour
-	maxRetries            = 3
-	retryBaseDelay        = 2 * time.Second
-	defaultConcurrency    = 4
-	notificationPruneAge      = 48 * time.Hour
-	priceHistoryRetention     = 90 * 24 * time.Hour
-	listingHistoryRetention   = 90 * 24 * time.Hour
+	kmEnrichTimeout         = 25 * time.Minute
+	maxBackoff              = 4.0
+	minBackoff              = 1.0
+	pruneInterval           = 24 * time.Hour
+	maxRetries              = 3
+	retryBaseDelay          = 2 * time.Second
+	defaultConcurrency      = 4
+	notificationPruneAge    = 48 * time.Hour
+	priceHistoryRetention   = 90 * 24 * time.Hour
+	listingHistoryRetention = 90 * 24 * time.Hour
 )
 
 type CatalogIngester interface {
@@ -1014,7 +1014,7 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 			Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
 			Manufacturer: l.Manufacturer, Model: l.Model, SubModel: l.SubModel,
 			SubModelID: l.SubModelID,
-			Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
+			Year:       l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 			City: l.City, PageLink: l.PageLink, ImageURL: l.ImageURL,
 			EngineVolume: l.EngineVolume, HorsePower: l.HorsePower,
 			EngineType: l.EngineType, GearBox: l.GearBox, Description: l.Description,
@@ -1103,7 +1103,7 @@ func buildNotifications(search storage.Search, listing model.Listing, out *searc
 		Token: listing.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
 		Manufacturer: listing.Manufacturer, Model: listing.Model, SubModel: listing.SubModel,
 		SubModelID: listing.SubModelID,
-		Year: listing.Year, Price: listing.Price, Km: listing.Km, Hand: listing.Hand,
+		Year:       listing.Year, Price: listing.Price, Km: listing.Km, Hand: listing.Hand,
 		City: listing.City, PageLink: listing.PageLink, ImageURL: listing.ImageURL,
 		EngineVolume: listing.EngineVolume, HorsePower: listing.HorsePower,
 		EngineType: listing.EngineType, GearBox: listing.GearBox, Description: listing.Description,

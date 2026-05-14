@@ -56,10 +56,10 @@ func (m *errUserStore) UpdateUserState(_ context.Context, _ int64, _ string, _ s
 	return m.updateStateErr
 }
 
-func (m *errUserStore) ListActiveUsers(_ context.Context) ([]storage.User, error) { return nil, nil }
-func (m *errUserStore) SetUserActive(_ context.Context, _ int64, _ bool) error    { return nil }
+func (m *errUserStore) ListActiveUsers(_ context.Context) ([]storage.User, error)  { return nil, nil }
+func (m *errUserStore) SetUserActive(_ context.Context, _ int64, _ bool) error     { return nil }
 func (m *errUserStore) SetUserLanguage(_ context.Context, _ int64, _ string) error { return nil }
-func (m *errUserStore) CountUsers(_ context.Context) (int64, error)               { return 0, nil }
+func (m *errUserStore) CountUsers(_ context.Context) (int64, error)                { return 0, nil }
 func (m *errUserStore) SetUserTier(_ context.Context, _ int64, _ string, _ time.Time) error {
 	return nil
 }
@@ -74,21 +74,21 @@ func (m *errUserStore) UpsertWhatsAppUser(_ context.Context, _ string) (int64, e
 	return 0, nil
 }
 func (m *errUserStore) UpsertWebUser(_ context.Context, _, _ string) (int64, error) { return 0, nil }
-func (m *errUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error { return nil }
-func (m *errUserStore) LinkTelegramToWeb(_ context.Context, _, _ int64) error         { return nil }
+func (m *errUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error           { return nil }
+func (m *errUserStore) LinkTelegramToWeb(_ context.Context, _, _ int64) error       { return nil }
 func (m *errUserStore) GetLinkedTelegramUser(_ context.Context, _ int64) (*storage.User, error) {
 	return nil, nil
 }
 
 // errSearchStore implements SearchStore and returns errors.
 type errSearchStore struct {
-	listErr       error
-	createErr     error
-	deleteErr     error
-	getErr        error
-	countErr      error
-	searches      []storage.Search
-	setActiveErr  error
+	listErr      error
+	createErr    error
+	deleteErr    error
+	getErr       error
+	countErr     error
+	searches     []storage.Search
+	setActiveErr error
 }
 
 func (m *errSearchStore) CreateSearch(_ context.Context, _ storage.Search) (int64, error) {
@@ -136,7 +136,7 @@ func (m *errSearchStore) CountSearches(_ context.Context, _ int64) (int64, error
 	return int64(len(m.searches)), nil
 }
 
-func (m *errSearchStore) CountAllSearches(_ context.Context) (int64, error) { return 0, nil }
+func (m *errSearchStore) CountAllSearches(_ context.Context) (int64, error)      { return 0, nil }
 func (m *errSearchStore) UpdateSearch(_ context.Context, _ storage.Search) error { return nil }
 
 func (m *errSearchStore) GetSearchBySeq(_ context.Context, chatID int64, seq int) (*storage.Search, error) {
@@ -187,7 +187,7 @@ func (m *errDigestStore) PeekDigest(_ context.Context, _ int64) ([]string, time.
 	return nil, time.Time{}, nil
 }
 func (m *errDigestStore) AckDigest(_ context.Context, _ int64, _ time.Time) error { return nil }
-func (m *errDigestStore) PendingDigestUsers(_ context.Context) ([]int64, error)    { return nil, nil }
+func (m *errDigestStore) PendingDigestUsers(_ context.Context) ([]int64, error)   { return nil, nil }
 
 func (m *errDigestStore) DigestLastFlushed(_ context.Context, _ int64) (time.Time, error) {
 	return time.Time{}, nil
@@ -203,7 +203,7 @@ func newErrBot(t *testing.T, msg messenger, users storage.UserStore, searches st
 		catalog:     catalog.NewStatic(),
 		adminChatID: 999,
 		maxSearches: defaultMaxSearches,
-		botUsername:  "test_bot",
+		botUsername: "test_bot",
 		logger:      logger,
 	}
 }

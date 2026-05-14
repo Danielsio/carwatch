@@ -13,9 +13,9 @@ import (
 
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
-	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/health"
+	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -31,8 +31,8 @@ type mockNotifier struct {
 	rawMessages []string
 }
 
-func (m *mockNotifier) Connect(_ context.Context) error    { return nil }
-func (m *mockNotifier) Disconnect() error                  { return nil }
+func (m *mockNotifier) Connect(_ context.Context) error { return nil }
+func (m *mockNotifier) Disconnect() error               { return nil }
 
 func (m *mockNotifier) Notify(_ context.Context, _ string, listings []model.Listing, _ locale.Lang) error {
 	m.messages = append(m.messages, listings...)

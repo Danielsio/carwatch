@@ -12,8 +12,8 @@ type CycleObserver interface {
 
 type nopObserver struct{}
 
-func (nopObserver) RecordSuccess()                                     {}
-func (nopObserver) RecordError()                                       {}
-func (nopObserver) RecordListingsFound(int)                            {}
-func (nopObserver) RecordNotificationSent()                            {}
-func (nopObserver) RecordFetch(string, time.Duration, error)           {}
+func (nopObserver) RecordSuccess()                           {}
+func (nopObserver) RecordError()                             {}
+func (nopObserver) RecordListingsFound(int)                  {}
+func (nopObserver) RecordNotificationSent()                  {}
+func (nopObserver) RecordFetch(string, time.Duration, error) {}

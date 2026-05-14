@@ -270,7 +270,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		if s.firebaseAuth != nil && bearer != "" {
 			tok, err := s.firebaseAuth.VerifyIDToken(r.Context(), bearer)
 			if err != nil {
-					writeError(w, http.StatusUnauthorized, "invalid or missing token")
+				writeError(w, http.StatusUnauthorized, "invalid or missing token")
 				return
 			}
 			userEmail = emailFromClaims(tok)

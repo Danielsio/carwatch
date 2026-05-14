@@ -147,7 +147,6 @@ func TestWizardData_JSON(t *testing.T) {
 	}
 }
 
-
 func TestKeyboards_ManufacturerKeyboard_Page0(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()

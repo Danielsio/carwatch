@@ -33,4 +33,3 @@ func (b *Bot) expectState(ctx context.Context, chatID int64, expected string) bo
 	}
 	return true
 }
-

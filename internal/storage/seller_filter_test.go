@@ -28,10 +28,10 @@ func TestRawListingMatchesSellerFilter(t *testing.T) {
 	dealer := true
 
 	tests := []struct {
-		name       string
-		commerce   *bool
-		filter     string
-		wantMatch  bool
+		name      string
+		commerce  *bool
+		filter    string
+		wantMatch bool
 	}{
 		{"any nil", nil, SellerFilterAny, true},
 		{"any private", &priv, SellerFilterAny, true},

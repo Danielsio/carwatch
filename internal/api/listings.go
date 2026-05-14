@@ -32,7 +32,7 @@ type listingResponse struct {
 	FirstSeenAt  string   `json:"first_seen_at"`
 	Saved        bool     `json:"saved,omitempty"`
 	// Seen: user dismissed this listing from the new-items feed (notifications).
-	Seen         bool     `json:"seen,omitempty"`
+	Seen bool `json:"seen,omitempty"`
 	// IsCommercial: omitted when unknown; false = private seller; true = dealer/commercial.
 	IsCommercial *bool `json:"is_commercial,omitempty"`
 }

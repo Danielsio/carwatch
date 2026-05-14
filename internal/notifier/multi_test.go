@@ -48,17 +48,19 @@ type fakeUserStore struct {
 	users map[int64]*storage.User
 }
 
-func (f *fakeUserStore) UpsertUser(_ context.Context, _ int64, _ string) error           { return nil }
-func (f *fakeUserStore) UpdateUserState(_ context.Context, _ int64, _, _ string) error   { return nil }
-func (f *fakeUserStore) ListActiveUsers(_ context.Context) ([]storage.User, error)       { return nil, nil }
-func (f *fakeUserStore) SetUserActive(_ context.Context, _ int64, _ bool) error          { return nil }
-func (f *fakeUserStore) SetUserLanguage(_ context.Context, _ int64, _ string) error      { return nil }
-func (f *fakeUserStore) CountUsers(_ context.Context) (int64, error)                     { return 0, nil }
+func (f *fakeUserStore) UpsertUser(_ context.Context, _ int64, _ string) error         { return nil }
+func (f *fakeUserStore) UpdateUserState(_ context.Context, _ int64, _, _ string) error { return nil }
+func (f *fakeUserStore) ListActiveUsers(_ context.Context) ([]storage.User, error)     { return nil, nil }
+func (f *fakeUserStore) SetUserActive(_ context.Context, _ int64, _ bool) error        { return nil }
+func (f *fakeUserStore) SetUserLanguage(_ context.Context, _ int64, _ string) error    { return nil }
+func (f *fakeUserStore) CountUsers(_ context.Context) (int64, error)                   { return 0, nil }
 func (f *fakeUserStore) SetUserTier(_ context.Context, _ int64, _ string, _ time.Time) error {
 	return nil
 }
 func (f *fakeUserStore) GrantTrial(_ context.Context, _ int64, _ time.Duration) error { return nil }
-func (f *fakeUserStore) ListExpiredPremium(_ context.Context) ([]storage.User, error) { return nil, nil }
+func (f *fakeUserStore) ListExpiredPremium(_ context.Context) ([]storage.User, error) {
+	return nil, nil
+}
 func (f *fakeUserStore) GetUserByChannelID(_ context.Context, _, _ string) (*storage.User, error) {
 	return nil, nil
 }
@@ -66,7 +68,7 @@ func (f *fakeUserStore) UpsertWhatsAppUser(_ context.Context, _ string) (int64, 
 func (f *fakeUserStore) UpsertWebUser(_ context.Context, _, _ string) (int64, error) {
 	return 0, nil
 }
-func (f *fakeUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error             { return nil }
+func (f *fakeUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error { return nil }
 
 func (f *fakeUserStore) GetUser(_ context.Context, chatID int64) (*storage.User, error) {
 	u, ok := f.users[chatID]
