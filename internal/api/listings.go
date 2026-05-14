@@ -71,6 +71,8 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "refresh", "search_id", id)
+
 	cooldownKey := fmt.Sprintf("%d:%d", chatID, id)
 	if ts, loaded := s.refreshMu.Load(cooldownKey); loaded {
 		if last, ok := ts.(time.Time); ok {
@@ -86,7 +88,7 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 
 	sr, err := s.searches.GetSearch(r.Context(), id, chatID)
 	if err != nil {
-		s.logger.Error("refresh: get search", "error", err)
+		log.Error("get search failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to get search")
 		return
 	}
@@ -94,6 +96,8 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "search not found")
 		return
 	}
+
+	log = log.With("search_name", sr.Name)
 
 	source := sr.Source
 	if source == "" {
@@ -119,7 +123,7 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 		}
 		raw, fetchErr := f.Fetch(r.Context(), params)
 		if fetchErr != nil {
-			s.logger.Warn("refresh: fetch failed", "source", src, "error", fetchErr)
+			log.Warn("fetch failed", "source", src, "error", fetchErr)
 			continue
 		}
 		allRaw = append(allRaw, raw...)
@@ -137,7 +141,7 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 
 	removed, err := s.listings.DeleteStaleListings(r.Context(), chatID, sr.ID, freshTokens)
 	if err != nil {
-		s.logger.Error("refresh: delete stale", "error", err)
+		log.Error("delete stale listings failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to clean stale listings")
 		return
 	}
@@ -169,9 +173,9 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 			FirstSeenAt:  time.Now(),
 		}
 		if s.priceListSvc != nil && l.SubModelID > 0 && l.Year > 0 {
-			if bp, ok := s.priceListSvc.Lookup(r.Context(), l.SubModelID, l.Year); ok && bp > 0 {
+			if bp, ok := s.priceListSvc.Lookup(r.Context(), l.SubModelID, l.Year, l.Token); ok && bp > 0 {
 				rec.BasePrice = &bp
-				s.logger.Debug("refresh: enriched with base_price",
+				log.Debug("enriched with base_price",
 					"token", l.Token, "sub_model_id", l.SubModelID,
 					"year", l.Year, "base_price", bp)
 			}
@@ -180,7 +184,7 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(records) > 0 {
 		if err := s.listings.SaveListings(r.Context(), records); err != nil {
-			s.logger.Error("refresh: save listings", "error", err)
+			log.Error("save listings failed", "records", len(records), "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to save listings")
 			return
 		}
@@ -189,16 +193,20 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 	lf := listingFilterFromSearch(sr)
 	listings, err := s.listings.ListSearchListings(r.Context(), chatID, sr.ID, lf, 100, 0, "newest")
 	if err != nil {
-		s.logger.Error("refresh: list listings", "error", err)
+		log.Error("list listings failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list listings")
 		return
 	}
 	total, err := s.listings.CountSearchListings(r.Context(), chatID, sr.ID, lf)
 	if err != nil {
-		s.logger.Error("refresh: count listings", "error", err)
+		log.Error("count listings failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to count listings")
 		return
 	}
+
+	log.Info("refresh complete",
+		"fetched", len(allRaw), "filtered", len(filtered),
+		"removed", removed, "total", total)
 
 	savedMap := s.savedLookupForRecords(r.Context(), chatID, listings)
 	seenMap := s.seenLookupForRecords(r.Context(), chatID, listings)
@@ -251,9 +259,11 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "get_listing", "token", token)
+
 	l, err := s.listings.GetListing(r.Context(), chatID, token)
 	if err != nil {
-		s.logger.Error("get listing", "error", err)
+		log.Error("get listing failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to get listing")
 		return
 	}
@@ -267,7 +277,7 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		var err error
 		savedFlag, err = s.saved.IsSaved(r.Context(), chatID, token)
 		if err != nil {
-			s.logger.Error("is saved", "error", err)
+			log.Error("check saved status failed", "error", err)
 		}
 	}
 
@@ -339,9 +349,11 @@ func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "list_listings", "search_id", id)
+
 	sr, err := s.searches.GetSearch(r.Context(), id, chatID)
 	if err != nil {
-		s.logger.Error("get search for listings", "error", err)
+		log.Error("get search failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to get search")
 		return
 	}
@@ -368,14 +380,15 @@ func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
 
 	listings, err := s.listings.ListSearchListings(r.Context(), chatID, sr.ID, f, limit, offset, sort)
 	if err != nil {
-		s.logger.Error("list search listings", "error", err)
+		log.Error("list listings failed", "search_name", sr.Name,
+			"sort", sort, "limit", limit, "offset", offset, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list listings")
 		return
 	}
 
 	total, err := s.listings.CountSearchListings(r.Context(), chatID, sr.ID, f)
 	if err != nil {
-		s.logger.Error("count search listings", "error", err)
+		log.Error("count listings failed", "search_name", sr.Name, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to count listings")
 		return
 	}

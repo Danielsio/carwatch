@@ -474,7 +474,7 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 		if notifier.IsMalformedMessage(p.Payload) {
 			s.logger.Error("purging malformed pending notification",
 				"id", p.ID,
-				"recipient", maskPhone(p.Recipient),
+				"chat_id", p.Recipient,
 				"msg_len", len(p.Payload),
 				"msg_preview", truncateStr(p.Payload, 200),
 			)
@@ -485,7 +485,7 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 		}
 		s.logger.Debug("retrying pending notification",
 			"id", p.ID,
-			"recipient", maskPhone(p.Recipient),
+			"chat_id", p.Recipient,
 			"msg_len", len(p.Payload),
 			"msg_preview", truncateStr(p.Payload, 100),
 		)
@@ -493,7 +493,7 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 			if errors.Is(err, notifier.ErrRecipientBlocked) {
 				s.logger.Warn("purging notification for unreachable recipient",
 					"id", p.ID,
-					"recipient", maskPhone(p.Recipient),
+					"chat_id", p.Recipient,
 					"error", err,
 				)
 				if ackErr := s.stores.Queue.AckNotification(ctx, p.ID); ackErr != nil {
@@ -503,7 +503,7 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 			}
 			s.logger.Error("retry notification failed",
 				"id", p.ID,
-				"recipient", maskPhone(p.Recipient),
+				"chat_id", p.Recipient,
 				"error", err,
 			)
 			continue
@@ -737,30 +737,31 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 	gs.listingsFetched = len(raw)
 
 	for _, search := range group.Searches {
-		filtered := filter.Apply(buildFilterCriteria(search), raw)
-		s.logger.Debug("search filter applied",
+		searchLog := s.logger.With(
 			"search_id", search.ID,
 			"chat_id", search.ChatID,
+			"search_name", search.Name,
+		)
+
+		filtered := filter.Apply(buildFilterCriteria(search), raw)
+		searchLog.Debug("search filter applied",
 			"total_raw", len(raw),
 			"after_filter", len(filtered),
 		)
 		lang := s.userLang(ctx, search.ChatID)
-		sr := s.processSearchListings(ctx, search, filtered, marketCache, lang)
+		sr := s.processSearchListings(ctx, search, filtered, marketCache, lang, searchLog)
 		persistOK := true
 		if s.stores.Listings != nil && len(sr.listingRecords) > 0 {
-			if err := s.persistListings(ctx, sr.listingRecords); err != nil {
+			if err := s.persistListings(ctx, sr.listingRecords, searchLog); err != nil {
 				persistOK = false
 			}
 		}
 		if !persistOK {
-			// Persist failed: still deliver price-drop messages (already saved
-			// individually in tryPriceDropListing), but drop new-listing
-			// notifications since they weren't persisted.
 			sr.newListings = nil
 			sr.listingRecords = nil
 		}
 		gs.newListings += len(sr.newListings)
-		delivered := s.deliverResults(ctx, search, lang, sr)
+		delivered := s.deliverResults(ctx, search, lang, sr, searchLog)
 		if delivered {
 			gs.notificationsSent++
 		}
@@ -969,31 +970,34 @@ func (s *Scheduler) loadHiddenTokens(ctx context.Context, chatID int64) map[stri
 	return tokens
 }
 
-func (s *Scheduler) deduplicateListings(ctx context.Context, token string, chatID, searchID int64) (isNew bool, ok bool) {
+func (s *Scheduler) deduplicateListings(ctx context.Context, token string, chatID, searchID int64, log *slog.Logger) (isNew bool, ok bool) {
 	isNew, err := s.stores.Dedup.ClaimNew(ctx, token, chatID, searchID)
 	if err != nil {
-		s.logger.Error("claim failed", "token", token, "error", err)
+		log.Error("claim failed", "token", token, "error", err)
 		return false, false
 	}
 	return isNew, true
 }
 
-func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Search, l model.RawListing, lang locale.Lang, marketCache *scoring.MarketCache, out *searchResult) bool {
+func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Search, l model.RawListing, lang locale.Lang, marketCache *scoring.MarketCache, out *searchResult, log *slog.Logger) bool {
 	if s.stores.Prices == nil || l.Price <= 0 {
 		return false
 	}
 	oldPrice, changed, err := s.stores.Prices.RecordPrice(ctx, l.Token, l.Price)
 	if err != nil {
-		s.logger.Error("record price failed", "token", l.Token, "error", err)
+		log.Error("record price failed", "token", l.Token, "error", err)
 		return false
 	}
 	if !changed || l.Price >= oldPrice {
 		return false
 	}
-	s.logger.Info("price drop detected",
+	log.Info("price drop detected",
 		"token", l.Token,
 		"old_price", oldPrice,
 		"new_price", l.Price,
+		"manufacturer", l.Manufacturer,
+		"model", l.Model,
+		"year", l.Year,
 	)
 	listing := model.Listing{RawListing: l, SearchName: search.Name}
 	fp := scoring.FitnessParams{
@@ -1031,9 +1035,8 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 			}
 		}
 		if err := s.stores.Listings.SaveListing(ctx, rec); err != nil {
-			s.logger.Error("save price-drop listing failed",
+			log.Error("save price-drop listing failed",
 				"token", l.Token,
-				"chat_id", search.ChatID,
 				"error", err,
 			)
 		}
@@ -1041,40 +1044,40 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 	return true
 }
 
-func (s *Scheduler) enrichWithBasePrice(ctx context.Context, listing *model.Listing) {
+func (s *Scheduler) enrichWithBasePrice(ctx context.Context, listing *model.Listing, log *slog.Logger) {
 	if s.priceListSvc == nil {
-		s.logger.Debug("enrichWithBasePrice: skipped, pricelist service is nil",
+		log.Debug("enrichWithBasePrice: skipped, pricelist service is nil",
 			"token", listing.Token)
 		return
 	}
 	if listing.SubModelID <= 0 {
-		s.logger.Debug("enrichWithBasePrice: skipped, no sub_model_id",
+		log.Debug("enrichWithBasePrice: skipped, no sub_model_id",
 			"token", listing.Token, "sub_model_id", listing.SubModelID,
 			"sub_model", listing.SubModel, "model", listing.Model)
 		return
 	}
 	if listing.Year <= 0 {
-		s.logger.Debug("enrichWithBasePrice: skipped, no year",
+		log.Debug("enrichWithBasePrice: skipped, no year",
 			"token", listing.Token, "year", listing.Year)
 		return
 	}
 
-	bp, ok := s.priceListSvc.Lookup(ctx, listing.SubModelID, listing.Year)
+	bp, ok := s.priceListSvc.Lookup(ctx, listing.SubModelID, listing.Year, listing.Token)
 	if !ok {
-		s.logger.Warn("enrichWithBasePrice: lookup failed or returned no price",
+		log.Warn("enrichWithBasePrice: lookup failed",
 			"token", listing.Token, "sub_model_id", listing.SubModelID,
 			"year", listing.Year)
 		return
 	}
 	if bp <= 0 {
-		s.logger.Warn("enrichWithBasePrice: lookup returned zero/negative price",
+		log.Warn("enrichWithBasePrice: zero/negative price",
 			"token", listing.Token, "sub_model_id", listing.SubModelID,
 			"year", listing.Year, "base_price", bp)
 		return
 	}
 
 	listing.BasePrice = &bp
-	s.logger.Info("enrichWithBasePrice: set base_price",
+	log.Info("enrichWithBasePrice: set base_price",
 		"token", listing.Token, "sub_model_id", listing.SubModelID,
 		"year", listing.Year, "base_price", bp)
 }
@@ -1147,39 +1150,39 @@ func buildNotifications(search storage.Search, listing model.Listing, out *searc
 	out.listingRecords = append(out.listingRecords, rec)
 }
 
-func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Search, filtered []model.RawListing, marketCache *scoring.MarketCache, lang locale.Lang) searchResult {
+func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Search, filtered []model.RawListing, marketCache *scoring.MarketCache, lang locale.Lang, log *slog.Logger) searchResult {
 	var out searchResult
 	hidden := s.loadHiddenTokens(ctx, search.ChatID)
 	for _, l := range filterHiddenListings(filtered, hidden) {
 		if !storage.RawListingMatchesSellerFilter(l.Commercial, search.SellerFilter) {
 			continue
 		}
-		isNew, ok := s.deduplicateListings(ctx, l.Token, search.ChatID, search.ID)
+		isNew, ok := s.deduplicateListings(ctx, l.Token, search.ChatID, search.ID, log)
 		if !ok {
 			continue
 		}
-		if s.tryPriceDropListing(ctx, search, l, lang, marketCache, &out) {
+		if s.tryPriceDropListing(ctx, search, l, lang, marketCache, &out, log) {
 			continue
 		}
 		if !isNew {
 			continue
 		}
 		listing := s.scoreAndRecordListings(search, l, marketCache)
-		s.enrichWithBasePrice(ctx, &listing)
+		s.enrichWithBasePrice(ctx, &listing, log)
 		buildNotifications(search, listing, &out)
 	}
 	return out
 }
 
-func (s *Scheduler) persistListings(ctx context.Context, records []storage.ListingRecord) error {
+func (s *Scheduler) persistListings(ctx context.Context, records []storage.ListingRecord, log *slog.Logger) error {
 	if err := s.stores.Listings.SaveListings(ctx, records); err != nil {
-		s.logger.Error("batch save listings failed", "error", err)
+		log.Error("batch save listings failed", "batch_size", len(records), "error", err)
 		cleanupCtx, cleanupCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cleanupCancel()
 		for _, rec := range records {
 			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, rec.Token, rec.ChatID); relErr != nil {
-				s.logger.Error("release claim after batch save failure",
-					"token", rec.Token, "chat_id", rec.ChatID, "error", relErr)
+				log.Error("release claim after batch save failure",
+					"token", rec.Token, "error", relErr)
 			}
 		}
 		return err
@@ -1187,30 +1190,22 @@ func (s *Scheduler) persistListings(ctx context.Context, records []storage.Listi
 	return nil
 }
 
-func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, lang locale.Lang, sr searchResult) bool {
+func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, lang locale.Lang, sr searchResult, log *slog.Logger) bool {
 	delivery := s.deliveryFor(ctx, search.ChatID, lang)
 	sent := false
 
 	for _, msg := range sr.priceDropMessages {
 		if err := delivery.DeliverRaw(ctx, search.ChatID, msg); err != nil {
 			if errors.Is(err, notifier.ErrRecipientBlocked) {
-				s.logger.Warn("user blocked bot, deactivating",
-					"chat_id", search.ChatID,
-				)
+				log.Warn("user blocked bot, deactivating")
 				if s.stores.Users != nil {
 					if err := s.stores.Users.SetUserActive(ctx, search.ChatID, false); err != nil {
-						s.logger.Error("set user inactive after block (price drop)",
-							"chat_id", search.ChatID,
-							"error", err,
-						)
+						log.Error("set user inactive after block (price drop)", "error", err)
 					}
 				}
 				return false
 			}
-			s.logger.Error("price drop delivery failed",
-				"chat_id", search.ChatID,
-				"error", err,
-			)
+			log.Error("price drop delivery failed", "error", err)
 		} else {
 			sent = true
 		}
@@ -1222,38 +1217,25 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 
 	s.observer.RecordListingsFound(len(sr.newListings))
 
-	s.logger.Info("notifying user of new listings",
-		"chat_id", search.ChatID,
-		"search", search.Name,
-		"count", len(sr.newListings),
-	)
+	log.Info("notifying user of new listings", "count", len(sr.newListings))
 
 	if err := delivery.DeliverBatch(ctx, search.ChatID, sr.newListings); err != nil {
 		if errors.Is(err, notifier.ErrRecipientBlocked) {
-			s.logger.Warn("user blocked bot, deactivating",
-				"chat_id", search.ChatID,
-			)
+			log.Warn("user blocked bot, deactivating")
 			if s.stores.Users != nil {
 				if err := s.stores.Users.SetUserActive(ctx, search.ChatID, false); err != nil {
-					s.logger.Error("set user inactive after block (batch)",
-						"chat_id", search.ChatID,
-						"error", err,
-					)
+					log.Error("set user inactive after block (batch)", "error", err)
 				}
 			}
 		} else {
-			s.logger.Error("delivery failed",
-				"chat_id", search.ChatID,
-				"error", err,
-			)
+			log.Error("batch delivery failed", "count", len(sr.newListings), "error", err)
 		}
 		cleanupCtx, cleanupCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cleanupCancel()
 		for _, l := range sr.newListings {
 			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, l.Token, search.ChatID); relErr != nil {
-				s.logger.Error("release claim after delivery failure",
-					"token", l.Token, "chat_id", search.ChatID, "error", relErr,
-				)
+				log.Error("release claim after delivery failure",
+					"token", l.Token, "error", relErr)
 			}
 		}
 	} else {

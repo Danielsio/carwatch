@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
@@ -191,6 +192,7 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 	}
 
 	reqURL := buildURL(f.baseURL, params)
+	fetchStart := time.Now()
 	f.logger.Info("fetching listings",
 		"url", reqURL,
 		"manufacturer", params.Manufacturer,
@@ -203,6 +205,9 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 		if f.clientPool != nil && usedProxy != "" {
 			f.clientPool.Evict(usedProxy)
 		}
+		f.logger.Error("fetch request failed",
+			"manufacturer", params.Manufacturer, "model", params.Model,
+			"duration_ms", time.Since(fetchStart).Milliseconds(), "error", err)
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
 
@@ -230,6 +235,8 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 		"manufacturer", params.Manufacturer,
 		"model", params.Model,
 		"page", params.Page,
+		"status", result.StatusCode,
+		"duration_ms", time.Since(fetchStart).Milliseconds(),
 	)
 	return listings, nil
 }

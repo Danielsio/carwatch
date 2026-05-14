@@ -12,16 +12,18 @@ func (s *Server) notificationCount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "notification_count")
+
 	since, err := s.notifs.GetLastSeenAt(r.Context(), chatID)
 	if err != nil {
-		s.logger.Error("get last seen at", "error", err)
+		log.Error("get last seen at failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to get notification count")
 		return
 	}
 
 	count, err := s.notifs.CountNewListingsSince(r.Context(), chatID, since)
 	if err != nil {
-		s.logger.Error("count notifications", "error", err)
+		log.Error("count notifications failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to count notifications")
 		return
 	}
@@ -39,23 +41,25 @@ func (s *Server) listNotifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "list_notifications")
+
 	since, err := s.notifs.GetLastSeenAt(r.Context(), chatID)
 	if err != nil {
-		s.logger.Error("get last seen at", "error", err)
+		log.Error("get last seen at failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list notifications")
 		return
 	}
 
 	listings, err := s.notifs.NewListingsSince(r.Context(), chatID, since, limit, offset)
 	if err != nil {
-		s.logger.Error("list notifications", "error", err)
+		log.Error("list notifications failed", "limit", limit, "offset", offset, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list notifications")
 		return
 	}
 
 	total, err := s.notifs.CountNewListingsSince(r.Context(), chatID, since)
 	if err != nil {
-		s.logger.Error("count notifications", "error", err)
+		log.Error("count notifications failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to count notifications")
 		return
 	}
@@ -76,8 +80,9 @@ func (s *Server) markNotificationsSeen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "mark_notifications_seen")
 	if err := s.users.UpdateLastSeenAt(r.Context(), chatID); err != nil {
-		s.logger.Error("update last seen at", "error", err)
+		log.Error("update last seen at failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to mark as seen")
 		return
 	}

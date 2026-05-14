@@ -117,6 +117,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 				challengeRetries++
 				if challengeRetries >= maxChallengeRetries {
 					e.logger.Warn("enrichment aborted after repeated challenges",
+						"token", listings[i].Token,
 						"challenges", challengeRetries,
 						"attempts", attempts,
 						"enriched", enriched,
@@ -125,6 +126,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 					return enriched
 				}
 				e.logger.Warn("challenge detected, backing off before retry",
+					"token", listings[i].Token,
 					"challenge_count", challengeRetries,
 					"backoff", e.cfg.ChallengeBackoff,
 				)
@@ -142,6 +144,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			)
 			if consecutiveFailures >= maxConsecutiveFailures {
 				e.logger.Warn("enrichment aborted after consecutive failures",
+					"token", listings[i].Token,
 					"consecutive_failures", consecutiveFailures,
 					"attempts", attempts,
 					"remaining", len(candidates)-attempts,

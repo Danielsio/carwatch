@@ -18,8 +18,9 @@ func (s *Server) saveListing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "save_bookmark", "token", token)
 	if err := s.saved.SaveBookmark(r.Context(), chatID, token); err != nil {
-		s.logger.Error("save bookmark", "error", err)
+		log.Error("save bookmark failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to save bookmark")
 		return
 	}
@@ -37,8 +38,9 @@ func (s *Server) unsaveListing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "remove_bookmark", "token", token)
 	if err := s.saved.RemoveBookmark(r.Context(), chatID, token); err != nil {
-		s.logger.Error("remove bookmark", "error", err)
+		log.Error("remove bookmark failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to remove bookmark")
 		return
 	}
@@ -55,16 +57,18 @@ func (s *Server) listSaved(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "list_saved")
+
 	listings, err := s.saved.ListSaved(r.Context(), chatID, limit, offset)
 	if err != nil {
-		s.logger.Error("list saved", "error", err)
+		log.Error("list saved failed", "limit", limit, "offset", offset, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list saved")
 		return
 	}
 
 	total, err := s.saved.CountSaved(r.Context(), chatID)
 	if err != nil {
-		s.logger.Error("count saved", "error", err)
+		log.Error("count saved failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to count saved")
 		return
 	}
@@ -94,8 +98,9 @@ func (s *Server) hideListing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "hide_listing", "token", token)
 	if err := s.hidden.HideListing(r.Context(), chatID, token); err != nil {
-		s.logger.Error("hide listing", "error", err)
+		log.Error("hide listing failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to hide listing")
 		return
 	}
@@ -113,8 +118,9 @@ func (s *Server) unhideListing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "unhide_listing", "token", token)
 	if err := s.hidden.UnhideListing(r.Context(), chatID, token); err != nil {
-		s.logger.Error("unhide listing", "error", err)
+		log.Error("unhide listing failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to unhide listing")
 		return
 	}
@@ -131,16 +137,18 @@ func (s *Server) listHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := s.handlerLogger(r, "op", "list_history")
+
 	listings, err := s.listings.ListUserListings(r.Context(), chatID, limit, offset)
 	if err != nil {
-		s.logger.Error("list history", "error", err)
+		log.Error("list history failed", "limit", limit, "offset", offset, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list history")
 		return
 	}
 
 	total, err := s.listings.CountUserListings(r.Context(), chatID)
 	if err != nil {
-		s.logger.Error("count history", "error", err)
+		log.Error("count history failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to count history")
 		return
 	}
@@ -166,7 +174,7 @@ func (s *Server) savedLookupForRecords(ctx context.Context, chatID int64, record
 	}
 	m, err := s.saved.SavedAmong(ctx, chatID, tokens)
 	if err != nil {
-		s.logger.Error("saved among", "error", err)
+		s.logger.Error("saved among lookup failed", "chat_id", chatID, "tokens", len(tokens), "error", err)
 		return nil
 	}
 	return m
@@ -182,7 +190,7 @@ func (s *Server) seenLookupForRecords(ctx context.Context, chatID int64, records
 	}
 	m, err := s.notifs.ListingUserSeenAmong(ctx, chatID, tokens)
 	if err != nil {
-		s.logger.Error("listing seen among", "error", err)
+		s.logger.Error("seen among lookup failed", "chat_id", chatID, "tokens", len(tokens), "error", err)
 		return nil
 	}
 	return m

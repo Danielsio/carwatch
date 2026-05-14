@@ -368,8 +368,20 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		slog.Debug("failed to write JSON response", "error", err)
+		slog.Debug("writeJSON failed", "error", err, "status", status)
 	}
+}
+
+func (s *Server) handlerLogger(r *http.Request, extras ...any) *slog.Logger {
+	fields := make([]any, 0, 6+len(extras))
+	if reqID, ok := r.Context().Value(requestIDKey).(string); ok {
+		fields = append(fields, "request_id", reqID)
+	}
+	if chatID, ok := chatIDFromContext(r.Context()); ok {
+		fields = append(fields, "chat_id", chatID)
+	}
+	fields = append(fields, extras...)
+	return s.logger.With(fields...)
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
