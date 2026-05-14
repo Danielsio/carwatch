@@ -58,7 +58,8 @@ services:
     restart: unless-stopped
 
   watchtower:
-    image: containrrr/watchtower:latest
+    # Pin to specific version; :latest + Docker socket = supply chain risk
+    image: containrrr/watchtower:1.7.1
     container_name: watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

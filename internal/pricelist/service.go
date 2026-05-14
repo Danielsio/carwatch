@@ -76,7 +76,7 @@ func (s *Service) Lookup(ctx context.Context, subModelID, year int) (basePrice i
 	s.lastFetch = time.Now()
 	s.mu.Unlock()
 
-	result := fetch(ctx, subModelID, year, s.logger)
+	result := fetch(ctx, subModelID, year)
 	if result.BasePrice <= 0 {
 		if entry != nil {
 			return entry.BasePrice, true
