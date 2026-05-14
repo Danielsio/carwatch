@@ -2,92 +2,79 @@
 
 ## Architecture
 
-CarWatch uses a single SQLite database stored at the path configured in
-`config.yaml` (`storage.db_path`). If `db_path` is omitted, the binary defaults to
-`./data/dedup.db` (see `internal/config`). `config.example.yaml` uses
-`./data/carwatch.db`—substitute the path your config actually uses in the backup
-commands below. Production compose mounts the named volume at `/data`, so the
-live DB is typically `/data/carwatch.db`.
+CarWatch supports two database backends:
 
-In production the file lives inside a Docker named volume
-(`carwatch_carwatch-data` → `/data`). This volume persists across container
-restarts, image updates, and VM reboots.
+- **PostgreSQL** (production) — primary backend configured via `storage.postgres` in `config.yaml`
+- **SQLite** (development/legacy) — local file at `storage.db_path`
 
-**Restore destination:** Commands below copy into `/data/carwatch.db` because that
-matches the default production compose layout. If your `storage.db_path` is
-different inside the container, use that path as the **target** of every `cp`
-(and adjust `sqlite3` paths in backups/cron the same way).
+Production uses PostgreSQL running in Docker (`docker-compose.prod.yaml`) with a
+named volume `carwatch_pgdata` for persistence.
 
 ## Automated daily backup
 
-### 1. Install the cron job on the VM
+### PostgreSQL (production)
+
+#### 1. Install the cron job on the VM
 
 ```bash
-# SSH into the VM
 make vm-ssh
 
-# Create backup directory inside the volume
-docker exec carwatch mkdir -p /data/backups
+mkdir -p ~/carwatch/backups
 
 # Add a daily cron job (runs at 03:00 local time)
-(crontab -l 2>/dev/null; echo '0 3 * * * docker exec carwatch sqlite3 /data/carwatch.db ".backup /data/backups/carwatch-$(date +\%Y\%m\%d).db" && docker exec carwatch find /data/backups -name "carwatch-*.db" -type f -mtime +7 -delete') | crontab -
+(crontab -l 2>/dev/null; echo '0 3 * * * docker exec carwatch-pg pg_dump -U carwatch -Fc carwatch > ~/carwatch/backups/carwatch-$(date +\%Y\%m\%d).dump && find ~/carwatch/backups -name "carwatch-*.dump" -type f -mtime +7 -delete') | crontab -
 ```
 
-If `storage.db_path` in production is not `/data/carwatch.db`, substitute that
-path in the `sqlite3` argument above.
-
-The backup uses SQLite's `.backup` command, which is safe to run while the
-application is writing (it uses the WAL to produce a consistent snapshot).
-
-### 2. Verify the cron job
+#### 2. Verify the cron job
 
 ```bash
 crontab -l    # should list the backup entry
 ```
 
-### 3. Manual backup
+#### 3. Manual backup
 
 ```bash
-# From your workstation (runs over SSH via repo Makefile → vm-check-env + ssh)
-make vm-backup
-
-# Or from the VM
-docker exec carwatch sqlite3 /data/carwatch.db ".backup /data/backups/carwatch-manual.db"
+# From the VM
+docker exec carwatch-pg pg_dump -U carwatch -Fc carwatch > ~/carwatch/backups/carwatch-manual.dump
 ```
 
-Targets `vm-backup` and `vm-backup-list` live in the **repository root**
-[`Makefile`](../../Makefile) alongside `vm-ssh` / `vm-deploy`; they are not
-shown in snippets elsewhere in this doc.
-
-### 4. List existing backups
+#### 4. List existing backups
 
 ```bash
-make vm-backup-list
+ls -lh ~/carwatch/backups/
+```
+
+### SQLite (development/legacy)
+
+For local development with SQLite, use SQLite's `.backup` command:
+
+```bash
+sqlite3 ./data/carwatch.db ".backup ./data/backups/carwatch-manual.db"
 ```
 
 ## Monitoring
 
 ### Application health
 
-Poll `/healthz` for synthetic uptime checks.
+Poll `/healthz` for synthetic uptime checks. The endpoint returns JSON with
+status, uptime, cycle count, and database metrics.
 
-### Database file size
+### Database size
 
-Watch growth via the file inside the volume (alert if it nears disk limits):
+For PostgreSQL:
 
 ```bash
-docker exec carwatch ls -lh /data/carwatch.db
+docker exec carwatch-pg psql -U carwatch -c "SELECT pg_size_pretty(pg_database_size('carwatch'));"
 ```
 
-Some deployments also expose size fields on `/healthz` when the health handler
-is configured with a database sizer; rely on whatever JSON your running image
-returns.
+The `/healthz` endpoint also reports `db_size_bytes` when configured.
 
 ### Disk space on the VM
 
 ```bash
 make vm-ssh
-docker exec carwatch df -h /data
+df -h
+docker system df
 ```
 
 ## Disaster recovery
@@ -100,27 +87,22 @@ The named volume survives `docker rm`. Just recreate the container:
 make vm-deploy
 ```
 
-### Scenario 2: Corrupt database
+### Scenario 2: Corrupt or lost database
 
-Stop CarWatch before overwriting the primary DB file so SQLite does not keep a
-stale WAL handle open, then copy the newest backup into the named volume and
-start again:
-
-1. Restore from the latest on-volume backup (adjust `/data/carwatch.db` if your
-   `storage.db_path` differs):
+1. Stop CarWatch:
 
    ```bash
    make vm-ssh
-   docker stop carwatch
-   docker run --rm -v carwatch_carwatch-data:/data alpine sh -c 'cp "$(ls -t /data/backups/carwatch-*.db | head -1)" /data/carwatch.db'
-   docker start carwatch
+   docker compose -f docker-compose.prod.yaml down
    ```
 
-   The first run may pull the small `alpine` image once.
+2. Restore from the latest backup:
 
-2. If you cannot use a helper container, you can instead stop the app,
-   replace `/data/carwatch.db` via any method that writes into volume
-   `carwatch_carwatch-data`, then start CarWatch.
+   ```bash
+   docker compose -f docker-compose.prod.yaml up -d postgres
+   docker exec -i carwatch-pg pg_restore -U carwatch -d carwatch --clean < ~/carwatch/backups/carwatch-YYYYMMDD.dump
+   docker compose -f docker-compose.prod.yaml up -d
+   ```
 
 ### Scenario 3: VM destroyed (full rebuild)
 
@@ -129,41 +111,33 @@ start again:
 3. Create the config:
 
    ```bash
-   scp config.yaml firebase-sa.json <user>@<new-ip>:~/carwatch/
+   scp config.yaml firebase-service-account.json <user>@<new-ip>:~/carwatch/
    ```
 
-4. Start the container (creates the named volume with an empty DB):
+4. Start the stack (creates named volumes with empty DB):
 
    ```bash
    make vm-deploy
    ```
 
-5. If you have an off-site backup, stop CarWatch before overwriting the DB file
-   (avoid restoring while SQLite has the file open), copy into the volume, then
-   start. Use your real `storage.db_path` inside the container instead of
-   `/data/carwatch.db` when it differs:
+5. If you have a backup, restore it:
 
    ```bash
-   ssh <user>@<new-ip> 'docker stop carwatch'
-   scp carwatch-backup.db <user>@<new-ip>:/tmp/
-   ssh <user>@<new-ip> 'docker run --rm -v carwatch_carwatch-data:/data -v /tmp:/backup alpine sh -c "cp /backup/carwatch-backup.db /data/carwatch.db" && rm /tmp/carwatch-backup.db'
-   ssh <user>@<new-ip> 'docker start carwatch'
+   scp carwatch-backup.dump <user>@<new-ip>:~/carwatch/backups/
+   ssh <user>@<new-ip> 'cd ~/carwatch && docker compose -f docker-compose.prod.yaml up -d postgres && sleep 5 && docker exec -i carwatch-pg pg_restore -U carwatch -d carwatch --clean < backups/carwatch-backup.dump && docker compose -f docker-compose.prod.yaml up -d'
    ```
-
-   From your workstation you can use `make vm-stop` / `make vm-start` instead if
-   those targets match how you manage the VM.
 
 ### Scenario 4: No backup available
 
-If no backup exists, starting with an empty database is safe. The application
-will run migrations automatically. Users will need to re-create their
-searches, but the bot will begin finding new listings immediately.
+Starting with an empty database is safe. The application runs migrations
+automatically. Users will need to re-create their searches, but the bot will
+begin finding new listings immediately.
 
 ## Backup retention
 
 | Scope | Retention | Location |
 |-------|-----------|----------|
-| Daily on-volume | 7 days | `/data/backups/` inside the Docker volume |
+| Daily on-VM | 7 days | `~/carwatch/backups/` on the VM |
 
 To add off-site backups (e.g. Oracle Object Storage, S3), extend the cron job
 to upload after the local backup completes.
