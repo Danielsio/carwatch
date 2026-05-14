@@ -274,7 +274,7 @@ func FitnessScoreDetailed(p FitnessParams) FitnessResult {
 		totalWeight += d.Weight
 	}
 	if totalWeight <= 0 {
-		return FitnessResult{Total: 5.0, Dims: dims}
+		return FitnessResult{Total: 0, Dims: dims}
 	}
 
 	var weighted float64
@@ -349,7 +349,7 @@ func kmScore(km, maxKm, carYear int) float64 {
 // handScore: base ladder plus a bonus for older cars where more owners are expected.
 func handScore(hand, maxHand, carYear int) float64 {
 	if hand <= 0 {
-		return 0.5
+		return math.NaN()
 	}
 	var base float64
 	if maxHand > 0 {

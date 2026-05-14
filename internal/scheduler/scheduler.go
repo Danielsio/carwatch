@@ -86,7 +86,10 @@ type Scheduler struct {
 type digestMeta struct {
 	mode     string
 	interval string
+	cachedAt time.Time
 }
+
+const digestCacheTTL = 5 * time.Minute
 
 // Stores groups all storage interfaces the scheduler depends on.
 type Stores struct {
@@ -282,11 +285,14 @@ func (s *Scheduler) Run(ctx context.Context) error {
 func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.Lang) DeliveryStrategy {
 	if s.stores.Digests != nil {
 		var mode string
+		needFetch := true
 		if v, ok := s.digestCache.Load(chatID); ok {
-			if dm, ok := v.(digestMeta); ok {
+			if dm, ok := v.(digestMeta); ok && time.Since(dm.cachedAt) < digestCacheTTL {
 				mode = dm.mode
+				needFetch = false
 			}
-		} else {
+		}
+		if needFetch {
 			m, interval, err := s.stores.Digests.GetDigestMode(ctx, chatID)
 			if err != nil {
 				if !errors.Is(err, storage.ErrNotFound) {
@@ -294,7 +300,7 @@ func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.L
 				}
 			} else {
 				mode = m
-				s.digestCache.Store(chatID, digestMeta{mode: m, interval: interval})
+				s.digestCache.Store(chatID, digestMeta{mode: m, interval: interval, cachedAt: time.Now()})
 			}
 		}
 		if mode == "digest" {

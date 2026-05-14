@@ -14,7 +14,6 @@ import (
 	"time"
 )
 
-var priceRe = regexp.MustCompile(`₪\s*([\d,]+)`)
 var basePriceLabelRe = regexp.MustCompile(`(?i)מחיר\s+בסיס[^₪]*₪\s*([\d,]+)`)
 
 // fetch tries Go HTTP first, then falls back to the Python scraper.
@@ -87,18 +86,6 @@ func extractPriceFromHTML(html string) fetchResult {
 				}
 			}
 		}
-	}
-
-	// Strategy 3: find all ₪ prices and pick the largest > 1000
-	matches := priceRe.FindAllStringSubmatch(html, -1)
-	var best int
-	for _, m := range matches {
-		if p := parsePrice(m[1]); p > 1000 && p > best {
-			best = p
-		}
-	}
-	if best > 0 {
-		return fetchResult{BasePrice: best}
 	}
 
 	return fetchResult{Error: "no price found in HTML"}
