@@ -241,6 +241,14 @@ func (s *Store) AdminDeleteUser(ctx context.Context, chatID int64) error {
 		}
 	}
 
+	recipientStr := fmt.Sprintf("%d", chatID)
+	if _, err := tx.ExecContext(ctx, `DELETE FROM pending_notifications WHERE recipient = $1`, recipientStr); err != nil {
+		return fmt.Errorf("admin delete user pending_notifications: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM link_tokens WHERE web_chat_id = $1`, chatID); err != nil {
+		return fmt.Errorf("admin delete user link_tokens: %w", err)
+	}
+
 	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE chat_id = $1`, chatID); err != nil {
 		return fmt.Errorf("admin delete user: %w", err)
 	}
