@@ -90,8 +90,7 @@ func (m *MultiNotifier) resolve(ctx context.Context, recipient string) (Notifier
 			if n, ok := m.notifiers[user.Channel]; ok {
 				return n, nil
 			}
-			m.logger.Debug("no notifier for channel, skipping push delivery", "recipient", recipient, "channel", user.Channel)
-			return nil, ErrNoChannelNotifier
+			m.logger.Warn("unknown channel, falling back to default", "recipient", recipient, "channel", user.Channel, "fallback", m.fallback)
 		}
 	}
 	if n := m.notifiers[m.fallback]; n != nil {
