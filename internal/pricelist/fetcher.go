@@ -41,14 +41,15 @@ func fetchGoHTTP(ctx context.Context, subModelID, year int) fetchResult {
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7")
 
+	start := time.Now()
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return fetchResult{Error: fmt.Sprintf("http get: %v", err)}
+		return fetchResult{Error: fmt.Sprintf("http get (%s): %v", time.Since(start).Round(time.Millisecond), err)}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return fetchResult{Error: fmt.Sprintf("http status %d", resp.StatusCode)}
+		return fetchResult{Error: fmt.Sprintf("http status %d (url=%s, took=%s)", resp.StatusCode, url, time.Since(start).Round(time.Millisecond))}
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
@@ -57,7 +58,11 @@ func fetchGoHTTP(ctx context.Context, subModelID, year int) fetchResult {
 	}
 
 	html := string(body)
-	return extractPriceFromHTML(html)
+	result := extractPriceFromHTML(html)
+	if result.Error != "" {
+		result.Error = fmt.Sprintf("%s (url=%s, body_len=%d, took=%s)", result.Error, url, len(body), time.Since(start).Round(time.Millisecond))
+	}
+	return result
 }
 
 func extractPriceFromHTML(html string) fetchResult {

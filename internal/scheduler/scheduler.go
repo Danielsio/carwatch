@@ -1041,13 +1041,41 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 }
 
 func (s *Scheduler) enrichWithBasePrice(ctx context.Context, listing *model.Listing) {
-	if s.priceListSvc == nil || listing.SubModelID <= 0 || listing.Year <= 0 {
+	if s.priceListSvc == nil {
+		s.logger.Debug("enrichWithBasePrice: skipped, pricelist service is nil",
+			"token", listing.Token)
 		return
 	}
-	bp, ok := s.priceListSvc.Lookup(ctx, listing.SubModelID, listing.Year)
-	if ok && bp > 0 {
-		listing.BasePrice = &bp
+	if listing.SubModelID <= 0 {
+		s.logger.Debug("enrichWithBasePrice: skipped, no sub_model_id",
+			"token", listing.Token, "sub_model_id", listing.SubModelID,
+			"sub_model", listing.SubModel, "model", listing.Model)
+		return
 	}
+	if listing.Year <= 0 {
+		s.logger.Debug("enrichWithBasePrice: skipped, no year",
+			"token", listing.Token, "year", listing.Year)
+		return
+	}
+
+	bp, ok := s.priceListSvc.Lookup(ctx, listing.SubModelID, listing.Year)
+	if !ok {
+		s.logger.Warn("enrichWithBasePrice: lookup failed or returned no price",
+			"token", listing.Token, "sub_model_id", listing.SubModelID,
+			"year", listing.Year)
+		return
+	}
+	if bp <= 0 {
+		s.logger.Warn("enrichWithBasePrice: lookup returned zero/negative price",
+			"token", listing.Token, "sub_model_id", listing.SubModelID,
+			"year", listing.Year, "base_price", bp)
+		return
+	}
+
+	listing.BasePrice = &bp
+	s.logger.Info("enrichWithBasePrice: set base_price",
+		"token", listing.Token, "sub_model_id", listing.SubModelID,
+		"year", listing.Year, "base_price", bp)
 }
 
 func (s *Scheduler) scoreAndRecordListings(search storage.Search, l model.RawListing, marketCache *scoring.MarketCache) model.Listing {

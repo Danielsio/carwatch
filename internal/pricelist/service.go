@@ -43,22 +43,31 @@ func (s *Service) ResetCycleCounter() {
 // If not cached or stale, it fetches from Yad2 (rate-limited).
 func (s *Service) Lookup(ctx context.Context, subModelID, year int) (basePrice int, ok bool) {
 	if subModelID <= 0 || year <= 0 {
+		s.logger.Debug("pricelist.Lookup: invalid params",
+			"sub_model_id", subModelID, "year", year)
 		return 0, false
 	}
 
 	entry, err := s.store.GetPriceListEntry(ctx, subModelID, year)
 	if err != nil {
-		s.logger.Error("price list cache read failed", "sub_model_id", subModelID, "year", year, "error", err)
+		s.logger.Error("pricelist.Lookup: cache read failed",
+			"sub_model_id", subModelID, "year", year, "error", err)
 		return 0, false
 	}
 
 	if entry != nil && time.Since(entry.FetchedAt) < cacheTTL {
+		s.logger.Debug("pricelist.Lookup: cache hit",
+			"sub_model_id", subModelID, "year", year,
+			"base_price", entry.BasePrice, "age", time.Since(entry.FetchedAt).Round(time.Minute))
 		return entry.BasePrice, true
 	}
 
 	s.mu.Lock()
 	if s.fetchCount >= maxFetchPerCycle {
 		s.mu.Unlock()
+		s.logger.Warn("pricelist.Lookup: cycle fetch limit reached",
+			"sub_model_id", subModelID, "year", year,
+			"fetch_count", s.fetchCount, "max", maxFetchPerCycle)
 		if entry != nil {
 			return entry.BasePrice, true
 		}
@@ -67,6 +76,9 @@ func (s *Service) Lookup(ctx context.Context, subModelID, year int) (basePrice i
 	elapsed := time.Since(s.lastFetch)
 	if elapsed < fetchCooldown {
 		s.mu.Unlock()
+		s.logger.Debug("pricelist.Lookup: cooldown active",
+			"sub_model_id", subModelID, "year", year,
+			"remaining", (fetchCooldown - elapsed).Round(time.Millisecond))
 		if entry != nil {
 			return entry.BasePrice, true
 		}
@@ -76,8 +88,21 @@ func (s *Service) Lookup(ctx context.Context, subModelID, year int) (basePrice i
 	s.lastFetch = time.Now()
 	s.mu.Unlock()
 
+	url := priceListURL(subModelID, year)
+	s.logger.Info("pricelist.Lookup: fetching from Yad2",
+		"sub_model_id", subModelID, "year", year, "url", url,
+		"fetch_count", s.fetchCount)
+
 	result := fetch(ctx, subModelID, year)
+	if result.Error != "" {
+		s.logger.Warn("pricelist.Lookup: fetch failed",
+			"sub_model_id", subModelID, "year", year,
+			"url", url, "error", result.Error)
+	}
 	if result.BasePrice <= 0 {
+		s.logger.Warn("pricelist.Lookup: no price extracted",
+			"sub_model_id", subModelID, "year", year,
+			"url", url, "fetch_error", result.Error)
 		if entry != nil {
 			return entry.BasePrice, true
 		}
@@ -92,15 +117,13 @@ func (s *Service) Lookup(ctx context.Context, subModelID, year int) (basePrice i
 		FetchedAt:  time.Now(),
 	}
 	if err := s.store.SetPriceListEntry(ctx, newEntry); err != nil {
-		s.logger.Error("price list cache write failed", "sub_model_id", subModelID, "year", year, "error", err)
+		s.logger.Error("pricelist.Lookup: cache write failed",
+			"sub_model_id", subModelID, "year", year, "error", err)
 	}
 
-	s.logger.Info("fetched price list",
-		"sub_model_id", subModelID,
-		"year", year,
-		"base_price", result.BasePrice,
-		"title", result.Title,
-	)
+	s.logger.Info("pricelist.Lookup: fetched successfully",
+		"sub_model_id", subModelID, "year", year,
+		"base_price", result.BasePrice, "title", result.Title)
 
 	return result.BasePrice, true
 }

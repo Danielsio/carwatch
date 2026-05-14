@@ -168,6 +168,14 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 			IsCommercial: l.Commercial,
 			FirstSeenAt:  time.Now(),
 		}
+		if s.priceListSvc != nil && l.SubModelID > 0 && l.Year > 0 {
+			if bp, ok := s.priceListSvc.Lookup(r.Context(), l.SubModelID, l.Year); ok && bp > 0 {
+				rec.BasePrice = &bp
+				s.logger.Debug("refresh: enriched with base_price",
+					"token", l.Token, "sub_model_id", l.SubModelID,
+					"year", l.Year, "base_price", bp)
+			}
+		}
 		records = append(records, rec)
 	}
 	if len(records) > 0 {
