@@ -305,7 +305,7 @@ func (s *Store) AdminListPriceHistory(ctx context.Context, limit, offset int, to
 			LEFT JOIN (
 				SELECT token, manufacturer, model, year
 				FROM listing_history
-				GROUP BY token
+				WHERE rowid IN (SELECT MAX(rowid) FROM listing_history GROUP BY token)
 			) lh ON ph.token = lh.token
 			WHERE ph.token = ?
 			ORDER BY ph.observed_at DESC
@@ -319,7 +319,7 @@ func (s *Store) AdminListPriceHistory(ctx context.Context, limit, offset int, to
 			LEFT JOIN (
 				SELECT token, manufacturer, model, year
 				FROM listing_history
-				GROUP BY token
+				WHERE rowid IN (SELECT MAX(rowid) FROM listing_history GROUP BY token)
 			) lh ON ph.token = lh.token
 			ORDER BY ph.observed_at DESC
 			LIMIT ? OFFSET ?`

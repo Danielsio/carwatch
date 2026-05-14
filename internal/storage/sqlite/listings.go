@@ -36,7 +36,7 @@ const upsertListingSQL = `
 		gear_box = CASE WHEN excluded.gear_box != '' THEN excluded.gear_box ELSE listing_history.gear_box END,
 		description = CASE WHEN excluded.description != '' THEN excluded.description ELSE listing_history.description END,
 		is_commercial = COALESCE(excluded.is_commercial, listing_history.is_commercial),
-		fitness_score = excluded.fitness_score,
+		fitness_score = COALESCE(excluded.fitness_score, listing_history.fitness_score),
 		median_price = COALESCE(excluded.median_price, listing_history.median_price),
 		cohort_size = COALESCE(excluded.cohort_size, listing_history.cohort_size),
 		deal_score = COALESCE(excluded.deal_score, listing_history.deal_score),
@@ -176,10 +176,13 @@ func (s *Store) LookupEnrichmentData(ctx context.Context, tokens []string) (map[
 			placeholders[i] = "?"
 		}
 
-		q := `SELECT token, MAX(km), MAX(city), MAX(image_url)
+		q := `SELECT token, km, city, image_url
 			FROM listing_history
-			WHERE token IN (` + strings.Join(placeholders, ", ") + `) AND (km > 0 OR city != '' OR image_url != '')
-			GROUP BY token`
+			WHERE rowid IN (
+				SELECT MAX(rowid) FROM listing_history
+				WHERE token IN (` + strings.Join(placeholders, ", ") + `) AND (km > 0 OR city != '' OR image_url != '')
+				GROUP BY token
+			)`
 
 		rows, err := s.db.QueryContext(ctx, q, args...)
 		if err != nil {
