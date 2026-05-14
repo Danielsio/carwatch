@@ -1,0 +1,2 @@
+ALTER TABLE searches ADD COLUMN price_only BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE searches ADD COLUMN photo_only BOOLEAN NOT NULL DEFAULT false;

@@ -27,4 +27,6 @@ type FilterCriteria struct {
 	MaxHand     int
 	Keywords    []string
 	ExcludeKeys []string
+	PriceOnly   bool
+	PhotoOnly   bool
 }

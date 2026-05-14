@@ -80,6 +80,8 @@ export interface Search {
   created_at: string;
   /** any | private | commercial */
   seller_filter?: string;
+  price_only?: boolean;
+  photo_only?: boolean;
   /** Total listings found for this search; from API when supported. */
   listings_count?: number;
 }
@@ -99,6 +101,8 @@ export interface CreateSearchRequest {
   exclude_keys?: string;
   /** any (default), private, commercial */
   seller_filter?: string;
+  price_only?: boolean;
+  photo_only?: boolean;
 }
 
 export interface Listing {
@@ -357,6 +361,8 @@ export interface AdminSearch {
   exclude_keys?: string;
   /** any | private | commercial */
   seller_filter?: string;
+  price_only?: boolean;
+  photo_only?: boolean;
   active: boolean;
   created_at: string;
 }

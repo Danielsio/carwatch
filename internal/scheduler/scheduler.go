@@ -915,6 +915,8 @@ func buildFilterCriteria(search storage.Search) model.FilterCriteria {
 		EngineMinCC: float64(search.EngineMinCC),
 		MaxKm:       search.MaxKm,
 		MaxHand:     search.MaxHand,
+		PriceOnly:   search.PriceOnly,
+		PhotoOnly:   search.PhotoOnly,
 	}
 
 	if search.Keywords != "" {

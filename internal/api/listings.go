@@ -113,11 +113,13 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 
 func listingFilterFromSearch(sr *storage.Search) storage.ListingFilter {
 	f := storage.ListingFilter{
-		PriceMax: sr.PriceMax,
-		YearMin:  sr.YearMin,
-		YearMax:  sr.YearMax,
-		MaxKm:    sr.MaxKm,
-		MaxHand:  sr.MaxHand,
+		PriceMax:  sr.PriceMax,
+		YearMin:   sr.YearMin,
+		YearMax:   sr.YearMax,
+		MaxKm:     sr.MaxKm,
+		MaxHand:   sr.MaxHand,
+		PriceOnly: sr.PriceOnly,
+		PhotoOnly: sr.PhotoOnly,
 	}
 	switch storage.NormalizeSellerFilter(sr.SellerFilter) {
 	case storage.SellerFilterPrivate:

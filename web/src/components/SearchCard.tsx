@@ -55,6 +55,8 @@ export function SearchCard({
       : search.seller_filter === "commercial"
         ? "מוסך / סוכנות"
         : null,
+    search.price_only ? "עם מחיר" : null,
+    search.photo_only ? "עם תמונה" : null,
   ].filter(Boolean) as string[];
 
   const openCardClassName =

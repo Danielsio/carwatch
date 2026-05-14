@@ -178,7 +178,7 @@ func (s *Store) AdminListSearches(ctx context.Context) ([]storage.Search, error)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max,
 			price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys,
-			COALESCE(seller_filter, 'any'), active, created_at,
+			COALESCE(seller_filter, 'any'), price_only, photo_only, active, created_at,
 			COALESCE(share_token, '')
 		FROM searches
 		ORDER BY created_at DESC`)

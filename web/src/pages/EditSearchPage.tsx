@@ -57,6 +57,8 @@ export function EditSearchPage() {
     keywords: "",
     excludeKeys: "",
     sellerFilter: "any" as "any" | "private" | "commercial",
+    priceOnly: false,
+    photoOnly: false,
   });
 
   const initializedSearchIdRef = useRef<number | null>(null);
@@ -73,6 +75,8 @@ export function EditSearchPage() {
         keywords: search.keywords,
         excludeKeys: search.exclude_keys,
         sellerFilter: normalizeSellerFilter(search.seller_filter),
+        priceOnly: search.price_only ?? false,
+        photoOnly: search.photo_only ?? false,
       });
       initializedSearchIdRef.current = search.id;
     }
@@ -104,6 +108,8 @@ export function EditSearchPage() {
           keywords: form.keywords || undefined,
           exclude_keys: form.excludeKeys || undefined,
           seller_filter: form.sellerFilter,
+          price_only: form.priceOnly,
+          photo_only: form.photoOnly,
         },
       },
       {
@@ -273,6 +279,27 @@ export function EditSearchPage() {
                 {opt.label}
               </ChipButton>
             ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-xs font-medium text-muted-foreground">סינון מודעות</h3>
+          <p className="text-xs text-muted-foreground">
+            הצג רק מודעות שעומדות בתנאים הבאים.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <ChipButton
+              selected={form.priceOnly}
+              onClick={() => set("priceOnly", !form.priceOnly)}
+            >
+              עם מחיר בלבד
+            </ChipButton>
+            <ChipButton
+              selected={form.photoOnly}
+              onClick={() => set("photoOnly", !form.photoOnly)}
+            >
+              עם תמונה בלבד
+            </ChipButton>
           </div>
         </div>
       </section>
