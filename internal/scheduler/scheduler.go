@@ -128,6 +128,7 @@ type Options struct {
 	KmEnricher       KmEnricher
 	MarketStore      storage.MarketStore
 	PriceListStore   storage.PriceListStore
+	PriceListHTTP    pricelist.HTTPDoer
 	DailyDigestStore storage.DailyDigestStore
 }
 
@@ -160,8 +161,8 @@ func NewWithOptions(
 	}
 
 	var plSvc *pricelist.Service
-	if opts.PriceListStore != nil {
-		plSvc = pricelist.NewService(opts.PriceListStore, logger)
+	if opts.PriceListStore != nil && opts.PriceListHTTP != nil {
+		plSvc = pricelist.NewService(opts.PriceListStore, opts.PriceListHTTP, logger)
 	}
 
 	return &Scheduler{

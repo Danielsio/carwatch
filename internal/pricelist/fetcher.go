@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,53 +12,36 @@ import (
 
 var basePriceLabelRe = regexp.MustCompile(`(?i)מחיר\s+בסיס[^₪]*₪\s*([\d,]+)`)
 
-var httpClient = &http.Client{
-	Timeout: 15 * time.Second,
-	Transport: &http.Transport{
-		MaxIdleConns:        10,
-		MaxIdleConnsPerHost: 5,
-		IdleConnTimeout:     90 * time.Second,
-	},
+// HTTPResult mirrors yad2.HTTPResult so the pricelist package does not
+// depend on the yad2 package.
+type HTTPResult struct {
+	Body       []byte
+	StatusCode int
 }
 
-func fetch(ctx context.Context, subModelID, year int) fetchResult {
-	return fetchGoHTTP(ctx, subModelID, year)
+// HTTPDoer abstracts HTTP GET requests so the pricelist fetcher can use
+// the same azuretls stealth client that the Yad2 listing scraper uses.
+type HTTPDoer interface {
+	Get(ctx context.Context, url string) (*HTTPResult, error)
 }
 
-func fetchGoHTTP(ctx context.Context, subModelID, year int) fetchResult {
+func fetch(ctx context.Context, client HTTPDoer, subModelID, year int) fetchResult {
 	url := priceListURL(subModelID, year)
 
-	reqCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
-	if err != nil {
-		return fetchResult{Error: fmt.Sprintf("create request: %v", err)}
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7")
-
 	start := time.Now()
-	resp, err := httpClient.Do(req)
+	res, err := client.Get(ctx, url)
 	if err != nil {
 		return fetchResult{Error: fmt.Sprintf("http get (%s): %v", time.Since(start).Round(time.Millisecond), err)}
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != 200 {
-		return fetchResult{Error: fmt.Sprintf("http status %d (url=%s, took=%s)", resp.StatusCode, url, time.Since(start).Round(time.Millisecond))}
+	if res.StatusCode != 200 {
+		return fetchResult{Error: fmt.Sprintf("http status %d (url=%s, took=%s)", res.StatusCode, url, time.Since(start).Round(time.Millisecond))}
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
-	if err != nil {
-		return fetchResult{Error: fmt.Sprintf("read body: %v", err)}
-	}
-
-	html := string(body)
+	html := string(res.Body)
 	result := extractPriceFromHTML(html)
 	if result.Error != "" {
-		result.Error = fmt.Sprintf("%s (url=%s, body_len=%d, took=%s)", result.Error, url, len(body), time.Since(start).Round(time.Millisecond))
+		result.Error = fmt.Sprintf("%s (url=%s, body_len=%d, took=%s)", result.Error, url, len(res.Body), time.Since(start).Round(time.Millisecond))
 	}
 	return result
 }
