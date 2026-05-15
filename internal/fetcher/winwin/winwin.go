@@ -120,6 +120,12 @@ func (f *WinWinFetcher) Fetch(ctx context.Context, params model.SourceParams) ([
 	if err != nil {
 		return nil, fmt.Errorf("parse page: %w", err)
 	}
+	if len(listings) == 0 && len(result.Body) > 1000 {
+		f.logger.Warn("WinWin returned HTML but parsed 0 listings — page structure may have changed",
+			"body_bytes", len(result.Body),
+			"url", reqURL,
+		)
+	}
 	f.logger.Info("fetched winwin listings", "count", len(listings))
 	for i, l := range listings {
 		f.logger.Debug("winwin listing parsed",

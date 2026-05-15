@@ -3,6 +3,7 @@ package winwin
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -12,6 +13,9 @@ import (
 	"github.com/dsionov/carwatch/internal/model"
 	"golang.org/x/net/html"
 )
+
+// cardClassPatterns are substrings that indicate a listing card container element.
+var cardClassPatterns = []string{"card", "item", "listing", "product", "result", "vehicle"}
 
 var (
 	priceRe      = regexp.MustCompile("(?:" + "\u20aa" + `|ש"ח|NIS|ILS|ILS\s*)\s*([\d,]+)|([\d,]+)\s*` + "\u20aa")
@@ -126,18 +130,41 @@ func resolveWinWinURL(href string) string {
 }
 
 func listingCardScope(a *html.Node) *html.Node {
+	// Walk up to 10 parents looking for an element whose class suggests a card container.
 	n := a
-	for i := 0; i < 6 && n != nil; i++ {
-		if n.Parent != nil {
-			n = n.Parent
-		} else {
-			break
+	for i := 0; i < 10 && n.Parent != nil; i++ {
+		n = n.Parent
+		if looksLikeCardContainer(n) {
+			slog.Debug("listingCardScope: matched card container by class", "level", i+1, "class", attr(n, "class"))
+			return n
 		}
 	}
-	if n == nil {
-		return a
+
+	// Fallback: walk exactly 6 parents from the anchor (original heuristic).
+	slog.Debug("listingCardScope: no card class found, falling back to 6-parent heuristic")
+	n = a
+	for i := 0; i < 6 && n.Parent != nil; i++ {
+		n = n.Parent
 	}
 	return n
+}
+
+// looksLikeCardContainer returns true if the node's class attribute contains
+// a substring that commonly indicates a listing card container.
+func looksLikeCardContainer(n *html.Node) bool {
+	if n.Type != html.ElementNode {
+		return false
+	}
+	cls := strings.ToLower(attr(n, "class"))
+	if cls == "" {
+		return false
+	}
+	for _, pattern := range cardClassPatterns {
+		if strings.Contains(cls, pattern) {
+			return true
+		}
+	}
+	return false
 }
 
 func listingTokenFromHref(href string) (string, bool) {
@@ -208,7 +235,7 @@ func firstMatchInt(re *regexp.Regexp, s string) (int, bool) {
 }
 
 func extractCityHeuristic(blob string) string {
-	for _, sep := range []string{"•", "|", "·"} {
+	for _, sep := range []string{"•", "|", "·", " - ", ","} {
 		i := strings.Index(blob, sep)
 		if i >= 0 {
 			frag := strings.TrimSpace(blob[i+len(sep):])
