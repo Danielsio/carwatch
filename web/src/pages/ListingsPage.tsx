@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import {
   ExternalLink,
@@ -43,11 +43,9 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
   return target.closest("button,a,input,select,textarea") != null;
 }
 
-export function ListingsPage() {
-  const { id } = useParams();
-  const searchId = Number(id);
-  const [sort, setSort] = useState("newest");
-  const [offset, setOffset] = useState(0);
+/** Self-contained refresh button that manages its own cooldown timer so ticks
+ *  don't re-render the parent (and therefore every listing card). */
+function RefreshButton({ searchId }: { searchId: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -75,15 +73,9 @@ export function ListingsPage() {
     };
   }, []);
 
-  const { data, isLoading, isError } = useListings(
-    searchId,
-    sort,
-    PAGE_SIZE,
-    offset,
-  );
-
   const refreshMutation = useMutation<RefreshResponse, Error>({
     mutationFn: () => api.refreshListings(searchId),
+    meta: { suppressToast: true },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["listings", searchId] });
       queryClient.invalidateQueries({ queryKey: ["searches"] });
@@ -109,6 +101,47 @@ export function ListingsPage() {
 
   const isRefreshing = refreshMutation.isPending;
 
+  return (
+    <button
+      type="button"
+      onClick={() => refreshMutation.mutate()}
+      disabled={isRefreshing || cooldown > 0}
+      aria-label={cooldown > 0 ? `רענון זמין בעוד ${cooldown} שניות` : "רענן מודעות"}
+      className={cn(
+        "relative flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-300",
+        "bg-primary/10 text-primary hover:bg-primary/20",
+        "disabled:opacity-50 disabled:cursor-not-allowed",
+        "focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2",
+      )}
+    >
+      <RefreshCw
+        className={cn(
+          "h-4 w-4 transition-transform duration-500",
+          isRefreshing && "animate-spin",
+        )}
+      />
+      {cooldown > 0 ? (
+        <span className="tabular-nums text-xs">{cooldown}s</span>
+      ) : (
+        <span className="hidden sm:inline">רענן</span>
+      )}
+    </button>
+  );
+}
+
+export function ListingsPage() {
+  const { id } = useParams();
+  const searchId = Number(id);
+  const [sort, setSort] = useState("newest");
+  const [offset, setOffset] = useState(0);
+
+  const { data, isLoading, isError } = useListings(
+    searchId,
+    sort,
+    PAGE_SIZE,
+    offset,
+  );
+
   if (!searchId || Number.isNaN(searchId)) {
     return (
       <PageShell gap="sm">
@@ -130,7 +163,7 @@ export function ListingsPage() {
     );
   }
 
-  const showSkeletons = isLoading || isRefreshing;
+  const showSkeletons = isLoading && !data;
 
   const countSubtitle =
     !showSkeletons && data != null
@@ -153,7 +186,7 @@ export function ListingsPage() {
 
       {/* Sort pills + refresh button */}
       <div className="flex items-center gap-2 dir-rtl">
-        <div className={cn("flex flex-wrap gap-2 flex-1", isRefreshing && "opacity-60 pointer-events-none")}>
+        <div className="flex flex-wrap gap-2 flex-1">
           {SORT_OPTIONS.map((opt) => (
             <Button
               key={opt.value}
@@ -170,30 +203,7 @@ export function ListingsPage() {
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={() => refreshMutation.mutate()}
-          disabled={isRefreshing || cooldown > 0}
-          aria-label={cooldown > 0 ? `רענון זמין בעוד ${cooldown} שניות` : "רענן מודעות"}
-          className={cn(
-            "relative flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-300",
-            "bg-primary/10 text-primary hover:bg-primary/20",
-            "disabled:opacity-50 disabled:cursor-not-allowed",
-            "focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2",
-          )}
-        >
-          <RefreshCw
-            className={cn(
-              "h-4 w-4 transition-transform duration-500",
-              isRefreshing && "animate-spin",
-            )}
-          />
-          {cooldown > 0 ? (
-            <span className="tabular-nums text-xs">{cooldown}s</span>
-          ) : (
-            <span className="hidden sm:inline">רענן</span>
-          )}
-        </button>
+        <RefreshButton searchId={searchId} />
       </div>
 
       {/* Grid */}
@@ -264,7 +274,7 @@ export function ListingsPage() {
   );
 }
 
-function ListingCard({ listing }: { listing: Listing }) {
+const ListingCard = memo(function ListingCard({ listing }: { listing: Listing }) {
   const navigate = useNavigate();
   const saveBookmark = useSaveBookmark();
   const removeBookmark = useRemoveBookmark();
@@ -320,16 +330,16 @@ function ListingCard({ listing }: { listing: Listing }) {
                 });
               }}
               className={cn(
-                "rounded-lg p-1.5 transition-all duration-200",
+                "rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all duration-200",
                 seen
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-primary/5 hover:text-primary",
               )}
             >
               {seen ? (
-                <EyeOff className="h-3.5 w-3.5" />
+                <EyeOff className="h-4 w-4" />
               ) : (
-                <Eye className="h-3.5 w-3.5" />
+                <Eye className="h-4 w-4" />
               )}
             </button>
             <button
@@ -353,14 +363,14 @@ function ListingCard({ listing }: { listing: Listing }) {
                 });
               }}
               className={cn(
-                "rounded-lg p-1.5 transition-all duration-200",
+                "rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all duration-200",
                 saved
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-primary/5 hover:text-primary",
               )}
             >
               <Bookmark
-                className={cn("h-3.5 w-3.5", saved && "fill-current")}
+                className={cn("h-4 w-4", saved && "fill-current")}
               />
             </button>
             {safeHref(listing.page_link) ? (
@@ -370,9 +380,9 @@ function ListingCard({ listing }: { listing: Listing }) {
                 rel="noopener noreferrer"
                 aria-label="פתח מודעה באתר חיצוני"
                 onClick={(e) => e.stopPropagation()}
-                className="rounded-lg p-1.5 text-muted-foreground transition-all duration-200 hover:bg-primary/5 hover:text-primary"
+                className="rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground transition-all duration-200 hover:bg-primary/5 hover:text-primary"
               >
-                <ExternalLink className="h-3.5 w-3.5" />
+                <ExternalLink className="h-4 w-4" />
               </a>
             ) : null}
           </>
@@ -380,4 +390,4 @@ function ListingCard({ listing }: { listing: Listing }) {
       />
     </div>
   );
-}
+});

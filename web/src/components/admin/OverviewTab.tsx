@@ -85,6 +85,7 @@ export function OverviewTab({
 
   const purgeMutation = useMutation({
     mutationFn: (table: string) => adminApi.purgeTable(table),
+    meta: { suppressToast: true },
     onSuccess: (result) => {
       toast(
         `נמחקו ${result.deleted} רשומות מ-${TABLE_LABELS[result.table] ?? result.table}`,
@@ -101,6 +102,7 @@ export function OverviewTab({
 
   const vacuumMutation = useMutation({
     mutationFn: () => adminApi.vacuum(),
+    meta: { suppressToast: true },
     onSuccess: (result) => {
       toast(
         `דחיסת מסד נתונים הושלמה${result.size_after ? ` — ${result.size_after}` : ""}`,

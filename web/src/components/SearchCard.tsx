@@ -125,12 +125,12 @@ export function SearchCard({
               onClick={onPause}
               disabled={disabled}
               className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
+                "flex h-10 w-10 min-h-[44px] min-w-[44px] items-center justify-center rounded-lg transition-colors",
                 "bg-warning/15 text-warning hover:bg-warning/25",
               )}
               aria-label="השהה חיפוש"
             >
-              <Pause size={12} />
+              <Pause size={16} />
             </button>
           ) : (
             <button
@@ -138,31 +138,31 @@ export function SearchCard({
               onClick={onResume}
               disabled={disabled}
               className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
+                "flex h-10 w-10 min-h-[44px] min-w-[44px] items-center justify-center rounded-lg transition-colors",
                 "bg-success/15 text-success hover:bg-success/25",
               )}
               aria-label="חדש חיפוש"
             >
-              <Play size={12} />
+              <Play size={16} />
             </button>
           )}
           <button
             type="button"
             onClick={() => navigate(`/searches/${search.id}/edit`)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-secondary/80 hover:text-foreground"
+            className="flex h-10 w-10 min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-secondary/80 hover:text-foreground"
             aria-label="ערוך חיפוש"
           >
-            <Edit2 size={12} />
+            <Edit2 size={16} />
           </button>
           {!isConfirmingDelete ? (
             <button
               type="button"
               onClick={onDelete}
               disabled={disabled}
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20"
+              className="flex h-10 w-10 min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20"
               aria-label="מחק חיפוש"
             >
-              <Trash2 size={12} />
+              <Trash2 size={16} />
             </button>
           ) : null}
         </div>

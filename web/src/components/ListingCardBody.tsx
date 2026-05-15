@@ -79,7 +79,7 @@ export function ListingCardBody({
           {listing.fitness_score != null ? (
             <MatchScoreBox score={listing.fitness_score} size="md" />
           ) : (
-            <div className="h-10 w-10 shrink-0 rounded-xl shimmer-skeleton" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-xs text-muted-foreground">—</div>
           )}
           <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-card-foreground">
@@ -114,7 +114,7 @@ export function ListingCardBody({
               }
               if (listing.price > 0 && !listing.base_price && !listing.median_price) {
                 return (
-                  <span className="inline-block h-3 w-16 mt-1 rounded shimmer-skeleton" />
+                  <span className="text-[11px] text-muted-foreground mt-0.5">אין מידע</span>
                 );
               }
               return null;
@@ -126,21 +126,12 @@ export function ListingCardBody({
           {listing.km > 0 ? (
             <span className="tabular-nums">{formatKm(listing.km)}</span>
           ) : (
-            <span className="inline-block h-3.5 w-14 rounded shimmer-skeleton align-middle" />
+            <span className="text-muted-foreground">לא ידוע</span>
           )}
           <span className="text-border">·</span>
-          <span>יד {listing.hand}</span>
-          {listing.city ? (
-            <>
-              <span className="text-border">·</span>
-              <span>{listing.city}</span>
-            </>
-          ) : (
-            <>
-              <span className="text-border">·</span>
-              <span className="inline-block h-3.5 w-12 rounded shimmer-skeleton align-middle" />
-            </>
-          )}
+          <span>יד {listing.hand > 0 ? listing.hand : "—"}</span>
+          <span className="text-border">·</span>
+          <span>{listing.city || "—"}</span>
         </div>
 
         {rawDesc ? (

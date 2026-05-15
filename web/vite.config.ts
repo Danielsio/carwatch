@@ -36,6 +36,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
+          if (id.includes("recharts") || id.includes("d3-")) return "recharts";
           if (id.includes("motion")) return "motion";
           if (id.includes("firebase")) return "firebase";
           if (id.includes("@tanstack/react-query")) return "rq";
