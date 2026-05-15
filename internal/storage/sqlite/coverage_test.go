@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -225,7 +226,7 @@ func TestUpdateSearch_WrongOwner_ReturnsErrNotFound(t *testing.T) {
 		ID: id, ChatID: 200, Name: "s1", Source: "yad2",
 		Manufacturer: 19, Model: 10226, YearMin: 2020, YearMax: 2025,
 	})
-	if err != storage.ErrNotFound {
+	if !errors.Is(err, storage.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for wrong owner update, got %v", err)
 	}
 }
@@ -353,7 +354,7 @@ func TestSetUserTier_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := store.SetUserTier(ctx, 99999, "premium", time.Now().Add(24*time.Hour))
-	if err != storage.ErrNotFound {
+	if !errors.Is(err, storage.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
@@ -390,7 +391,7 @@ func TestGrantTrial_AlreadyUsed(t *testing.T) {
 	}
 
 	err := store.GrantTrial(ctx, 100, 24*time.Hour)
-	if err != storage.ErrNotFound {
+	if !errors.Is(err, storage.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for double trial, got %v", err)
 	}
 }
@@ -400,7 +401,7 @@ func TestGrantTrial_UserNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := store.GrantTrial(ctx, 99999, 24*time.Hour)
-	if err != storage.ErrNotFound {
+	if !errors.Is(err, storage.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }

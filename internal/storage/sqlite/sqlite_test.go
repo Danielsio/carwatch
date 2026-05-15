@@ -533,7 +533,7 @@ func TestDeleteSearch_CascadeNotFound(t *testing.T) {
 
 	// Delete a non-existent search — should return ErrNotFound.
 	err = store.DeleteSearch(ctx, 999, 100)
-	if err != storage.ErrNotFound {
+	if !errors.Is(err, storage.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 
@@ -1956,7 +1956,7 @@ func TestUpdateSearch_NotFound(t *testing.T) {
 	err := store.UpdateSearch(ctx, storage.Search{
 		ID: 999, ChatID: 100, Name: "test", Source: "yad2",
 	})
-	if err != storage.ErrNotFound {
+	if !errors.Is(err, storage.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
@@ -1977,7 +1977,7 @@ func TestUpdateSearch_WrongOwner(t *testing.T) {
 	err = store.UpdateSearch(ctx, storage.Search{
 		ID: id, ChatID: 200, Name: "hijack",
 	})
-	if err != storage.ErrNotFound {
+	if !errors.Is(err, storage.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for wrong owner, got %v", err)
 	}
 }

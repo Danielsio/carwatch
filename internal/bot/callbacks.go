@@ -167,7 +167,9 @@ func (b *Bot) onCancelCallback(ctx context.Context, chatID int64) {
 
 func (b *Bot) onEditRestart(ctx context.Context, chatID int64) {
 	lang := b.getUserLang(ctx, chatID)
-	_ = b.users.UpdateUserState(ctx, chatID, StateAskSource, "{}")
+	wd := b.loadWizardData(ctx, chatID)
+	newWd := WizardData{EditSearchID: wd.EditSearchID}
+	b.saveWizardState(ctx, chatID, StateAskSource, newWd)
 	b.sendWithKeyboard(ctx, chatID,
 		locale.T(lang, "wizard_start_over"),
 		sourceKeyboard("", lang))

@@ -37,6 +37,7 @@ export function SearchesTab({ onViewListings }: { onViewListings: (searchId: num
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => adminApi.deleteSearch(id),
+    meta: { suppressToast: true },
     onSuccess: () => {
       toast("החיפוש נמחק בהצלחה", "success");
       setConfirmDelete(null);

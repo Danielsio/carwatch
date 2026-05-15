@@ -129,6 +129,7 @@ type Options struct {
 	MarketStore      storage.MarketStore
 	PriceListStore   storage.PriceListStore
 	PriceListHTTP    pricelist.HTTPDoer
+	PriceListSvc     *pricelist.Service
 	DailyDigestStore storage.DailyDigestStore
 }
 
@@ -160,8 +161,8 @@ func NewWithOptions(
 		obs = nopObserver{}
 	}
 
-	var plSvc *pricelist.Service
-	if opts.PriceListStore != nil && opts.PriceListHTTP != nil {
+	plSvc := opts.PriceListSvc
+	if plSvc == nil && opts.PriceListStore != nil && opts.PriceListHTTP != nil {
 		plSvc = pricelist.NewService(opts.PriceListStore, opts.PriceListHTTP, logger)
 	}
 
@@ -511,7 +512,11 @@ func (s *Scheduler) retryPending(ctx context.Context) {
 		if err := s.stores.Queue.AckNotification(ctx, p.ID); err != nil {
 			s.logger.Error("ack notification failed", "id", p.ID, "error", err)
 		}
-		time.Sleep(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
 }
 

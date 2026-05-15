@@ -13,7 +13,7 @@ func TestCountSearchListingsForChatQuery_Contract(t *testing.T) {
 		"INNER JOIN searches s",
 		"s.price_max <= 0 OR lh.price <= s.price_max",
 		"s.year_min <= 0 OR lh.year >= s.year_min",
-		"max_km <= 0 OR (lh.km > 0 AND lh.km <= s.max_km)",
+		"max_km <= 0 OR lh.km <= s.max_km OR lh.km = 0",
 		"s.seller_filter",
 		"WHEN 'dealer'",
 		"lh.is_commercial",
@@ -121,15 +121,19 @@ func TestBuildFilterClauses_PartialFields(t *testing.T) {
 	}
 }
 
-func TestBuildFilterClauses_MaxKmIncludesPositiveCheck(t *testing.T) {
+func TestBuildFilterClauses_MaxKmIncludesZeroKm(t *testing.T) {
 	f := storage.ListingFilter{MaxKm: 50000}
 	clause, _, _ := buildFilterClauses(f, 1)
 
 	if clause == "" {
 		t.Fatal("expected clause")
 	}
-	if !strings.Contains(clause, "km > 0") {
-		t.Errorf("MaxKm clause should include 'km > 0' check, got: %s", clause)
+	// km=0 listings should be included (OR km = 0), not excluded
+	if !strings.Contains(clause, "km = 0") {
+		t.Errorf("MaxKm clause should include 'km = 0' to pass unknown km, got: %s", clause)
+	}
+	if !strings.Contains(clause, "km <= $1") {
+		t.Errorf("MaxKm clause should include 'km <= $1', got: %s", clause)
 	}
 }
 

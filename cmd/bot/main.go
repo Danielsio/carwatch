@@ -127,6 +127,7 @@ func run(configPath string, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	defer apiServer.Shutdown()
 
 	srv := buildHTTPServer(cfg, h, apiServer, logger)
 	defer func() {
@@ -155,7 +156,7 @@ func run(configPath string, logger *slog.Logger) error {
 		KmEnricher:       kmEnricher,
 		MarketStore:      store,
 		PriceListStore:   store,
-		PriceListHTTP:    plHTTP,
+		PriceListSvc:     apiPriceListSvc,
 		DailyDigestStore: store,
 	})
 	if err != nil {
@@ -300,7 +301,7 @@ func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 
 func buildHTTPServer(cfg *config.Config, h *health.Status, apiServer *api.Server, logger *slog.Logger) *http.Server {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", h.Handler())
+	mux.HandleFunc("/healthz", h.PublicHandler())
 	mux.Handle("/api/v1/", apiServer.Routes())
 	mux.Handle("/", spa.Handler(web.DistFS()))
 	srv := &http.Server{

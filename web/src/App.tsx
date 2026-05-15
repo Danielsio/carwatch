@@ -101,9 +101,9 @@ export default function App() {
             <Route path="/saved" element={<RouteGuard><SavedPage /></RouteGuard>} />
             <Route path="/history" element={<RouteGuard><HistoryPage /></RouteGuard>} />
             <Route path="/notifications" element={<RouteGuard><NotificationsPage /></RouteGuard>} />
-            <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
   );

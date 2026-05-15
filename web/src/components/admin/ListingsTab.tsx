@@ -51,6 +51,7 @@ export function ListingsTab({
   const deleteMutation = useMutation({
     mutationFn: ({ token, chatId }: { token: string; chatId: number }) =>
       adminApi.deleteListing(token, chatId),
+    meta: { suppressToast: true },
     onSuccess: () => {
       toast("המודעה נמחקה", "success");
       setConfirmDelete(null);

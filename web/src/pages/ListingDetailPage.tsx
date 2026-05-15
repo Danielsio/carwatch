@@ -127,11 +127,13 @@ export function ListingDetailPage() {
     return null;
   }
 
+  const canGoBack = location.key !== "default";
+
   return (
     <ListingDetailContent
       listing={listing}
       backButton={
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground -mr-2">
+        <Button variant="ghost" size="sm" onClick={() => canGoBack ? navigate(-1) : navigate('/dashboard')} className="text-muted-foreground hover:text-foreground -mr-2">
           <ArrowRight className="h-4 w-4" />
           חזרה לתוצאות
         </Button>
@@ -224,7 +226,7 @@ function ListingDetailContent({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <SpecCard icon={Calendar} label="שנה" value={String(listing.year)} />
         <SpecCard icon={MapPin} label="עיר" value={listing.city || "—"} />
-        <SpecCard icon={Hand} label="יד" value={String(listing.hand)} />
+        <SpecCard icon={Hand} label="יד" value={listing.hand > 0 ? String(listing.hand) : "—"} />
         <SpecCard icon={Gauge} label='ק"מ' value={formatKm(listing.km)} />
       </div>
 
@@ -327,19 +329,9 @@ function MarketValueCard({
 
   if (!hasBase && !hasMedian) {
     return (
-      <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="inline-block h-4 w-24 rounded shimmer-skeleton" />
-          <span className="inline-block h-6 w-20 rounded shimmer-skeleton" />
-        </div>
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="inline-block h-3.5 w-28 rounded shimmer-skeleton" />
-          <span className="inline-block h-3.5 w-10 rounded shimmer-skeleton" />
-        </div>
-        <div className="h-2 rounded-full shimmer-skeleton" />
-        <p className="text-[10px] text-muted-foreground text-center">
-          טוען נתוני מחירון...
-        </p>
+      <div className="rounded-2xl border border-border/50 bg-card p-5">
+        <h2 className="text-sm font-semibold text-foreground mb-1">שווי שוק</h2>
+        <p className="text-sm text-muted-foreground">אין מידע על מחיר שוק לרכב זה</p>
       </div>
     );
   }

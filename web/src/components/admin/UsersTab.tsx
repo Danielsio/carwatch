@@ -22,6 +22,7 @@ export function UsersTab() {
 
   const deleteUserMutation = useMutation({
     mutationFn: (chatId: number) => adminApi.deleteUser(chatId),
+    meta: { suppressToast: true },
     onSuccess: () => {
       toast("המשתמש נמחק בהצלחה", "success");
       setConfirmDelete(null);
@@ -36,6 +37,7 @@ export function UsersTab() {
   const toggleActiveMutation = useMutation({
     mutationFn: ({ chatId, active }: { chatId: number; active: boolean }) =>
       adminApi.setUserActive(chatId, active),
+    meta: { suppressToast: true },
     onSuccess: (_data, variables) => {
       toast(variables.active ? "המשתמש הופעל" : "המשתמש הושבת", "success");
       void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
@@ -47,6 +49,7 @@ export function UsersTab() {
 
   const syncUserStatusMutation = useMutation({
     mutationFn: () => adminApi.syncUserStatus(),
+    meta: { suppressToast: true },
     onSuccess: (res) => {
       toast(
         `סנכרון הושלם: ${res.activated.toLocaleString("he-IL")} הופעלו, ${res.deactivated.toLocaleString("he-IL")} הושבתו`,

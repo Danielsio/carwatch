@@ -95,8 +95,8 @@ func TestRunMultiTenantCycle_NoSearches(t *testing.T) {
 func TestRunMultiTenantCycle_WithSearches(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
-			{Token: "b", Manufacturer: "Mazda", Model: "3", Price: 80000, Year: 2019, EngineVolume: 1500},
+			{Token: "a", Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "b", Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 80000, Year: 2019, EngineVolume: 1500},
 		},
 	}
 	d := newMockDedup()
@@ -131,7 +131,7 @@ func TestRunMultiTenantCycle_WithSearches(t *testing.T) {
 func TestRunMultiTenantCycle_SharedScraping(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", Price: 100000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", ModelID: 10332, Price: 100000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -173,7 +173,7 @@ func TestRunMultiTenantCycle_SharedScraping(t *testing.T) {
 func TestProcessGroup_PriceDropNotification(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 89000, Year: 2021, EngineVolume: 2000, Km: 50000},
+			{Token: "a", Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 89000, Year: 2021, EngineVolume: 2000, Km: 50000},
 		},
 	}
 	d := newMockDedup()
@@ -390,7 +390,7 @@ func (m *mockDigestStore) DigestLastFlushed(_ context.Context, chatID int64) (ti
 func TestProcessGroup_DigestMode_StoresInsteadOfSending(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -444,7 +444,7 @@ func TestProcessGroup_DigestMode_StoresInsteadOfSending(t *testing.T) {
 func TestProcessGroup_InstantMode_SendsDirectly(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -658,8 +658,8 @@ func (m *mockHiddenStore) ClearHidden(_ context.Context, chatID int64) error {
 func TestRunMultiTenantCycle_HiddenListingFiltered(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "visible", Price: 90000, Year: 2020, EngineVolume: 2000},
-			{Token: "hidden1", Price: 80000, Year: 2020, EngineVolume: 2000},
+			{Token: "visible", ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "hidden1", ModelID: 10332, Price: 80000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -699,7 +699,7 @@ func TestRunMultiTenantCycle_HiddenListingFiltered(t *testing.T) {
 func TestRunMultiTenantCycle_HiddenCrossUserIsolation(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "tokA", Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "tokA", ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -744,7 +744,7 @@ func TestRunMultiTenantCycle_HiddenCrossUserIsolation(t *testing.T) {
 func TestRunMultiTenantCycle_HiddenStoreError(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "tokA", Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "tokA", ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()

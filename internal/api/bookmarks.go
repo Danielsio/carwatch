@@ -2,9 +2,15 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/dsionov/carwatch/internal/storage"
+)
+
+const (
+	maxSavedListings  = 500
+	maxHiddenListings = 1000
 )
 
 func (s *Server) saveListing(w http.ResponseWriter, r *http.Request) {
@@ -19,6 +25,17 @@ func (s *Server) saveListing(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log := s.handlerLogger(r, "op", "save_bookmark", "token", token)
+	count, err := s.saved.CountSaved(r.Context(), chatID)
+	if err != nil {
+		log.Error("count saved failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to save bookmark")
+		return
+	}
+	if count >= maxSavedListings {
+		writeError(w, http.StatusUnprocessableEntity,
+			fmt.Sprintf("הגעת למגבלת %d מודעות שמורות", maxSavedListings))
+		return
+	}
 	if err := s.saved.SaveBookmark(r.Context(), chatID, token); err != nil {
 		log.Error("save bookmark failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to save bookmark")
@@ -99,6 +116,17 @@ func (s *Server) hideListing(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log := s.handlerLogger(r, "op", "hide_listing", "token", token)
+	count, err := s.hidden.CountHidden(r.Context(), chatID)
+	if err != nil {
+		log.Error("count hidden failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to hide listing")
+		return
+	}
+	if count >= maxHiddenListings {
+		writeError(w, http.StatusUnprocessableEntity,
+			fmt.Sprintf("הגעת למגבלת %d מודעות מוסתרות", maxHiddenListings))
+		return
+	}
 	if err := s.hidden.HideListing(r.Context(), chatID, token); err != nil {
 		log.Error("hide listing failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to hide listing")

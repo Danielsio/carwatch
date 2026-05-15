@@ -73,6 +73,8 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 
 	log := s.handlerLogger(r, "op", "refresh", "search_id", id)
 
+	s.sweepRefreshCooldowns()
+
 	cooldownKey := fmt.Sprintf("%d:%d", chatID, id)
 	if ts, loaded := s.refreshMu.Load(cooldownKey); loaded {
 		if last, ok := ts.(time.Time); ok {
@@ -353,6 +355,32 @@ func listingFilterFromSearch(sr *storage.Search) storage.ListingFilter {
 		f.Commercial = &v
 	}
 	return f
+}
+
+const (
+	refreshCooldownEvictAge = 2 * time.Minute // entries older than this are evicted
+	refreshSweepInterval    = 1 * time.Minute // sweep at most this often
+)
+
+// sweepRefreshCooldowns removes stale entries from refreshMu. It runs at most
+// once per refreshSweepInterval to avoid overhead on every request.
+func (s *Server) sweepRefreshCooldowns() {
+	now := time.Now()
+	lastNs := s.lastRefreshSweep.Load()
+	if lastNs > 0 && now.Sub(time.Unix(0, lastNs)) < refreshSweepInterval {
+		return
+	}
+	// CAS to avoid concurrent sweeps; if we lose the race, skip.
+	if !s.lastRefreshSweep.CompareAndSwap(lastNs, now.UnixNano()) {
+		return
+	}
+	cutoff := now.Add(-refreshCooldownEvictAge)
+	s.refreshMu.Range(func(key, value any) bool {
+		if ts, ok := value.(time.Time); ok && ts.Before(cutoff) {
+			s.refreshMu.Delete(key)
+		}
+		return true
+	})
 }
 
 func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {

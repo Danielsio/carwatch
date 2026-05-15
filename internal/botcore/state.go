@@ -36,4 +36,7 @@ type WizardData struct {
 	PriceOnly        bool   `json:"price_only,omitempty"`
 	PhotoOnly        bool   `json:"photo_only,omitempty"`
 	EditSearchID     int64  `json:"edit_search_id,omitempty"`
+	// UpdatedAt tracks when the wizard state was last modified (Unix seconds).
+	// Used to auto-cancel stale wizard sessions.
+	UpdatedAt int64 `json:"updated_at,omitempty"`
 }

@@ -85,8 +85,8 @@ func TestRateLimitedMiddleware_BlocksWhenOverLimit(t *testing.T) {
 		t.Error("next handler should not run when limited")
 	}
 	last := tb.msg.last()
-	if last.Text != "Too many requests, please wait a moment." {
-		t.Errorf("expected rate-limit reply, got %q", last.Text)
+	if !contains(last.Text, "אנא המתן") || !contains(last.Text, "Too many requests") {
+		t.Errorf("expected bilingual rate-limit reply, got %q", last.Text)
 	}
 }
 
@@ -118,6 +118,80 @@ func TestStartCleanup_RemovesStaleRateLimitEntries(t *testing.T) {
 	}
 	cancel()
 	time.Sleep(30 * time.Millisecond)
+}
+
+func TestWizardTimeout_StaleSessionAutoCancels(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 950
+
+	tb.createUser(ctx, t, chatID, "timeout_user")
+
+	// Start a wizard.
+	tb.simulateCommand(ctx, chatID, "/watch")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
+
+	// Verify user is mid-wizard.
+	user, _ := tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskModel {
+		t.Fatalf("state = %q, want %q", user.State, StateAskModel)
+	}
+	tb.msg.reset()
+
+	// Simulate time passing beyond the wizard timeout.
+	tb.bot.nowFunc = func() time.Time {
+		return time.Now().Add(31 * time.Minute)
+	}
+
+	// Send regular text — should auto-cancel the wizard and send timeout message.
+	tb.simulateText(ctx, chatID, "hello")
+
+	user, _ = tb.store.GetUser(ctx, chatID)
+	if user.State != StateIdle {
+		t.Errorf("after timeout, state = %q, want %q", user.State, StateIdle)
+	}
+
+	last := tb.msg.last()
+	if !contains(last.Text, "/watch") {
+		t.Errorf("expected wizard_timeout message with /watch hint, got %q", last.Text)
+	}
+}
+
+func TestWizardTimeout_FreshSessionContinues(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 951
+
+	tb.createUser(ctx, t, chatID, "fresh_user")
+
+	// Start a wizard and reach year min.
+	tb.simulateCommand(ctx, chatID, "/watch")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
+	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
+
+	// Verify user is waiting for year input.
+	user, _ := tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskYearMin {
+		t.Fatalf("state = %q, want %q", user.State, StateAskYearMin)
+	}
+	tb.msg.reset()
+
+	// Only 5 minutes later — should NOT timeout.
+	tb.bot.nowFunc = func() time.Time {
+		return time.Now().Add(5 * time.Minute)
+	}
+
+	// Send a year — wizard should continue normally.
+	tb.simulateText(ctx, chatID, "2020")
+
+	user, _ = tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskYearMax {
+		t.Errorf("state = %q, want %q (wizard should continue)", user.State, StateAskYearMax)
+	}
 }
 
 func TestWizardData_JSON(t *testing.T) {

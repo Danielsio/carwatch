@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ func TestRun_ContextCancel(t *testing.T) {
 	defer cancel()
 
 	err = s.Run(ctx)
-	if err == nil || err != context.DeadlineExceeded {
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("expected context.DeadlineExceeded, got: %v", err)
 	}
 }
@@ -62,7 +63,7 @@ func TestRun_OutsideActiveHours(t *testing.T) {
 	defer cancel()
 
 	err = s.Run(ctx)
-	if err != context.DeadlineExceeded {
+	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("expected context.DeadlineExceeded, got: %v", err)
 	}
 }
@@ -160,7 +161,7 @@ func TestProcessGroup_NotifyFails_ReleaseClaims(t *testing.T) {
 func TestProcessGroup_SavesListings(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()

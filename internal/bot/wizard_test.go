@@ -535,6 +535,87 @@ func itoa(n int64) string {
 	return fmt.Sprintf("%d", n)
 }
 
+func TestHandleEdit_RestartPreservesEditSearchID(t *testing.T) {
+	tb := newTestBot(t)
+	ctx := context.Background()
+	const chatID int64 = 820
+	tb.createUser(ctx, t, chatID, "mike")
+
+	// Create a search to edit.
+	id, _ := tb.store.CreateSearch(ctx, storage.Search{
+		ChatID: chatID, Name: "mazda-3", Source: "yad2",
+		Manufacturer: 27, Model: 10332,
+		YearMin: 2018, YearMax: 2024, PriceMax: 150000,
+	})
+
+	// Start editing.
+	tb.simulateCommand(ctx, chatID, "/edit "+itoa(id))
+
+	// Walk through the wizard to the confirm step.
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
+	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
+	tb.simulateText(ctx, chatID, "2019")
+	tb.simulateText(ctx, chatID, "2025")
+	tb.simulateText(ctx, chatID, "180000")
+	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"0")
+	tb.simulateCallback(ctx, chatID, cbSkipKeywords)
+	tb.simulateCallback(ctx, chatID, cbSkipExcludeKeys)
+
+	// Now at confirm — click "Start over" (cbEdit).
+	tb.simulateCallback(ctx, chatID, cbEdit)
+
+	// Verify EditSearchID is preserved.
+	user, err := tb.store.GetUser(ctx, chatID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if user.State != StateAskSource {
+		t.Errorf("state = %q, want %q", user.State, StateAskSource)
+	}
+	var wd WizardData
+	if err := json.Unmarshal([]byte(user.StateData), &wd); err != nil {
+		t.Fatalf("unmarshal wizard data: %v", err)
+	}
+	if wd.EditSearchID != id {
+		t.Errorf("EditSearchID = %d, want %d (should be preserved on restart)", wd.EditSearchID, id)
+	}
+
+	// Complete the wizard again with new values.
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
+	tb.simulateCallback(ctx, chatID, cbSourceDone)
+	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
+	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
+	tb.simulateText(ctx, chatID, "2020")
+	tb.simulateText(ctx, chatID, "2026")
+	tb.simulateText(ctx, chatID, "200000")
+	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"0")
+	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"0")
+	tb.simulateCallback(ctx, chatID, cbSkipKeywords)
+	tb.simulateCallback(ctx, chatID, cbSkipExcludeKeys)
+	tb.simulateCallback(ctx, chatID, cbConfirm)
+
+	// Verify the EXISTING search was updated, not a new one created.
+	searches, err := tb.store.ListSearches(ctx, chatID)
+	if err != nil {
+		t.Fatalf("list searches: %v", err)
+	}
+	if len(searches) != 1 {
+		t.Fatalf("expected 1 search (updated, not new), got %d", len(searches))
+	}
+	s := searches[0]
+	if s.ID != id {
+		t.Errorf("search ID = %d, want %d (same search should be updated)", s.ID, id)
+	}
+	if s.YearMin != 2020 || s.YearMax != 2026 || s.PriceMax != 200000 {
+		t.Errorf("search not updated correctly: year=%d-%d price=%d", s.YearMin, s.YearMax, s.PriceMax)
+	}
+}
+
 func TestSearchRateLimit(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

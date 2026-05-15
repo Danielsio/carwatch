@@ -6,10 +6,19 @@ import (
 	"time"
 )
 
+// Compile-time interface assertions.
+var _ http.Flusher = (*statusRecorder)(nil)
+
 type statusRecorder struct {
 	http.ResponseWriter
 	status      int
 	wroteHeader bool
+}
+
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func (r *statusRecorder) WriteHeader(code int) {

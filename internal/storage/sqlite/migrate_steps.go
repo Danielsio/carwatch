@@ -427,7 +427,7 @@ func migrateSearchShareToken(db *sql.DB) error {
 		}
 		if err := rows.Err(); err != nil {
 			if closeErr := rows.Close(); closeErr != nil {
-				return fmt.Errorf("close rows after iteration error: %w (iteration: %v)", closeErr, err)
+				return fmt.Errorf("close rows after iteration error: %w (iteration: %w)", closeErr, err)
 			}
 			return fmt.Errorf("iterate searches for share_token backfill: %w", err)
 		}

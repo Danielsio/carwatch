@@ -140,15 +140,44 @@ func TestExtractIP_RemoteAddr(t *testing.T) {
 	}
 }
 
-func TestExtractIP_XForwardedFor(t *testing.T) {
+func TestExtractIP_XForwardedFor_RightmostPublic(t *testing.T) {
 	t.Parallel()
 	r := &http.Request{
 		RemoteAddr: "172.17.0.1:9999",
 		Header:     http.Header{"X-Forwarded-For": {"203.0.113.5, 10.0.0.2"}},
 	}
 	got := extractIP(r, true)
+	// rightmost non-private IP is 203.0.113.5 (10.0.0.2 is private)
 	if got != "203.0.113.5" {
 		t.Fatalf("extractIP: got %q want %q", got, "203.0.113.5")
+	}
+}
+
+func TestExtractIP_XForwardedFor_SpoofedLeftmost(t *testing.T) {
+	t.Parallel()
+	// Attacker injects a fake IP as the leftmost entry.
+	// The real client IP (added by the trusted proxy) is the rightmost public IP.
+	r := &http.Request{
+		RemoteAddr: "10.0.0.1:9999",
+		Header:     http.Header{"X-Forwarded-For": {"1.2.3.4, 203.0.113.99, 10.0.0.2"}},
+	}
+	got := extractIP(r, true)
+	// Should return 203.0.113.99 (rightmost non-private), not 1.2.3.4 (spoofed)
+	if got != "203.0.113.99" {
+		t.Fatalf("extractIP: got %q want %q (should use rightmost non-private)", got, "203.0.113.99")
+	}
+}
+
+func TestExtractIP_XForwardedFor_AllPrivate(t *testing.T) {
+	t.Parallel()
+	r := &http.Request{
+		RemoteAddr: "172.17.0.1:9999",
+		Header:     http.Header{"X-Forwarded-For": {"10.0.0.1, 192.168.1.1"}},
+	}
+	got := extractIP(r, true)
+	// All XFF IPs are private, fall back to RemoteAddr
+	if got != "172.17.0.1" {
+		t.Fatalf("extractIP: got %q want %q (should fall back to RemoteAddr)", got, "172.17.0.1")
 	}
 }
 
@@ -173,5 +202,17 @@ func TestExtractIP_NoTrustProxy(t *testing.T) {
 	got := extractIP(r, false)
 	if got != "198.51.100.2" {
 		t.Fatalf("extractIP: got %q want %q (should ignore X-Forwarded-For)", got, "198.51.100.2")
+	}
+}
+
+func TestExtractIP_XForwardedFor_SinglePublicIP(t *testing.T) {
+	t.Parallel()
+	r := &http.Request{
+		RemoteAddr: "10.0.0.1:9999",
+		Header:     http.Header{"X-Forwarded-For": {"203.0.113.5"}},
+	}
+	got := extractIP(r, true)
+	if got != "203.0.113.5" {
+		t.Fatalf("extractIP: got %q want %q", got, "203.0.113.5")
 	}
 }

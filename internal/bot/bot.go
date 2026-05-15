@@ -22,6 +22,9 @@ type PollTrigger interface {
 	TriggerPoll()
 }
 
+// wizardTimeout is how long a wizard session can be idle before auto-cancellation.
+var wizardTimeout = 30 * time.Minute
+
 type Bot struct {
 	bot          *tgbot.Bot
 	msg          messenger
@@ -43,6 +46,7 @@ type Bot struct {
 	chatMu       sync.Map
 	pollTrigger  PollTrigger
 	rateLimiter  sync.Map
+	nowFunc      func() time.Time // overridable clock for testing; nil means time.Now
 }
 
 type chatMuEntry struct {
@@ -145,6 +149,13 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 	}
 }
 
+func (b *Bot) now() time.Time {
+	if b.nowFunc != nil {
+		return b.nowFunc()
+	}
+	return time.Now()
+}
+
 func (b *Bot) SetPollTrigger(pt PollTrigger) {
 	b.pollTrigger = pt
 }
@@ -178,7 +189,7 @@ func (b *Bot) rateLimited(next tgbot.HandlerFunc) tgbot.HandlerFunc {
 				if tgBot != nil {
 					_, err := tgBot.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
 						CallbackQueryID: update.CallbackQuery.ID,
-						Text:            "Please slow down.",
+						Text:            locale.T(locale.Hebrew, "rate_limit_callback"),
 						ShowAlert:       true,
 					})
 					if err != nil {
@@ -188,7 +199,7 @@ func (b *Bot) rateLimited(next tgbot.HandlerFunc) tgbot.HandlerFunc {
 					b.logger.Error("answer callback query failed", "chat_id", chatID, "error", err)
 				}
 			} else if update.Message != nil {
-				b.send(ctx, chatID, "Too many requests, please wait a moment.")
+				b.send(ctx, chatID, locale.T(locale.Hebrew, "rate_limit_message"))
 			}
 			return
 		}
@@ -416,6 +427,7 @@ func (b *Bot) loadWizardData(ctx context.Context, chatID int64) WizardData {
 }
 
 func (b *Bot) saveWizardState(ctx context.Context, chatID int64, state string, wd WizardData) {
+	wd.UpdatedAt = b.now().Unix()
 	data, err := json.Marshal(wd)
 	if err != nil {
 		b.logger.Error("save wizard state: marshal failed", "chat_id", chatID, "error", err)

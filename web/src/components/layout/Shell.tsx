@@ -42,7 +42,7 @@ const navItems: NavItem[] = [
     badge: true,
     mobile: true,
   },
-  { path: "/settings", label: "הגדרות", icon: Settings, mobile: false },
+  { path: "/settings", label: "הגדרות", icon: Settings, mobile: true },
   { path: "/admin", label: "ניהול", icon: Wrench, mobile: false, adminOnly: true },
 ];
 

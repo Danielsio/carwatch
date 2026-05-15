@@ -385,6 +385,18 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	text := strings.TrimSpace(update.Message.Text)
 	b.logger.Debug("default handler", "chat_id", chatID, "state", user.State, "text", text)
 
+	// Auto-cancel stale wizard sessions.
+	if user.State != StateIdle {
+		wd := b.loadWizardData(ctx, chatID)
+		if wd.UpdatedAt > 0 && b.now().Unix()-wd.UpdatedAt > int64(wizardTimeout.Seconds()) {
+			b.logger.Info("auto-cancelling stale wizard session", "chat_id", chatID, "state", user.State, "age_sec", b.now().Unix()-wd.UpdatedAt)
+			_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
+			lang := b.getUserLang(ctx, chatID)
+			b.send(ctx, chatID, locale.T(lang, "wizard_timeout"))
+			return
+		}
+	}
+
 	switch user.State {
 	case StateSearchManufacturer:
 		b.handleManufacturerSearch(ctx, chatID, text)

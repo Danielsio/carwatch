@@ -56,6 +56,31 @@ func TestAllHebrewKeysHaveEnglish(t *testing.T) {
 	}
 }
 
+func TestRateLimitMessages_ContainHebrew(t *testing.T) {
+	for _, key := range []string{"rate_limit_callback", "rate_limit_message"} {
+		he := T(Hebrew, key)
+		en := T(English, key)
+		// Both languages should resolve to the same bilingual string.
+		if he != en {
+			t.Errorf("key %q: Hebrew=%q English=%q — should be identical bilingual strings", key, he, en)
+		}
+		if he == key {
+			t.Errorf("key %q: not found in translations", key)
+		}
+		// Must contain Hebrew text.
+		hasHebrew := false
+		for _, r := range he {
+			if r >= 0x0590 && r <= 0x05FF {
+				hasHebrew = true
+				break
+			}
+		}
+		if !hasHebrew {
+			t.Errorf("key %q: value %q does not contain Hebrew characters", key, he)
+		}
+	}
+}
+
 func TestMergeMaps(t *testing.T) {
 	a := map[string]string{"x": "1"}
 	b := map[string]string{"y": "2"}
