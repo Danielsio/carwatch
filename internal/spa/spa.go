@@ -24,8 +24,10 @@ func Handler(distFS fs.FS) http.Handler {
 				"img-src 'self' data: https: blob:; "+
 				"connect-src 'self' https://*.googleapis.com https://accounts.google.com "+
 				"https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.googleapis.com "+
-				"https://www.gstatic.com https://*.firebaseapp.com https://*.firebaseio.com wss://*.firebaseio.com; "+
+				"https://www.gstatic.com https://*.firebaseapp.com https://*.firebaseio.com wss://*.firebaseio.com "+
+				"https://fonts.gstatic.com https://fonts.googleapis.com https://img.yad2.co.il https://apis.google.com; "+
 				"frame-src https://accounts.google.com https://*.firebaseapp.com https://carwatch-5cabf.firebaseapp.com; "+
+				"worker-src 'self'; "+
 				"frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'")
 
 		path := strings.TrimPrefix(r.URL.Path, "/")

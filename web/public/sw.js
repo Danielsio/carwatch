@@ -19,14 +19,21 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
+  // Only handle same-origin requests — let cross-origin (fonts, images,
+  // Firebase, Google APIs) pass through to the browser's default handler
+  // so they are not blocked by CSP connect-src restrictions.
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   if (url.pathname.startsWith('/api/')) {
-    // Network-first for API calls
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
     );
     return;
   }
-  // Cache-first for static assets
+
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request))
   );
