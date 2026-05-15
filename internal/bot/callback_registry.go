@@ -30,6 +30,9 @@ func init() {
 		cbMdlSearch: func(b *Bot, ctx context.Context, chatID int64, _ string) {
 			b.onMdlSearch(ctx, chatID)
 		},
+		cbSkipPriceMin: func(b *Bot, ctx context.Context, chatID int64, _ string) {
+			b.onSkipPriceMin(ctx, chatID)
+		},
 		cbSkipKeywords: func(b *Bot, ctx context.Context, chatID int64, _ string) {
 			b.onSkipKeywords(ctx, chatID)
 		},
@@ -93,6 +96,9 @@ func init() {
 		}},
 		{cbPrefixModel, func(b *Bot, ctx context.Context, chatID int64, data string) {
 			b.onModelSelected(ctx, chatID, data)
+		}},
+		{cbPrefixGearBox, func(b *Bot, ctx context.Context, chatID int64, data string) {
+			b.onGearBoxSelected(ctx, chatID, data)
 		}},
 		{cbPrefixEngine, func(b *Bot, ctx context.Context, chatID int64, data string) {
 			b.onEngineSelected(ctx, chatID, data)

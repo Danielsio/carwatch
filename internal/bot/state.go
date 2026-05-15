@@ -16,6 +16,8 @@ const (
 	StateAskYearMin         = botcore.StateAskYearMin
 	StateAskYearMax         = botcore.StateAskYearMax
 	StateAskPriceMax        = botcore.StateAskPriceMax
+	StateAskPriceMin        = botcore.StateAskPriceMin
+	StateAskGearBox         = botcore.StateAskGearBox
 	StateAskEngine          = botcore.StateAskEngine
 	StateAskMaxKm           = botcore.StateAskMaxKm
 	StateAskMaxHand         = botcore.StateAskMaxHand

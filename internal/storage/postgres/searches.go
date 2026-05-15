@@ -47,14 +47,14 @@ func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64,
 
 	var id int64
 	err = tx.QueryRowContext(ctx, `
-		INSERT INTO searches (chat_id, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, seller_filter, price_only, photo_only, user_seq, share_token)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		INSERT INTO searches (chat_id, name, source, manufacturer, model, year_min, year_max, price_min, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, seller_filter, gear_box, price_only, photo_only, user_seq, share_token)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		RETURNING id`,
 		search.ChatID, search.Name, source, search.Manufacturer, search.Model,
-		search.YearMin, search.YearMax, search.PriceMax,
+		search.YearMin, search.YearMax, search.PriceMin, search.PriceMax,
 		search.EngineMinCC, search.MaxKm, search.MaxHand,
 		search.Keywords, search.ExcludeKeys, storage.NormalizeSellerFilter(search.SellerFilter),
-		search.PriceOnly, search.PhotoOnly, nextSeq, shareToken).Scan(&id)
+		search.GearBox, search.PriceOnly, search.PhotoOnly, nextSeq, shareToken).Scan(&id)
 	if err != nil {
 		return 0, err
 	}
@@ -67,7 +67,7 @@ func (s *Store) CreateSearch(ctx context.Context, search storage.Search) (int64,
 
 func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Search, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, COALESCE(seller_filter, 'any'), price_only, photo_only, active, created_at, COALESCE(share_token, '')
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, COALESCE(price_min, 0), price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, COALESCE(seller_filter, 'any'), COALESCE(gear_box, ''), price_only, photo_only, active, created_at, COALESCE(share_token, '')
 		FROM searches WHERE chat_id = $1 ORDER BY created_at DESC`, chatID)
 	if err != nil {
 		return nil, fmt.Errorf("list searches: %w", err)
@@ -78,15 +78,15 @@ func (s *Store) ListSearches(ctx context.Context, chatID int64) ([]storage.Searc
 
 func (s *Store) GetSearch(ctx context.Context, id int64, chatID int64) (*storage.Search, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, COALESCE(seller_filter, 'any'), price_only, photo_only, active, created_at, COALESCE(share_token, '')
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, COALESCE(price_min, 0), price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, COALESCE(seller_filter, 'any'), COALESCE(gear_box, ''), price_only, photo_only, active, created_at, COALESCE(share_token, '')
 		FROM searches WHERE id = $1 AND chat_id = $2`, id, chatID)
 
 	var search storage.Search
 	err := row.Scan(&search.ID, &search.ChatID, &search.UserSeq, &search.Name, &search.Source, &search.Manufacturer, &search.Model,
-		&search.YearMin, &search.YearMax, &search.PriceMax,
+		&search.YearMin, &search.YearMax, &search.PriceMin, &search.PriceMax,
 		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
 		&search.Keywords, &search.ExcludeKeys, &search.SellerFilter,
-		&search.PriceOnly, &search.PhotoOnly,
+		&search.GearBox, &search.PriceOnly, &search.PhotoOnly,
 		&search.Active, &search.CreatedAt, &search.ShareToken)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -99,15 +99,15 @@ func (s *Store) GetSearch(ctx context.Context, id int64, chatID int64) (*storage
 
 func (s *Store) GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*storage.Search, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, COALESCE(seller_filter, 'any'), price_only, photo_only, active, created_at, COALESCE(share_token, '')
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, COALESCE(price_min, 0), price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, COALESCE(seller_filter, 'any'), COALESCE(gear_box, ''), price_only, photo_only, active, created_at, COALESCE(share_token, '')
 		FROM searches WHERE chat_id = $1 AND user_seq = $2`, chatID, seq)
 
 	var search storage.Search
 	err := row.Scan(&search.ID, &search.ChatID, &search.UserSeq, &search.Name, &search.Source, &search.Manufacturer, &search.Model,
-		&search.YearMin, &search.YearMax, &search.PriceMax,
+		&search.YearMin, &search.YearMax, &search.PriceMin, &search.PriceMax,
 		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
 		&search.Keywords, &search.ExcludeKeys, &search.SellerFilter,
-		&search.PriceOnly, &search.PhotoOnly,
+		&search.GearBox, &search.PriceOnly, &search.PhotoOnly,
 		&search.Active, &search.CreatedAt, &search.ShareToken)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -120,15 +120,15 @@ func (s *Store) GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*sto
 
 func (s *Store) GetSearchByShareToken(ctx context.Context, token string) (*storage.Search, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, COALESCE(seller_filter, 'any'), price_only, photo_only, active, created_at, COALESCE(share_token, '')
+		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, COALESCE(price_min, 0), price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, COALESCE(seller_filter, 'any'), COALESCE(gear_box, ''), price_only, photo_only, active, created_at, COALESCE(share_token, '')
 		FROM searches WHERE share_token = $1`, token)
 
 	var search storage.Search
 	err := row.Scan(&search.ID, &search.ChatID, &search.UserSeq, &search.Name, &search.Source, &search.Manufacturer, &search.Model,
-		&search.YearMin, &search.YearMax, &search.PriceMax,
+		&search.YearMin, &search.YearMax, &search.PriceMin, &search.PriceMax,
 		&search.EngineMinCC, &search.MaxKm, &search.MaxHand,
 		&search.Keywords, &search.ExcludeKeys, &search.SellerFilter,
-		&search.PriceOnly, &search.PhotoOnly,
+		&search.GearBox, &search.PriceOnly, &search.PhotoOnly,
 		&search.Active, &search.CreatedAt, &search.ShareToken)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -146,15 +146,15 @@ func (s *Store) UpdateSearch(ctx context.Context, search storage.Search) error {
 	}
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE searches SET name=$1, source=$2, manufacturer=$3, model=$4,
-			year_min=$5, year_max=$6, price_max=$7, engine_min_cc=$8,
-			max_km=$9, max_hand=$10, keywords=$11, exclude_keys=$12, seller_filter=$13,
-			price_only=$14, photo_only=$15
-		WHERE id=$16 AND chat_id=$17`,
+			year_min=$5, year_max=$6, price_min=$7, price_max=$8, engine_min_cc=$9,
+			max_km=$10, max_hand=$11, keywords=$12, exclude_keys=$13, seller_filter=$14,
+			gear_box=$15, price_only=$16, photo_only=$17
+		WHERE id=$18 AND chat_id=$19`,
 		search.Name, source, search.Manufacturer, search.Model,
-		search.YearMin, search.YearMax, search.PriceMax, search.EngineMinCC,
+		search.YearMin, search.YearMax, search.PriceMin, search.PriceMax, search.EngineMinCC,
 		search.MaxKm, search.MaxHand, search.Keywords, search.ExcludeKeys,
 		storage.NormalizeSellerFilter(search.SellerFilter),
-		search.PriceOnly, search.PhotoOnly,
+		search.GearBox, search.PriceOnly, search.PhotoOnly,
 		search.ID, search.ChatID)
 	if err != nil {
 		return fmt.Errorf("update search: %w", err)
@@ -232,7 +232,7 @@ func (s *Store) SetSearchActive(ctx context.Context, id int64, chatID int64, act
 
 func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT s.id, s.chat_id, s.user_seq, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max, s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.keywords, s.exclude_keys, COALESCE(s.seller_filter, 'any'), s.price_only, s.photo_only, s.active, s.created_at, COALESCE(s.share_token, '')
+		SELECT s.id, s.chat_id, s.user_seq, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max, COALESCE(s.price_min, 0), s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.keywords, s.exclude_keys, COALESCE(s.seller_filter, 'any'), COALESCE(s.gear_box, ''), s.price_only, s.photo_only, s.active, s.created_at, COALESCE(s.share_token, '')
 		FROM searches s
 		JOIN users u ON s.chat_id = u.chat_id
 		WHERE s.active = true AND u.active = true
@@ -270,10 +270,10 @@ func scanSearches(rows *sql.Rows) ([]storage.Search, error) {
 	for rows.Next() {
 		var s storage.Search
 		if err := rows.Scan(&s.ID, &s.ChatID, &s.UserSeq, &s.Name, &s.Source, &s.Manufacturer, &s.Model,
-			&s.YearMin, &s.YearMax, &s.PriceMax,
+			&s.YearMin, &s.YearMax, &s.PriceMin, &s.PriceMax,
 			&s.EngineMinCC, &s.MaxKm, &s.MaxHand,
 			&s.Keywords, &s.ExcludeKeys, &s.SellerFilter,
-			&s.PriceOnly, &s.PhotoOnly,
+			&s.GearBox, &s.PriceOnly, &s.PhotoOnly,
 			&s.Active, &s.CreatedAt, &s.ShareToken); err != nil {
 			return nil, err
 		}

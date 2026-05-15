@@ -4,8 +4,8 @@
 
 CarWatch supports two database backends:
 
-- **PostgreSQL** (production) — primary backend configured via `storage.postgres` in `config.yaml`
-- **SQLite** (development/legacy) — local file at `storage.db_path`
+- **PostgreSQL** (production) -- primary backend configured via `storage.postgres` in `config.yaml`
+- **SQLite** (development/legacy) -- local file at `storage.db_path`
 
 Production uses PostgreSQL running in Docker (`docker-compose.prod.yaml`) with a
 named volume `carwatch_pgdata` for persistence.
@@ -14,39 +14,70 @@ named volume `carwatch_pgdata` for persistence.
 
 ### PostgreSQL (production)
 
-#### 1. Install the cron job on the VM
+Backups are automated via a systemd timer that runs `scripts/backup-pg.sh` daily
+at 03:00. The script uses `pg_dump` with gzip compression, names files with
+timestamps (`carwatch-backup-YYYYMMDD-HHMMSS.sql.gz`), and prunes backups older
+than 7 days.
+
+#### 1. Install the backup timer on the VM
 
 ```bash
-make vm-ssh
-
-mkdir -p ~/carwatch/backups
-
-# Add a daily cron job (runs at 03:00 local time)
-(crontab -l 2>/dev/null; echo '0 3 * * * docker exec carwatch-pg pg_dump -U carwatch -Fc carwatch > ~/carwatch/backups/carwatch-$(date +\%Y\%m\%d).dump && find ~/carwatch/backups -name "carwatch-*.dump" -type f -mtime +7 -delete') | crontab -
+make vm-setup-backup
 ```
 
-#### 2. Verify the cron job
+This copies the backup script and systemd units to the VM, enables the timer,
+and shows the timer status.
+
+#### 2. Verify the timer is active
 
 ```bash
-crontab -l    # should list the backup entry
+make vm-backup-status
+```
+
+Or from the VM:
+
+```bash
+systemctl list-timers carwatch-backup.timer
+journalctl -u carwatch-backup.service --since today
 ```
 
 #### 3. Manual backup
 
+From your workstation:
+
 ```bash
-# From the VM
-docker exec carwatch-pg pg_dump -U carwatch -Fc carwatch > ~/carwatch/backups/carwatch-manual.dump
+make vm-backup
+```
+
+Or from the VM:
+
+```bash
+~/carwatch/scripts/backup-pg.sh
 ```
 
 #### 4. List existing backups
 
 ```bash
-ls -lh ~/carwatch/backups/
+make vm-backup-list
 ```
+
+### Systemd units
+
+| File | Purpose |
+|------|---------|
+| `scripts/backup-pg.sh` | Backup script: pg_dump, compress, prune |
+| `scripts/carwatch-backup.service` | Systemd oneshot service |
+| `scripts/carwatch-backup.timer` | Systemd timer (daily at 03:00) |
 
 ### SQLite (development/legacy)
 
-For local development with SQLite, use SQLite's `.backup` command:
+For local development with SQLite, use the legacy backup script:
+
+```bash
+scripts/backup-db.sh ./data/carwatch.db
+```
+
+Or SQLite's built-in `.backup` command:
 
 ```bash
 sqlite3 ./data/carwatch.db ".backup ./data/backups/carwatch-manual.db"
@@ -100,6 +131,9 @@ make vm-deploy
 
    ```bash
    docker compose -f docker-compose.prod.yaml up -d postgres
+   # For .sql.gz backups (from backup-pg.sh):
+   gunzip -c ~/carwatch/backups/carwatch-backup-YYYYMMDD-HHMMSS.sql.gz | docker exec -i carwatch-pg psql -U carwatch carwatch
+   # For .dump backups (legacy pg_dump -Fc):
    docker exec -i carwatch-pg pg_restore -U carwatch -d carwatch --clean < ~/carwatch/backups/carwatch-YYYYMMDD.dump
    docker compose -f docker-compose.prod.yaml up -d
    ```
@@ -123,8 +157,14 @@ make vm-deploy
 5. If you have a backup, restore it:
 
    ```bash
-   scp carwatch-backup.dump <user>@<new-ip>:~/carwatch/backups/
-   ssh <user>@<new-ip> 'cd ~/carwatch && docker compose -f docker-compose.prod.yaml up -d postgres && sleep 5 && docker exec -i carwatch-pg pg_restore -U carwatch -d carwatch --clean < backups/carwatch-backup.dump && docker compose -f docker-compose.prod.yaml up -d'
+   scp carwatch-backup.sql.gz <user>@<new-ip>:~/carwatch/backups/
+   ssh <user>@<new-ip> 'cd ~/carwatch && docker compose -f docker-compose.prod.yaml up -d postgres && sleep 5 && gunzip -c backups/carwatch-backup.sql.gz | docker exec -i carwatch-pg psql -U carwatch carwatch && docker compose -f docker-compose.prod.yaml up -d'
+   ```
+
+6. Set up the automated backup timer:
+
+   ```bash
+   make vm-setup-backup
    ```
 
 ### Scenario 4: No backup available
@@ -139,5 +179,5 @@ begin finding new listings immediately.
 |-------|-----------|----------|
 | Daily on-VM | 7 days | `~/carwatch/backups/` on the VM |
 
-To add off-site backups (e.g. Oracle Object Storage, S3), extend the cron job
-to upload after the local backup completes.
+To add off-site backups (e.g. Oracle Object Storage, S3), extend the backup
+script to upload after the local backup completes.

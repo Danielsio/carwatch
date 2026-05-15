@@ -781,6 +781,29 @@ func migrateSearchPricePhotoFilters(db *sql.DB) error {
 	return nil
 }
 
+func migrateSearchPriceMinAndGearBox(db *sql.DB) error {
+	for _, col := range []struct {
+		name string
+		def  string
+	}{
+		{"price_min", "INTEGER NOT NULL DEFAULT 0"},
+		{"gear_box", "TEXT NOT NULL DEFAULT ''"},
+	} {
+		var exists int
+		if err := db.QueryRow(
+			"SELECT COUNT(*) FROM pragma_table_info('searches') WHERE name = ?", col.name,
+		).Scan(&exists); err != nil {
+			return fmt.Errorf("check searches %s: %w", col.name, err)
+		}
+		if exists == 0 {
+			if _, err := db.Exec(fmt.Sprintf("ALTER TABLE searches ADD COLUMN %s %s", col.name, col.def)); err != nil {
+				return fmt.Errorf("add searches %s: %w", col.name, err)
+			}
+		}
+	}
+	return nil
+}
+
 func migrateListingUserSeen(db *sql.DB) error {
 	var n int
 	if err := db.QueryRow(

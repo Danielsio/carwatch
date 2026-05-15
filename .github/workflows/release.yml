@@ -158,6 +158,17 @@ jobs:
           source: "docker-compose.prod.yaml,migrations"
           target: ~/carwatch/
 
+      - name: Save previous image tag
+        uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f # v1.2.2
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            PREV=$(docker inspect carwatch --format='{{.Config.Image}}' 2>/dev/null || echo 'none')
+            echo "$PREV" > ~/carwatch/prev_image_tag
+            echo "Saved previous image tag: $PREV"
+
       - name: Pull, recreate and health-check
         uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f # v1.2.2
         with:
@@ -184,6 +195,10 @@ jobs:
             echo "==> Pulling latest image..."
             docker compose -f docker-compose.prod.yaml pull carwatch
 
+            # NOTE: Migrations run automatically on app startup.
+            # The postgres.New() constructor runs golang-migrate/migrate before
+            # returning, so no explicit migration step is needed here.
+
             echo "==> Recreating container..."
             docker compose -f docker-compose.prod.yaml up -d --no-deps carwatch
 
@@ -203,3 +218,22 @@ jobs:
             echo "==> Container logs (last 80 lines):"
             docker logs carwatch --tail 80 2>&1 || true
             exit 1
+
+      - name: Rollback on failure
+        if: failure()
+        uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f # v1.2.2
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd "$HOME/carwatch"
+            PREV=$(cat prev_image_tag 2>/dev/null || echo 'none')
+            if [ "$PREV" != 'none' ]; then
+              echo "==> Rolling back to previous image: $PREV"
+              docker tag "$PREV" ghcr.io/danielsio/carwatch:latest
+              docker compose -f docker-compose.prod.yaml up -d --no-deps carwatch
+              echo "==> Rolled back to previous version"
+            else
+              echo "==> No previous image tag found, skipping rollback"
+            fi

@@ -47,9 +47,11 @@ export function SearchCard({
     search.year_min !== 0 || search.year_max !== 0
       ? `${search.year_min}–${search.year_max}`
       : null,
+    search.price_min > 0 ? `מ-${formatPrice(search.price_min)}` : null,
     search.price_max > 0 ? `עד ${formatPrice(search.price_max)}` : null,
     search.max_km > 0 ? `עד ${formatKm(search.max_km)}` : null,
     search.max_hand > 0 ? `עד יד ${search.max_hand}` : null,
+    search.gear_box ? search.gear_box : null,
     search.seller_filter === "private"
       ? "מוכר פרטי"
       : search.seller_filter === "commercial"

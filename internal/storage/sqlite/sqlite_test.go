@@ -1421,6 +1421,124 @@ func TestMarketListings(t *testing.T) {
 	}
 }
 
+func TestMarketListings_SelectsLatestFirstSeenAt(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	// Insert two rows for the same token with different timestamps and prices.
+	// The row with the later first_seen_at should be selected, regardless of
+	// insertion order (i.e., not based on rowid).
+	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	newer := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+
+	// Insert the NEWER row first (higher rowid will belong to older data).
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-parity", ChatID: 100, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
+		Price: 90000, FirstSeenAt: newer,
+	})
+	// Insert the OLDER row second (higher rowid, but older timestamp).
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok-parity", ChatID: 200, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
+		Price: 100000, FirstSeenAt: older,
+	})
+
+	listings, err := store.MarketListings(ctx)
+	if err != nil {
+		t.Fatalf("MarketListings: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 deduplicated listing, got %d", len(listings))
+	}
+	// Should pick the row with the newer first_seen_at (price=90000), not the
+	// one with the higher rowid (price=100000).
+	if listings[0].Price != 90000 {
+		t.Errorf("expected price 90000 (newer first_seen_at), got %d", listings[0].Price)
+	}
+}
+
+func TestLookupEnrichmentData_SelectsLatestFirstSeenAt(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	newer := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+
+	// Insert the NEWER row first so it has a lower rowid.
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "enrich-parity", ChatID: 100, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
+		Price: 90000, Km: 50000, City: "Tel Aviv", ImageURL: "new.jpg",
+		FirstSeenAt: newer,
+	})
+	// Insert the OLDER row second so it has a higher rowid.
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "enrich-parity", ChatID: 200, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
+		Price: 100000, Km: 80000, City: "Haifa", ImageURL: "old.jpg",
+		FirstSeenAt: older,
+	})
+
+	enrichment, err := store.LookupEnrichmentData(ctx, []string{"enrich-parity"})
+	if err != nil {
+		t.Fatalf("LookupEnrichmentData: %v", err)
+	}
+	rec, ok := enrichment["enrich-parity"]
+	if !ok {
+		t.Fatal("expected enrichment data for enrich-parity")
+	}
+	// Should pick the row with the newer first_seen_at.
+	if rec.Km != 50000 {
+		t.Errorf("expected Km=50000 (newer first_seen_at), got %d", rec.Km)
+	}
+	if rec.City != "Tel Aviv" {
+		t.Errorf("expected City=Tel Aviv, got %q", rec.City)
+	}
+	if rec.ImageURL != "new.jpg" {
+		t.Errorf("expected ImageURL=new.jpg, got %q", rec.ImageURL)
+	}
+}
+
+func TestListListings_SelectsLatestFirstSeenAt(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	newer := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+
+	// Insert the NEWER row first (lower rowid).
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "list-parity", ChatID: 100, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
+		Price: 90000, FirstSeenAt: newer,
+	})
+	// Insert the OLDER row second (higher rowid).
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "list-parity", ChatID: 200, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
+		Price: 100000, FirstSeenAt: older,
+	})
+
+	listings, err := store.ListListings(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListListings: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 deduplicated listing, got %d", len(listings))
+	}
+	// Should pick the row with the newer first_seen_at.
+	if listings[0].Price != 90000 {
+		t.Errorf("expected price 90000 (newer first_seen_at), got %d", listings[0].Price)
+	}
+}
+
 // --- DailyDigestStore Tests ---
 
 func TestDailyDigest_SetAndGet(t *testing.T) {

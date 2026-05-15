@@ -70,6 +70,7 @@ export interface Search {
   model_name: string;
   year_min: number;
   year_max: number;
+  price_min: number;
   price_max: number;
   engine_min_cc: number;
   max_km: number;
@@ -80,6 +81,7 @@ export interface Search {
   created_at: string;
   /** any | private | commercial */
   seller_filter?: string;
+  gear_box?: string;
   price_only?: boolean;
   photo_only?: boolean;
   /** Total listings found for this search; from API when supported. */
@@ -93,6 +95,7 @@ export interface CreateSearchRequest {
   model: number;
   year_min: number;
   year_max: number;
+  price_min?: number;
   price_max: number;
   engine_min_cc?: number;
   max_km?: number;
@@ -101,6 +104,7 @@ export interface CreateSearchRequest {
   exclude_keys?: string;
   /** any (default), private, commercial */
   seller_filter?: string;
+  gear_box?: string;
   price_only?: boolean;
   photo_only?: boolean;
 }
@@ -363,6 +367,7 @@ export interface AdminSearch {
   model: number;
   year_min: number;
   year_max: number;
+  price_min: number;
   price_max: number;
   engine_min_cc: number;
   max_km: number;
@@ -371,6 +376,7 @@ export interface AdminSearch {
   exclude_keys?: string;
   /** any | private | commercial */
   seller_filter?: string;
+  gear_box?: string;
   price_only?: boolean;
   photo_only?: boolean;
   active: boolean;

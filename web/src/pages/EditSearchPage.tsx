@@ -24,6 +24,12 @@ const SELLER_FILTER_OPTIONS: {
   { value: "commercial", label: "מוסך / סוכנות" },
 ];
 
+const GEARBOX_OPTIONS = [
+  { value: "", label: "הכל" },
+  { value: "אוטומט", label: "אוטומט" },
+  { value: "ידני", label: "ידני" },
+];
+
 function normalizeSellerFilter(v: string | undefined): "any" | "private" | "commercial" {
   const s = (v ?? "any").toLowerCase().trim();
   if (s === "private") return "private";
@@ -50,6 +56,7 @@ export function EditSearchPage() {
   const [form, setForm] = useState({
     yearMin: 0,
     yearMax: 0,
+    priceMin: 0,
     priceMax: 0,
     engineMinCC: 0,
     maxKm: 0,
@@ -57,6 +64,7 @@ export function EditSearchPage() {
     keywords: "",
     excludeKeys: "",
     sellerFilter: "any" as "any" | "private" | "commercial",
+    gearBox: "",
     priceOnly: false,
     photoOnly: false,
   });
@@ -68,6 +76,7 @@ export function EditSearchPage() {
       setForm({
         yearMin: search.year_min,
         yearMax: search.year_max,
+        priceMin: search.price_min ?? 0,
         priceMax: search.price_max,
         engineMinCC: search.engine_min_cc,
         maxKm: search.max_km,
@@ -75,6 +84,7 @@ export function EditSearchPage() {
         keywords: search.keywords,
         excludeKeys: search.exclude_keys,
         sellerFilter: normalizeSellerFilter(search.seller_filter),
+        gearBox: search.gear_box ?? "",
         priceOnly: search.price_only ?? false,
         photoOnly: search.photo_only ?? false,
       });
@@ -101,6 +111,7 @@ export function EditSearchPage() {
         data: {
           year_min: form.yearMin,
           year_max: form.yearMax,
+          price_min: form.priceMin || undefined,
           price_max: form.priceMax,
           engine_min_cc: form.engineMinCC || undefined,
           max_km: form.maxKm,
@@ -108,6 +119,7 @@ export function EditSearchPage() {
           keywords: form.keywords || undefined,
           exclude_keys: form.excludeKeys || undefined,
           seller_filter: form.sellerFilter,
+          gear_box: form.gearBox || undefined,
           price_only: form.priceOnly,
           photo_only: form.photoOnly,
         },
@@ -209,6 +221,21 @@ export function EditSearchPage() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
+            label="מחיר מינימום (₪)"
+            htmlFor="priceMin"
+            hint={form.priceMin > 0 ? formatPrice(form.priceMin) : undefined}
+          >
+            <Input
+              id="priceMin"
+              type="number"
+              value={form.priceMin || ""}
+              onChange={(e) => set("priceMin", Number(e.target.value))}
+              placeholder="ללא הגבלה"
+              className="tabular-nums"
+            />
+          </FormField>
+
+          <FormField
             label="מחיר מקסימום (₪)"
             htmlFor="priceMax"
             hint={form.priceMax > 0 ? formatPrice(form.priceMax) : undefined}
@@ -222,7 +249,9 @@ export function EditSearchPage() {
               className="tabular-nums"
             />
           </FormField>
+        </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             label='נפח מנוע מינימלי (סמ"ק)'
             htmlFor="engineMinCC"
@@ -236,6 +265,20 @@ export function EditSearchPage() {
               placeholder="ללא הגבלה"
               className="tabular-nums"
             />
+          </FormField>
+
+          <FormField label="תיבת הילוכים" htmlFor="gearBox">
+            <div className="flex flex-wrap gap-2">
+              {GEARBOX_OPTIONS.map((opt) => (
+                <ChipButton
+                  key={opt.value}
+                  selected={form.gearBox === opt.value}
+                  onClick={() => set("gearBox", opt.value)}
+                >
+                  {opt.label}
+                </ChipButton>
+              ))}
+            </div>
           </FormField>
         </div>
 

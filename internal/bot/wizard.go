@@ -299,6 +299,7 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 			Model:        wd.Model,
 			YearMin:      wd.YearMin,
 			YearMax:      wd.YearMax,
+			PriceMin:     wd.PriceMin,
 			PriceMax:     wd.PriceMax,
 			EngineMinCC:  wd.EngineMinCC,
 			MaxKm:        wd.MaxKm,
@@ -306,6 +307,7 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 			Keywords:     wd.Keywords,
 			ExcludeKeys:  wd.ExcludeKeys,
 			SellerFilter: wd.SellerFilter,
+			GearBox:      wd.GearBox,
 			PriceOnly:    wd.PriceOnly,
 			PhotoOnly:    wd.PhotoOnly,
 		})
@@ -337,6 +339,7 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 		Model:        wd.Model,
 		YearMin:      wd.YearMin,
 		YearMax:      wd.YearMax,
+		PriceMin:     wd.PriceMin,
 		PriceMax:     wd.PriceMax,
 		EngineMinCC:  wd.EngineMinCC,
 		MaxKm:        wd.MaxKm,
@@ -344,6 +347,7 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 		Keywords:     wd.Keywords,
 		ExcludeKeys:  wd.ExcludeKeys,
 		SellerFilter: wd.SellerFilter,
+		GearBox:      wd.GearBox,
 		PriceOnly:    wd.PriceOnly,
 		PhotoOnly:    wd.PhotoOnly,
 	})
@@ -408,6 +412,8 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 		b.handleYearMax(ctx, chatID, text)
 	case StateAskPriceMax:
 		b.handlePriceMax(ctx, chatID, text)
+	case StateAskPriceMin:
+		b.handlePriceMin(ctx, chatID, text)
 	case StateAskKeywords:
 		b.handleKeywordsInput(ctx, chatID, text)
 	case StateAskExcludeKeys:
@@ -474,7 +480,67 @@ func (b *Bot) handlePriceMax(ctx context.Context, chatID int64, text string) {
 	wd := b.loadWizardData(ctx, chatID)
 	wd.PriceMax = price
 	b.logger.Debug("price max set", "chat_id", chatID, "price_max", price)
+	b.saveWizardState(ctx, chatID, StateAskPriceMin, wd)
+	b.sendWithKeyboard(ctx, chatID,
+		locale.T(lang, "wizard_price_min_prompt"),
+		skipKeyboard(cbSkipPriceMin, lang))
+}
+
+func (b *Bot) handlePriceMin(ctx context.Context, chatID int64, text string) {
+	b.logger.Debug("handlePriceMin", "chat_id", chatID, "input", text)
+	lang := b.getUserLang(ctx, chatID)
+	wd := b.loadWizardData(ctx, chatID)
+
+	skip := locale.T(lang, "wizard_keywords_skip")
+	if strings.EqualFold(text, skip) || strings.EqualFold(text, "skip") || strings.EqualFold(text, "דלג") || text == "0" {
+		wd.PriceMin = 0
+	} else {
+		text = strings.ReplaceAll(text, ",", "")
+		price, err := strconv.Atoi(text)
+		if err != nil || price < 0 || price > 10000000 {
+			b.send(ctx, chatID, locale.T(lang, "wizard_price_min_invalid"))
+			return
+		}
+		if wd.PriceMax > 0 && price > wd.PriceMax {
+			b.send(ctx, chatID, locale.T(lang, "wizard_price_min_exceeds_max"))
+			return
+		}
+		wd.PriceMin = price
+	}
+
+	b.logger.Debug("price min set", "chat_id", chatID, "price_min", wd.PriceMin)
+	b.saveWizardState(ctx, chatID, StateAskGearBox, wd)
+	b.sendWithKeyboard(ctx, chatID, locale.T(lang, "wizard_gearbox_prompt"), gearBoxKeyboard(lang))
+}
+
+func (b *Bot) onSkipPriceMin(ctx context.Context, chatID int64) {
+	if !b.expectState(ctx, chatID, StateAskPriceMin) {
+		return
+	}
+	wd := b.loadWizardData(ctx, chatID)
+	wd.PriceMin = 0
+	b.saveWizardState(ctx, chatID, StateAskGearBox, wd)
+
+	lang := b.getUserLang(ctx, chatID)
+	b.sendWithKeyboard(ctx, chatID, locale.T(lang, "wizard_gearbox_prompt"), gearBoxKeyboard(lang))
+}
+
+func (b *Bot) onGearBoxSelected(ctx context.Context, chatID int64, data string) {
+	if !b.expectState(ctx, chatID, StateAskGearBox) {
+		return
+	}
+	gearbox := strings.TrimPrefix(data, cbPrefixGearBox)
+
+	wd := b.loadWizardData(ctx, chatID)
+	if gearbox == "any" {
+		wd.GearBox = ""
+	} else {
+		wd.GearBox = gearbox
+	}
+	b.logger.Debug("gearbox selected", "chat_id", chatID, "gear_box", wd.GearBox)
 	b.saveWizardState(ctx, chatID, StateAskEngine, wd)
+
+	lang := b.getUserLang(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID, locale.T(lang, "wizard_engine_prompt"), engineKeyboard(lang))
 }
 

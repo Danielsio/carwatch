@@ -25,6 +25,14 @@ var heWizard = map[string]string{
 	"wizard_price_prompt":  "מחיר מקסימלי ב-₪? (למשל 150000)",
 	"wizard_price_invalid": "אנא הזן מחיר תקין (1,000–10,000,000).",
 
+	// wizard - price min
+	"wizard_price_min_prompt":      "מחיר מינימלי ב-₪? (אופציונלי — הקלד מספר או דלג)",
+	"wizard_price_min_invalid":     "אנא הזן מחיר תקין (0–10,000,000).",
+	"wizard_price_min_exceeds_max": "מחיר מינימלי לא יכול לעלות על המקסימלי. נסה שוב.",
+
+	// wizard - gearbox
+	"wizard_gearbox_prompt": "סוג תיבת הילוכים?",
+
 	// wizard - engine
 	"wizard_engine_prompt": "נפח מנוע מינימלי?",
 
@@ -48,6 +56,8 @@ var heWizard = map[string]string{
 		"מנוע: %s\n" +
 		"ק״מ מקסימלי: %s\n" +
 		"יד מקסימלית: %s",
+	"wizard_confirm_price_min":    "\nמחיר מינימלי: %s ₪",
+	"wizard_confirm_gearbox":      "\nתיבת הילוכים: %s",
 	"wizard_confirm_keywords":     "\nמילות מפתח: %s",
 	"wizard_confirm_exclude_keys": "\nמילות החרגה: %s",
 	"wizard_search_saved":         "חיפוש #%d נשמר! בודק %s עכשיו...\n\nהשתמש ב /list כדי לראות את החיפושים שלך.",
@@ -83,6 +93,14 @@ var enWizard = map[string]string{
 	"wizard_price_prompt":  "Max price in NIS? (e.g. 150000)",
 	"wizard_price_invalid": "Please enter a valid price (1,000–10,000,000).",
 
+	// wizard - price min
+	"wizard_price_min_prompt":      "Minimum price in NIS? (optional -- type a number or skip)",
+	"wizard_price_min_invalid":     "Please enter a valid price (0-10,000,000).",
+	"wizard_price_min_exceeds_max": "Minimum price cannot exceed maximum price. Try again.",
+
+	// wizard - gearbox
+	"wizard_gearbox_prompt": "Gearbox type?",
+
 	// wizard - engine
 	"wizard_engine_prompt": "Minimum engine size?",
 
@@ -106,6 +124,8 @@ var enWizard = map[string]string{
 		"Engine: %s\n" +
 		"Max km: %s\n" +
 		"Max hand: %s",
+	"wizard_confirm_price_min":    "\nMin price: %s NIS",
+	"wizard_confirm_gearbox":      "\nGearbox: %s",
 	"wizard_confirm_keywords":     "\nKeywords: %s",
 	"wizard_confirm_exclude_keys": "\nExclude: %s",
 	"wizard_search_saved":         "Search #%d saved! Checking %s now...\n\nUse /list to see your searches.",

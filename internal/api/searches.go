@@ -18,6 +18,7 @@ type createSearchRequest struct {
 	Model        int    `json:"model"`
 	YearMin      int    `json:"year_min"`
 	YearMax      int    `json:"year_max"`
+	PriceMin     int    `json:"price_min"`
 	PriceMax     int    `json:"price_max"`
 	EngineMinCC  int    `json:"engine_min_cc"`
 	MaxKm        int    `json:"max_km"`
@@ -26,6 +27,7 @@ type createSearchRequest struct {
 	ExcludeKeys  string `json:"exclude_keys"`
 	// SellerFilter: any (default), private, commercial (also accepts dealer, dealership for commercial).
 	SellerFilter string `json:"seller_filter,omitempty"`
+	GearBox      string `json:"gear_box,omitempty"`
 	PriceOnly    bool   `json:"price_only,omitempty"`
 	PhotoOnly    bool   `json:"photo_only,omitempty"`
 }
@@ -33,6 +35,7 @@ type createSearchRequest struct {
 type updateSearchRequest struct {
 	YearMin      int     `json:"year_min"`
 	YearMax      int     `json:"year_max"`
+	PriceMin     int     `json:"price_min"`
 	PriceMax     int     `json:"price_max"`
 	EngineMinCC  int     `json:"engine_min_cc"`
 	MaxKm        int     `json:"max_km"`
@@ -40,6 +43,7 @@ type updateSearchRequest struct {
 	Keywords     string  `json:"keywords"`
 	ExcludeKeys  string  `json:"exclude_keys"`
 	SellerFilter *string `json:"seller_filter,omitempty"`
+	GearBox      *string `json:"gear_box,omitempty"`
 	PriceOnly    *bool   `json:"price_only,omitempty"`
 	PhotoOnly    *bool   `json:"photo_only,omitempty"`
 }
@@ -54,6 +58,7 @@ type searchResponse struct {
 	ModelName        string `json:"model_name"`
 	YearMin          int    `json:"year_min"`
 	YearMax          int    `json:"year_max"`
+	PriceMin         int    `json:"price_min,omitempty"`
 	PriceMax         int    `json:"price_max"`
 	EngineMinCC      int    `json:"engine_min_cc"`
 	MaxKm            int    `json:"max_km"`
@@ -61,6 +66,7 @@ type searchResponse struct {
 	Keywords         string `json:"keywords,omitempty"`
 	ExcludeKeys      string `json:"exclude_keys,omitempty"`
 	SellerFilter     string `json:"seller_filter,omitempty"`
+	GearBox          string `json:"gear_box,omitempty"`
 	PriceOnly        bool   `json:"price_only,omitempty"`
 	PhotoOnly        bool   `json:"photo_only,omitempty"`
 	Active           bool   `json:"active"`
@@ -91,7 +97,7 @@ func isValidSource(source string) bool {
 	}
 }
 
-func validateSearchRanges(yearMin, yearMax, priceMax, maxKm, maxHand, engineMinCC int) string {
+func validateSearchRanges(yearMin, yearMax, priceMin, priceMax, maxKm, maxHand, engineMinCC int) string {
 	if yearMin < 0 {
 		return "year_min must not be negative"
 	}
@@ -101,8 +107,14 @@ func validateSearchRanges(yearMin, yearMax, priceMax, maxKm, maxHand, engineMinC
 	if yearMin > 0 && yearMax > 0 && yearMin > yearMax {
 		return "year_min must not exceed year_max"
 	}
+	if priceMin < 0 {
+		return "price_min must not be negative"
+	}
 	if priceMax < 0 {
 		return "price_max must not be negative"
+	}
+	if priceMin > 0 && priceMax > 0 && priceMin > priceMax {
+		return "price_min must not exceed price_max"
 	}
 	if maxKm < 0 {
 		return "max_km must not be negative"
@@ -135,6 +147,7 @@ func (s *Server) toSearchResponse(sr storage.Search) searchResponse {
 		ModelName:        mdlName,
 		YearMin:          sr.YearMin,
 		YearMax:          sr.YearMax,
+		PriceMin:         sr.PriceMin,
 		PriceMax:         sr.PriceMax,
 		EngineMinCC:      sr.EngineMinCC,
 		MaxKm:            sr.MaxKm,
@@ -142,6 +155,7 @@ func (s *Server) toSearchResponse(sr storage.Search) searchResponse {
 		Keywords:         sr.Keywords,
 		ExcludeKeys:      sr.ExcludeKeys,
 		SellerFilter:     storage.NormalizeSellerFilter(sr.SellerFilter),
+		GearBox:          sr.GearBox,
 		PriceOnly:        sr.PriceOnly,
 		PhotoOnly:        sr.PhotoOnly,
 		Active:           sr.Active,
@@ -214,7 +228,7 @@ func (s *Server) validateCreateSearchInput(ctx context.Context, chatID int64, re
 		return "", http.StatusBadRequest, "invalid source: must be yad2, winwin, yad2,winwin, or winwin,yad2"
 	}
 
-	if msg := validateSearchRanges(req.YearMin, req.YearMax, req.PriceMax, req.MaxKm, req.MaxHand, req.EngineMinCC); msg != "" {
+	if msg := validateSearchRanges(req.YearMin, req.YearMax, req.PriceMin, req.PriceMax, req.MaxKm, req.MaxHand, req.EngineMinCC); msg != "" {
 		return "", http.StatusBadRequest, msg
 	}
 
@@ -269,6 +283,7 @@ func createSearchRecord(chatID int64, name string, req createSearchRequest) stor
 		Model:        req.Model,
 		YearMin:      req.YearMin,
 		YearMax:      req.YearMax,
+		PriceMin:     req.PriceMin,
 		PriceMax:     req.PriceMax,
 		EngineMinCC:  req.EngineMinCC,
 		MaxKm:        req.MaxKm,
@@ -276,6 +291,7 @@ func createSearchRecord(chatID int64, name string, req createSearchRequest) stor
 		Keywords:     splitKeywords(req.Keywords),
 		ExcludeKeys:  splitKeywords(req.ExcludeKeys),
 		SellerFilter: storage.NormalizeSellerFilter(req.SellerFilter),
+		GearBox:      req.GearBox,
 		PriceOnly:    req.PriceOnly,
 		PhotoOnly:    req.PhotoOnly,
 		Active:       true,
@@ -401,13 +417,14 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if msg := validateSearchRanges(req.YearMin, req.YearMax, req.PriceMax, req.MaxKm, req.MaxHand, req.EngineMinCC); msg != "" {
+	if msg := validateSearchRanges(req.YearMin, req.YearMax, req.PriceMin, req.PriceMax, req.MaxKm, req.MaxHand, req.EngineMinCC); msg != "" {
 		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
 
 	existing.YearMin = req.YearMin
 	existing.YearMax = req.YearMax
+	existing.PriceMin = req.PriceMin
 	existing.PriceMax = req.PriceMax
 	existing.EngineMinCC = req.EngineMinCC
 	existing.MaxKm = req.MaxKm
@@ -416,6 +433,9 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 	existing.ExcludeKeys = splitKeywords(req.ExcludeKeys)
 	if req.SellerFilter != nil {
 		existing.SellerFilter = storage.NormalizeSellerFilter(*req.SellerFilter)
+	}
+	if req.GearBox != nil {
+		existing.GearBox = *req.GearBox
 	}
 	if req.PriceOnly != nil {
 		existing.PriceOnly = *req.PriceOnly

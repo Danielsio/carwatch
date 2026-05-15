@@ -47,6 +47,7 @@ func migrate(db *sql.DB) error {
 		migrateListingSubModelIDAndBasePrice,
 		migrateListingUserSeen,
 		migrateSearchPricePhotoFilters,
+		migrateSearchPriceMinAndGearBox,
 	}
 	for _, step := range steps {
 		if err := step(db); err != nil {

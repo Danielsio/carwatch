@@ -18,6 +18,7 @@ SELECT lh.search_id, COUNT(*)
 FROM listing_history lh
 INNER JOIN searches s ON s.id = lh.search_id AND s.chat_id = lh.chat_id
 WHERE lh.chat_id = $1
+  AND (COALESCE(s.price_min, 0) <= 0 OR lh.price >= s.price_min OR lh.price = 0)
   AND (s.price_max <= 0 OR lh.price <= s.price_max)
   AND (s.year_min <= 0 OR lh.year >= s.year_min)
   AND (s.year_max <= 0 OR lh.year <= s.year_max)
@@ -30,6 +31,7 @@ WHERE lh.chat_id = $1
     WHEN 'dealership' THEN lh.is_commercial = 1
     ELSE TRUE
   END
+  AND (COALESCE(s.gear_box, '') = '' OR LOWER(lh.gear_box) = LOWER(s.gear_box))
   AND (NOT s.price_only OR lh.price > 0)
   AND (NOT s.photo_only OR lh.image_url != '')
 GROUP BY lh.search_id`
@@ -308,6 +310,11 @@ func buildFilterClauses(f storage.ListingFilter, paramStart int) (string, []any,
 	var clauses []string
 	var args []any
 	n := paramStart
+	if f.PriceMin > 0 {
+		clauses = append(clauses, fmt.Sprintf("(price >= $%d OR price = 0)", n))
+		args = append(args, f.PriceMin)
+		n++
+	}
 	if f.PriceMax > 0 {
 		clauses = append(clauses, fmt.Sprintf("price <= $%d", n))
 		args = append(args, f.PriceMax)
@@ -341,6 +348,11 @@ func buildFilterClauses(f storage.ListingFilter, paramStart int) (string, []any,
 			clauses = append(clauses, fmt.Sprintf("is_commercial = $%d", n))
 			args = append(args, 0)
 		}
+		n++
+	}
+	if f.GearBox != "" {
+		clauses = append(clauses, fmt.Sprintf("LOWER(gear_box) = LOWER($%d)", n))
+		args = append(args, f.GearBox)
 		n++
 	}
 	if f.PriceOnly {

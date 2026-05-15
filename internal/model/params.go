@@ -20,6 +20,7 @@ type FilterCriteria struct {
 	ModelID     int
 	YearMin     int
 	YearMax     int
+	PriceMin    int
 	PriceMax    int
 	EngineMinCC float64
 	EngineMaxCC float64
@@ -27,6 +28,7 @@ type FilterCriteria struct {
 	MaxHand     int
 	Keywords    []string
 	ExcludeKeys []string
+	GearBox     string
 	PriceOnly   bool
 	PhotoOnly   bool
 }

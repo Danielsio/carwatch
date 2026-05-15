@@ -197,15 +197,29 @@ func TestWizardFlow_EndToEnd(t *testing.T) {
 		t.Fatalf("step 6: state=%q, want %q", user.State, StateAskPriceMax)
 	}
 
-	// Step 7: enter price → engine keyboard
+	// Step 7: enter price → price min prompt
 	tb.simulateText(ctx, chatID, "150000")
 	msg = tb.msg.last()
 	if !msg.HasKB {
-		t.Fatal("step 7: expected engine keyboard")
+		t.Fatal("step 7: expected price min skip keyboard")
 	}
 	user, _ = tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskPriceMin {
+		t.Fatalf("step 7: state=%q, want %q", user.State, StateAskPriceMin)
+	}
+
+	// Step 7b: skip price min → gearbox keyboard
+	tb.simulateCallback(ctx, chatID, cbSkipPriceMin)
+	user, _ = tb.store.GetUser(ctx, chatID)
+	if user.State != StateAskGearBox {
+		t.Fatalf("step 7b: state=%q, want %q", user.State, StateAskGearBox)
+	}
+
+	// Step 7c: select gearbox → engine keyboard
+	tb.simulateCallback(ctx, chatID, cbPrefixGearBox+"any")
+	user, _ = tb.store.GetUser(ctx, chatID)
 	if user.State != StateAskEngine {
-		t.Fatalf("step 7: state=%q, want %q", user.State, StateAskEngine)
+		t.Fatalf("step 7c: state=%q, want %q", user.State, StateAskEngine)
 	}
 
 	// Step 8: select engine → max km keyboard
@@ -372,6 +386,8 @@ func TestCallback_InvalidEngineCC(t *testing.T) {
 	tb.simulateText(ctx, chatID, "2018")
 	tb.simulateText(ctx, chatID, "2024")
 	tb.simulateText(ctx, chatID, "150000")
+	tb.simulateCallback(ctx, chatID, cbSkipPriceMin)
+	tb.simulateCallback(ctx, chatID, cbPrefixGearBox+"any")
 	tb.msg.reset()
 
 	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"xyz")
@@ -547,6 +563,8 @@ func TestCancelCallback_ResetsState(t *testing.T) {
 	tb.simulateText(ctx, chatID, "2018")
 	tb.simulateText(ctx, chatID, "2024")
 	tb.simulateText(ctx, chatID, "150000")
+	tb.simulateCallback(ctx, chatID, cbSkipPriceMin)
+	tb.simulateCallback(ctx, chatID, cbPrefixGearBox+"any")
 	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"2000")
 
 	// At confirm step — click cancel
@@ -577,6 +595,8 @@ func TestEdit_RestartsWizard(t *testing.T) {
 	tb.simulateText(ctx, chatID, "2018")
 	tb.simulateText(ctx, chatID, "2024")
 	tb.simulateText(ctx, chatID, "150000")
+	tb.simulateCallback(ctx, chatID, cbSkipPriceMin)
+	tb.simulateCallback(ctx, chatID, cbPrefixGearBox+"any")
 	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"2000")
 
 	// At confirm step — click edit
