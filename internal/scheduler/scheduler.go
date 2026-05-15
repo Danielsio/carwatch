@@ -39,6 +39,7 @@ const (
 	notificationPruneAge    = 48 * time.Hour
 	priceHistoryRetention   = 90 * 24 * time.Hour
 	listingHistoryRetention = 90 * 24 * time.Hour
+	defaultMarketCacheTTL   = 30 * time.Minute
 )
 
 type CatalogIngester interface {
@@ -81,6 +82,11 @@ type Scheduler struct {
 	langCache   sync.Map
 	digestCache sync.Map
 	cycleCount  uint64
+
+	marketCacheMu      sync.RWMutex
+	marketCache        *scoring.MarketCache
+	marketCacheBuiltAt time.Time
+	marketCacheTTL     time.Duration
 }
 
 type digestMeta struct {
@@ -131,6 +137,7 @@ type Options struct {
 	PriceListHTTP    pricelist.HTTPDoer
 	PriceListSvc     *pricelist.Service
 	DailyDigestStore storage.DailyDigestStore
+	MarketCacheTTL   time.Duration
 }
 
 func New(
@@ -166,6 +173,11 @@ func NewWithOptions(
 		plSvc = pricelist.NewService(opts.PriceListStore, opts.PriceListHTTP, logger)
 	}
 
+	mcTTL := opts.MarketCacheTTL
+	if mcTTL <= 0 {
+		mcTTL = defaultMarketCacheTTL
+	}
+
 	return &Scheduler{
 		cfg:        cfg,
 		configPath: opts.ConfigPath,
@@ -194,6 +206,7 @@ func NewWithOptions(
 		kmEnricher:        opts.KmEnricher,
 		priceListSvc:      plSvc,
 		triggerCh:         make(chan struct{}, 1),
+		marketCacheTTL:    mcTTL,
 	}, nil
 }
 
@@ -546,7 +559,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		return nil
 	}
 
-	marketCache := s.buildMarketCache(ctx)
+	marketCache := s.getOrBuildMarketCache(ctx)
 	groups := GroupSearches(searches)
 	s.logger.Info("active searches loaded",
 		"scan", cycle,
@@ -625,10 +638,38 @@ func (s *Scheduler) pruneOldData(ctx context.Context) {
 	s.lastPruneTime = time.Now()
 }
 
-func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
+func (s *Scheduler) getOrBuildMarketCache(ctx context.Context) *scoring.MarketCache {
 	if s.stores.Market == nil {
 		return nil
 	}
+
+	// Fast path: check if the cached value is still fresh.
+	s.marketCacheMu.RLock()
+	if s.marketCache != nil && time.Since(s.marketCacheBuiltAt) < s.marketCacheTTL {
+		mc := s.marketCache
+		s.marketCacheMu.RUnlock()
+		s.logger.Debug("reusing cached market data",
+			"age", time.Since(s.marketCacheBuiltAt).Round(time.Second).String())
+		return mc
+	}
+	s.marketCacheMu.RUnlock()
+
+	// Slow path: rebuild under write lock.
+	s.marketCacheMu.Lock()
+	defer s.marketCacheMu.Unlock()
+
+	// Double-check after acquiring the write lock.
+	if s.marketCache != nil && time.Since(s.marketCacheBuiltAt) < s.marketCacheTTL {
+		return s.marketCache
+	}
+
+	mc := s.buildMarketCache(ctx)
+	s.marketCache = mc
+	s.marketCacheBuiltAt = time.Now()
+	return mc
+}
+
+func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
 	listings, err := s.stores.Market.MarketListings(ctx)
 	if err != nil {
 		s.logger.Error("load market data failed", "error", err)
@@ -645,6 +686,13 @@ func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
 		}
 	}
 	return scoring.NewMarketCache(data)
+}
+
+func (s *Scheduler) invalidateMarketCache() {
+	s.marketCacheMu.Lock()
+	s.marketCache = nil
+	s.marketCacheBuiltAt = time.Time{}
+	s.marketCacheMu.Unlock()
 }
 
 type cycleStats struct {
@@ -759,6 +807,8 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 		if s.stores.Listings != nil && len(sr.listingRecords) > 0 {
 			if err := s.persistListings(ctx, sr.listingRecords, searchLog); err != nil {
 				persistOK = false
+			} else {
+				s.invalidateMarketCache()
 			}
 		}
 		if !persistOK {

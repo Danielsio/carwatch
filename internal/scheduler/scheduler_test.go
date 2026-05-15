@@ -387,6 +387,145 @@ func TestRunMultiTenantCycle_ObserverSuccessPath(t *testing.T) {
 	}
 }
 
+// --- mockMarketStore ---
+
+type mockMarketStore struct {
+	mu       sync.Mutex
+	listings []storage.MarketListing
+	calls    int
+}
+
+func (m *mockMarketStore) MarketListings(_ context.Context) ([]storage.MarketListing, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	return m.listings, nil
+}
+
+func TestMarketCacheReusedAcrossCycles(t *testing.T) {
+	ms := &mockMarketStore{
+		listings: []storage.MarketListing{
+			{Manufacturer: "toyota", Model: "corolla", Year: 2020, Price: 100000, Km: 50000},
+			{Manufacturer: "toyota", Model: "corolla", Year: 2020, Price: 110000, Km: 60000},
+			{Manufacturer: "toyota", Model: "corolla", Year: 2020, Price: 120000, Km: 40000},
+		},
+	}
+
+	f := &mockFetcher{listings: []model.RawListing{}}
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 19, Model: 1,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, Active: true},
+		},
+	}
+	cfg := testConfig()
+
+	s, err := NewWithOptions(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), Options{
+		SearchStore:    ss,
+		MarketStore:    ms,
+		MarketCacheTTL: 1 * time.Hour, // Long TTL so cache stays fresh.
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+
+	// First cycle builds the cache.
+	if err := s.runMultiTenantCycle(ctx); err != nil {
+		t.Fatalf("cycle 1: %v", err)
+	}
+	ms.mu.Lock()
+	calls1 := ms.calls
+	ms.mu.Unlock()
+	if calls1 != 1 {
+		t.Fatalf("expected 1 MarketListings call after first cycle, got %d", calls1)
+	}
+
+	// Second cycle reuses the cached market data.
+	if err := s.runMultiTenantCycle(ctx); err != nil {
+		t.Fatalf("cycle 2: %v", err)
+	}
+	ms.mu.Lock()
+	calls2 := ms.calls
+	ms.mu.Unlock()
+	if calls2 != 1 {
+		t.Errorf("expected cache reuse (still 1 call), got %d MarketListings calls", calls2)
+	}
+}
+
+func TestMarketCacheInvalidatedOnNewListings(t *testing.T) {
+	ms := &mockMarketStore{
+		listings: []storage.MarketListing{
+			{Manufacturer: "mazda", Model: "3", Year: 2020, Price: 90000, Km: 50000},
+			{Manufacturer: "mazda", Model: "3", Year: 2020, Price: 95000, Km: 55000},
+			{Manufacturer: "mazda", Model: "3", Year: 2020, Price: 100000, Km: 60000},
+		},
+	}
+
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "tok-mc-1", ManufacturerID: 27, ModelID: 10332,
+				Manufacturer: "Mazda", Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
+		},
+	}
+	ls := &mockListingStore{}
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
+		},
+	}
+	cfg := testConfig()
+
+	s, err := NewWithOptions(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), Options{
+		SearchStore:    ss,
+		MarketStore:    ms,
+		ListingStore:   ls,
+		MarketCacheTTL: 1 * time.Hour,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+
+	// First cycle: builds cache and saves new listings (which invalidates it).
+	if err := s.runMultiTenantCycle(ctx); err != nil {
+		t.Fatalf("cycle 1: %v", err)
+	}
+	ms.mu.Lock()
+	calls1 := ms.calls
+	ms.mu.Unlock()
+	if calls1 != 1 {
+		t.Fatalf("expected 1 MarketListings call after first cycle, got %d", calls1)
+	}
+
+	// Verify cache was invalidated (marketCache should be nil).
+	s.marketCacheMu.RLock()
+	cacheNil := s.marketCache == nil
+	s.marketCacheMu.RUnlock()
+	if !cacheNil {
+		t.Error("market cache should be invalidated after new listings are saved")
+	}
+
+	// Second cycle: should rebuild the cache since it was invalidated.
+	// Reset the fetcher to return no new listings so we can observe the rebuild.
+	f.mu.Lock()
+	f.listings = []model.RawListing{}
+	f.mu.Unlock()
+
+	if err := s.runMultiTenantCycle(ctx); err != nil {
+		t.Fatalf("cycle 2: %v", err)
+	}
+	ms.mu.Lock()
+	calls2 := ms.calls
+	ms.mu.Unlock()
+	if calls2 != 2 {
+		t.Errorf("expected 2 MarketListings calls (cache invalidated), got %d", calls2)
+	}
+}
+
 func TestRunMultiTenantCycle_ObserverErrorOnFetchFailure(t *testing.T) {
 	store, err := sqlite.New(":memory:")
 	if err != nil {
