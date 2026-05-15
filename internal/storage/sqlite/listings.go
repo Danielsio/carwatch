@@ -177,13 +177,14 @@ func (s *Store) LookupEnrichmentData(ctx context.Context, tokens []string) (map[
 			placeholders[i] = "?"
 		}
 
-		q := `SELECT token, km, city, image_url
-			FROM listing_history
-			WHERE rowid IN (
-				SELECT MAX(rowid) FROM listing_history
+		q := `SELECT lh.token, lh.km, lh.city, lh.image_url
+			FROM listing_history lh
+			INNER JOIN (
+				SELECT token, MAX(first_seen_at) AS max_seen
+				FROM listing_history
 				WHERE token IN (` + strings.Join(placeholders, ", ") + `) AND (km > 0 OR city != '' OR image_url != '')
 				GROUP BY token
-			)`
+			) latest ON lh.token = latest.token AND lh.first_seen_at = latest.max_seen`
 
 		rows, err := s.db.QueryContext(ctx, q, args...)
 		if err != nil {
@@ -263,12 +264,16 @@ func (s *Store) CountUserListings(ctx context.Context, chatID int64) (int64, err
 
 func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, year, price, km, hand, city, page_link, image_url,
-			engine_volume, horse_power, engine_type, gear_box, description,
-			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at
-		FROM listing_history
-		WHERE rowid IN (SELECT MAX(rowid) FROM listing_history GROUP BY token)
-		ORDER BY first_seen_at DESC LIMIT ?`, limit)
+		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.sub_model, lh.sub_model_id, lh.year, lh.price, lh.km, lh.hand, lh.city, lh.page_link, lh.image_url,
+			lh.engine_volume, lh.horse_power, lh.engine_type, lh.gear_box, lh.description,
+			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at
+		FROM listing_history lh
+		INNER JOIN (
+			SELECT token, MAX(first_seen_at) AS max_seen
+			FROM listing_history
+			GROUP BY token
+		) latest ON lh.token = latest.token AND lh.first_seen_at = latest.max_seen
+		ORDER BY lh.first_seen_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
