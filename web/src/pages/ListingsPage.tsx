@@ -208,7 +208,7 @@ export function ListingsPage() {
 
       {/* Grid */}
       {showSkeletons ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 sm:gap-4 sm:grid-cols-2">
           {Array.from({ length: 6 }).map((_, i) => (
             <motion.div
               key={`skel-${i}`}
@@ -233,7 +233,7 @@ export function ListingsPage() {
         />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-5 sm:gap-4 sm:grid-cols-2">
             <AnimatePresence mode="popLayout">
               {data.items.map((listing, i) => (
                 <motion.div
@@ -308,7 +308,7 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
           navigate(`/listings/${listing.token}`, { state: { listing } });
         }
       }}
-      className="group block cursor-pointer rounded-2xl border border-border/50 bg-card overflow-hidden transition-all duration-300 hover:border-border hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:-translate-y-0.5 dir-rtl"
+      className="group block cursor-pointer rounded-2xl border border-border/50 bg-card overflow-hidden shadow-sm transition-all duration-300 hover:border-border hover:shadow-[0_12px_40px_rgba(0,0,0,0.45)] hover:-translate-y-1 dir-rtl"
     >
       <ListingCardBody
         listing={listing}

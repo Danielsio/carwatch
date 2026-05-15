@@ -7,7 +7,7 @@ export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
 };
 
 const selectStyles =
-  "w-full bg-card border rounded-xl py-3 ps-10 pe-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed appearance-none cursor-pointer";
+  "w-full bg-background border rounded-xl py-2.5 ps-10 pe-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-ring transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed appearance-none cursor-pointer";
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, error, children, ...props }, ref) => (
