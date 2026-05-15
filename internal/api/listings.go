@@ -358,8 +358,8 @@ func listingFilterFromSearch(sr *storage.Search) storage.ListingFilter {
 }
 
 const (
-	refreshCooldownEvictAge = 2 * time.Minute  // entries older than this are evicted
-	refreshSweepInterval    = 1 * time.Minute  // sweep at most this often
+	refreshCooldownEvictAge = 2 * time.Minute // entries older than this are evicted
+	refreshSweepInterval    = 1 * time.Minute // sweep at most this often
 )
 
 // sweepRefreshCooldowns removes stale entries from refreshMu. It runs at most
