@@ -73,7 +73,11 @@ func run(configPath string, logger *slog.Logger) error {
 	logLevelVar.Set(logLevel)
 	logHub := logstream.NewHub(2000)
 	baseHandler := newLogHandler(cfg.LogFormat, &logLevelVar)
-	teeHandler := logstream.NewTeeHandler(baseHandler, logHub, "yad2", "winwin", "scheduler", "enricher")
+	teeHandler := logstream.NewTeeHandler(baseHandler, logHub,
+		"yad2", "winwin", "scheduler", "enricher",
+		"api-pricelist", "bot", "telegram", "notifier",
+		"circuit_breaker",
+	)
 	logger = slog.New(teeHandler)
 	slog.SetDefault(logger)
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)

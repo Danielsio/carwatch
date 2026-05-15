@@ -24,7 +24,11 @@ const LEVEL_STYLES: Record<
   ERROR: { bg: "bg-destructive/10", text: "text-destructive", label: "ERR" },
 };
 
-const ALL_COMPONENTS = ["yad2", "winwin", "scheduler", "enricher"] as const;
+const ALL_COMPONENTS = [
+  "scheduler", "yad2", "winwin", "enricher",
+  "bot", "telegram", "notifier",
+  "api-pricelist", "circuit_breaker",
+] as const;
 const ALL_LEVELS = ["DEBUG", "INFO", "WARN", "ERROR"] as const;
 
 function LogLine({
