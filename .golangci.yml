@@ -15,41 +15,58 @@ linters:
     - nilerr
     - errorlint
   exclusions:
+    paths:
+      - web/node_modules
     rules:
-      # Hardcoded bind addresses are intentional defaults
+      # Hardcoded bind addresses are intentional defaults in config
       - linters:
           - gosec
         text: "G102:"
-      # net/http server with default timeouts is acceptable for internal use behind Caddy
+        path: internal/config/
+      # net/http server behind Caddy reverse proxy
       - linters:
           - gosec
         text: "G114:"
-      # Integer overflow conversion in non-critical paths
+        path: cmd/
+      # Integer overflow in non-critical display/formatting paths
       - linters:
           - gosec
         text: "G115:"
-      # Config file path read from trusted YAML config, not user input
+      # Config/data file paths from trusted sources, not user input
       - linters:
           - gosec
         text: "G304:"
-      # SQL string construction using parameterized placeholders is safe
+        path: (internal/config/|internal/bot/|cmd/)
+      # SQL uses parameterized placeholders; string building is for IN-clause expansion
       - linters:
           - gosec
         text: "G201:|G202:"
-      # Test file permissions are not security-sensitive
+        path: internal/storage/|cmd/migrate
+      # File permissions for generated data files and test fixtures
       - linters:
           - gosec
         text: "G306:"
-        path: _test\.go
+        path: (cmd/catalog-gen/|_test\.go)
       # Test credentials are not real secrets
       - linters:
           - gosec
         text: "G101:"
         path: _test\.go
-      # math/rand is acceptable for jitter/shuffle (not crypto)
+      # Test cookie attributes are not security-sensitive
+      - linters:
+          - gosec
+        text: "G124:"
+        path: _test\.go
+      # math/rand for jitter/shuffle, not cryptographic use
       - linters:
           - gosec
         text: "G404:"
+        path: internal/(scheduler|fetcher)/
+
+      # WriteString(Sprintf) is a stylistic preference, not a bug
+      - linters:
+          - staticcheck
+        text: "QF1012:"
 
 formatters:
   enable:

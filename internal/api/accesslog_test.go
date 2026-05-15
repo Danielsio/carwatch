@@ -6,12 +6,21 @@ import (
 	"testing"
 )
 
+type flushSpy struct {
+	http.ResponseWriter
+	flushed bool
+}
+
+func (f *flushSpy) Flush() { f.flushed = true }
+
 func TestStatusRecorder_ImplementsFlusher(t *testing.T) {
-	rec := httptest.NewRecorder()
-	sr := &statusRecorder{ResponseWriter: rec, status: http.StatusOK}
+	spy := &flushSpy{ResponseWriter: httptest.NewRecorder()}
+	sr := &statusRecorder{ResponseWriter: spy, status: http.StatusOK}
 	var _ http.Flusher = sr // compile-time check
-	// Calling Flush should not panic even when the underlying writer supports it.
 	sr.Flush()
+	if !spy.flushed {
+		t.Fatal("expected Flush to be delegated to underlying writer")
+	}
 }
 
 func TestStatusRecorder_WriteHeaderFirstWins(t *testing.T) {

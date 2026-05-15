@@ -59,7 +59,7 @@ func (s *Store) ConsumeLinkToken(ctx context.Context, token string) (int64, erro
 	err = tx.QueryRowContext(ctx, `
 		SELECT web_chat_id, used, expires_at FROM link_tokens WHERE token = $1`,
 		token).Scan(&webChatID, &used, &expiresAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return 0, storage.ErrLinkTokenNotFound
 	}
 	if err != nil {

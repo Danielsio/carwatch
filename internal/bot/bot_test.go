@@ -145,7 +145,7 @@ func TestWizardTimeout_StaleSessionAutoCancels(t *testing.T) {
 		return time.Now().Add(31 * time.Minute)
 	}
 
-	// Send regular text — should auto-cancel the wizard and respond with unknown_command.
+	// Send regular text — should auto-cancel the wizard and send timeout message.
 	tb.simulateText(ctx, chatID, "hello")
 
 	user, _ = tb.store.GetUser(ctx, chatID)
@@ -154,8 +154,8 @@ func TestWizardTimeout_StaleSessionAutoCancels(t *testing.T) {
 	}
 
 	last := tb.msg.last()
-	if !contains(last.Text, "didn't understand") {
-		t.Errorf("expected unknown_command after stale wizard cancel, got %q", last.Text)
+	if !contains(last.Text, "/watch") {
+		t.Errorf("expected wizard_timeout message with /watch hint, got %q", last.Text)
 	}
 }
 

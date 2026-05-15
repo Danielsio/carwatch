@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -79,7 +80,7 @@ func (s *Store) GetSearch(ctx context.Context, id int64, chatID int64) (*storage
 		&search.Keywords, &search.ExcludeKeys, &search.SellerFilter,
 		&search.PriceOnly, &search.PhotoOnly,
 		&search.Active, &search.CreatedAt, &search.ShareToken)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -100,7 +101,7 @@ func (s *Store) GetSearchBySeq(ctx context.Context, chatID int64, seq int) (*sto
 		&search.Keywords, &search.ExcludeKeys, &search.SellerFilter,
 		&search.PriceOnly, &search.PhotoOnly,
 		&search.Active, &search.CreatedAt, &search.ShareToken)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -121,7 +122,7 @@ func (s *Store) GetSearchByShareToken(ctx context.Context, token string) (*stora
 		&search.Keywords, &search.ExcludeKeys, &search.SellerFilter,
 		&search.PriceOnly, &search.PhotoOnly,
 		&search.Active, &search.CreatedAt, &search.ShareToken)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -171,7 +172,7 @@ func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error 
 	err = tx.QueryRowContext(ctx,
 		"SELECT name FROM searches WHERE id = ? AND chat_id = ?", id, chatID,
 	).Scan(&searchName)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return storage.ErrNotFound
 	}
 	if err != nil {

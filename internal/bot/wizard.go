@@ -391,8 +391,9 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 		if wd.UpdatedAt > 0 && b.now().Unix()-wd.UpdatedAt > int64(wizardTimeout.Seconds()) {
 			b.logger.Info("auto-cancelling stale wizard session", "chat_id", chatID, "state", user.State, "age_sec", b.now().Unix()-wd.UpdatedAt)
 			_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
-			// Fall through to the default branch below.
-			user.State = StateIdle
+			lang := b.getUserLang(ctx, chatID)
+			b.send(ctx, chatID, locale.T(lang, "wizard_timeout"))
+			return
 		}
 	}
 

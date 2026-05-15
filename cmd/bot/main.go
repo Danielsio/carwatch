@@ -301,8 +301,7 @@ func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 
 func buildHTTPServer(cfg *config.Config, h *health.Status, apiServer *api.Server, logger *slog.Logger) *http.Server {
 	mux := http.NewServeMux()
-	// TODO(#714): switch to h.PublicHandler() once health.Status gains the method.
-	mux.HandleFunc("/healthz", h.Handler())
+	mux.HandleFunc("/healthz", h.PublicHandler())
 	mux.Handle("/api/v1/", apiServer.Routes())
 	mux.Handle("/", spa.Handler(web.DistFS()))
 	srv := &http.Server{

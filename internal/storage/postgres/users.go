@@ -82,7 +82,7 @@ func (s *Store) upsertChannelUser(ctx context.Context, channel, channelID, usern
 		_ = tx.Commit()
 		return existingID, nil
 	}
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return 0, fmt.Errorf("check existing %s user: %w", channel, err)
 	}
 

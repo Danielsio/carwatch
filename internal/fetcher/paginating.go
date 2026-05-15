@@ -41,7 +41,7 @@ func (f *PaginatingFetcher) Fetch(ctx context.Context, params model.SourceParams
 			select {
 			case <-ctx.Done():
 				if len(all) > 0 {
-					return all, fmt.Errorf("%w: canceled after page %d: %v", ErrPartialResults, page-1, ctx.Err())
+					return all, fmt.Errorf("%w: canceled after page %d: %w", ErrPartialResults, page-1, ctx.Err())
 				}
 				return nil, ctx.Err()
 			case <-time.After(delay):
@@ -56,7 +56,7 @@ func (f *PaginatingFetcher) Fetch(ctx context.Context, params model.SourceParams
 			if page == 1 {
 				return nil, err
 			}
-			return all, fmt.Errorf("%w: page %d: %v", ErrPartialResults, page, err)
+			return all, fmt.Errorf("%w: page %d: %w", ErrPartialResults, page, err)
 		}
 
 		if len(listings) == 0 {

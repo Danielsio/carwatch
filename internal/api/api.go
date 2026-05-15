@@ -38,29 +38,29 @@ type PollTrigger interface {
 }
 
 type Server struct {
-	catalog      catalog.Catalog
-	searches     storage.SearchStore
-	listings     storage.ListingStore
-	users        storage.UserStore
-	linkTokens   storage.LinkTokenStore
-	firebaseAuth TokenVerifier
-	prices       storage.PriceTracker
-	admin        storage.AdminStore
-	saved        storage.SavedListingStore
-	hidden       storage.HiddenListingStore
-	notifs       storage.NotificationStore
-	logHub       *logstream.Hub
-	logLevel     *slog.LevelVar
-	poller       PollTrigger
-	logger       *slog.Logger
-	cfg          config.APIConfig
-	botUsername  string
-	startTime    time.Time
-	rl           *rateLimiter
-	ipRL         *ipRateLimiter
-	vacuumMu     sync.Mutex
-	fetchers     *fetcher.Factory
-	priceListSvc *pricelist.Service
+	catalog          catalog.Catalog
+	searches         storage.SearchStore
+	listings         storage.ListingStore
+	users            storage.UserStore
+	linkTokens       storage.LinkTokenStore
+	firebaseAuth     TokenVerifier
+	prices           storage.PriceTracker
+	admin            storage.AdminStore
+	saved            storage.SavedListingStore
+	hidden           storage.HiddenListingStore
+	notifs           storage.NotificationStore
+	logHub           *logstream.Hub
+	logLevel         *slog.LevelVar
+	poller           PollTrigger
+	logger           *slog.Logger
+	cfg              config.APIConfig
+	botUsername      string
+	startTime        time.Time
+	rl               *rateLimiter
+	ipRL             *ipRateLimiter
+	vacuumMu         sync.Mutex
+	fetchers         *fetcher.Factory
+	priceListSvc     *pricelist.Service
 	refreshMu        sync.Map
 	lastRefreshSweep atomic.Int64 // unix nano of last sweep
 

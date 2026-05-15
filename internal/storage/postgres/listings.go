@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -237,7 +238,7 @@ func (s *Store) GetListing(ctx context.Context, chatID int64, token string) (*st
 		LIMIT 1`, chatID, token)
 	l, err := scanListingRow(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err

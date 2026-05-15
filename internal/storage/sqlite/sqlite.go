@@ -68,7 +68,7 @@ func (s *Store) Close() error {
 	cpErr := s.Checkpoint()
 	closeErr := s.db.Close()
 	if cpErr != nil && closeErr != nil {
-		return fmt.Errorf("checkpoint: %v; close db: %w", cpErr, closeErr)
+		return fmt.Errorf("checkpoint: %w; close db: %w", cpErr, closeErr)
 	}
 	if cpErr != nil {
 		return fmt.Errorf("checkpoint: %w", cpErr)

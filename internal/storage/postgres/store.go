@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -47,7 +48,7 @@ func New(dsn string, migrationsPath string) (*Store, error) {
 			_ = db.Close()
 			return nil, fmt.Errorf("create migrator: %w", err)
 		}
-		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 			_ = db.Close()
 			return nil, fmt.Errorf("run migrations: %w", err)
 		}

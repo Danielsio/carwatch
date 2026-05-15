@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ func TestRun_ContextCancel(t *testing.T) {
 	defer cancel()
 
 	err = s.Run(ctx)
-	if err == nil || err != context.DeadlineExceeded {
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("expected context.DeadlineExceeded, got: %v", err)
 	}
 }
@@ -62,7 +63,7 @@ func TestRun_OutsideActiveHours(t *testing.T) {
 	defer cancel()
 
 	err = s.Run(ctx)
-	if err != context.DeadlineExceeded {
+	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("expected context.DeadlineExceeded, got: %v", err)
 	}
 }
