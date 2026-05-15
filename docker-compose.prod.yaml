@@ -17,6 +17,15 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   carwatch:
     image: ghcr.io/danielsio/carwatch:latest
@@ -40,6 +49,15 @@ services:
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   caddy:
     image: caddy:2-alpine
@@ -56,6 +74,11 @@ services:
     environment:
       - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   watchtower:
     # Pin to specific version; :latest + Docker socket = supply chain risk
@@ -72,6 +95,11 @@ services:
       - WATCHTOWER_POLL_INTERVAL=300
       - WATCHTOWER_LABEL_ENABLE=true
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   carwatch-net:

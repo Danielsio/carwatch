@@ -10,6 +10,24 @@ linters:
     - staticcheck
     - unused
     - ineffassign
+    - gosec
+    - bodyclose
+    - nilerr
+    - errorlint
+  exclusions:
+    rules:
+      # Hardcoded bind addresses are intentional defaults
+      - linters:
+          - gosec
+        text: "G102:"
+      # net/http server with default timeouts is acceptable for internal use behind Caddy
+      - linters:
+          - gosec
+        text: "G114:"
+      # Integer overflow conversion in non-critical paths
+      - linters:
+          - gosec
+        text: "G115:"
 
 formatters:
   enable:
