@@ -122,3 +122,39 @@ func TestParseItemPage_NoKm(t *testing.T) {
 		t.Fatal("expected error when km is 0")
 	}
 }
+
+func TestParseItemPage_CoverImgSnakeCase(t *testing.T) {
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "km": 50000,
+  "cover_image": "https://img.yad2.co.il/snake.jpg"
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.ImageURL != "https://img.yad2.co.il/snake.jpg" {
+		t.Errorf("ImageURL = %q, want cover_image fallback", details.ImageURL)
+	}
+}
+
+func TestParseItemPage_ImagesArrayFallback(t *testing.T) {
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "km": 75000,
+  "images": ["https://img.yad2.co.il/arr1.jpg", "https://img.yad2.co.il/arr2.jpg"]
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.ImageURL != "https://img.yad2.co.il/arr1.jpg" {
+		t.Errorf("ImageURL = %q, want first from images array", details.ImageURL)
+	}
+}

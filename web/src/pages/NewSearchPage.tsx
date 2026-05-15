@@ -1,16 +1,14 @@
 import { useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router";
-import { Search, Loader2, Car, Zap, Trees, UserRound } from "lucide-react";
+import { Search, Loader2, Car, Zap, Trees, UserRound, ArrowRight } from "lucide-react";
 import { useManufacturers, useModels } from "@/hooks/useCatalog";
 import { useCreateSearch } from "@/hooks/useSearches";
 import { formatPrice } from "@/lib/utils";
-import { Button } from "@/components/ui/Button";
 import { ChipButton } from "@/components/ui/ChipButton";
 import { Input } from "@/components/ui/Input";
 import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Select } from "@/components/ui/Select";
 import { FormField } from "@/components/ui/FormField";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 
 interface FormData {
@@ -99,6 +97,17 @@ function formatKmLabel(value: number): string {
   return `${value.toLocaleString("he-IL")} ק"מ`;
 }
 
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="px-6 py-3.5 border-b border-border bg-secondary/30">
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</h2>
+      </div>
+      <div className="p-6 space-y-4">{children}</div>
+    </div>
+  );
+}
+
 export function NewSearchPage() {
   const navigate = useNavigate();
   const createSearch = useCreateSearch();
@@ -184,17 +193,23 @@ export function NewSearchPage() {
   }
 
   return (
-    <div className="space-y-6 landscape:space-y-4 pb-24 md:pb-8">
-      <PageHeader
-        title="חיפוש חדש"
-        subtitle="הגדר פילטרים למעקב אחר מודעות"
-        backTo="/dashboard"
-        backLabel="חזרה"
-      />
+    <div className="space-y-5 pb-24 md:pb-8 dir-rtl">
+      {/* Header */}
+      <header className="flex flex-col gap-1 pb-2">
+        <Link
+          to="/dashboard"
+          className="mb-2 inline-flex items-center gap-1.5 rounded-xl bg-secondary/60 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground w-fit"
+        >
+          <span>חזרה</span>
+          <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+        </Link>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">חיפוש חדש</h1>
+        <p className="text-sm text-muted-foreground">הגדר פילטרים למעקב מודעות</p>
+      </header>
 
       {error && (
         <div
-          className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"
+          className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"
           role="alert"
         >
           {error}
@@ -212,7 +227,7 @@ export function NewSearchPage() {
                   key={preset.id}
                   type="button"
                   onClick={() => applyPreset(preset)}
-                  className="flex-shrink-0 w-40 sm:w-auto snap-start rounded-2xl border border-border/50 bg-card p-4 text-start transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  className="flex-shrink-0 w-40 sm:w-auto snap-start rounded-2xl border border-border/50 bg-card p-4 text-start transition-all hover:border-primary/40 hover:bg-primary/5 hover:shadow-md hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <Icon className="h-5 w-5 text-primary mb-2" />
                   <p className="text-sm font-semibold text-foreground">{preset.title}</p>
@@ -224,194 +239,192 @@ export function NewSearchPage() {
         </section>
       )}
 
-      <form onSubmit={handleFormSubmit} className="contents">
-      {/* Section: Search Name */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
-        <FormField
-          label="שם החיפוש"
-          htmlFor="searchName"
-          hint="אופציונלי — ייווצר אוטומטית מהיצרן והדגם"
-        >
-          <Input
-            id="searchName"
-            value={form.name}
-            onChange={(e) => set("name", e.target.value)}
-            placeholder='לדוגמה: "טויוטה קורולה ידנית"'
-          />
-        </FormField>
-      </section>
-
-      {/* Section: Source */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">מקור</h2>
-        <div className="flex flex-wrap gap-2">
-          {SOURCE_OPTIONS.map((src) => (
-            <ChipButton
-              key={src.value}
-              selected={form.source === src.value}
-              onClick={() => set("source", src.value)}
-            >
-              {src.label}
-            </ChipButton>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">סוג מוכר</h2>
-        <p className="text-xs text-muted-foreground">
-          מסנן לפי מודעות ממוכר פרטי או ממוסך/סוכנות (כשהמקור זיהוי זאת במודעה).
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {SELLER_FILTER_OPTIONS.map((opt) => (
-            <ChipButton
-              key={opt.value}
-              selected={form.sellerFilter === opt.value}
-              onClick={() => set("sellerFilter", opt.value)}
-            >
-              {opt.label}
-            </ChipButton>
-          ))}
-        </div>
-      </section>
-
-      {/* Section: Listing quality filters */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">סינון מודעות</h2>
-        <p className="text-xs text-muted-foreground">
-          הצג רק מודעות שעומדות בתנאים הבאים.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <ChipButton
-            selected={form.priceOnly}
-            onClick={() => set("priceOnly", !form.priceOnly)}
+      <form onSubmit={handleFormSubmit} className="space-y-5">
+        {/* Search Name */}
+        <SectionCard title="שם החיפוש">
+          <FormField
+            label="שם החיפוש"
+            htmlFor="searchName"
+            hint="אופציונלי — ייווצר אוטומטית מהיצרן והדגם"
           >
-            עם מחיר בלבד
-          </ChipButton>
-          <ChipButton
-            selected={form.photoOnly}
-            onClick={() => set("photoOnly", !form.photoOnly)}
-          >
-            עם תמונה בלבד
-          </ChipButton>
-        </div>
-      </section>
+            <Input
+              id="searchName"
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+              placeholder='לדוגמה: "טויוטה קורולה ידנית"'
+            />
+          </FormField>
+        </SectionCard>
 
-      {/* Section: Vehicle filter */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">סינון לפי רכב</h2>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="יצרן" htmlFor="mfr">
-            <Select
-              id="mfr"
-              value={form.manufacturer}
-              onChange={(e) => {
-                set("manufacturer", Number(e.target.value));
-                set("model", 0);
-              }}
-            >
-              <option value={0}>כל היצרנים</option>
-              {manufacturers?.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name_he && m.name_he !== m.name ? `${m.name_he} (${m.name})` : m.name}
-                </option>
+        {/* Vehicle Filter */}
+        <SectionCard title="סינון לפי רכב">
+          <div className="space-y-1">
+            <span className="text-sm font-medium text-foreground">מקור</span>
+            <div className="flex flex-wrap gap-2">
+              {SOURCE_OPTIONS.map((src) => (
+                <ChipButton
+                  key={src.value}
+                  selected={form.source === src.value}
+                  onClick={() => set("source", src.value)}
+                >
+                  {src.label}
+                </ChipButton>
               ))}
-            </Select>
-          </FormField>
+            </div>
+          </div>
 
-          <FormField label="דגם" htmlFor="mdl">
-            <Select
-              id="mdl"
-              value={form.model}
-              disabled={form.manufacturer === 0}
-              onChange={(e) => set("model", Number(e.target.value))}
-            >
-              <option value={0}>
-                {form.manufacturer === 0 ? "יש לבחור יצרן קודם" : "כל הדגמים"}
-              </option>
-              {models?.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name_he && m.name_he !== m.name ? `${m.name_he} (${m.name})` : m.name}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="יצרן" htmlFor="mfr">
+              <Select
+                id="mfr"
+                value={form.manufacturer}
+                onChange={(e) => {
+                  set("manufacturer", Number(e.target.value));
+                  set("model", 0);
+                }}
+              >
+                <option value={0}>כל היצרנים</option>
+                {manufacturers?.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name_he && m.name_he !== m.name ? `${m.name_he} (${m.name})` : m.name}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+
+            <FormField label="דגם" htmlFor="mdl">
+              <Select
+                id="mdl"
+                value={form.model}
+                disabled={form.manufacturer === 0}
+                onChange={(e) => set("model", Number(e.target.value))}
+              >
+                <option value={0}>
+                  {form.manufacturer === 0 ? "יש לבחור יצרן קודם" : "כל הדגמים"}
                 </option>
+                {models?.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name_he && m.name_he !== m.name ? `${m.name_he} (${m.name})` : m.name}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              label="שנה מ-"
+              htmlFor="yearMin"
+              error={
+                form.yearMin > form.yearMax
+                  ? "שנה מינימלית חייבת להיות קטנה מהמקסימלית"
+                  : undefined
+              }
+            >
+              <Input
+                id="yearMin"
+                type="number"
+                value={form.yearMin}
+                onChange={(e) => set("yearMin", Number(e.target.value))}
+                min={1990}
+                max={2030}
+                error={form.yearMin > form.yearMax}
+                className="tabular-nums"
+              />
+            </FormField>
+
+            <FormField label="שנה עד" htmlFor="yearMax">
+              <Input
+                id="yearMax"
+                type="number"
+                value={form.yearMax}
+                onChange={(e) => set("yearMax", Number(e.target.value))}
+                min={1990}
+                max={2030}
+                className="tabular-nums"
+              />
+            </FormField>
+          </div>
+        </SectionCard>
+
+        {/* Price & Mileage */}
+        <SectionCard title='מחיר וק"מ'>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              label="מחיר מינימום (₪)"
+              htmlFor="priceMin"
+              hint={form.priceMin > 0 ? formatPrice(form.priceMin) : undefined}
+            >
+              <Input
+                id="priceMin"
+                type="number"
+                value={form.priceMin || ""}
+                onChange={(e) => set("priceMin", Number(e.target.value))}
+                placeholder="ללא הגבלה"
+                className="tabular-nums"
+              />
+            </FormField>
+
+            <FormField
+              label="מחיר מקסימום (₪)"
+              htmlFor="priceMax"
+              hint={form.priceMax > 0 ? formatPrice(form.priceMax) : undefined}
+            >
+              <Input
+                id="priceMax"
+                type="number"
+                value={form.priceMax || ""}
+                onChange={(e) => set("priceMax", Number(e.target.value))}
+                placeholder="ללא הגבלה"
+                className="tabular-nums"
+              />
+            </FormField>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label='ק"מ מקסימלי'>
+              <RangeSlider
+                min={0}
+                max={400_000}
+                step={10_000}
+                value={form.maxKm}
+                onChange={(v) => set("maxKm", v)}
+                formatLabel={formatKmLabel}
+              />
+            </FormField>
+
+            <FormField label="יד מקסימלית">
+              <div className="flex flex-wrap gap-2">
+                {HAND_OPTIONS.map((h) => (
+                  <ChipButton
+                    key={h}
+                    selected={form.maxHand === h}
+                    onClick={() => set("maxHand", h)}
+                  >
+                    {h === 0 ? "כל היידות" : `יד ${h}`}
+                  </ChipButton>
+                ))}
+              </div>
+            </FormField>
+          </div>
+        </SectionCard>
+
+        {/* Advanced Filters */}
+        <SectionCard title="פילטרים נוספים">
+          <FormField label="תיבת הילוכים">
+            <div className="flex flex-wrap gap-2">
+              {GEARBOX_OPTIONS.map((opt) => (
+                <ChipButton
+                  key={opt.value}
+                  selected={form.gearBox === opt.value}
+                  onClick={() => set("gearBox", opt.value)}
+                >
+                  {opt.label}
+                </ChipButton>
               ))}
-            </Select>
-          </FormField>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField
-            label="שנה מ-"
-            htmlFor="yearMin"
-            error={
-              form.yearMin > form.yearMax
-                ? "שנה מינימלית חייבת להיות קטנה מהמקסימלית"
-                : undefined
-            }
-          >
-            <Input
-              id="yearMin"
-              type="number"
-              value={form.yearMin}
-              onChange={(e) => set("yearMin", Number(e.target.value))}
-              min={1990}
-              max={2030}
-              error={form.yearMin > form.yearMax}
-              className="tabular-nums"
-            />
+            </div>
           </FormField>
 
-          <FormField label="שנה עד" htmlFor="yearMax">
-            <Input
-              id="yearMax"
-              type="number"
-              value={form.yearMax}
-              onChange={(e) => set("yearMax", Number(e.target.value))}
-              min={1990}
-              max={2030}
-              className="tabular-nums"
-            />
-          </FormField>
-        </div>
-      </section>
-
-      {/* Section: Price & KM */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">מחיר וק&quot;מ</h2>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField
-            label="מחיר מינימום (₪)"
-            htmlFor="priceMin"
-            hint={form.priceMin > 0 ? formatPrice(form.priceMin) : undefined}
-          >
-            <Input
-              id="priceMin"
-              type="number"
-              value={form.priceMin || ""}
-              onChange={(e) => set("priceMin", Number(e.target.value))}
-              placeholder="ללא הגבלה"
-              className="tabular-nums"
-            />
-          </FormField>
-
-          <FormField
-            label="מחיר מקסימום (₪)"
-            htmlFor="priceMax"
-            hint={form.priceMax > 0 ? formatPrice(form.priceMax) : undefined}
-          >
-            <Input
-              id="priceMax"
-              type="number"
-              value={form.priceMax || ""}
-              onChange={(e) => set("priceMax", Number(e.target.value))}
-              placeholder="ללא הגבלה"
-              className="tabular-nums"
-            />
-          </FormField>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             label='נפח מנוע מינימלי (סמ"ק)'
             htmlFor="engineMinCC"
@@ -427,96 +440,90 @@ export function NewSearchPage() {
             />
           </FormField>
 
-          <FormField label="תיבת הילוכים" htmlFor="gearBox">
+          <div className="space-y-1">
+            <span className="text-sm font-medium text-foreground">סוג מוכר</span>
             <div className="flex flex-wrap gap-2">
-              {GEARBOX_OPTIONS.map((opt) => (
+              {SELLER_FILTER_OPTIONS.map((opt) => (
                 <ChipButton
                   key={opt.value}
-                  selected={form.gearBox === opt.value}
-                  onClick={() => set("gearBox", opt.value)}
+                  selected={form.sellerFilter === opt.value}
+                  onClick={() => set("sellerFilter", opt.value)}
                 >
                   {opt.label}
                 </ChipButton>
               ))}
             </div>
-          </FormField>
-        </div>
-
-        <FormField label='ק"מ מקסימלי'>
-          <RangeSlider
-            min={0}
-            max={400_000}
-            step={10_000}
-            value={form.maxKm}
-            onChange={(v) => set("maxKm", v)}
-            formatLabel={formatKmLabel}
-          />
-        </FormField>
-
-        <FormField label="יד מקסימלית">
-          <div className="flex flex-wrap gap-2">
-            {HAND_OPTIONS.map((h) => (
-              <ChipButton
-                key={h}
-                selected={form.maxHand === h}
-                onClick={() => set("maxHand", h)}
-              >
-                {h === 0 ? "כל היידות" : `יד ${h}`}
-              </ChipButton>
-            ))}
           </div>
-        </FormField>
-      </section>
 
-      {/* Section: Keywords */}
-      <section className="rounded-2xl border border-border/50 bg-card p-5 landscape:p-4 space-y-5 landscape:space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">מילות מפתח</h2>
+          <div className="space-y-1">
+            <span className="text-sm font-medium text-foreground">סינון מודעות</span>
+            <div className="flex flex-wrap gap-2">
+              <ChipButton
+                selected={form.priceOnly}
+                onClick={() => set("priceOnly", !form.priceOnly)}
+              >
+                עם מחיר בלבד
+              </ChipButton>
+              <ChipButton
+                selected={form.photoOnly}
+                onClick={() => set("photoOnly", !form.photoOnly)}
+              >
+                עם תמונה בלבד
+              </ChipButton>
+            </div>
+          </div>
 
-        <FormField
-          label="כלול מילים"
-          htmlFor="keywords"
-          hint="הפרד מילים בפסיקים"
-        >
-          <Input
-            id="keywords"
-            value={form.keywords}
-            onChange={(e) => set("keywords", e.target.value)}
-            placeholder='לדוגמה: אוטומט, היברידי, לא פגע...'
-          />
-        </FormField>
+          <FormField
+            label="כלול מילים"
+            htmlFor="keywords"
+            hint="הפרד מילים בפסיקים"
+          >
+            <Input
+              id="keywords"
+              value={form.keywords}
+              onChange={(e) => set("keywords", e.target.value)}
+              placeholder='לדוגמה: אוטומט, היברידי, לא פגע...'
+            />
+          </FormField>
 
-        <FormField
-          label="סנן מילים"
-          htmlFor="excludeKeys"
-          hint="מודעות שמכילות מילים אלה לא יוצגו"
-        >
-          <Input
-            id="excludeKeys"
-            value={form.excludeKeys}
-            onChange={(e) => set("excludeKeys", e.target.value)}
-            placeholder='לדוגמה: חירום, תאונה'
-          />
-        </FormField>
-      </section>
+          <FormField
+            label="סנן מילים"
+            htmlFor="excludeKeys"
+            hint="מודעות שמכילות מילים אלה לא יוצגו"
+          >
+            <Input
+              id="excludeKeys"
+              value={form.excludeKeys}
+              onChange={(e) => set("excludeKeys", e.target.value)}
+              placeholder='לדוגמה: חירום, תאונה'
+            />
+          </FormField>
+        </SectionCard>
 
-      {/* Actions — sticky on mobile */}
-      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0">
-        <div className="flex items-center gap-3">
-          <Button type="submit" disabled={!canSubmit} size="lg" className="flex-1 md:flex-none">
-            {createSearch.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Search className="h-4 w-4" />
-            )}
-            צור חיפוש
-          </Button>
-          <Button variant="secondary" size="lg" asChild className="md:flex-none">
-            <Link to="/dashboard">ביטול</Link>
-          </Button>
+        {/* Action buttons */}
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0">
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-primary rounded-2xl px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:-translate-y-px hover:shadow-xl hover:shadow-primary/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-lg"
+            >
+              {createSearch.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+              צור חיפוש
+            </button>
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center justify-center rounded-2xl border border-border px-6 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary md:flex-none"
+            >
+              ביטול
+            </Link>
+          </div>
         </div>
-      </div>
       </form>
     </div>
   );
 }
-

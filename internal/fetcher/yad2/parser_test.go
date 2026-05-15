@@ -377,3 +377,147 @@ func TestParseNextData_DeduplicatesAcrossBuckets(t *testing.T) {
 		tokens[l.Token] = true
 	}
 }
+
+func TestResolveImageURL_MetaDataCoverImage(t *testing.T) {
+	item := feedItem{
+		MetaData: struct {
+			CoverImage  string `json:"coverImage"`
+			CoverImg    string `json:"cover_image"`
+			Description string `json:"description"`
+		}{CoverImage: "https://img.yad2.co.il/primary.jpg"},
+	}
+	got := resolveImageURL(item)
+	if got != "https://img.yad2.co.il/primary.jpg" {
+		t.Errorf("resolveImageURL = %q, want primary coverImage", got)
+	}
+}
+
+func TestResolveImageURL_MetaDataCoverImg(t *testing.T) {
+	item := feedItem{
+		MetaData: struct {
+			CoverImage  string `json:"coverImage"`
+			CoverImg    string `json:"cover_image"`
+			Description string `json:"description"`
+		}{CoverImg: "https://img.yad2.co.il/alt.jpg"},
+	}
+	got := resolveImageURL(item)
+	if got != "https://img.yad2.co.il/alt.jpg" {
+		t.Errorf("resolveImageURL = %q, want cover_image fallback", got)
+	}
+}
+
+func TestResolveImageURL_TopLevelCoverImage(t *testing.T) {
+	item := feedItem{
+		CoverImageTop: "https://img.yad2.co.il/top.jpg",
+	}
+	got := resolveImageURL(item)
+	if got != "https://img.yad2.co.il/top.jpg" {
+		t.Errorf("resolveImageURL = %q, want top-level coverImage", got)
+	}
+}
+
+func TestResolveImageURL_TopLevelCoverImgSnake(t *testing.T) {
+	item := feedItem{
+		CoverImgTop: "https://img.yad2.co.il/top_snake.jpg",
+	}
+	got := resolveImageURL(item)
+	if got != "https://img.yad2.co.il/top_snake.jpg" {
+		t.Errorf("resolveImageURL = %q, want top-level cover_image", got)
+	}
+}
+
+func TestResolveImageURL_ImagesArray(t *testing.T) {
+	item := feedItem{
+		Images: []string{"https://img.yad2.co.il/first.jpg", "https://img.yad2.co.il/second.jpg"},
+	}
+	got := resolveImageURL(item)
+	if got != "https://img.yad2.co.il/first.jpg" {
+		t.Errorf("resolveImageURL = %q, want first from images array", got)
+	}
+}
+
+func TestResolveImageURL_Empty(t *testing.T) {
+	item := feedItem{}
+	got := resolveImageURL(item)
+	if got != "" {
+		t.Errorf("resolveImageURL = %q, want empty", got)
+	}
+}
+
+func TestParseNextData_ImageFallbackCoverImg(t *testing.T) {
+	data := []byte(`{
+		"props": {"pageProps": {"dehydratedState": {"queries": [{"state": {"data": {
+			"private": [
+				{"token": "img-alt-1",
+				 "manufacturer": {"text": "Toyota"},
+				 "model": {"text": "Corolla"},
+				 "price": 70000,
+				 "hand": 1,
+				 "metaData": {"cover_image": "https://img.yad2.co.il/snake.jpg", "description": "test"}}
+			]
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].ImageURL != "https://img.yad2.co.il/snake.jpg" {
+		t.Errorf("ImageURL = %q, want cover_image fallback", listings[0].ImageURL)
+	}
+}
+
+func TestParseNextData_ImageFallbackTopLevel(t *testing.T) {
+	data := []byte(`{
+		"props": {"pageProps": {"dehydratedState": {"queries": [{"state": {"data": {
+			"private": [
+				{"token": "img-top-1",
+				 "manufacturer": {"text": "Toyota"},
+				 "model": {"text": "Corolla"},
+				 "price": 70000,
+				 "hand": 1,
+				 "coverImage": "https://img.yad2.co.il/top.jpg"}
+			]
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].ImageURL != "https://img.yad2.co.il/top.jpg" {
+		t.Errorf("ImageURL = %q, want top-level coverImage", listings[0].ImageURL)
+	}
+}
+
+func TestParseNextData_ImageFallbackImagesArray(t *testing.T) {
+	data := []byte(`{
+		"props": {"pageProps": {"dehydratedState": {"queries": [{"state": {"data": {
+			"private": [
+				{"token": "img-arr-1",
+				 "manufacturer": {"text": "Toyota"},
+				 "model": {"text": "Corolla"},
+				 "price": 70000,
+				 "hand": 1,
+				 "images": ["https://img.yad2.co.il/arr1.jpg", "https://img.yad2.co.il/arr2.jpg"]}
+			]
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].ImageURL != "https://img.yad2.co.il/arr1.jpg" {
+		t.Errorf("ImageURL = %q, want first from images array", listings[0].ImageURL)
+	}
+}
