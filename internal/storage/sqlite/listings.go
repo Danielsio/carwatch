@@ -41,7 +41,8 @@ const upsertListingSQL = `
 		median_price = COALESCE(excluded.median_price, listing_history.median_price),
 		cohort_size = COALESCE(excluded.cohort_size, listing_history.cohort_size),
 		deal_score = COALESCE(excluded.deal_score, listing_history.deal_score),
-		base_price = COALESCE(excluded.base_price, listing_history.base_price)`
+		base_price = COALESCE(excluded.base_price, listing_history.base_price),
+		removed_at = NULL`
 
 type listingScanner interface {
 	Scan(dest ...any) error
@@ -51,10 +52,11 @@ func scanListingRow(sc listingScanner) (storage.ListingRecord, error) {
 	var l storage.ListingRecord
 	var fs sql.NullFloat64
 	var ic, mp, cs, ds, bp sql.NullInt64
+	var removedAt sql.NullTime
 	if err := sc.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model, &l.SubModel, &l.SubModelID,
 		&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.ImageURL,
 		&l.EngineVolume, &l.HorsePower, &l.EngineType, &l.GearBox, &l.Description,
-		&ic, &fs, &mp, &cs, &ds, &bp, &l.FirstSeenAt); err != nil {
+		&ic, &fs, &mp, &cs, &ds, &bp, &l.FirstSeenAt, &removedAt); err != nil {
 		return l, err
 	}
 	l.IsCommercial = storage.ListingCommercialFromSQL(ic)
@@ -76,6 +78,9 @@ func scanListingRow(sc listingScanner) (storage.ListingRecord, error) {
 	if bp.Valid {
 		v := int(bp.Int64)
 		l.BasePrice = &v
+	}
+	if removedAt.Valid {
+		l.RemovedAt = &removedAt.Time
 	}
 	return l, nil
 }
@@ -214,7 +219,7 @@ func (s *Store) GetListing(ctx context.Context, chatID int64, token string) (*st
 		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
-			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at
+			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, removed_at
 		FROM listing_history
 		WHERE chat_id = ? AND token = ?
 		ORDER BY rowid DESC LIMIT 1`, chatID, token)
@@ -233,7 +238,7 @@ func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offse
 		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
-			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at
+			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, removed_at
 		FROM listing_history
 		WHERE chat_id = ?
 		ORDER BY first_seen_at DESC, token DESC
@@ -266,7 +271,7 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.sub_model, lh.sub_model_id, lh.year, lh.price, lh.km, lh.hand, lh.city, lh.page_link, lh.image_url,
 			lh.engine_volume, lh.horse_power, lh.engine_type, lh.gear_box, lh.description,
-			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at
+			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at, lh.removed_at
 		FROM listing_history lh
 		INNER JOIN (
 			SELECT token, MAX(first_seen_at) AS max_seen
@@ -366,7 +371,7 @@ func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID i
 		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
-			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at
+			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, removed_at
 		FROM listing_history
 		WHERE chat_id = ? AND search_id = ?%s
 		ORDER BY %s
@@ -439,6 +444,34 @@ func (s *Store) CountSearchListingsForChat(ctx context.Context, chatID int64) (m
 	return out, rows.Err()
 }
 
+func (s *Store) SearchStats(ctx context.Context, chatID int64, searchID int64) (*storage.SearchStats, error) {
+	var st storage.SearchStats
+	var avgPrice, minPrice, maxPrice sql.NullFloat64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT
+			COUNT(*) AS total,
+			COUNT(CASE WHEN first_seen_at > datetime('now', '-1 day') THEN 1 END) AS new_24h,
+			AVG(CASE WHEN price > 0 THEN price END) AS avg_price,
+			MIN(CASE WHEN price > 0 THEN price END) AS min_price,
+			MAX(CASE WHEN price > 0 THEN price END) AS max_price
+		FROM listing_history
+		WHERE search_id = ? AND chat_id = ?`, searchID, chatID).
+		Scan(&st.Total, &st.New24h, &avgPrice, &minPrice, &maxPrice)
+	if err != nil {
+		return nil, fmt.Errorf("search stats: %w", err)
+	}
+	if avgPrice.Valid {
+		st.AvgPrice = avgPrice.Float64
+	}
+	if minPrice.Valid {
+		st.MinPrice = int(minPrice.Float64)
+	}
+	if maxPrice.Valid {
+		st.MaxPrice = int(maxPrice.Float64)
+	}
+	return &st, nil
+}
+
 func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
 	result, err := s.db.ExecContext(ctx, `
@@ -457,44 +490,64 @@ func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int
 }
 
 func (s *Store) DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error) {
-	if len(keepTokens) == 0 {
-		result, err := s.db.ExecContext(ctx, `
-			DELETE FROM listing_history
-			WHERE chat_id = ? AND search_id = ?
-			  AND NOT EXISTS (
-			    SELECT 1 FROM saved_listings
-			    WHERE saved_listings.token = listing_history.token
-			      AND saved_listings.chat_id = listing_history.chat_id
-			  )`, chatID, searchID)
-		if err != nil {
-			return 0, err
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("delete stale begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var staleFilter string
+	args := []interface{}{chatID, searchID}
+	if len(keepTokens) > 0 {
+		placeholders := make([]string, len(keepTokens))
+		for i, t := range keepTokens {
+			placeholders[i] = "?"
+			args = append(args, t)
 		}
-		return result.RowsAffected()
+		staleFilter = fmt.Sprintf(" AND token NOT IN (%s)", strings.Join(placeholders, ","))
 	}
 
-	placeholders := make([]string, len(keepTokens))
-	args := make([]interface{}, 0, 2+len(keepTokens))
-	args = append(args, chatID, searchID)
-	for i, t := range keepTokens {
-		placeholders[i] = "?"
-		args = append(args, t)
+	// Mark bookmarked stale listings as removed_at (likely sold).
+	markArgs := make([]interface{}, len(args))
+	copy(markArgs, args)
+	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE listing_history
+		SET removed_at = CURRENT_TIMESTAMP
+		WHERE chat_id = ? AND search_id = ?%s
+		  AND removed_at IS NULL
+		  AND EXISTS (
+		    SELECT 1 FROM saved_listings
+		    WHERE saved_listings.token = listing_history.token
+		      AND saved_listings.chat_id = listing_history.chat_id
+		  )`, staleFilter), markArgs...)
+	if err != nil {
+		return 0, fmt.Errorf("mark removed_at: %w", err)
 	}
 
-	query := fmt.Sprintf(`
+	// Delete non-bookmarked stale listings.
+	deleteArgs := make([]interface{}, len(args))
+	copy(deleteArgs, args)
+	result, err := tx.ExecContext(ctx, fmt.Sprintf(`
 		DELETE FROM listing_history
-		WHERE chat_id = ? AND search_id = ?
-		  AND token NOT IN (%s)
+		WHERE chat_id = ? AND search_id = ?%s
 		  AND NOT EXISTS (
 		    SELECT 1 FROM saved_listings
 		    WHERE saved_listings.token = listing_history.token
 		      AND saved_listings.chat_id = listing_history.chat_id
-		  )`, strings.Join(placeholders, ","))
+		  )`, staleFilter), deleteArgs...)
+	if err != nil {
+		return 0, fmt.Errorf("delete stale: %w", err)
+	}
 
-	result, err := s.db.ExecContext(ctx, query, args...)
+	removed, err := result.RowsAffected()
 	if err != nil {
 		return 0, err
 	}
-	return result.RowsAffected()
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("delete stale commit: %w", err)
+	}
+	return removed, nil
 }
 
 func (s *Store) SaveBookmark(ctx context.Context, chatID int64, token string) error {
@@ -516,7 +569,7 @@ func (s *Store) ListSaved(ctx context.Context, chatID int64, limit, offset int) 
 		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.sub_model, lh.sub_model_id, lh.year, lh.price,
 			lh.km, lh.hand, lh.city, lh.page_link, lh.image_url,
 			lh.engine_volume, lh.horse_power, lh.engine_type, lh.gear_box, lh.description,
-			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at
+			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at, lh.removed_at
 		FROM saved_listings sl
 		JOIN listing_history lh ON sl.token = lh.token AND sl.chat_id = lh.chat_id
 		WHERE sl.chat_id = ?

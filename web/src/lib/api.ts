@@ -138,6 +138,18 @@ export interface Listing {
   seen?: boolean;
   /** From Yad2 bucket: true = dealer/commercial, false = private, absent when unknown. */
   is_commercial?: boolean | null;
+  /** Set when the listing disappeared from the source but is bookmarked (likely sold). */
+  removed_at?: string;
+  /** Reasons the listing was flagged as suspicious. */
+  suspicious_reasons?: string[];
+}
+
+export interface SearchStatsResponse {
+  total: number;
+  new_24h: number;
+  avg_price: number;
+  min_price: number;
+  max_price: number;
 }
 
 export interface ListingsResponse {
@@ -189,6 +201,8 @@ export const api = {
       fetchAPI<void>(`/searches/${id}/pause`, { method: "POST" }),
     resume: (id: number) =>
       fetchAPI<void>(`/searches/${id}/resume`, { method: "POST" }),
+    stats: (id: number) =>
+      fetchAPI<SearchStatsResponse>(`/searches/${id}/stats`),
   },
   listing: (token: string) => fetchAPI<Listing>(`/listings/${encodeURIComponent(token)}`),
   markListingSeen: (token: string) =>

@@ -81,6 +81,7 @@ func (s *Scheduler) scoreAndRecordListings(search storage.Search, l model.RawLis
 			MedianKm:    medianKm,
 			CohortSize:  cohort,
 		}
+		listing.SuspiciousReasons = scoring.DetectSuspicious(l, medianPrice)
 	}
 	return listing
 }

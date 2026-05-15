@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>רכבים למכירה - WinWin</title>
+</head>
+<body>
+  <div id="main-content">
+    <div class="search-results">
+
+      <!-- Listing 1: Toyota Corolla -->
+      <div class="vehicle-card" data-id="12345">
+        <div class="card-image">
+          <img src="/images/vehicles/12345.jpg" alt="טויוטה קורולה 2022">
+        </div>
+        <div class="card-body">
+          <a href="/vehicles/private/12345">טויוטה קורולה 2022</a>
+          <div class="card-details">
+            <span class="price">149,000 ₪</span>
+            <span class="km">45,000 ק״מ</span>
+            <span class="hand">יד 2</span>
+            <span class="location">• תל אביב</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Listing 2: Mazda 3 -->
+      <div class="vehicle-card" data-id="67890">
+        <div class="card-image">
+          <img src="/images/vehicles/67890.jpg" alt="מאזדה 3 2021">
+        </div>
+        <div class="card-body">
+          <a href="/vehicles/private/67890">מאזדה 3 2021</a>
+          <div class="card-details">
+            <span class="price">125,000 ₪</span>
+            <span class="km">60,000 ק״מ</span>
+            <span class="hand">יד 1</span>
+            <span class="location">• חיפה</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Listing 3: Hyundai Tucson -->
+      <div class="vehicle-card" data-id="11223">
+        <div class="card-image">
+          <img src="/images/vehicles/11223.jpg" alt="יונדאי טוסון 2023">
+        </div>
+        <div class="card-body">
+          <a href="/vehicles/private/11223">יונדאי טוסון 2023</a>
+          <div class="card-details">
+            <span class="price">189,000 ₪</span>
+            <span class="km">20,000 ק״מ</span>
+            <span class="hand">יד 1</span>
+            <span class="location">• ירושלים</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Listing 4: duplicate of listing 1, should be de-duplicated -->
+      <div class="vehicle-card" data-id="12345">
+        <div class="card-body">
+          <a href="/vehicles/private/12345">טויוטה קורולה 2022</a>
+          <span class="price">149,000 ₪</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

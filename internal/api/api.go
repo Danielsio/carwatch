@@ -173,6 +173,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/searches/{id}/pause", s.pauseSearch)
 	mux.HandleFunc("POST /api/v1/searches/{id}/resume", s.resumeSearch)
 
+	mux.HandleFunc("GET /api/v1/searches/{id}/stats", s.searchStats)
 	mux.HandleFunc("GET /api/v1/searches/{id}/listings", s.listListings)
 	mux.HandleFunc("POST /api/v1/searches/{id}/refresh", s.refreshListings)
 	mux.HandleFunc("GET /api/v1/listings/{token}", s.getListing)

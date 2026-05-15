@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
-import { Bookmark } from "lucide-react";
+import { Bookmark, AlertTriangle } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, cn, marketComparison } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
@@ -65,7 +65,18 @@ export function ListingCardBody({
         </div>
       )}
 
-      <div className="p-4">
+      <div className={cn("p-4", listing.removed_at && "opacity-60")}>
+        {listing.removed_at ? (
+          <div className="mb-2 flex items-center gap-1.5 rounded-lg bg-muted/80 px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+            {"נמכר כנראה"}
+          </div>
+        ) : null}
+        {listing.suspicious_reasons && listing.suspicious_reasons.length > 0 ? (
+          <div className="mb-2 flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {"זהירות"}
+          </div>
+        ) : null}
         <div className="mb-2 flex items-start gap-3">
           {logoSrc ? (
             <img

@@ -14,6 +14,7 @@ import {
   manufacturerLogoSrc,
   manufacturerLogoSrcFromCatalogId,
 } from "@/lib/manufacturerLogo";
+import { useSearchStats } from "@/hooks/useSearchStats";
 
 export type SearchCardProps = {
   search: Search;
@@ -37,6 +38,7 @@ export function SearchCard({
   const navigate = useNavigate();
   const isActive = search.active;
   const listingsPath = `/searches/${search.id}/listings`;
+  const { data: stats } = useSearchStats(search.id);
 
   const mfrLogo =
     manufacturerLogoSrcFromCatalogId(search.manufacturer_id) ??
@@ -187,6 +189,24 @@ export function SearchCard({
           </div>
         </Link>
       ) : null}
+
+      {stats && stats.total > 0 && (
+        <div className="mb-3 text-xs text-muted-foreground">
+          <span>{stats.total} {"מודעות"}</span>
+          {stats.new_24h > 0 && (
+            <>
+              <span className="mx-1.5">&middot;</span>
+              <span>{stats.new_24h} {"חדשות היום"}</span>
+            </>
+          )}
+          {stats.avg_price > 0 && (
+            <>
+              <span className="mx-1.5">&middot;</span>
+              <span>{"ממוצע"} {formatPrice(Math.round(stats.avg_price))}</span>
+            </>
+          )}
+        </div>
+      )}
 
       <Link
         to={listingsPath}

@@ -161,6 +161,9 @@ type ListingRecord struct {
 	DealScore    *int
 	BasePrice    *int
 	FirstSeenAt  time.Time
+	// RemovedAt: non-nil when the listing disappeared from the source but was
+	// preserved because it is bookmarked ("likely sold").
+	RemovedAt *time.Time
 }
 
 type PricePoint struct {
@@ -223,6 +226,15 @@ type ListingFilter struct {
 	PhotoOnly  bool
 }
 
+// SearchStats holds aggregate market stats for a single search.
+type SearchStats struct {
+	Total    int64   `json:"total"`
+	New24h   int64   `json:"new_24h"`
+	AvgPrice float64 `json:"avg_price"`
+	MinPrice int     `json:"min_price"`
+	MaxPrice int     `json:"max_price"`
+}
+
 type ListingStore interface {
 	SaveListing(ctx context.Context, r ListingRecord) error
 	SaveListings(ctx context.Context, records []ListingRecord) error
@@ -236,6 +248,7 @@ type ListingStore interface {
 	// CountSearchListingsForChat returns listing counts per search_id for chatID,
 	// applying each search row's price/year/km/hand constraints like CountSearchListings.
 	CountSearchListingsForChat(ctx context.Context, chatID int64) (map[int64]int64, error)
+	SearchStats(ctx context.Context, chatID int64, searchID int64) (*SearchStats, error)
 	PruneListings(ctx context.Context, olderThan time.Duration) (int64, error)
 	DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error)
 }

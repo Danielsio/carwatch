@@ -828,3 +828,18 @@ func migrateListingUserSeen(db *sql.DB) error {
 	}
 	return nil
 }
+
+func migrateListingRemovedAt(db *sql.DB) error {
+	var exists int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('listing_history') WHERE name = 'removed_at'",
+	).Scan(&exists); err != nil {
+		return fmt.Errorf("check listing_history removed_at: %w", err)
+	}
+	if exists == 0 {
+		if _, err := db.Exec("ALTER TABLE listing_history ADD COLUMN removed_at TIMESTAMP"); err != nil {
+			return fmt.Errorf("add removed_at column: %w", err)
+		}
+	}
+	return nil
+}

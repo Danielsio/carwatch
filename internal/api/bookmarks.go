@@ -235,7 +235,7 @@ func toListingResponses(records []storage.ListingRecord, saved, seen map[string]
 		if seen != nil && seen[l.Token] {
 			seenFlag = true
 		}
-		items = append(items, listingResponse{
+		resp := listingResponse{
 			Token:        l.Token,
 			SearchName:   l.SearchName,
 			Manufacturer: l.Manufacturer,
@@ -262,7 +262,12 @@ func toListingResponses(records []storage.ListingRecord, saved, seen map[string]
 			Saved:        savedFlag,
 			Seen:         seenFlag,
 			IsCommercial: l.IsCommercial,
-		})
+		}
+		if l.RemovedAt != nil {
+			s := l.RemovedAt.UTC().Format("2006-01-02T15:04:05Z")
+			resp.RemovedAt = &s
+		}
+		items = append(items, resp)
 	}
 	return items
 }

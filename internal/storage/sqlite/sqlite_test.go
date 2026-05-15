@@ -3384,6 +3384,115 @@ func TestDeleteStaleListings_EmptyKeepTokens(t *testing.T) {
 	}
 }
 
+func TestDeleteStaleListings_SetsRemovedAtOnBookmarked(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSearch: %v", err)
+	}
+
+	for _, tok := range []string{"keep", "stale-saved", "stale-unsaved"} {
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token: tok, ChatID: 100, SearchID: searchID, SearchName: "test",
+			Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000,
+		}); err != nil {
+			t.Fatalf("SaveListing %s: %v", tok, err)
+		}
+	}
+
+	if err := store.SaveBookmark(ctx, 100, "stale-saved"); err != nil {
+		t.Fatalf("SaveBookmark: %v", err)
+	}
+
+	removed, err := store.DeleteStaleListings(ctx, 100, searchID, []string{"keep"})
+	if err != nil {
+		t.Fatalf("DeleteStaleListings: %v", err)
+	}
+	if removed != 1 {
+		t.Errorf("expected 1 removed (only unsaved stale), got %d", removed)
+	}
+
+	// Bookmarked stale listing should have removed_at set.
+	saved, err := store.GetListing(ctx, 100, "stale-saved")
+	if err != nil {
+		t.Fatalf("GetListing stale-saved: %v", err)
+	}
+	if saved == nil {
+		t.Fatal("bookmarked listing should survive deletion")
+	}
+	if saved.RemovedAt == nil {
+		t.Error("bookmarked stale listing should have removed_at set")
+	}
+
+	// Kept listing should not have removed_at set.
+	kept, err := store.GetListing(ctx, 100, "keep")
+	if err != nil {
+		t.Fatalf("GetListing keep: %v", err)
+	}
+	if kept == nil {
+		t.Fatal("kept listing should still exist")
+	}
+	if kept.RemovedAt != nil {
+		t.Error("kept listing should not have removed_at set")
+	}
+}
+
+func TestDeleteStaleListings_RemovedAtClearedOnReInsert(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSearch: %v", err)
+	}
+
+	// Save and bookmark a listing.
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 100, SearchID: searchID, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000,
+	}); err != nil {
+		t.Fatalf("SaveListing: %v", err)
+	}
+	if err := store.SaveBookmark(ctx, 100, "tok1"); err != nil {
+		t.Fatalf("SaveBookmark: %v", err)
+	}
+
+	// Delete stale listings - tok1 should get removed_at.
+	if _, err := store.DeleteStaleListings(ctx, 100, searchID, nil); err != nil {
+		t.Fatalf("DeleteStaleListings: %v", err)
+	}
+	l, _ := store.GetListing(ctx, 100, "tok1")
+	if l == nil || l.RemovedAt == nil {
+		t.Fatal("expected removed_at to be set after stale deletion")
+	}
+
+	// Re-save the listing (listing reappeared) - removed_at should be cleared.
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 100, SearchID: searchID, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 85000,
+	}); err != nil {
+		t.Fatalf("SaveListing re-insert: %v", err)
+	}
+	l, _ = store.GetListing(ctx, 100, "tok1")
+	if l == nil {
+		t.Fatal("listing should exist after re-insert")
+	}
+	if l.RemovedAt != nil {
+		t.Error("removed_at should be cleared after re-insert (listing reappeared)")
+	}
+	if l.Price != 85000 {
+		t.Errorf("price should be updated to 85000, got %d", l.Price)
+	}
+}
+
 func TestUpsertUser_ReactivatesInactiveUser(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
@@ -3489,5 +3598,122 @@ func TestSyncUserActiveStatus(t *testing.T) {
 	u300, _ := store.GetUser(ctx, 300)
 	if u300.Active {
 		t.Error("user 300 should be inactive (only paused search)")
+	}
+}
+
+// --- SearchStats Tests ---
+
+func TestSearchStats_Basic(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "mazda-3", Source: "yad2",
+		Manufacturer: 27, Model: 10332,
+	})
+	if err != nil {
+		t.Fatalf("CreateSearch: %v", err)
+	}
+
+	for i, price := range []int{80000, 90000, 100000, 0} {
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token: fmt.Sprintf("ss-tok%d", i), ChatID: 100, SearchID: searchID,
+			SearchName: "mazda-3", Manufacturer: "Mazda", Model: "3",
+			Year: 2021, Price: price, FirstSeenAt: time.Now(),
+		}); err != nil {
+			t.Fatalf("SaveListing %d: %v", i, err)
+		}
+	}
+
+	stats, err := store.SearchStats(ctx, 100, searchID)
+	if err != nil {
+		t.Fatalf("SearchStats: %v", err)
+	}
+	if stats.Total != 4 {
+		t.Errorf("Total = %d, want 4", stats.Total)
+	}
+	if stats.New24h != 4 {
+		t.Errorf("New24h = %d, want 4", stats.New24h)
+	}
+	if stats.MinPrice != 80000 {
+		t.Errorf("MinPrice = %d, want 80000", stats.MinPrice)
+	}
+	if stats.MaxPrice != 100000 {
+		t.Errorf("MaxPrice = %d, want 100000", stats.MaxPrice)
+	}
+	// avg of 80000,90000,100000 (excluding price=0) = 90000
+	if stats.AvgPrice != 90000 {
+		t.Errorf("AvgPrice = %f, want 90000", stats.AvgPrice)
+	}
+}
+
+func TestSearchStats_Empty(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "empty", Source: "yad2",
+		Manufacturer: 1, Model: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSearch: %v", err)
+	}
+
+	stats, err := store.SearchStats(ctx, 100, searchID)
+	if err != nil {
+		t.Fatalf("SearchStats: %v", err)
+	}
+	if stats.Total != 0 {
+		t.Errorf("Total = %d, want 0", stats.Total)
+	}
+	if stats.AvgPrice != 0 {
+		t.Errorf("AvgPrice = %f, want 0", stats.AvgPrice)
+	}
+	if stats.MinPrice != 0 {
+		t.Errorf("MinPrice = %d, want 0", stats.MinPrice)
+	}
+	if stats.MaxPrice != 0 {
+		t.Errorf("MaxPrice = %d, want 0", stats.MaxPrice)
+	}
+}
+
+func TestSearchStats_CrossUserIsolation(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+	seedUser(t, store, 200)
+
+	searchID1, _ := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "user100", Source: "yad2",
+		Manufacturer: 1, Model: 1,
+	})
+	searchID2, _ := store.CreateSearch(ctx, storage.Search{
+		ChatID: 200, Name: "user200", Source: "yad2",
+		Manufacturer: 1, Model: 1,
+	})
+
+	for i := range 3 {
+		_ = store.SaveListing(ctx, storage.ListingRecord{
+			Token: fmt.Sprintf("iso-1-%d", i), ChatID: 100, SearchID: searchID1,
+			SearchName: "user100", Manufacturer: "Test", Model: "Car",
+			Year: 2021, Price: 100000, FirstSeenAt: time.Now(),
+		})
+	}
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "iso-2-0", ChatID: 200, SearchID: searchID2,
+		SearchName: "user200", Manufacturer: "Test", Model: "Car",
+		Year: 2021, Price: 50000, FirstSeenAt: time.Now(),
+	})
+
+	stats1, _ := store.SearchStats(ctx, 100, searchID1)
+	stats2, _ := store.SearchStats(ctx, 200, searchID2)
+
+	if stats1.Total != 3 {
+		t.Errorf("user 100 Total = %d, want 3", stats1.Total)
+	}
+	if stats2.Total != 1 {
+		t.Errorf("user 200 Total = %d, want 1", stats2.Total)
 	}
 }
