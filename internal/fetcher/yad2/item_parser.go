@@ -103,9 +103,11 @@ func parseItemNextData(data []byte) (ItemDetails, error) {
 }
 
 type itemPageData struct {
-	Km         int    `json:"km"`
-	Kilometer  int    `json:"kilometer"`
-	CoverImage string `json:"coverImage"`
+	Km         int      `json:"km"`
+	Kilometer  int      `json:"kilometer"`
+	CoverImage string   `json:"coverImage"`
+	CoverImg   string   `json:"cover_image"`
+	Images     []string `json:"images"`
 	Address    struct {
 		City struct {
 			Text    string `json:"text"`
@@ -121,11 +123,26 @@ type itemPageData struct {
 func detailsFromPageData(d itemPageData) (ItemDetails, bool) {
 	details := ItemDetails{
 		Km:       effectiveKm(d),
-		ImageURL: d.CoverImage,
+		ImageURL: resolveItemImageURL(d),
 		City:     firstNonEmpty(d.Address.City.TextEng, d.Address.City.Text),
 		Area:     firstNonEmpty(d.Address.Area.TextEng, d.Address.Area.Text),
 	}
 	return details, details.Km > 0 || details.ImageURL != "" || details.City != "" || details.Area != ""
+}
+
+// resolveItemImageURL checks multiple image field locations in the item page
+// data, returning the first non-empty URL found.
+func resolveItemImageURL(d itemPageData) string {
+	if d.CoverImage != "" {
+		return d.CoverImage
+	}
+	if d.CoverImg != "" {
+		return d.CoverImg
+	}
+	if len(d.Images) > 0 && d.Images[0] != "" {
+		return d.Images[0]
+	}
+	return ""
 }
 
 func firstNonEmpty(values ...string) string {

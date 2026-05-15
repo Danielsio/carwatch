@@ -70,7 +70,7 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 	seen := make(map[string]struct{}, len(items))
 	skipped := 0
 	for _, tagged := range items {
-		l, err := itemToListing(tagged.raw, tagged.commercial)
+		l, err := itemToListing(tagged.raw, tagged.commercial, logger)
 		if err != nil {
 			skipped++
 			if logger != nil {
@@ -171,7 +171,7 @@ func extractItems(nd nextDataEnvelope) ([]feedTaggedItem, error) {
 	return nil, fmt.Errorf("no feed items found in __NEXT_DATA__")
 }
 
-func itemToListing(raw json.RawMessage, commercial *bool) (model.RawListing, error) {
+func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (model.RawListing, error) {
 	var item feedItem
 	if err := json.Unmarshal(raw, &item); err != nil {
 		return model.RawListing{}, err
@@ -187,6 +187,15 @@ func itemToListing(raw json.RawMessage, commercial *bool) (model.RawListing, err
 	engineVol := item.EngineVolume
 	if engineVol == 0 {
 		engineVol = item.EngineVolumeNew
+	}
+
+	imgURL := resolveImageURL(item)
+	if imgURL == "" && logger != nil {
+		logger.Warn("feed item has no image URL",
+			"token", item.Token,
+			"manufacturer", textFromField(item.Manufacturer),
+			"model", textFromField(item.Model),
+		)
 	}
 
 	listing := model.RawListing{
@@ -209,7 +218,7 @@ func itemToListing(raw json.RawMessage, commercial *bool) (model.RawListing, err
 		Hand:               parseHand(item.Hand),
 		Price:              item.Price,
 		Description:        item.MetaData.Description,
-		ImageURL:           item.MetaData.CoverImage,
+		ImageURL:           imgURL,
 		PageLink:           fmt.Sprintf("https://www.yad2.co.il/vehicles/item/%s", item.Token),
 	}
 
@@ -236,6 +245,28 @@ func itemToListing(raw json.RawMessage, commercial *bool) (model.RawListing, err
 	}
 	listing.Commercial = commercial
 	return listing, nil
+}
+
+// resolveImageURL checks multiple image field locations in the feed item,
+// returning the first non-empty URL found. This handles Yad2 API format
+// changes where the image may appear in different fields.
+func resolveImageURL(item feedItem) string {
+	if item.MetaData.CoverImage != "" {
+		return item.MetaData.CoverImage
+	}
+	if item.MetaData.CoverImg != "" {
+		return item.MetaData.CoverImg
+	}
+	if item.CoverImageTop != "" {
+		return item.CoverImageTop
+	}
+	if item.CoverImgTop != "" {
+		return item.CoverImgTop
+	}
+	if len(item.Images) > 0 && item.Images[0] != "" {
+		return item.Images[0]
+	}
+	return ""
 }
 
 func parseHand(raw json.RawMessage) int {
@@ -300,9 +331,14 @@ type feedItem struct {
 	} `json:"address"`
 	MetaData struct {
 		CoverImage  string `json:"coverImage"`
+		CoverImg    string `json:"cover_image"`
 		Description string `json:"description"`
 	} `json:"metaData"`
-	Dates struct {
+	// Top-level image fields as fallback when metaData.coverImage is absent.
+	Images        []string `json:"images"`
+	CoverImageTop string   `json:"coverImage"`
+	CoverImgTop   string   `json:"cover_image"`
+	Dates         struct {
 		CreatedAt string `json:"createdAt"`
 		UpdatedAt string `json:"updatedAt"`
 	} `json:"dates"`
