@@ -28,21 +28,16 @@ func testStore(t *testing.T) *Store {
 	}
 	t.Cleanup(func() {
 		db := store.DB()
-		// Clean up in dependency order.
-		db.Exec("DELETE FROM listing_user_seen")
-		db.Exec("DELETE FROM pending_digest")
-		db.Exec("DELETE FROM pending_notifications")
-		db.Exec("DELETE FROM saved_listings")
-		db.Exec("DELETE FROM hidden_listings")
-		db.Exec("DELETE FROM listing_history")
-		db.Exec("DELETE FROM seen_listings")
-		db.Exec("DELETE FROM price_history")
-		db.Exec("DELETE FROM link_tokens")
-		db.Exec("DELETE FROM daily_digest")
-		db.Exec("DELETE FROM searches")
-		db.Exec("DELETE FROM price_list_cache")
-		db.Exec("DELETE FROM users")
-		store.Close()
+		tables := []string{
+			"listing_user_seen", "pending_digest", "pending_notifications",
+			"saved_listings", "hidden_listings", "listing_history",
+			"seen_listings", "price_history", "link_tokens",
+			"daily_digest", "searches", "price_list_cache", "users",
+		}
+		for _, tbl := range tables {
+			_, _ = db.Exec("DELETE FROM " + tbl)
+		}
+		_ = store.Close()
 	})
 	return store
 }
