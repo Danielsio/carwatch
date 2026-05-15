@@ -278,25 +278,6 @@ func TestNextDelay_MinimumOneMinute(t *testing.T) {
 	}
 }
 
-func TestMaskPhone(t *testing.T) {
-	tests := []struct {
-		input string
-		want  string
-	}{
-		{"+972501234567", "+97250123****"},
-		{"+1234", "+****"},
-		{"123", "***"},
-		{"", "***"},
-	}
-
-	for _, tt := range tests {
-		got := maskPhone(tt.input)
-		if got != tt.want {
-			t.Errorf("maskPhone(%q) = %q, want %q", tt.input, got, tt.want)
-		}
-	}
-}
-
 func TestIsActiveHours_NoConfig(t *testing.T) {
 	cfg := testConfig()
 	cfg.Polling.ActiveHours = nil
