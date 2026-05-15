@@ -135,6 +135,10 @@ var heCommands = map[string]string{
 	"saved_limit_reached":  "הגעת למגבלה של %d רכבים שמורים.",
 	"hidden_limit_reached": "הגעת למגבלה של %d רכבים מוסתרים.",
 
+	// rate limiting (bilingual — user language is unknown in the rate limiter path)
+	"rate_limit_callback": "אנא המתן / Please slow down.",
+	"rate_limit_message":  "אנא המתן רגע / Too many requests, please wait a moment.",
+
 	// generic
 	"error_generic":     "משהו השתבש. אנא נסה שוב.",
 	"error_invalid_id":  "מספר חיפוש לא תקין.",
@@ -401,6 +405,10 @@ var enCommands = map[string]string{
 	"listing_hidden":       "Hidden",
 	"saved_limit_reached":  "You've reached the limit of %d saved listings.",
 	"hidden_limit_reached": "You've reached the limit of %d hidden listings.",
+
+	// rate limiting (bilingual — user language is unknown in the rate limiter path)
+	"rate_limit_callback": "אנא המתן / Please slow down.",
+	"rate_limit_message":  "אנא המתן רגע / Too many requests, please wait a moment.",
 
 	// generic
 	"error_generic":     "Something went wrong. Please try again.",
