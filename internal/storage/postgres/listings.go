@@ -20,7 +20,7 @@ WHERE lh.chat_id = $1
   AND (s.price_max <= 0 OR lh.price <= s.price_max)
   AND (s.year_min <= 0 OR lh.year >= s.year_min)
   AND (s.year_max <= 0 OR lh.year <= s.year_max)
-  AND (s.max_km <= 0 OR (lh.km > 0 AND lh.km <= s.max_km))
+  AND (s.max_km <= 0 OR lh.km <= s.max_km OR lh.km = 0)
   AND (s.max_hand <= 0 OR lh.hand <= s.max_hand)
   AND CASE LOWER(TRIM(COALESCE(NULLIF(s.seller_filter, ''), 'any')))
     WHEN 'private' THEN lh.is_commercial = 0
@@ -323,7 +323,7 @@ func buildFilterClauses(f storage.ListingFilter, paramStart int) (string, []any,
 		n++
 	}
 	if f.MaxKm > 0 {
-		clauses = append(clauses, fmt.Sprintf("km > 0 AND km <= $%d", n))
+		clauses = append(clauses, fmt.Sprintf("(km <= $%d OR km = 0)", n))
 		args = append(args, f.MaxKm)
 		n++
 	}

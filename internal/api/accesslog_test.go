@@ -6,6 +6,14 @@ import (
 	"testing"
 )
 
+func TestStatusRecorder_ImplementsFlusher(t *testing.T) {
+	rec := httptest.NewRecorder()
+	sr := &statusRecorder{ResponseWriter: rec, status: http.StatusOK}
+	var _ http.Flusher = sr // compile-time check
+	// Calling Flush should not panic even when the underlying writer supports it.
+	sr.Flush()
+}
+
 func TestStatusRecorder_WriteHeaderFirstWins(t *testing.T) {
 	rec := httptest.NewRecorder()
 	sr := &statusRecorder{ResponseWriter: rec, status: http.StatusOK}

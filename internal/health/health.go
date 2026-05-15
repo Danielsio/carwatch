@@ -274,6 +274,41 @@ func (s *Status) Snapshot() map[string]any {
 	return resp
 }
 
+// PublicHandler returns a minimal health response suitable for unauthenticated
+// callers. It only exposes the status and version, not operational details.
+// NOTE: cmd/bot/main.go should be updated to use PublicHandler() at /healthz
+// and keep Handler() for admin-only access.
+func (s *Status) PublicHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+
+		core := s.coreMetrics()
+		resp := map[string]any{
+			"status": core["status"],
+		}
+
+		s.mu.RLock()
+		version := s.version
+		s.mu.RUnlock()
+		if version != "" {
+			resp["version"] = version
+		}
+
+		httpCode := http.StatusOK
+		if core["status"] == "degraded" {
+			httpCode = http.StatusServiceUnavailable
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(httpCode)
+		_ = json.NewEncoder(w).Encode(resp)
+	}
+}
+
+// Handler returns a detailed health response suitable for admin/internal use.
 func (s *Status) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Frame-Options", "DENY")

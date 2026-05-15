@@ -209,8 +209,15 @@ func extractIP(r *http.Request, trustProxy bool) string {
 		return host
 	}
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// Parse from right to left, returning the rightmost non-private IP.
+		// This prevents spoofing via attacker-controlled leftmost entries.
 		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
+		for i := len(parts) - 1; i >= 0; i-- {
+			ip := strings.TrimSpace(parts[i])
+			if ip != "" && !isPrivateIP(ip) {
+				return ip
+			}
+		}
 	}
 	return host
 }

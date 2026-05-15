@@ -281,6 +281,71 @@ func TestStatus_SourceMetricsInHealthzJSON(t *testing.T) {
 	}
 }
 
+func TestPublicHandler_MinimalResponse(t *testing.T) {
+	s := New()
+	s.SetVersion("1.2.3")
+	s.SetUserCounter(&stubUserCounter{n: 42})
+	s.SetSearchCounter(&stubSearchCounter{n: 7})
+	s.SetDBSizer(&stubDBSizer{n: 1024})
+	s.RecordSuccess()
+	s.RecordListingsFound(10)
+	s.RecordFetch("yad2", 100*time.Millisecond, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	w := httptest.NewRecorder()
+	s.PublicHandler()(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if resp["status"] != "ok" {
+		t.Errorf("status = %q, want ok", resp["status"])
+	}
+	if resp["version"] != "1.2.3" {
+		t.Errorf("version = %q, want 1.2.3", resp["version"])
+	}
+
+	// Ensure no operational details leak
+	for _, key := range []string{
+		"active_users", "active_searches", "db_size_bytes", "db_size_mb",
+		"cycles", "errors", "listings_found", "notifications_sent",
+		"uptime", "last_success", "sources",
+	} {
+		if _, ok := resp[key]; ok {
+			t.Errorf("PublicHandler should not expose %q", key)
+		}
+	}
+}
+
+func TestPublicHandler_DegradedStatus(t *testing.T) {
+	s := New()
+	s.startTime = time.Now().Add(-10 * time.Minute)
+	s.MarkSchedulerStarted()
+	s.RecordError()
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	w := httptest.NewRecorder()
+	s.PublicHandler()(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 for degraded, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["status"] != "degraded" {
+		t.Errorf("status = %q, want degraded", resp["status"])
+	}
+}
+
 func TestStatus_NoSourcesBeforeFetch(t *testing.T) {
 	s := New()
 	snap := s.Snapshot()

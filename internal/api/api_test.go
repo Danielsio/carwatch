@@ -918,6 +918,78 @@ func TestListHistory(t *testing.T) {
 	}
 }
 
+func TestListListings_KmZeroIncluded(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	// Create a search with MaxKm filter
+	req := createSearchRequest{
+		Source:       "yad2",
+		Manufacturer: 19,
+		Model:        10226,
+		YearMin:      2018,
+		YearMax:      2024,
+		PriceMax:     200000,
+		MaxKm:        100000,
+	}
+	w := doRequest(t, srv, "POST", "/api/v1/searches", req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var created searchResponse
+	mustUnmarshal(t, w.Body.Bytes(), &created)
+
+	// Add a listing with km=0 (unknown)
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "km-zero", ChatID: 999, SearchID: created.ID,
+		SearchName: created.Name, Manufacturer: "Toyota", Model: "Corolla",
+		Year: 2020, Price: 120000, Km: 0, Hand: 2, City: "Tel Aviv",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Add a listing with km within range
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "km-ok", ChatID: 999, SearchID: created.ID,
+		SearchName: created.Name, Manufacturer: "Toyota", Model: "Corolla",
+		Year: 2020, Price: 120000, Km: 50000, Hand: 2, City: "Tel Aviv",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Add a listing with km over the limit
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "km-over", ChatID: 999, SearchID: created.ID,
+		SearchName: created.Name, Manufacturer: "Toyota", Model: "Corolla",
+		Year: 2020, Price: 120000, Km: 150000, Hand: 2, City: "Tel Aviv",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w = doRequest(t, srv, "GET", "/api/v1/searches/"+itoa(created.ID)+"/listings", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp listingsPageResponse
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	// Should include km=0 and km=50000, but not km=150000
+	if resp.Total != 2 {
+		t.Fatalf("expected 2 listings (km=0 included, km>max excluded), got %d", resp.Total)
+	}
+	tokens := make(map[string]bool)
+	for _, it := range resp.Items {
+		tokens[it.Token] = true
+	}
+	if !tokens["km-zero"] {
+		t.Error("expected km=0 listing to be included")
+	}
+	if !tokens["km-ok"] {
+		t.Error("expected km=50000 listing to be included")
+	}
+	if tokens["km-over"] {
+		t.Error("expected km=150000 listing to be excluded")
+	}
+}
+
 func TestHideUnhideListing(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()
@@ -1274,6 +1346,73 @@ func TestNotificationsMarkSeen(t *testing.T) {
 	mustUnmarshal(t, w.Body.Bytes(), &countResp)
 	if countResp.Count != 0 {
 		t.Errorf("expected 0 after mark seen, got %d", countResp.Count)
+	}
+}
+
+func TestSaveListing_LimitEnforced(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	// Fill up to the limit
+	for i := range maxSavedListings {
+		token := fmt.Sprintf("save-limit-%d", i)
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token: token, ChatID: 999, SearchName: "s1",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.SaveBookmark(ctx, 999, token); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Verify the limit is reached
+	count, err := store.CountSaved(ctx, 999)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != maxSavedListings {
+		t.Fatalf("expected %d saved, got %d", maxSavedListings, count)
+	}
+
+	// Create one more listing and try to save it
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "save-over-limit", ChatID: 999, SearchName: "s1",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := doRequest(t, srv, "POST", "/api/v1/listings/save-over-limit/save", nil)
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 when save limit exceeded, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHideListing_LimitEnforced(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	// Fill up to the limit
+	for i := range maxHiddenListings {
+		token := fmt.Sprintf("hide-limit-%d", i)
+		if err := store.HideListing(ctx, 999, token); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	count, err := store.CountHidden(ctx, 999)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != maxHiddenListings {
+		t.Fatalf("expected %d hidden, got %d", maxHiddenListings, count)
+	}
+
+	w := doRequest(t, srv, "POST", "/api/v1/listings/hide-over-limit/hide", nil)
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 when hide limit exceeded, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

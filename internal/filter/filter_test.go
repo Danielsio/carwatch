@@ -113,6 +113,38 @@ func TestApply(t *testing.T) {
 			want: []string{"a"},
 		},
 		{
+			name:     "model filter rejects ModelID=0",
+			criteria: model.FilterCriteria{ModelID: 42},
+			listings: []model.RawListing{
+				{Token: "a", ModelID: 0},
+			},
+			want: []string{},
+		},
+		{
+			name:     "no model filter accepts ModelID=0",
+			criteria: model.FilterCriteria{ModelID: 0},
+			listings: []model.RawListing{
+				{Token: "a", ModelID: 0},
+			},
+			want: []string{"a"},
+		},
+		{
+			name:     "model filter accepts matching ModelID",
+			criteria: model.FilterCriteria{ModelID: 42},
+			listings: []model.RawListing{
+				{Token: "a", ModelID: 42},
+			},
+			want: []string{"a"},
+		},
+		{
+			name:     "model filter rejects non-matching ModelID",
+			criteria: model.FilterCriteria{ModelID: 42},
+			listings: []model.RawListing{
+				{Token: "a", ModelID: 99},
+			},
+			want: []string{},
+		},
+		{
 			name:     "zero values disable all filters",
 			criteria: model.FilterCriteria{},
 			listings: []model.RawListing{

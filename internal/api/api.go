@@ -61,7 +61,8 @@ type Server struct {
 	vacuumMu     sync.Mutex
 	fetchers     *fetcher.Factory
 	priceListSvc *pricelist.Service
-	refreshMu    sync.Map
+	refreshMu        sync.Map
+	lastRefreshSweep atomic.Int64 // unix nano of last sweep
 
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
 	httpReqTotal   atomic.Uint64

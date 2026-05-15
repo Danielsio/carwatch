@@ -300,7 +300,7 @@ func buildFilterClauses(f storage.ListingFilter) (string, []any) {
 		args = append(args, f.YearMax)
 	}
 	if f.MaxKm > 0 {
-		clauses = append(clauses, "km > 0 AND km <= ?")
+		clauses = append(clauses, "(km <= ? OR km = 0)")
 		args = append(args, f.MaxKm)
 	}
 	if f.MaxHand > 0 {
@@ -394,7 +394,7 @@ func (s *Store) CountSearchListingsForChat(ctx context.Context, chatID int64) (m
 		  AND (s.price_max <= 0 OR lh.price <= s.price_max)
 		  AND (s.year_min <= 0 OR lh.year >= s.year_min)
 		  AND (s.year_max <= 0 OR lh.year <= s.year_max)
-		  AND (s.max_km <= 0 OR (lh.km > 0 AND lh.km <= s.max_km))
+		  AND (s.max_km <= 0 OR lh.km <= s.max_km OR lh.km = 0)
 		  AND (s.max_hand <= 0 OR lh.hand <= s.max_hand)
 		  AND CASE LOWER(TRIM(COALESCE(NULLIF(s.seller_filter, ''), 'any')))
 		    WHEN 'private' THEN lh.is_commercial = 0
