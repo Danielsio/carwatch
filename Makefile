@@ -1,6 +1,7 @@
 .PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
        vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
        vm-backup vm-backup-list vm-pg-shell vm-migrate-sqlite-to-pg \
+       vm-setup-backup vm-backup-status \
        web-install web-dev web-build \
        catalog-refresh
 
@@ -142,3 +143,22 @@ vm-migrate-sqlite-to-pg: vm-check-env
 	$(SSH) 'docker exec carwatch /bot -migrate-sqlite-to-pg \
 		-sqlite /data/carwatch.db \
 		-pg "postgres://carwatch:$${POSTGRES_PASSWORD}@postgres:5432/carwatch?sslmode=disable"'
+
+vm-setup-backup: vm-check-env
+	$(SSH) "mkdir -p $(VM_DIR)/scripts"
+	$(SCP) scripts/backup-pg.sh $(VM_USER)@$(VM_IP):$(VM_DIR)/scripts/backup-pg.sh
+	$(SCP) scripts/carwatch-backup.service $(VM_USER)@$(VM_IP):$(VM_DIR)/scripts/carwatch-backup.service
+	$(SCP) scripts/carwatch-backup.timer $(VM_USER)@$(VM_IP):$(VM_DIR)/scripts/carwatch-backup.timer
+	$(SSH) "chmod +x $(VM_DIR)/scripts/backup-pg.sh \
+		&& sudo cp $(VM_DIR)/scripts/carwatch-backup.service /etc/systemd/system/ \
+		&& sudo cp $(VM_DIR)/scripts/carwatch-backup.timer /etc/systemd/system/ \
+		&& sudo systemctl daemon-reload \
+		&& sudo systemctl enable --now carwatch-backup.timer \
+		&& echo 'Backup timer installed and enabled' \
+		&& systemctl list-timers carwatch-backup.timer"
+
+vm-backup-status: vm-check-env
+	$(SSH) "systemctl list-timers carwatch-backup.timer \
+		&& echo '---' \
+		&& echo 'Last 5 backups:' \
+		&& ls -lht ~/carwatch/backups/carwatch-backup-*.sql.gz 2>/dev/null | head -5 || echo 'No backups found'"
