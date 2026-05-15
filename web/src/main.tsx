@@ -10,6 +10,12 @@ import { ToastProvider, showGlobalToast } from "./components/ui/Toast";
 import { errorToHebrew } from "./lib/error-messages";
 import "./index.css";
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, Car, Zap, Trees, UserRound } from "lucide-react";
 import { useManufacturers, useModels } from "@/hooks/useCatalog";
 import { useCreateSearch } from "@/hooks/useSearches";
 import { formatPrice } from "@/lib/utils";
@@ -52,6 +52,48 @@ const SOURCE_OPTIONS = [
 
 const HAND_OPTIONS = [0, 1, 2, 3, 4];
 
+interface SearchPreset {
+  id: string;
+  title: string;
+  description: string;
+  icon: typeof Car;
+  values: Partial<FormData>;
+}
+
+function getPresets(): SearchPreset[] {
+  const currentYear = new Date().getFullYear();
+  return [
+    {
+      id: "family",
+      title: "רכב משפחתי",
+      description: "עד 6 שנים, עד 150,000 ₪",
+      icon: Car,
+      values: { yearMin: currentYear - 6, priceMax: 150_000 },
+    },
+    {
+      id: "first",
+      title: "רכב ראשון",
+      description: "עד 80,000 ₪",
+      icon: UserRound,
+      values: { priceMax: 80_000 },
+    },
+    {
+      id: "suv",
+      title: "SUV",
+      description: "עד 5 שנים, עד 200,000 ₪",
+      icon: Trees,
+      values: { yearMin: currentYear - 5, priceMax: 200_000 },
+    },
+    {
+      id: "hybrid",
+      title: "היברידי / חשמלי",
+      description: "עד 4 שנים",
+      icon: Zap,
+      values: { yearMin: currentYear - 4 },
+    },
+  ];
+}
+
 function formatKmLabel(value: number): string {
   if (value === 0) return "ללא הגבלה";
   return `${value.toLocaleString("he-IL")} ק"מ`;
@@ -82,11 +124,20 @@ export function NewSearchPage() {
     photoOnly: false,
   });
 
+  const [presetsHidden, setPresetsHidden] = useState(false);
+  const presets = useMemo(() => getPresets(), []);
+  const showPresets = !presetsHidden && form.manufacturer === 0;
+
   const { data: manufacturers } = useManufacturers();
   const { data: models } = useModels(form.manufacturer);
 
   const set = <K extends keyof FormData>(key: K, val: FormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
+
+  function applyPreset(preset: SearchPreset) {
+    setForm((prev) => ({ ...prev, ...preset.values }));
+    setPresetsHidden(true);
+  }
 
   const validYear = (y: number) => y === 0 || y >= 1990;
   const canSubmit =
@@ -148,6 +199,29 @@ export function NewSearchPage() {
         >
           {error}
         </div>
+      )}
+
+      {showPresets && (
+        <section aria-label="תבניות חיפוש מוכנות">
+          <h2 className="text-sm font-semibold text-foreground mb-3">התחל מתבנית</h2>
+          <div className="flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 snap-x snap-mandatory">
+            {presets.map((preset) => {
+              const Icon = preset.icon;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => applyPreset(preset)}
+                  className="flex-shrink-0 w-40 sm:w-auto snap-start rounded-2xl border border-border/50 bg-card p-4 text-start transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <Icon className="h-5 w-5 text-primary mb-2" />
+                  <p className="text-sm font-semibold text-foreground">{preset.title}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{preset.description}</p>
+                </button>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       <form onSubmit={handleFormSubmit} className="contents">
