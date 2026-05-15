@@ -138,6 +138,10 @@ export interface Listing {
   seen?: boolean;
   /** From Yad2 bucket: true = dealer/commercial, false = private, absent when unknown. */
   is_commercial?: boolean | null;
+  /** Set when the listing disappeared from the source but is bookmarked (likely sold). */
+  removed_at?: string;
+  /** Reasons the listing was flagged as suspicious. */
+  suspicious_reasons?: string[];
 }
 
 export interface SearchStatsResponse {

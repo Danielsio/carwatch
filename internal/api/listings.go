@@ -40,6 +40,10 @@ type listingResponse struct {
 	Seen bool `json:"seen,omitempty"`
 	// IsCommercial: omitted when unknown; false = private seller; true = dealer/commercial.
 	IsCommercial *bool `json:"is_commercial,omitempty"`
+	// RemovedAt: set when the listing disappeared from the source but is bookmarked.
+	RemovedAt *string `json:"removed_at,omitempty"`
+	// SuspiciousReasons: reasons the listing was flagged as suspicious.
+	SuspiciousReasons []string `json:"suspicious_reasons,omitempty"`
 }
 
 type listingsPageResponse struct {
@@ -309,7 +313,7 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		seenFlag = true
 	}
 
-	writeJSON(w, http.StatusOK, listingResponse{
+	resp := listingResponse{
 		Token:        l.Token,
 		SearchName:   l.SearchName,
 		Manufacturer: l.Manufacturer,
@@ -336,7 +340,12 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		Saved:        savedFlag,
 		Seen:         seenFlag,
 		IsCommercial: l.IsCommercial,
-	})
+	}
+	if l.RemovedAt != nil {
+		s := l.RemovedAt.UTC().Format("2006-01-02T15:04:05Z")
+		resp.RemovedAt = &s
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func listingFilterFromSearch(sr *storage.Search) storage.ListingFilter {

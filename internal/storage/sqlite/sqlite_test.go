@@ -3384,6 +3384,115 @@ func TestDeleteStaleListings_EmptyKeepTokens(t *testing.T) {
 	}
 }
 
+func TestDeleteStaleListings_SetsRemovedAtOnBookmarked(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSearch: %v", err)
+	}
+
+	for _, tok := range []string{"keep", "stale-saved", "stale-unsaved"} {
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token: tok, ChatID: 100, SearchID: searchID, SearchName: "test",
+			Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000,
+		}); err != nil {
+			t.Fatalf("SaveListing %s: %v", tok, err)
+		}
+	}
+
+	if err := store.SaveBookmark(ctx, 100, "stale-saved"); err != nil {
+		t.Fatalf("SaveBookmark: %v", err)
+	}
+
+	removed, err := store.DeleteStaleListings(ctx, 100, searchID, []string{"keep"})
+	if err != nil {
+		t.Fatalf("DeleteStaleListings: %v", err)
+	}
+	if removed != 1 {
+		t.Errorf("expected 1 removed (only unsaved stale), got %d", removed)
+	}
+
+	// Bookmarked stale listing should have removed_at set.
+	saved, err := store.GetListing(ctx, 100, "stale-saved")
+	if err != nil {
+		t.Fatalf("GetListing stale-saved: %v", err)
+	}
+	if saved == nil {
+		t.Fatal("bookmarked listing should survive deletion")
+	}
+	if saved.RemovedAt == nil {
+		t.Error("bookmarked stale listing should have removed_at set")
+	}
+
+	// Kept listing should not have removed_at set.
+	kept, err := store.GetListing(ctx, 100, "keep")
+	if err != nil {
+		t.Fatalf("GetListing keep: %v", err)
+	}
+	if kept == nil {
+		t.Fatal("kept listing should still exist")
+	}
+	if kept.RemovedAt != nil {
+		t.Error("kept listing should not have removed_at set")
+	}
+}
+
+func TestDeleteStaleListings_RemovedAtClearedOnReInsert(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Manufacturer: 1, Model: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSearch: %v", err)
+	}
+
+	// Save and bookmark a listing.
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 100, SearchID: searchID, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000,
+	}); err != nil {
+		t.Fatalf("SaveListing: %v", err)
+	}
+	if err := store.SaveBookmark(ctx, 100, "tok1"); err != nil {
+		t.Fatalf("SaveBookmark: %v", err)
+	}
+
+	// Delete stale listings - tok1 should get removed_at.
+	if _, err := store.DeleteStaleListings(ctx, 100, searchID, nil); err != nil {
+		t.Fatalf("DeleteStaleListings: %v", err)
+	}
+	l, _ := store.GetListing(ctx, 100, "tok1")
+	if l == nil || l.RemovedAt == nil {
+		t.Fatal("expected removed_at to be set after stale deletion")
+	}
+
+	// Re-save the listing (listing reappeared) - removed_at should be cleared.
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "tok1", ChatID: 100, SearchID: searchID, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 85000,
+	}); err != nil {
+		t.Fatalf("SaveListing re-insert: %v", err)
+	}
+	l, _ = store.GetListing(ctx, 100, "tok1")
+	if l == nil {
+		t.Fatal("listing should exist after re-insert")
+	}
+	if l.RemovedAt != nil {
+		t.Error("removed_at should be cleared after re-insert (listing reappeared)")
+	}
+	if l.Price != 85000 {
+		t.Errorf("price should be updated to 85000, got %d", l.Price)
+	}
+}
+
 func TestUpsertUser_ReactivatesInactiveUser(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

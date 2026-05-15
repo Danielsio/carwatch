@@ -47,9 +47,10 @@ type FitnessDim struct {
 
 type Listing struct {
 	RawListing
-	SearchName       string
-	DealScore        *ScoreInfo
-	FitnessScore     float64
-	FitnessBreakdown []FitnessDim
-	BasePrice        *int
+	SearchName         string
+	DealScore          *ScoreInfo
+	FitnessScore       float64
+	FitnessBreakdown   []FitnessDim
+	BasePrice          *int
+	SuspiciousReasons  []string `json:"suspicious_reasons,omitempty"`
 }

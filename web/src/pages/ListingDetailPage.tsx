@@ -16,6 +16,7 @@ import {
   Zap,
   Eye,
   EyeOff,
+  AlertTriangle,
 } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, safeHref, marketComparison, cn } from "@/lib/utils";
 import { api, ApiError } from "@/lib/api";
@@ -166,6 +167,32 @@ function ListingDetailContent({
   return (
     <div className="space-y-6">
       {backButton}
+
+      {listing.removed_at ? (
+        <div className="rounded-2xl border border-border/50 bg-muted/50 p-4 text-sm text-muted-foreground">
+          {"המודעה הוסרה מהאתר — ככל הנראה הרכב נמכר."}
+        </div>
+      ) : null}
+
+      {listing.suspicious_reasons && listing.suspicious_reasons.length > 0 ? (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-1.5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-4 w-4" />
+            {"מודעה חשודה"}
+          </div>
+          <ul className="list-disc list-inside text-xs text-amber-700/80 dark:text-amber-400/80 space-y-0.5">
+            {listing.suspicious_reasons.map((reason) => (
+              <li key={reason}>
+                {reason === "price_below_market"
+                  ? "המחיר נמוך משמעותית ממחיר השוק"
+                  : reason === "no_photo_low_price"
+                    ? "אין תמונה והמחיר נמוך"
+                    : reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {/* Hero image */}
       {listing.image_url ? (

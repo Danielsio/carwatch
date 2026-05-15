@@ -161,6 +161,9 @@ type ListingRecord struct {
 	DealScore    *int
 	BasePrice    *int
 	FirstSeenAt  time.Time
+	// RemovedAt: non-nil when the listing disappeared from the source but was
+	// preserved because it is bookmarked ("likely sold").
+	RemovedAt *time.Time
 }
 
 type PricePoint struct {
