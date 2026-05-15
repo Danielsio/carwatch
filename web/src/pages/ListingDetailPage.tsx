@@ -27,6 +27,7 @@ import { useMarkListingSeen, useUnmarkListingSeen } from "@/hooks/useListingSeen
 import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PriceHistoryChart } from "@/components/PriceHistoryChart";
 
 export function ListingDetailPage() {
   const location = useLocation();
@@ -237,6 +238,9 @@ function ListingDetailContent({
         basePrice={listing.base_price}
         cohortSize={listing.cohort_size}
       />
+
+      {/* Price history chart */}
+      <PriceHistoryChart token={listing.token} currentPrice={listing.price} />
 
       {/* Vehicle specs grid */}
       {hasVehicleSpecs && (
