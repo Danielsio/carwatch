@@ -319,10 +319,12 @@ func buildFilterCriteria(search storage.Search) model.FilterCriteria {
 		ModelID:     search.Model,
 		YearMin:     search.YearMin,
 		YearMax:     search.YearMax,
+		PriceMin:    search.PriceMin,
 		PriceMax:    search.PriceMax,
 		EngineMinCC: float64(search.EngineMinCC),
 		MaxKm:       search.MaxKm,
 		MaxHand:     search.MaxHand,
+		GearBox:     search.GearBox,
 		PriceOnly:   search.PriceOnly,
 		PhotoOnly:   search.PhotoOnly,
 	}

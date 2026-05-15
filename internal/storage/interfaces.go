@@ -40,6 +40,7 @@ type Search struct {
 	Model        int
 	YearMin      int
 	YearMax      int
+	PriceMin     int
 	PriceMax     int
 	EngineMinCC  int
 	MaxKm        int
@@ -48,6 +49,7 @@ type Search struct {
 	ExcludeKeys  string
 	// SellerFilter: any (default), private (מוכר פרטי), commercial (מוסך/סוכנות).
 	SellerFilter string
+	GearBox      string
 	PriceOnly    bool
 	PhotoOnly    bool
 	Active       bool
@@ -208,6 +210,7 @@ type EnrichmentRecord struct {
 // ListingFilter restricts which listing_history rows are returned.
 // Zero values are ignored (no constraint applied for that field).
 type ListingFilter struct {
+	PriceMin int
 	PriceMax int
 	YearMin  int
 	YearMax  int
@@ -215,6 +218,7 @@ type ListingFilter struct {
 	MaxHand  int
 	// Commercial: non-nil restricts to private (false) or commercial/dealer (true).
 	Commercial *bool
+	GearBox    string
 	PriceOnly  bool
 	PhotoOnly  bool
 }

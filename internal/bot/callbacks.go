@@ -98,6 +98,7 @@ func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 		Model:        src.Model,
 		YearMin:      src.YearMin,
 		YearMax:      src.YearMax,
+		PriceMin:     src.PriceMin,
 		PriceMax:     src.PriceMax,
 		EngineMinCC:  src.EngineMinCC,
 		MaxKm:        src.MaxKm,
@@ -105,6 +106,7 @@ func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 		Keywords:     src.Keywords,
 		ExcludeKeys:  src.ExcludeKeys,
 		SellerFilter: src.SellerFilter,
+		GearBox:      src.GearBox,
 	})
 	if err != nil {
 		b.logger.Error("clone search failed", "error", err)

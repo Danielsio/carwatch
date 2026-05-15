@@ -39,6 +39,7 @@ func GroupSearches(searches []storage.Search) []CanonicalGroup {
 						Model:        s.Model,
 						YearMin:      s.YearMin,
 						YearMax:      s.YearMax,
+						PriceMin:     s.PriceMin,
 						PriceMax:     s.PriceMax,
 						MaxKm:        s.MaxKm,
 						MaxHand:      s.MaxHand,
@@ -54,6 +55,12 @@ func GroupSearches(searches []storage.Search) []CanonicalGroup {
 			if g.Params.YearMax == 0 || s.YearMax > g.Params.YearMax {
 				g.Params.YearMax = s.YearMax
 			}
+			if s.PriceMin == 0 || g.Params.PriceMin == 0 {
+				g.Params.PriceMin = 0
+			} else if s.PriceMin < g.Params.PriceMin {
+				g.Params.PriceMin = s.PriceMin
+			}
+
 			if s.PriceMax == 0 || g.Params.PriceMax == 0 {
 				g.Params.PriceMax = 0
 			} else if s.PriceMax > g.Params.PriceMax {

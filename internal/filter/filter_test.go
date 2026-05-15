@@ -224,6 +224,75 @@ func TestApply(t *testing.T) {
 			},
 			want: []string{"a"},
 		},
+		// --- PriceMin tests ---
+		{
+			name:     "price min zero disables filter",
+			criteria: model.FilterCriteria{PriceMin: 0},
+			listings: []model.RawListing{
+				{Token: "a", Price: 5000},
+				{Token: "b", Price: 0},
+			},
+			want: []string{"a", "b"},
+		},
+		{
+			name:     "price min with listing price zero passes",
+			criteria: model.FilterCriteria{PriceMin: 50000},
+			listings: []model.RawListing{
+				{Token: "a", Price: 0},
+				{Token: "b", Price: 100000},
+			},
+			want: []string{"a", "b"},
+		},
+		{
+			name:     "price min rejects listing below threshold",
+			criteria: model.FilterCriteria{PriceMin: 50000},
+			listings: []model.RawListing{
+				{Token: "a", Price: 30000},
+				{Token: "b", Price: 50000},
+				{Token: "c", Price: 100000},
+			},
+			want: []string{"b", "c"},
+		},
+		// --- GearBox tests ---
+		{
+			name:     "gearbox filter matches case insensitive",
+			criteria: model.FilterCriteria{GearBox: "אוטומט"},
+			listings: []model.RawListing{
+				{Token: "a", GearBox: "אוטומט"},
+				{Token: "b", GearBox: "ידני"},
+			},
+			want: []string{"a"},
+		},
+		{
+			name:     "gearbox filter empty passes all",
+			criteria: model.FilterCriteria{GearBox: ""},
+			listings: []model.RawListing{
+				{Token: "a", GearBox: "אוטומט"},
+				{Token: "b", GearBox: "ידני"},
+				{Token: "c", GearBox: ""},
+			},
+			want: []string{"a", "b", "c"},
+		},
+		{
+			name:     "gearbox filter passes when listing gearbox is empty",
+			criteria: model.FilterCriteria{GearBox: "אוטומט"},
+			listings: []model.RawListing{
+				{Token: "a", GearBox: ""},
+				{Token: "b", GearBox: "אוטומט"},
+				{Token: "c", GearBox: "ידני"},
+			},
+			want: []string{"a", "b"},
+		},
+		{
+			name:     "gearbox filter case insensitive latin",
+			criteria: model.FilterCriteria{GearBox: "Automatic"},
+			listings: []model.RawListing{
+				{Token: "a", GearBox: "automatic"},
+				{Token: "b", GearBox: "AUTOMATIC"},
+				{Token: "c", GearBox: "manual"},
+			},
+			want: []string{"a", "b"},
+		},
 	}
 
 	for _, tt := range tests {

@@ -20,6 +20,7 @@ interface FormData {
   model: number;
   yearMin: number;
   yearMax: number;
+  priceMin: number;
   priceMax: number;
   engineMinCC: number;
   maxKm: number;
@@ -27,6 +28,7 @@ interface FormData {
   keywords: string;
   excludeKeys: string;
   sellerFilter: "any" | "private" | "commercial";
+  gearBox: string;
   priceOnly: boolean;
   photoOnly: boolean;
 }
@@ -35,6 +37,12 @@ const SELLER_FILTER_OPTIONS: { value: FormData["sellerFilter"]; label: string }[
   { value: "any", label: "הכל" },
   { value: "private", label: "מוכר פרטי" },
   { value: "commercial", label: "מוסך / סוכנות" },
+];
+
+const GEARBOX_OPTIONS = [
+  { value: "", label: "הכל" },
+  { value: "אוטומט", label: "אוטומט" },
+  { value: "ידני", label: "ידני" },
 ];
 
 const SOURCE_OPTIONS = [
@@ -61,6 +69,7 @@ export function NewSearchPage() {
     model: 0,
     yearMin: 2018,
     yearMax: new Date().getFullYear(),
+    priceMin: 0,
     priceMax: 0,
     engineMinCC: 0,
     maxKm: 0,
@@ -68,6 +77,7 @@ export function NewSearchPage() {
     keywords: "",
     excludeKeys: "",
     sellerFilter: "any",
+    gearBox: "",
     priceOnly: false,
     photoOnly: false,
   });
@@ -100,6 +110,7 @@ export function NewSearchPage() {
         model: form.model,
         year_min: form.yearMin,
         year_max: form.yearMax,
+        price_min: form.priceMin || undefined,
         price_max: form.priceMax,
         engine_min_cc: form.engineMinCC || undefined,
         max_km: form.maxKm,
@@ -107,6 +118,7 @@ export function NewSearchPage() {
         keywords: form.keywords || undefined,
         exclude_keys: form.excludeKeys || undefined,
         seller_filter: form.sellerFilter,
+        gear_box: form.gearBox || undefined,
         price_only: form.priceOnly || undefined,
         photo_only: form.photoOnly || undefined,
       },
@@ -295,6 +307,21 @@ export function NewSearchPage() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
+            label="מחיר מינימום (₪)"
+            htmlFor="priceMin"
+            hint={form.priceMin > 0 ? formatPrice(form.priceMin) : undefined}
+          >
+            <Input
+              id="priceMin"
+              type="number"
+              value={form.priceMin || ""}
+              onChange={(e) => set("priceMin", Number(e.target.value))}
+              placeholder="ללא הגבלה"
+              className="tabular-nums"
+            />
+          </FormField>
+
+          <FormField
             label="מחיר מקסימום (₪)"
             htmlFor="priceMax"
             hint={form.priceMax > 0 ? formatPrice(form.priceMax) : undefined}
@@ -308,7 +335,9 @@ export function NewSearchPage() {
               className="tabular-nums"
             />
           </FormField>
+        </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             label='נפח מנוע מינימלי (סמ"ק)'
             htmlFor="engineMinCC"
@@ -322,6 +351,20 @@ export function NewSearchPage() {
               placeholder="ללא הגבלה"
               className="tabular-nums"
             />
+          </FormField>
+
+          <FormField label="תיבת הילוכים" htmlFor="gearBox">
+            <div className="flex flex-wrap gap-2">
+              {GEARBOX_OPTIONS.map((opt) => (
+                <ChipButton
+                  key={opt.value}
+                  selected={form.gearBox === opt.value}
+                  onClick={() => set("gearBox", opt.value)}
+                >
+                  {opt.label}
+                </ChipButton>
+              ))}
+            </div>
           </FormField>
         </div>
 

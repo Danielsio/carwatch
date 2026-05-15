@@ -49,6 +49,8 @@ const (
 	cbHiddenPage      = "hidden_pg:"
 	cbSkipKeywords    = "skip_keywords"
 	cbSkipExcludeKeys = "skip_exclude_keys"
+	cbSkipPriceMin    = "skip_price_min"
+	cbPrefixGearBox   = "gearbox:"
 	cbDailyDigestOn   = "daily_digest:on"
 	cbDailyDigestOff  = "daily_digest:off"
 
@@ -309,6 +311,18 @@ func maxHandKeyboard(lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	}
 }
 
+func gearBoxKeyboard(lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
+	return &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+			{
+				{Text: locale.T(lang, "btn_gearbox_any"), CallbackData: cbPrefixGearBox + "any"},
+				{Text: locale.T(lang, "btn_gearbox_auto"), CallbackData: cbPrefixGearBox + "אוטומט"},
+				{Text: locale.T(lang, "btn_gearbox_manual"), CallbackData: cbPrefixGearBox + "ידני"},
+			},
+		},
+	}
+}
+
 func skipKeyboard(cbData string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	return &tgmodels.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
@@ -375,6 +389,12 @@ func confirmKeyboard(data WizardData, lang locale.Lang) (*tgmodels.InlineKeyboar
 		handStr,
 	)
 
+	if data.PriceMin > 0 {
+		summary += locale.Tf(lang, "wizard_confirm_price_min", format.Number(data.PriceMin))
+	}
+	if data.GearBox != "" {
+		summary += locale.Tf(lang, "wizard_confirm_gearbox", data.GearBox)
+	}
 	if data.Keywords != "" {
 		summary += locale.Tf(lang, "wizard_confirm_keywords", format.EscapeMarkdown(data.Keywords))
 	}

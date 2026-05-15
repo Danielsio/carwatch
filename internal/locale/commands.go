@@ -169,6 +169,11 @@ var heCommands = map[string]string{
 	// engine options
 	"btn_any_engine": "כל מנוע",
 
+	// gearbox options
+	"btn_gearbox_any":    "הכל",
+	"btn_gearbox_auto":   "אוטומט",
+	"btn_gearbox_manual": "ידני",
+
 	// km options
 	"btn_any": "כלשהו",
 
@@ -442,6 +447,11 @@ var enCommands = map[string]string{
 
 	// engine options
 	"btn_any_engine": "Any engine",
+
+	// gearbox options
+	"btn_gearbox_any":    "Any",
+	"btn_gearbox_auto":   "Automatic",
+	"btn_gearbox_manual": "Manual",
 
 	// km options
 	"btn_any": "Any",

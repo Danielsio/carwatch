@@ -293,6 +293,10 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 func buildFilterClauses(f storage.ListingFilter) (string, []any) {
 	var clauses []string
 	var args []any
+	if f.PriceMin > 0 {
+		clauses = append(clauses, "(price >= ? OR price = 0)")
+		args = append(args, f.PriceMin)
+	}
 	if f.PriceMax > 0 {
 		clauses = append(clauses, "price <= ?")
 		args = append(args, f.PriceMax)
@@ -319,6 +323,10 @@ func buildFilterClauses(f storage.ListingFilter) (string, []any) {
 		} else {
 			clauses = append(clauses, "is_commercial = 0")
 		}
+	}
+	if f.GearBox != "" {
+		clauses = append(clauses, "LOWER(gear_box) = LOWER(?)")
+		args = append(args, f.GearBox)
 	}
 	if f.PriceOnly {
 		clauses = append(clauses, "price > 0")
@@ -397,6 +405,7 @@ func (s *Store) CountSearchListingsForChat(ctx context.Context, chatID int64) (m
 		FROM listing_history lh
 		INNER JOIN searches s ON s.id = lh.search_id AND s.chat_id = lh.chat_id
 		WHERE lh.chat_id = ?
+		  AND (COALESCE(s.price_min, 0) <= 0 OR lh.price >= s.price_min OR lh.price = 0)
 		  AND (s.price_max <= 0 OR lh.price <= s.price_max)
 		  AND (s.year_min <= 0 OR lh.year >= s.year_min)
 		  AND (s.year_max <= 0 OR lh.year <= s.year_max)
@@ -409,6 +418,7 @@ func (s *Store) CountSearchListingsForChat(ctx context.Context, chatID int64) (m
 		    WHEN 'dealership' THEN lh.is_commercial = 1
 		    ELSE 1
 		  END
+		  AND (COALESCE(s.gear_box, '') = '' OR LOWER(lh.gear_box) = LOWER(s.gear_box))
 		  AND (NOT s.price_only OR lh.price > 0)
 		  AND (NOT s.photo_only OR lh.image_url != '')
 		GROUP BY lh.search_id`, chatID)

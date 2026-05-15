@@ -118,6 +118,7 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 			Model:        sr.Model,
 			YearMin:      sr.YearMin,
 			YearMax:      sr.YearMax,
+			PriceMin:     sr.PriceMin,
 			PriceMax:     sr.PriceMax,
 			MaxKm:        sr.MaxKm,
 			MaxHand:      sr.MaxHand,
@@ -242,10 +243,12 @@ func buildFilterCriteriaFromSearch(sr *storage.Search) model.FilterCriteria {
 		ModelID:     sr.Model,
 		YearMin:     sr.YearMin,
 		YearMax:     sr.YearMax,
+		PriceMin:    sr.PriceMin,
 		PriceMax:    sr.PriceMax,
 		EngineMinCC: float64(sr.EngineMinCC),
 		MaxKm:       sr.MaxKm,
 		MaxHand:     sr.MaxHand,
+		GearBox:     sr.GearBox,
 		PriceOnly:   sr.PriceOnly,
 		PhotoOnly:   sr.PhotoOnly,
 	}
@@ -338,11 +341,13 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 
 func listingFilterFromSearch(sr *storage.Search) storage.ListingFilter {
 	f := storage.ListingFilter{
+		PriceMin:  sr.PriceMin,
 		PriceMax:  sr.PriceMax,
 		YearMin:   sr.YearMin,
 		YearMax:   sr.YearMax,
 		MaxKm:     sr.MaxKm,
 		MaxHand:   sr.MaxHand,
+		GearBox:   sr.GearBox,
 		PriceOnly: sr.PriceOnly,
 		PhotoOnly: sr.PhotoOnly,
 	}
