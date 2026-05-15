@@ -1479,3 +1479,61 @@ func TestMarkListingUserSeen(t *testing.T) {
 		t.Errorf("expected count 1 after unmark, got %d", countResp.Count)
 	}
 }
+
+func TestSearchStats(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	// Create a search
+	w := doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{
+		Source: "yad2", Manufacturer: 19, Model: 10226,
+		YearMin: 2018, YearMax: 2024, PriceMax: 200000,
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var created searchResponse
+	mustUnmarshal(t, w.Body.Bytes(), &created)
+
+	// Add listings
+	for i, price := range []int{80000, 100000, 120000} {
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token: fmt.Sprintf("stats-tok%d", i), ChatID: 999,
+			SearchID: created.ID, SearchName: created.Name,
+			Manufacturer: "Toyota", Model: "Corolla",
+			Year: 2021, Price: price,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Get stats
+	w = doRequest(t, srv, "GET", fmt.Sprintf("/api/v1/searches/%d/stats", created.ID), nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("stats: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var stats storage.SearchStats
+	mustUnmarshal(t, w.Body.Bytes(), &stats)
+	if stats.Total != 3 {
+		t.Errorf("Total = %d, want 3", stats.Total)
+	}
+	if stats.MinPrice != 80000 {
+		t.Errorf("MinPrice = %d, want 80000", stats.MinPrice)
+	}
+	if stats.MaxPrice != 120000 {
+		t.Errorf("MaxPrice = %d, want 120000", stats.MaxPrice)
+	}
+	if stats.AvgPrice != 100000 {
+		t.Errorf("AvgPrice = %f, want 100000", stats.AvgPrice)
+	}
+}
+
+func TestSearchStats_NotFound(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "GET", "/api/v1/searches/99999/stats", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}

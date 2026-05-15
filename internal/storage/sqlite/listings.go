@@ -439,6 +439,34 @@ func (s *Store) CountSearchListingsForChat(ctx context.Context, chatID int64) (m
 	return out, rows.Err()
 }
 
+func (s *Store) SearchStats(ctx context.Context, chatID int64, searchID int64) (*storage.SearchStats, error) {
+	var st storage.SearchStats
+	var avgPrice, minPrice, maxPrice sql.NullFloat64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT
+			COUNT(*) AS total,
+			COUNT(CASE WHEN first_seen_at > datetime('now', '-1 day') THEN 1 END) AS new_24h,
+			AVG(CASE WHEN price > 0 THEN price END) AS avg_price,
+			MIN(CASE WHEN price > 0 THEN price END) AS min_price,
+			MAX(CASE WHEN price > 0 THEN price END) AS max_price
+		FROM listing_history
+		WHERE search_id = ? AND chat_id = ?`, searchID, chatID).
+		Scan(&st.Total, &st.New24h, &avgPrice, &minPrice, &maxPrice)
+	if err != nil {
+		return nil, fmt.Errorf("search stats: %w", err)
+	}
+	if avgPrice.Valid {
+		st.AvgPrice = avgPrice.Float64
+	}
+	if minPrice.Valid {
+		st.MinPrice = int(minPrice.Float64)
+	}
+	if maxPrice.Valid {
+		st.MaxPrice = int(maxPrice.Float64)
+	}
+	return &st, nil
+}
+
 func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
 	result, err := s.db.ExecContext(ctx, `

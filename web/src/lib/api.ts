@@ -140,6 +140,14 @@ export interface Listing {
   is_commercial?: boolean | null;
 }
 
+export interface SearchStatsResponse {
+  total: number;
+  new_24h: number;
+  avg_price: number;
+  min_price: number;
+  max_price: number;
+}
+
 export interface ListingsResponse {
   items: Listing[];
   total: number;
@@ -189,6 +197,8 @@ export const api = {
       fetchAPI<void>(`/searches/${id}/pause`, { method: "POST" }),
     resume: (id: number) =>
       fetchAPI<void>(`/searches/${id}/resume`, { method: "POST" }),
+    stats: (id: number) =>
+      fetchAPI<SearchStatsResponse>(`/searches/${id}/stats`),
   },
   listing: (token: string) => fetchAPI<Listing>(`/listings/${encodeURIComponent(token)}`),
   markListingSeen: (token: string) =>

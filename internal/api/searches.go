@@ -485,6 +485,45 @@ func (s *Server) deleteSearch(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) searchStats(w http.ResponseWriter, r *http.Request) {
+	chatID, okChat := requireChatID(w, r)
+	if !okChat {
+		return
+	}
+	id, ok := parsePathID(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid search id")
+		return
+	}
+
+	log := s.handlerLogger(r, "op", "search_stats", "search_id", id)
+
+	sr, err := s.searches.GetSearch(r.Context(), id, chatID)
+	if err != nil {
+		log.Error("get search for stats failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get search")
+		return
+	}
+	if sr == nil {
+		writeError(w, http.StatusNotFound, "search not found")
+		return
+	}
+
+	if s.listings == nil {
+		writeError(w, http.StatusServiceUnavailable, "listing store not available")
+		return
+	}
+
+	stats, err := s.listings.SearchStats(r.Context(), chatID, id)
+	if err != nil {
+		log.Error("search stats query failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get search stats")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, stats)
+}
+
 func (s *Server) pauseSearch(w http.ResponseWriter, r *http.Request) {
 	s.setSearchActive(w, r, false)
 }
