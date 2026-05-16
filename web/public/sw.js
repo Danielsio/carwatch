@@ -1,4 +1,4 @@
-const CACHE_NAME = 'carwatch-v2';
+const CACHE_NAME = 'carwatch-v3';
 const STATIC_ASSETS = ['/manifest.json'];
 
 self.addEventListener('install', (event) => {
@@ -20,14 +20,20 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Only handle same-origin requests — let cross-origin (fonts, images,
-  // Firebase, Google APIs) pass through to the browser's default handler
-  // so they are not blocked by CSP connect-src restrictions.
   if (url.origin !== self.location.origin) {
     return;
   }
 
   if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Navigation requests and hashed assets (e.g. /assets/Foo-abc123.js):
+  // always go network-first so deploys take effect immediately.
+  if (event.request.mode === 'navigate' || url.pathname.startsWith('/assets/')) {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
     );

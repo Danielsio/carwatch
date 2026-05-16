@@ -87,10 +87,10 @@ export default function App() {
   return (
     <Suspense fallback={<PageFallback />}>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/try" element={<Suspense fallback={<PageFallback />}><TrySearchPage /></Suspense>} />
+        <Route path="/" element={<RouteGuard><LandingPage /></RouteGuard>} />
+        <Route path="/login" element={<RouteGuard><LoginPage /></RouteGuard>} />
+        <Route path="/signup" element={<RouteGuard><SignupPage /></RouteGuard>} />
+        <Route path="/try" element={<RouteGuard><Suspense fallback={<PageFallback />}><TrySearchPage /></Suspense></RouteGuard>} />
         <Route element={<ProtectedRoute />}>
           <Route element={<Shell />}>
             <Route path="/dashboard" element={<RouteGuard><SearchesPage /></RouteGuard>} />
@@ -105,7 +105,7 @@ export default function App() {
             <Route path="/notifications" element={<RouteGuard><NotificationsPage /></RouteGuard>} />
           </Route>
         </Route>
-        <Route path="*" element={<NotFoundPage />} />
+        <Route path="*" element={<RouteGuard><NotFoundPage /></RouteGuard>} />
       </Routes>
     </Suspense>
   );
