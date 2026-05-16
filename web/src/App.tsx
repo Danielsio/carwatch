@@ -49,6 +49,7 @@ const EditSearchPage = lazy(() =>
     default: m.EditSearchPage,
   })),
 );
+const TrySearchPage = lazy(() => import("./pages/TrySearchPage"));
 const NotFoundPage = lazy(() =>
   import("./pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })),
 );
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/try" element={<Suspense fallback={<PageFallback />}><TrySearchPage /></Suspense>} />
         <Route element={<ProtectedRoute />}>
           <Route element={<Shell />}>
             <Route path="/dashboard" element={<RouteGuard><SearchesPage /></RouteGuard>} />

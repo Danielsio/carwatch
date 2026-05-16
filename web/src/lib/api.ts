@@ -520,4 +520,56 @@ export const telegramApi = {
     fetchAPI<TelegramLinkResponse>("/telegram/link", { method: "POST" }),
 };
 
+async function fetchGuestAPI<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers = new Headers(options?.headers);
+  if (!headers.has("Content-Type") && options?.body) {
+    headers.set("Content-Type", "application/json");
+  }
+  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Unknown error" }));
+    throw new ApiError(res.status, body.error);
+  }
+  return res.json();
+}
+
+export interface InstantSearchRequest {
+  source: string;
+  manufacturer: number;
+  model: number;
+  year_min?: number;
+  year_max?: number;
+  price_min?: number;
+  price_max?: number;
+  max_km?: number;
+  max_hand?: number;
+  engine_min_cc?: number;
+  gear_box?: string;
+  price_only?: boolean;
+  photo_only?: boolean;
+}
+
+export interface InstantSearchResponse {
+  items: Listing[];
+  total: number;
+}
+
+export const guestApi = {
+  instantSearch: (data: InstantSearchRequest) =>
+    fetchGuestAPI<InstantSearchResponse>("/guest/instant-search", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  catalog: {
+    manufacturers: (q?: string) =>
+      fetchGuestAPI<Manufacturer[]>(
+        `/catalog/manufacturers${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+      ),
+    models: (mfrId: number, q?: string) =>
+      fetchGuestAPI<Model[]>(
+        `/catalog/manufacturers/${mfrId}/models${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+      ),
+  },
+};
+
 export { ApiError };

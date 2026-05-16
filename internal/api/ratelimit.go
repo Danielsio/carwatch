@@ -233,6 +233,17 @@ func (s *Server) withIPRateLimit(next http.Handler) http.Handler {
 	})
 }
 
+func (s *Server) withGuestRateLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := extractIP(r, s.guestRL.trustProxy)
+		if !s.guestRL.allow(ip) {
+			writeError(w, http.StatusTooManyRequests, "guest rate limit exceeded")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (rl *rateLimiter) cleanup(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()

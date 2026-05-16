@@ -99,6 +99,12 @@ export function HeroSection() {
             התחל לעקוב עכשיו
             <ArrowLeft size={18} />
           </Link>
+          <Link
+            to="/try"
+            className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 px-6 py-3.5 text-sm font-medium text-primary transition-colors hover:border-primary/50 hover:bg-primary/10"
+          >
+            נסה חיפוש חינם
+          </Link>
           <a
             href="#how"
             className="flex items-center gap-2 rounded-2xl border border-border px-6 py-3.5 text-sm font-medium text-muted-foreground transition-colors hover:border-border/80 hover:bg-secondary/50 hover:text-foreground"
