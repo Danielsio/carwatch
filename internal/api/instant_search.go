@@ -190,12 +190,6 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 		result := scoring.FitnessScoreDetailed(fp)
 		sl.fitness = result.Total
 
-		if s.priceListSvc != nil && l.SubModelID > 0 && l.Year > 0 {
-			if bp, ok := s.priceListSvc.Lookup(ctx, l.SubModelID, l.Year, l.Token); ok && bp > 0 {
-				sl.basePrice = &bp
-			}
-		}
-
 		scored = append(scored, sl)
 	}
 
@@ -205,6 +199,19 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 
 	if len(scored) > instantSearchMaxResults {
 		scored = scored[:instantSearchMaxResults]
+	}
+
+	// Enrich only the top results with pricelist base price to avoid
+	// unnecessary external lookups for listings that won't be returned.
+	if s.priceListSvc != nil {
+		for i := range scored {
+			l := scored[i].listing
+			if l.SubModelID > 0 && l.Year > 0 {
+				if bp, ok := s.priceListSvc.Lookup(ctx, l.SubModelID, l.Year, l.Token); ok && bp > 0 {
+					scored[i].basePrice = &bp
+				}
+			}
+		}
 	}
 
 	items := make([]listingResponse, 0, len(scored))
