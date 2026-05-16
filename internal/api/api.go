@@ -58,6 +58,7 @@ type Server struct {
 	startTime        time.Time
 	rl               *rateLimiter
 	ipRL             *ipRateLimiter
+	guestRL          *ipRateLimiter
 	vacuumMu         sync.Mutex
 	fetchers         *fetcher.Factory
 	priceListSvc     *pricelist.Service
@@ -82,6 +83,9 @@ func (s *Server) Shutdown() {
 	}
 	if s.ipRL != nil {
 		s.ipRL.stop()
+	}
+	if s.guestRL != nil {
+		s.guestRL.stop()
 	}
 }
 
@@ -127,6 +131,7 @@ func New(c Config) *Server {
 		startTime:    time.Now(),
 		rl:           newRateLimiter(60, time.Second/60),
 		ipRL:         newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
+		guestRL:      newIPRateLimiter(5, 12*time.Minute, c.API.TrustForwardedFor),
 		fetchers:     c.Fetchers,
 		priceListSvc: c.PriceListSvc,
 	}
@@ -158,77 +163,95 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 func (s *Server) Routes() http.Handler {
-	mux := http.NewServeMux()
+	// --- Auth routes (existing, unchanged) ---
+	authMux := http.NewServeMux()
 
-	mux.HandleFunc("GET /api/v1/catalog/manufacturers", s.listManufacturers)
-	mux.HandleFunc("GET /api/v1/catalog/manufacturers/{id}/models", s.listModels)
+	authMux.HandleFunc("GET /api/v1/catalog/manufacturers", s.listManufacturers)
+	authMux.HandleFunc("GET /api/v1/catalog/manufacturers/{id}/models", s.listModels)
 
-	mux.HandleFunc("GET /api/v1/me", s.getMe)
+	authMux.HandleFunc("GET /api/v1/me", s.getMe)
 
-	mux.HandleFunc("GET /api/v1/searches", s.listSearches)
-	mux.HandleFunc("POST /api/v1/searches", s.createSearch)
-	mux.HandleFunc("GET /api/v1/searches/{id}", s.getSearch)
-	mux.HandleFunc("PUT /api/v1/searches/{id}", s.updateSearch)
-	mux.HandleFunc("DELETE /api/v1/searches/{id}", s.deleteSearch)
-	mux.HandleFunc("POST /api/v1/searches/{id}/pause", s.pauseSearch)
-	mux.HandleFunc("POST /api/v1/searches/{id}/resume", s.resumeSearch)
+	authMux.HandleFunc("GET /api/v1/searches", s.listSearches)
+	authMux.HandleFunc("POST /api/v1/searches", s.createSearch)
+	authMux.HandleFunc("GET /api/v1/searches/{id}", s.getSearch)
+	authMux.HandleFunc("PUT /api/v1/searches/{id}", s.updateSearch)
+	authMux.HandleFunc("DELETE /api/v1/searches/{id}", s.deleteSearch)
+	authMux.HandleFunc("POST /api/v1/searches/{id}/pause", s.pauseSearch)
+	authMux.HandleFunc("POST /api/v1/searches/{id}/resume", s.resumeSearch)
 
-	mux.HandleFunc("GET /api/v1/searches/{id}/stats", s.searchStats)
-	mux.HandleFunc("GET /api/v1/searches/{id}/listings", s.listListings)
-	mux.HandleFunc("POST /api/v1/searches/{id}/refresh", s.refreshListings)
-	mux.HandleFunc("GET /api/v1/listings/{token}", s.getListing)
+	authMux.HandleFunc("GET /api/v1/searches/{id}/stats", s.searchStats)
+	authMux.HandleFunc("GET /api/v1/searches/{id}/listings", s.listListings)
+	authMux.HandleFunc("POST /api/v1/searches/{id}/refresh", s.refreshListings)
+	authMux.HandleFunc("GET /api/v1/listings/{token}", s.getListing)
 
 	if s.admin != nil {
-		mux.HandleFunc("GET /api/v1/admin/stats", s.requireAdmin(s.adminStats))
-		mux.HandleFunc("GET /api/v1/admin/listings", s.requireAdmin(s.adminListListings))
-		mux.HandleFunc("DELETE /api/v1/admin/listings/{token}", s.requireAdmin(s.adminDeleteListing))
-		mux.HandleFunc("GET /api/v1/admin/searches", s.requireAdmin(s.adminListSearches))
-		mux.HandleFunc("DELETE /api/v1/admin/searches/{id}", s.requireAdmin(s.adminDeleteSearch))
-		mux.HandleFunc("GET /api/v1/admin/users", s.requireAdmin(s.adminListUsers))
-		mux.HandleFunc("PATCH /api/v1/admin/users/{chatID}", s.requireAdmin(s.adminSetUserActive))
-		mux.HandleFunc("DELETE /api/v1/admin/users/{chatID}", s.requireAdmin(s.adminDeleteUser))
-		mux.HandleFunc("POST /api/v1/admin/purge", s.requireAdmin(s.adminPurgeTable))
-		mux.HandleFunc("POST /api/v1/admin/vacuum", s.requireAdmin(s.adminVacuum))
-		mux.HandleFunc("POST /api/v1/admin/sync-user-status", s.requireAdmin(s.adminSyncUserStatus))
-		mux.HandleFunc("GET /api/v1/admin/price-history", s.requireAdmin(s.adminListPriceHistory))
-		mux.HandleFunc("GET /api/v1/admin/seen-listings", s.requireAdmin(s.adminListSeenListings))
-		mux.HandleFunc("GET /api/v1/admin/activity", s.requireAdmin(s.adminActivity))
+		authMux.HandleFunc("GET /api/v1/admin/stats", s.requireAdmin(s.adminStats))
+		authMux.HandleFunc("GET /api/v1/admin/listings", s.requireAdmin(s.adminListListings))
+		authMux.HandleFunc("DELETE /api/v1/admin/listings/{token}", s.requireAdmin(s.adminDeleteListing))
+		authMux.HandleFunc("GET /api/v1/admin/searches", s.requireAdmin(s.adminListSearches))
+		authMux.HandleFunc("DELETE /api/v1/admin/searches/{id}", s.requireAdmin(s.adminDeleteSearch))
+		authMux.HandleFunc("GET /api/v1/admin/users", s.requireAdmin(s.adminListUsers))
+		authMux.HandleFunc("PATCH /api/v1/admin/users/{chatID}", s.requireAdmin(s.adminSetUserActive))
+		authMux.HandleFunc("DELETE /api/v1/admin/users/{chatID}", s.requireAdmin(s.adminDeleteUser))
+		authMux.HandleFunc("POST /api/v1/admin/purge", s.requireAdmin(s.adminPurgeTable))
+		authMux.HandleFunc("POST /api/v1/admin/vacuum", s.requireAdmin(s.adminVacuum))
+		authMux.HandleFunc("POST /api/v1/admin/sync-user-status", s.requireAdmin(s.adminSyncUserStatus))
+		authMux.HandleFunc("GET /api/v1/admin/price-history", s.requireAdmin(s.adminListPriceHistory))
+		authMux.HandleFunc("GET /api/v1/admin/seen-listings", s.requireAdmin(s.adminListSeenListings))
+		authMux.HandleFunc("GET /api/v1/admin/activity", s.requireAdmin(s.adminActivity))
 		if s.logHub != nil {
-			mux.HandleFunc("GET /api/v1/admin/logs", s.requireAdmin(s.adminLogs))
-			mux.HandleFunc("GET /api/v1/admin/logs/stream", s.requireAdmin(s.adminLogStream))
+			authMux.HandleFunc("GET /api/v1/admin/logs", s.requireAdmin(s.adminLogs))
+			authMux.HandleFunc("GET /api/v1/admin/logs/stream", s.requireAdmin(s.adminLogStream))
 		}
 		if s.logLevel != nil {
-			mux.HandleFunc("GET /api/v1/admin/logs/level", s.requireAdmin(s.adminGetLogLevel))
-			mux.HandleFunc("PUT /api/v1/admin/logs/level", s.requireAdmin(s.adminSetLogLevel))
+			authMux.HandleFunc("GET /api/v1/admin/logs/level", s.requireAdmin(s.adminGetLogLevel))
+			authMux.HandleFunc("PUT /api/v1/admin/logs/level", s.requireAdmin(s.adminSetLogLevel))
 		}
 	}
 
 	if s.notifs != nil {
-		mux.HandleFunc("GET /api/v1/notifications", s.listNotifications)
-		mux.HandleFunc("GET /api/v1/notifications/count", s.notificationCount)
-		mux.HandleFunc("POST /api/v1/notifications/seen", s.markNotificationsSeen)
-		mux.HandleFunc("POST /api/v1/listings/{token}/seen", s.markListingSeen)
-		mux.HandleFunc("DELETE /api/v1/listings/{token}/seen", s.unmarkListingSeen)
+		authMux.HandleFunc("GET /api/v1/notifications", s.listNotifications)
+		authMux.HandleFunc("GET /api/v1/notifications/count", s.notificationCount)
+		authMux.HandleFunc("POST /api/v1/notifications/seen", s.markNotificationsSeen)
+		authMux.HandleFunc("POST /api/v1/listings/{token}/seen", s.markListingSeen)
+		authMux.HandleFunc("DELETE /api/v1/listings/{token}/seen", s.unmarkListingSeen)
 	}
 
-	mux.HandleFunc("GET /api/v1/telegram/status", s.getTelegramStatus)
+	authMux.HandleFunc("GET /api/v1/telegram/status", s.getTelegramStatus)
 	if s.linkTokens != nil {
-		mux.HandleFunc("POST /api/v1/telegram/link", s.postTelegramLink)
+		authMux.HandleFunc("POST /api/v1/telegram/link", s.postTelegramLink)
 	}
 
 	if s.saved != nil && s.hidden != nil {
-		mux.HandleFunc("GET /api/v1/saved", s.listSaved)
-		mux.HandleFunc("POST /api/v1/listings/{token}/save", s.saveListing)
-		mux.HandleFunc("DELETE /api/v1/listings/{token}/save", s.unsaveListing)
-		mux.HandleFunc("POST /api/v1/listings/{token}/hide", s.hideListing)
-		mux.HandleFunc("DELETE /api/v1/listings/{token}/hide", s.unhideListing)
-		mux.HandleFunc("GET /api/v1/history", s.listHistory)
+		authMux.HandleFunc("GET /api/v1/saved", s.listSaved)
+		authMux.HandleFunc("POST /api/v1/listings/{token}/save", s.saveListing)
+		authMux.HandleFunc("DELETE /api/v1/listings/{token}/save", s.unsaveListing)
+		authMux.HandleFunc("POST /api/v1/listings/{token}/hide", s.hideListing)
+		authMux.HandleFunc("DELETE /api/v1/listings/{token}/hide", s.unhideListing)
+		authMux.HandleFunc("GET /api/v1/history", s.listHistory)
 	}
 
-	chain := s.withMaxBody(mux)
-	chain = s.withRateLimit(chain)
-	chain = s.authMiddleware(chain)
-	chain = s.withIPRateLimit(chain)
+	authChain := s.withMaxBody(authMux)
+	authChain = s.withRateLimit(authChain)
+	authChain = s.authMiddleware(authChain)
+
+	// --- Guest routes (no auth) ---
+	guestMux := http.NewServeMux()
+	guestMux.HandleFunc("POST /api/v1/guest/instant-search", s.instantSearch)
+	guestMux.HandleFunc("GET /api/v1/catalog/manufacturers", s.listManufacturers)
+	guestMux.HandleFunc("GET /api/v1/catalog/manufacturers/{id}/models", s.listModels)
+
+	guestChain := s.withMaxBody(guestMux)
+	guestChain = s.withGuestRateLimit(guestChain)
+
+	// --- Top-level router ---
+	top := http.NewServeMux()
+	top.Handle("/api/v1/guest/", guestChain)
+	top.Handle("/api/v1/catalog/", guestChain)
+	top.Handle("/", authChain)
+
+	// Shared outer middleware: requestID → accessLog → securityHeaders → CORS → ipRL
+	chain := s.withIPRateLimit(top)
 	chain = s.corsMiddleware(chain)
 	chain = securityHeaders(chain)
 	chain = s.withAccessLog(chain)
