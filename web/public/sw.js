@@ -1,5 +1,5 @@
-const CACHE_NAME = 'carwatch-v1';
-const STATIC_ASSETS = ['/', '/manifest.json'];
+const CACHE_NAME = 'carwatch-v2';
+const STATIC_ASSETS = ['/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

@@ -31,6 +31,22 @@ export class ErrorBoundary extends Component<Props, State> {
       "\nComponent stack:",
       info.componentStack,
     );
+
+    // Auto-reload on stale chunk errors (happens after deploy when
+    // the browser has cached index.html referencing old asset hashes).
+    if (
+      error.message?.includes("Failed to fetch dynamically imported module") ||
+      error.message?.includes("Loading chunk") ||
+      error.message?.includes("Loading CSS chunk")
+    ) {
+      const key = "carwatch_chunk_reload";
+      const last = sessionStorage.getItem(key);
+      if (!last || Date.now() - Number(last) > 10_000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        window.location.reload();
+        return;
+      }
+    }
   }
 
   private handleRetry = () => {
