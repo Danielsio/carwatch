@@ -46,6 +46,20 @@ All new code must include tests. PRs must not decrease overall test coverage. Ru
 make test
 ```
 
+## PR Workflow
+
+Follow this workflow for every change:
+
+1. **Plan** — Understand the task, explore the codebase, design the approach
+2. **Execute** — Implement with clean, focused commits (one concern per commit)
+3. **Raise PR** — Push branch, create PR with clear description
+4. **Fix CodeRabbit comments** — Address all review feedback in follow-up commits, reply to every thread
+5. **Monitor CI** — Watch all CI checks pass (lint, test, build, secret scanning)
+6. **Merge** — PR auto-merges once checks pass, or merge with `--admin` if needed
+7. **Close issues** — Verify linked issues are closed, manually close if `Closes #N` didn't work
+
+Use `closes #N` (lowercase, one per line) in PR body to auto-close issues on merge.
+
 ## Pre-Push Checks
 
 Always run the linter before pushing:
