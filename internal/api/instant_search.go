@@ -131,9 +131,32 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	filtered := filter.Apply(criteria, allRaw)
 
+	// Build a market cache from the fetched listings themselves — the
+	// same cohort that the guest just searched for. This enables deal
+	// scoring and market comparison without needing persistent data.
+	marketData := make([]scoring.ListingData, 0, len(filtered))
+	for _, l := range filtered {
+		if l.Price > 0 {
+			marketData = append(marketData, scoring.ListingData{
+				Manufacturer: l.Manufacturer,
+				Model:        l.Model,
+				Year:         l.Year,
+				Price:        l.Price,
+				Km:           l.Km,
+			})
+		}
+	}
+	marketCache := scoring.NewMarketCache(marketData)
+
 	type scoredListing struct {
-		listing model.RawListing
-		fitness float64
+		listing    model.RawListing
+		fitness    float64
+		dealScore  *int
+		median     *int
+		medianKm   *int
+		cohort     *int
+		basePrice  *int
+		suspicious []string
 	}
 	scored := make([]scoredListing, 0, len(filtered))
 	for _, l := range filtered {
@@ -150,8 +173,30 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 			YearMax:      req.YearMax,
 			EngineMinCC:  req.EngineMinCC,
 		}
+
+		var sl scoredListing
+		sl.listing = l
+
+		if median, medKm, cohortSize, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
+			fp.MedianPrice = median
+			ds := scoring.ScoreWithKm(l.Price, l.Km, median, medKm)
+			sl.dealScore = &ds
+			sl.median = &median
+			sl.medianKm = &medKm
+			sl.cohort = &cohortSize
+			sl.suspicious = scoring.DetectSuspicious(l, median)
+		}
+
 		result := scoring.FitnessScoreDetailed(fp)
-		scored = append(scored, scoredListing{listing: l, fitness: result.Total})
+		sl.fitness = result.Total
+
+		if s.priceListSvc != nil && l.SubModelID > 0 && l.Year > 0 {
+			if bp, ok := s.priceListSvc.Lookup(ctx, l.SubModelID, l.Year, l.Token); ok && bp > 0 {
+				sl.basePrice = &bp
+			}
+		}
+
+		scored = append(scored, sl)
 	}
 
 	sort.Slice(scored, func(i, j int) bool {
@@ -167,25 +212,30 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 		l := sl.listing
 		fs := sl.fitness
 		resp := listingResponse{
-			Token:        l.Token,
-			Manufacturer: l.Manufacturer,
-			Model:        l.Model,
-			SubModel:     l.SubModel,
-			Year:         l.Year,
-			Price:        l.Price,
-			Km:           l.Km,
-			Hand:         l.Hand,
-			City:         l.City,
-			PageLink:     l.PageLink,
-			ImageURL:     l.ImageURL,
-			EngineVolume: l.EngineVolume,
-			HorsePower:   l.HorsePower,
-			EngineType:   l.EngineType,
-			GearBox:      l.GearBox,
-			Description:  l.Description,
-			FitnessScore: &fs,
-			FirstSeenAt:  l.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
-			IsCommercial: l.Commercial,
+			Token:             l.Token,
+			Manufacturer:      l.Manufacturer,
+			Model:             l.Model,
+			SubModel:          l.SubModel,
+			Year:              l.Year,
+			Price:             l.Price,
+			Km:                l.Km,
+			Hand:              l.Hand,
+			City:              l.City,
+			PageLink:          l.PageLink,
+			ImageURL:          l.ImageURL,
+			EngineVolume:      l.EngineVolume,
+			HorsePower:        l.HorsePower,
+			EngineType:        l.EngineType,
+			GearBox:           l.GearBox,
+			Description:       l.Description,
+			FitnessScore:      &fs,
+			MedianPrice:       sl.median,
+			CohortSize:        sl.cohort,
+			DealScore:         sl.dealScore,
+			BasePrice:         sl.basePrice,
+			SuspiciousReasons: sl.suspicious,
+			FirstSeenAt:       l.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+			IsCommercial:      l.Commercial,
 		}
 		items = append(items, resp)
 	}
