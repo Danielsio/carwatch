@@ -59,6 +59,8 @@ describe("NewSearchPage presets", () => {
     renderPage();
     const presetBtn = screen.getByText("רכב ראשון").closest("button")!;
     await user.click(presetBtn);
+    const nextBtn = screen.getByText("הבא");
+    await user.click(nextBtn);
     const priceMaxInput = screen.getByLabelText(/מחיר מקסימום/) as HTMLInputElement;
     expect(priceMaxInput.value).toBe("80000");
   });
@@ -68,6 +70,8 @@ describe("NewSearchPage presets", () => {
     renderPage();
     const presetBtn = screen.getByText("SUV").closest("button")!;
     await user.click(presetBtn);
+    const nextBtn = screen.getByText("הבא");
+    await user.click(nextBtn);
     const yearMinInput = screen.getByLabelText(/שנה מ-/) as HTMLInputElement;
     const expectedYear = new Date().getFullYear() - 5;
     expect(yearMinInput.value).toBe(String(expectedYear));
