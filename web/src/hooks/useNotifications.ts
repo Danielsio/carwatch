@@ -6,6 +6,8 @@ export function useNotificationCount() {
     queryKey: ["notification-count"],
     queryFn: () => notificationsApi.count(),
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 }
 
