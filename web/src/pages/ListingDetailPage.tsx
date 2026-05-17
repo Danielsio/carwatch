@@ -37,8 +37,9 @@ import { PriceHistoryChart } from "@/components/PriceHistoryChart";
 
 function listingSource(pageLink: string): string | null {
   if (!pageLink) return null;
-  if (pageLink.includes("yad2")) return "Yad2";
-  if (pageLink.includes("winwin")) return "WinWin";
+  const lower = pageLink.toLowerCase();
+  if (lower.includes("yad2")) return "Yad2";
+  if (lower.includes("winwin")) return "WinWin";
   return null;
 }
 
