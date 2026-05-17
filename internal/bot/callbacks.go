@@ -25,6 +25,9 @@ const (
 // --- Callback Handler ---
 
 func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	if update.CallbackQuery == nil {
 		b.logger.Debug("handleCallback: nil callback query")
 		return
@@ -163,11 +166,17 @@ func (b *Bot) onDigestInterval(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onCancelCallback(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
 	b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "cancel"))
 }
 
 func (b *Bot) onEditRestart(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	lang := b.getUserLang(ctx, chatID)
 	wd := b.loadWizardData(ctx, chatID)
 	newWd := WizardData{EditSearchID: wd.EditSearchID}
@@ -218,6 +227,9 @@ func (b *Bot) onQuickStart(ctx context.Context, chatID int64) {
 }
 
 func (b *Bot) onWatchFromCallback(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	lang := b.getUserLang(ctx, chatID)
 
 	if b.checkSearchLimit(ctx, chatID, lang, "watch_limit") {

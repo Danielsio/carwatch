@@ -81,12 +81,18 @@ func (b *Bot) onMfrPage(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onMfrSearch(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	wd := b.loadWizardData(ctx, chatID)
 	b.saveWizardState(ctx, chatID, StateSearchManufacturer, wd)
 	b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "wizard_mfr_search"))
 }
 
 func (b *Bot) onMdlPage(ctx context.Context, chatID int64, data string) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	pageStr := strings.TrimPrefix(data, cbMdlPage)
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
@@ -102,6 +108,9 @@ func (b *Bot) onMdlPage(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onMdlSearch(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	wd := b.loadWizardData(ctx, chatID)
 	b.saveWizardState(ctx, chatID, StateSearchModel, wd)
 	lang := b.getUserLang(ctx, chatID)
@@ -109,6 +118,9 @@ func (b *Bot) onMdlSearch(ctx context.Context, chatID int64) {
 }
 
 func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data string) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	if !b.expectState(ctx, chatID, StateAskManufacturer) {
 		return
 	}
@@ -150,6 +162,9 @@ func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data str
 }
 
 func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	if !b.expectState(ctx, chatID, StateAskModel) {
 		return
 	}
@@ -171,6 +186,9 @@ func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onEngineSelected(ctx context.Context, chatID int64, data string) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	if !b.expectState(ctx, chatID, StateAskEngine) {
 		return
 	}
@@ -192,6 +210,9 @@ func (b *Bot) onEngineSelected(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onMaxKmSelected(ctx context.Context, chatID int64, data string) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	if !b.expectState(ctx, chatID, StateAskMaxKm) {
 		return
 	}
@@ -211,6 +232,9 @@ func (b *Bot) onMaxKmSelected(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onMaxHandSelected(ctx context.Context, chatID int64, data string) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	if !b.expectState(ctx, chatID, StateAskMaxHand) {
 		return
 	}
@@ -232,6 +256,9 @@ func (b *Bot) onMaxHandSelected(ctx context.Context, chatID int64, data string) 
 }
 
 func (b *Bot) onSkipKeywords(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	if !b.expectState(ctx, chatID, StateAskKeywords) {
 		return
 	}
@@ -246,6 +273,9 @@ func (b *Bot) onSkipKeywords(ctx context.Context, chatID int64) {
 }
 
 func (b *Bot) onSkipExcludeKeys(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	if !b.expectState(ctx, chatID, StateAskExcludeKeys) {
 		return
 	}
@@ -259,6 +289,9 @@ func (b *Bot) onSkipExcludeKeys(ctx context.Context, chatID int64) {
 }
 
 func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	user, err := b.users.GetUser(ctx, chatID)
 	if err != nil {
 		b.logger.Error("get user failed in onConfirm", "chat_id", chatID, "error", err)
@@ -369,12 +402,18 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 // --- Default Handler (free text during wizard) ---
 
 func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	if update.Message == nil {
 		return
 	}
 
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
+
+	unlock := b.lockChat(chatID)
+	defer unlock()
 
 	user, err := b.users.GetUser(ctx, chatID)
 	if err != nil {
@@ -514,6 +553,9 @@ func (b *Bot) handlePriceMin(ctx context.Context, chatID int64, text string) {
 }
 
 func (b *Bot) onSkipPriceMin(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	if !b.expectState(ctx, chatID, StateAskPriceMin) {
 		return
 	}
@@ -526,6 +568,9 @@ func (b *Bot) onSkipPriceMin(ctx context.Context, chatID int64) {
 }
 
 func (b *Bot) onGearBoxSelected(ctx context.Context, chatID int64, data string) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	if !b.expectState(ctx, chatID, StateAskGearBox) {
 		return
 	}
