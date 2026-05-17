@@ -1,40 +1,28 @@
 import { useState, useEffect, useCallback } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import {
-  Bell,
-  Mail,
-  Clock,
-  Hash,
   Loader2,
   MessageCircle,
   ExternalLink,
   CheckCircle2,
   RefreshCw,
-  Info,
+  Sun,
+  Moon,
+  User,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { ChipButton } from "@/components/ui/ChipButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { telegramApi, type TelegramStatus } from "@/lib/api";
-
-const SCAN_FREQ_OPTIONS = [
-  { value: 15, label: "כל 15 דקות" },
-  { value: 30, label: "כל 30 דקות" },
-  { value: 60, label: "כל שעה" },
-  { value: 120, label: "כל שעתיים" },
-];
-
-const ALERT_COUNT_OPTIONS = [1, 3, 5, 10, 20];
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export function SettingsPage() {
   usePageTitle("הגדרות");
   const { toast } = useToast();
-
-  const telegramEnabled = true;
-  const emailEnabled = false;
-  const scanFrequency = 30;
-  const alertCount = 5;
+  const { user, signOut } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
 
   const [tgStatus, setTgStatus] = useState<TelegramStatus | null>(null);
   const [tgLoading, setTgLoading] = useState(true);
@@ -72,7 +60,58 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6 pb-24 md:pb-8">
-      <PageHeader title="הגדרות" subtitle="התאם את חוויית השימוש שלך" />
+      <PageHeader title="הגדרות" subtitle="ניהול חשבון וחיבורים" />
+
+      {/* Account */}
+      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <User className="h-4 w-4 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold text-foreground">חשבון</h2>
+            <p className="text-xs text-muted-foreground truncate">
+              {user?.email ?? "—"}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Theme */}
+      <section className="rounded-2xl border border-border/50 bg-card p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            {theme === "dark" ? (
+              <Moon className="h-4 w-4 text-primary" />
+            ) : (
+              <Sun className="h-4 w-4 text-primary" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold text-foreground">מראה</h2>
+            <p className="text-xs text-muted-foreground">
+              {theme === "dark" ? "מצב כהה" : "מצב בהיר"}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={theme === "dark"}
+            aria-label="מצב כהה"
+            onClick={toggleTheme}
+            dir="ltr"
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-150 ${
+              theme === "dark" ? "bg-primary" : "bg-muted"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform duration-150 ${
+                theme === "dark" ? "translate-x-5" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+      </section>
 
       {/* Telegram Connection */}
       <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-4">
@@ -82,10 +121,10 @@ export function SettingsPage() {
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-semibold text-foreground">
-              חיבור Telegram
+              התראות Telegram
             </h2>
             <p className="text-xs text-muted-foreground">
-              חבר את חשבון הטלגרם שלך לקבלת התראות
+              קבל עדכונים על מודעות חדשות בטלגרם
             </p>
           </div>
           {!tgLoading && tgStatus?.connected && (
@@ -106,8 +145,8 @@ export function SettingsPage() {
             בודק חיבור...
           </div>
         ) : tgStatus?.connected ? (
-          <div className="flex items-center gap-3 rounded-xl bg-score-good/5 border border-score-good/20 p-3">
-            <CheckCircle2 className="h-5 w-5 text-score-good shrink-0" />
+          <div className="flex items-center gap-3 rounded-xl bg-success/5 border border-success/20 p-3">
+            <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground">מחובר</p>
               {tgStatus.telegram_username && (
@@ -139,135 +178,17 @@ export function SettingsPage() {
         )}
       </section>
 
-      {/* Read-only notice */}
-      <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-        <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          ההגדרות הבאות הן לקריאה בלבד כרגע. ניתן לשנות את ההגדרות דרך פקודות הבוט בטלגרם.
-        </p>
-      </div>
-
-      {/* Notifications */}
-      <section inert aria-label="הגדרות התראות — בקרוב" className="rounded-2xl border border-border/50 bg-card p-5 space-y-5 opacity-60">
-        <h2 className="text-sm font-semibold text-foreground">התראות</h2>
-
-        <ToggleRow
-          icon={Bell}
-          label="התראות Telegram"
-          description="קבל עדכונים על מודעות חדשות בטלגרם"
-          enabled={telegramEnabled}
-          onToggle={() => {}}
-        />
-
-        <div className="border-t border-border/30" />
-
-        <ToggleRow
-          icon={Mail}
-          label="התראות אימייל"
-          description="קבל עדכונים על מודעות חדשות באימייל"
-          enabled={emailEnabled}
-          onToggle={() => {}}
-        />
+      {/* Sign Out */}
+      <section className="rounded-2xl border border-border/50 bg-card p-5">
+        <Button
+          variant="ghost"
+          onClick={() => void signOut()}
+          className="w-full text-destructive hover:bg-destructive/5 hover:text-destructive"
+        >
+          <LogOut className="h-4 w-4" />
+          התנתק מהחשבון
+        </Button>
       </section>
-
-      {/* Scan Frequency */}
-      <section inert aria-label="תדירות סריקה — בקרוב" className="rounded-2xl border border-border/50 bg-card p-5 space-y-4 opacity-60">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-            <Clock className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">
-              תדירות סריקה
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              כמה פעמים לסרוק מודעות חדשות
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {SCAN_FREQ_OPTIONS.map((opt) => (
-            <ChipButton
-              key={opt.value}
-              selected={scanFrequency === opt.value}
-              onClick={() => {}}
-            >
-              {opt.label}
-            </ChipButton>
-          ))}
-        </div>
-      </section>
-
-      {/* Alert Count */}
-      <section inert aria-label="מודעות בהתראה — בקרוב" className="rounded-2xl border border-border/50 bg-card p-5 space-y-4 opacity-60">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-score-good/10">
-            <Hash className="h-4 w-4 text-score-good" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">
-              מודעות בהתראה
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              כמה מודעות להציג בכל התראה
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {ALERT_COUNT_OPTIONS.map((count) => (
-            <ChipButton
-              key={count}
-              selected={alertCount === count}
-              onClick={() => {}}
-            >
-              {count}
-            </ChipButton>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function ToggleRow({
-  icon: Icon,
-  label,
-  description,
-  enabled,
-  onToggle,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  description: string;
-  enabled: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-4">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-        <Icon className="h-4 w-4 text-primary" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={enabled}
-        aria-label={label}
-        onClick={onToggle}
-        dir="ltr"
-        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ${
-          enabled ? "bg-primary" : "bg-muted"
-        }`}
-      >
-        <span
-          className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform duration-200 ${
-            enabled ? "translate-x-5" : "translate-x-0.5"
-          }`}
-        />
-      </button>
     </div>
   );
 }
