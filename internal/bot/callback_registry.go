@@ -147,4 +147,7 @@ func (b *Bot) dispatchCallbackData(ctx context.Context, chatID int64, data strin
 			return
 		}
 	}
+	lang := b.getUserLang(ctx, chatID)
+	b.send(ctx, chatID, locale.T(lang, "callback_expired"))
+	b.logger.Warn("unmatched callback data", "chat_id", chatID, "data", data)
 }

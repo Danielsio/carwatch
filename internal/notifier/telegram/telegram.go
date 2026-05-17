@@ -181,6 +181,23 @@ func (n *Notifier) sendMessageWithRetry(ctx context.Context, chatID string, para
 		if recErr := recipientBlockedError(err); recErr != nil {
 			return recErr
 		}
+		if isMarkdownParseError(err) && params.ParseMode != "" {
+			n.logger.Warn("markdown parse failed, retrying as plain text",
+				"chat_id", chatID, "error", err)
+			params.ParseMode = ""
+			continue
+		}
+		if isTransientError(err) && attempt < telegramMaxRetries {
+			delay := telegramRetryBaseDelay * time.Duration(1<<uint(attempt))
+			n.logger.Warn("transient telegram error, retrying",
+				"chat_id", chatID, "attempt", attempt+1, "wait", delay.String(), "error", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+			continue
+		}
 		if !isRateLimited(err) || attempt >= telegramMaxRetries {
 			return fmt.Errorf("telegram sendMessage: %w", err)
 		}
@@ -356,8 +373,28 @@ func lastRuneNewlineBefore(s []rune, pos int) int {
 	return -1
 }
 
-// isRateLimited checks whether a Telegram API error indicates a 429
-// Too Many Requests response.
+func isMarkdownParseError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "can't parse") ||
+		(strings.Contains(msg, "entities") && strings.Contains(msg, "parse"))
+}
+
+func isTransientError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "eof") ||
+		strings.Contains(msg, "502") ||
+		strings.Contains(msg, "503") ||
+		strings.Contains(msg, "gateway")
+}
+
 func isRateLimited(err error) bool {
 	if err == nil {
 		return false
