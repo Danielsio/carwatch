@@ -292,7 +292,14 @@ func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingR
 		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, year, price, km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
 			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, removed_at
-		FROM listing_history
+		FROM (
+			SELECT DISTINCT ON (token)
+				token, search_name, manufacturer, model, sub_model, sub_model_id, year, price, km, hand, city, page_link, image_url,
+				engine_volume, horse_power, engine_type, gear_box, description,
+				is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, removed_at
+			FROM listing_history
+			ORDER BY token, first_seen_at DESC
+		) deduped
 		ORDER BY first_seen_at DESC
 		LIMIT $1`, limit)
 	if err != nil {
