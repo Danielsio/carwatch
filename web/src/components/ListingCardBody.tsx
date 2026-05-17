@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
 import { Bookmark, AlertTriangle, ExternalLink } from "lucide-react";
-import { formatPrice, formatKm, relativeTime, cn, marketComparison } from "@/lib/utils";
+import { formatPrice, formatKm, relativeTime, cn, marketComparison, safeHref } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
@@ -9,8 +9,9 @@ import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 
 function listingSource(pageLink: string): "Yad2" | "WinWin" | null {
   if (!pageLink) return null;
-  if (pageLink.includes("yad2")) return "Yad2";
-  if (pageLink.includes("winwin")) return "WinWin";
+  const lower = pageLink.toLowerCase();
+  if (lower.includes("yad2")) return "Yad2";
+  if (lower.includes("winwin")) return "WinWin";
   return null;
 }
 
@@ -234,9 +235,9 @@ export function ListingCardBody({
             {relativeTime(listing.first_seen_at)}
           </span>
           {actions}
-          {listing.page_link ? (
+          {safeHref(listing.page_link) ? (
             <a
-              href={listing.page_link}
+              href={safeHref(listing.page_link)!}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}

@@ -290,6 +290,7 @@ export function Shell() {
                   key={item.path}
                   to={item.path}
                   aria-label={item.label}
+                  aria-current={isActive ? "page" : undefined}
                   className="group relative -mt-4 flex flex-col items-center"
                 >
                   <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-[0_4px_14px_-2px_var(--color-glow-primary)] transition-all duration-150 active:scale-[0.92] motion-reduce:active:scale-100">
