@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
@@ -16,6 +17,9 @@ import (
 const historyPageSize = 5
 
 func (b *Bot) handleHistory(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	b.sendHistoryPage(ctx, chatID, 0)
@@ -127,6 +131,9 @@ func (b *Bot) onHistoryPage(ctx context.Context, chatID int64, data string) {
 // --- /saved command ---
 
 func (b *Bot) handleSaved(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	b.sendSavedPage(ctx, chatID, 0)
@@ -225,6 +232,9 @@ func (b *Bot) onSavedPage(ctx context.Context, chatID int64, data string) {
 // --- /hidden command ---
 
 func (b *Bot) handleHidden(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	b.sendHiddenPage(ctx, chatID, 0)

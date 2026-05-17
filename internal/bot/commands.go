@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
@@ -18,6 +19,9 @@ import (
 // --- Command Handlers ---
 
 func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	username := update.Message.From.Username
 
@@ -52,6 +56,9 @@ func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 }
 
 func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
@@ -167,6 +174,9 @@ func (b *Bot) handleLinkStart(ctx context.Context, telegramChatID int64, param s
 }
 
 func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	b.logger.Debug("/watch command", "chat_id", chatID, "username", update.Message.From.Username)
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
@@ -183,6 +193,9 @@ func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 }
 
 func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
@@ -231,6 +244,9 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 }
 
 func (b *Bot) handleStop(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	lang := b.getUserLang(ctx, chatID)
 	parts := strings.Fields(update.Message.Text)
@@ -254,6 +270,9 @@ func (b *Bot) handleStop(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 }
 
 func (b *Bot) handlePause(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	lang := b.getUserLang(ctx, chatID)
 	parts := strings.Fields(update.Message.Text)
@@ -288,6 +307,9 @@ func (b *Bot) handlePause(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 }
 
 func (b *Bot) handleResume(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	lang := b.getUserLang(ctx, chatID)
 	parts := strings.Fields(update.Message.Text)
@@ -322,6 +344,9 @@ func (b *Bot) handleResume(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 }
 
 func (b *Bot) handleCancel(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	lang := b.getUserLang(ctx, chatID)
 	_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
@@ -329,11 +354,17 @@ func (b *Bot) handleCancel(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 }
 
 func (b *Bot) handleHelp(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	lang := b.getUserLang(ctx, update.Message.Chat.ID)
 	b.sendMarkdown(ctx, update.Message.Chat.ID, locale.T(lang, "help"))
 }
 
 func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
@@ -351,6 +382,9 @@ func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 }
 
 func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	if chatID != b.adminChatID {
 		lang := b.getUserLang(ctx, chatID)
@@ -386,6 +420,9 @@ func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 }
 
 func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
@@ -447,6 +484,9 @@ func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 }
 
 func (b *Bot) handleLanguage(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
@@ -463,6 +503,9 @@ func (b *Bot) handleLanguage(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 }
 
 func (b *Bot) handleEdit(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
@@ -516,6 +559,9 @@ func (b *Bot) handleEdit(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 }
 
 func (b *Bot) handleUpgrade(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Update) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
