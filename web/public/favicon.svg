@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+  <!-- Car body silhouette -->
+  <path d="M6 20.5h20v1.5a1.5 1.5 0 01-1.5 1.5h-17A1.5 1.5 0 016 22v-1.5z" fill="white" opacity="0.95"/>
+  <path d="M8 20.5l2.5-5.5a2 2 0 011.8-1.2h7.4a2 2 0 011.8 1.2l2.5 5.5H8z" fill="white" opacity="0.95"/>
+  <!-- Windshield -->
+  <path d="M11.5 15.8l1.5-3a1 1 0 01.9-.5h4.2a1 1 0 01.9.5l1.5 3H11.5z" fill="#6366F1" opacity="0.7"/>
+  <!-- Wheels -->
+  <circle cx="11" cy="22" r="2" fill="#1E1B4B"/>
+  <circle cx="11" cy="22" r="0.8" fill="#6366F1"/>
+  <circle cx="21" cy="22" r="2" fill="#1E1B4B"/>
+  <circle cx="21" cy="22" r="0.8" fill="#6366F1"/>
+  <!-- Radar/watch eye icon -->
+  <circle cx="16" cy="9" r="3" stroke="white" stroke-width="1.5" fill="none" opacity="0.9"/>
+  <circle cx="16" cy="9" r="1" fill="white" opacity="0.95"/>
+</svg>

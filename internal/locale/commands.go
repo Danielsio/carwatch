@@ -139,6 +139,9 @@ var heCommands = map[string]string{
 	"rate_limit_callback": "אנא המתן / Please slow down.",
 	"rate_limit_message":  "אנא המתן רגע / Too many requests, please wait a moment.",
 
+	// stale callback
+	"callback_expired": "⏳ הכפתור הזה כבר לא פעיל. השתמש ב /watch כדי להתחיל חיפוש חדש.",
+
 	// wizard timeout
 	"wizard_timeout": "פג תוקף ההגדרה. השתמש ב /watch כדי להתחיל חיפוש חדש.",
 
@@ -417,6 +420,9 @@ var enCommands = map[string]string{
 	// rate limiting (bilingual — user language is unknown in the rate limiter path)
 	"rate_limit_callback": "אנא המתן / Please slow down.",
 	"rate_limit_message":  "אנא המתן רגע / Too many requests, please wait a moment.",
+
+	// stale callback
+	"callback_expired": "⏳ This button has expired. Use /watch to start a new search.",
 
 	// wizard timeout
 	"wizard_timeout": "Your search setup session expired. Use /watch to start a new search.",

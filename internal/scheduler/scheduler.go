@@ -293,6 +293,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			}
 			s.logger.Error("scan failed", "error", err)
 		}
+		s.retryPending(ctx)
 	}
 }
 

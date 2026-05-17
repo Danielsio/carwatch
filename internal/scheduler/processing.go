@@ -185,7 +185,7 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 		} else {
 			log.Error("batch delivery failed", "count", len(sr.newListings), "error", err)
 		}
-		cleanupCtx, cleanupCancel := context.WithTimeout(ctx, 5*time.Second)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
 		for _, l := range sr.newListings {
 			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, l.Token, search.ChatID); relErr != nil {
@@ -268,7 +268,7 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 func (s *Scheduler) persistListings(ctx context.Context, records []storage.ListingRecord, log *slog.Logger) error {
 	if err := s.stores.Listings.SaveListings(ctx, records); err != nil {
 		log.Error("batch save listings failed", "batch_size", len(records), "error", err)
-		cleanupCtx, cleanupCancel := context.WithTimeout(ctx, 5*time.Second)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
 		for _, rec := range records {
 			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, rec.Token, rec.ChatID); relErr != nil {

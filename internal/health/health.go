@@ -47,6 +47,7 @@ type Status struct {
 	listingsFound     atomic.Int64
 	notificationsSent atomic.Int64
 	schedulerStarted  atomic.Bool
+	botPollingAlive   atomic.Bool
 
 	sourceMu sync.RWMutex
 	sources  map[string]*SourceMetrics
@@ -96,6 +97,14 @@ func (s *Status) SetDBSizer(d DBSizer) {
 
 func (s *Status) MarkSchedulerStarted() {
 	s.schedulerStarted.Store(true)
+}
+
+func (s *Status) MarkBotPollingAlive() {
+	s.botPollingAlive.Store(true)
+}
+
+func (s *Status) MarkBotPollingDead() {
+	s.botPollingAlive.Store(false)
 }
 
 func (s *Status) RecordSuccess() {
@@ -185,6 +194,7 @@ func (s *Status) coreMetrics() map[string]any {
 		"last_success":       lastSuccess,
 		"listings_found":     s.listingsFound.Load(),
 		"notifications_sent": s.notificationsSent.Load(),
+		"bot_polling":        s.botPollingAlive.Load(),
 	}
 }
 

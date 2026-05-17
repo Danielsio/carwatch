@@ -171,7 +171,27 @@ func run(configPath string, logger *slog.Logger) error {
 	apiServer.SetPollTrigger(sched)
 	botHandler.StartCleanup(ctx)
 
-	go tgNotif.Bot().Start(ctx)
+	go func() {
+		const maxBackoff = 30 * time.Second
+		backoff := time.Second
+		for {
+			h.MarkBotPollingAlive()
+			logger.Info("telegram bot polling loop starting")
+			tgNotif.Bot().Start(ctx)
+			if ctx.Err() != nil {
+				return
+			}
+			logger.Error("telegram bot polling loop exited unexpectedly, restarting", "backoff", backoff.String())
+			h.MarkBotPollingDead()
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+			}
+			backoff = min(backoff*2, maxBackoff)
+		}
+	}()
+	// health marked inside goroutine
 	logger.Info("bot started",
 		"health", "http://"+cfg.HTTP.Bind+"/healthz",
 	)

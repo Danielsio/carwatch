@@ -132,6 +132,7 @@ export default function TrySearchPage() {
 
   const validYear = (y: number) => y === 0 || y >= 1990;
   const canSubmit =
+    form.manufacturer > 0 &&
     validYear(form.yearMin) &&
     validYear(form.yearMax) &&
     (form.yearMin === 0 ||
@@ -180,7 +181,7 @@ export default function TrySearchPage() {
                   set("model", 0);
                 }}
               >
-                <option value={0}>כל היצרנים</option>
+                <option value={0}>בחר יצרן...</option>
                 {manufacturers?.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name_he && m.name_he !== m.name

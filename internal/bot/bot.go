@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -249,6 +250,13 @@ func (b *Bot) send(ctx context.Context, chatID int64, text string) {
 func (b *Bot) sendMarkdown(ctx context.Context, chatID int64, text string) {
 	b.logger.Debug("sending markdown message", "chat_id", chatID, "text_len", len(text))
 	if err := b.msg.SendMessage(ctx, chatID, text, "Markdown", nil); err != nil {
+		if isMarkdownParseError(err) {
+			b.logger.Warn("markdown parse failed, retrying as plain text", "chat_id", chatID, "error", err)
+			if plainErr := b.msg.SendMessage(ctx, chatID, text, "", nil); plainErr != nil {
+				b.logger.Error("plain text fallback also failed", "chat_id", chatID, "error", plainErr)
+			}
+			return
+		}
 		b.logger.Error("send markdown message failed", "chat_id", chatID, "error", err)
 	}
 }
@@ -260,8 +268,25 @@ func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string, k
 	}
 	b.logger.Debug("sending message with keyboard", "chat_id", chatID, "text_len", len(text), "buttons", buttonCount)
 	if err := b.msg.SendMessage(ctx, chatID, text, "Markdown", kb); err != nil {
+		if isMarkdownParseError(err) {
+			b.logger.Warn("markdown parse failed, retrying as plain text with keyboard", "chat_id", chatID, "error", err)
+			if plainErr := b.msg.SendMessage(ctx, chatID, text, "", kb); plainErr != nil {
+				b.logger.Error("plain text fallback with keyboard also failed", "chat_id", chatID, "error", plainErr)
+			}
+			return
+		}
 		b.logger.Error("send message with keyboard failed", "chat_id", chatID, "buttons", buttonCount, "error", err)
 	}
+}
+
+func isMarkdownParseError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "can't parse") ||
+		strings.Contains(msg, "bad request: can't parse") ||
+		strings.Contains(msg, "entities") && strings.Contains(msg, "parse")
 }
 
 func (b *Bot) lockChat(chatID int64) func() {
