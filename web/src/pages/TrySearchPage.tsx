@@ -181,7 +181,7 @@ export default function TrySearchPage() {
                   set("model", 0);
                 }}
               >
-                <option value={0}>כל היצרנים</option>
+                <option value={0}>בחר יצרן...</option>
                 {manufacturers?.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name_he && m.name_he !== m.name
