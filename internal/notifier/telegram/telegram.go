@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tgbot "github.com/go-telegram/bot"
@@ -25,8 +26,13 @@ const (
 	telegramListingSeparatorLine = "━━━━━━━━━━━━━━━━━━━━"
 
 	// defaultSendDelay is the minimum pause between consecutive Telegram
-	// API calls to avoid hitting rate limits.
+	// API calls within a single split message to avoid hitting rate limits.
 	defaultSendDelay = 50 * time.Millisecond
+
+	// defaultChatDelay is the minimum pause between separate deliveries
+	// to the same chat (across different searches) to avoid per-chat
+	// Telegram rate limiting.
+	defaultChatDelay = 100 * time.Millisecond
 
 	// telegramMaxRetries is the maximum number of extra attempts after a
 	// rate-limited (HTTP 429) sendMessage/sendPhoto failure.
@@ -42,9 +48,11 @@ const (
 )
 
 type Notifier struct {
-	bot       *tgbot.Bot
-	logger    *slog.Logger
-	sendDelay time.Duration
+	bot          *tgbot.Bot
+	logger       *slog.Logger
+	sendDelay    time.Duration
+	chatDelay    time.Duration
+	lastSendTime sync.Map // chatID string -> time.Time
 }
 
 func New(token string, logger *slog.Logger, opts ...tgbot.Option) (*Notifier, error) {
@@ -56,7 +64,7 @@ func New(token string, logger *slog.Logger, opts ...tgbot.Option) (*Notifier, er
 	if err != nil {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
-	return &Notifier{bot: b, logger: logger, sendDelay: defaultSendDelay}, nil
+	return &Notifier{bot: b, logger: logger, sendDelay: defaultSendDelay, chatDelay: defaultChatDelay}, nil
 }
 
 func (n *Notifier) Bot() *tgbot.Bot {
@@ -73,6 +81,7 @@ func (n *Notifier) Connect(ctx context.Context) error {
 }
 
 func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.Listing, lang locale.Lang) error {
+	n.throttleChat(chatID)
 	if len(listings) == 1 && listings[0].ImageURL != "" {
 		return n.sendListingWithPhoto(ctx, chatID, listings[0], lang)
 	}
@@ -81,6 +90,7 @@ func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.L
 }
 
 func (n *Notifier) NotifyRaw(ctx context.Context, chatID string, message string) error {
+	n.throttleChat(chatID)
 	n.logger.Debug("notifyRaw",
 		"chat_id", chatID,
 		"msg_len", len(message),
@@ -91,6 +101,24 @@ func (n *Notifier) NotifyRaw(ctx context.Context, chatID string, message string)
 
 func (n *Notifier) Disconnect() error {
 	return nil
+}
+
+// throttleChat enforces a minimum delay between API calls targeting the same
+// chat. This prevents per-chat rate limiting when multiple searches deliver
+// results to the same user in quick succession.
+func (n *Notifier) throttleChat(chatID string) {
+	if n.chatDelay <= 0 {
+		return
+	}
+	now := time.Now()
+	if v, ok := n.lastSendTime.Load(chatID); ok {
+		if last, ok := v.(time.Time); ok {
+			if wait := n.chatDelay - now.Sub(last); wait > 0 {
+				time.Sleep(wait)
+			}
+		}
+	}
+	n.lastSendTime.Store(chatID, time.Now())
 }
 
 func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, listing model.Listing, lang locale.Lang) error {

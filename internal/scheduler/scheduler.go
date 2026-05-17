@@ -78,9 +78,10 @@ type Scheduler struct {
 	priceListSvc      *pricelist.Service
 	triggerCh         chan struct{}
 
-	langCache   sync.Map
-	digestCache sync.Map
-	cycleCount  uint64
+	langCache      sync.Map
+	digestCache    sync.Map
+	digestFailures sync.Map // chatID (int64) -> time.Time of last flush failure
+	cycleCount     uint64
 
 	marketCacheMu      sync.RWMutex
 	marketCache        *scoring.MarketCache
