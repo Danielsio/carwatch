@@ -219,18 +219,18 @@ func TestInstantSearch_RateLimited(t *testing.T) {
 		PriceMax:     200000,
 	}
 
-	// Exhaust the guest rate limit (burst=5).
-	for i := 0; i < 5; i++ {
+	// Exhaust the guest rate limit (burst=15).
+	for i := 0; i < 15; i++ {
 		w := doGuestRequest(t, srv, "POST", "/api/v1/guest/instant-search", req)
 		if w.Code != http.StatusOK {
 			t.Fatalf("request %d: expected 200, got %d: %s", i+1, w.Code, w.Body.String())
 		}
 	}
 
-	// 6th request should be rate limited.
+	// 16th request should be rate limited.
 	w := doGuestRequest(t, srv, "POST", "/api/v1/guest/instant-search", req)
 	if w.Code != http.StatusTooManyRequests {
-		t.Fatalf("6th request: expected 429, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("16th request: expected 429, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

@@ -131,7 +131,7 @@ func New(c Config) *Server {
 		startTime:    time.Now(),
 		rl:           newRateLimiter(60, time.Second/60),
 		ipRL:         newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
-		guestRL:      newIPRateLimiter(5, 12*time.Minute, c.API.TrustForwardedFor),
+		guestRL:      newIPRateLimiter(15, 3*time.Minute, c.API.TrustForwardedFor),
 		fetchers:     c.Fetchers,
 		priceListSvc: c.PriceListSvc,
 	}
@@ -235,19 +235,27 @@ func (s *Server) Routes() http.Handler {
 	authChain = s.withRateLimit(authChain)
 	authChain = s.authMiddleware(authChain)
 
-	// --- Guest routes (no auth) ---
+	// --- Guest instant-search (rate-limited, no auth) ---
 	guestMux := http.NewServeMux()
 	guestMux.HandleFunc("POST /api/v1/guest/instant-search", s.instantSearch)
-	guestMux.HandleFunc("GET /api/v1/catalog/manufacturers", s.listManufacturers)
-	guestMux.HandleFunc("GET /api/v1/catalog/manufacturers/{id}/models", s.listModels)
 
 	guestChain := s.withMaxBody(guestMux)
 	guestChain = s.withGuestRateLimit(guestChain)
 
+	// --- Catalog routes (no auth, no guest rate limit) ---
+	// Catalog data is static and cheap to serve; rate-limiting it penalises
+	// the normal try-search flow where loading manufacturers + models already
+	// consumes tokens before the user even searches.
+	catalogMux := http.NewServeMux()
+	catalogMux.HandleFunc("GET /api/v1/catalog/manufacturers", s.listManufacturers)
+	catalogMux.HandleFunc("GET /api/v1/catalog/manufacturers/{id}/models", s.listModels)
+
+	catalogChain := s.withMaxBody(catalogMux)
+
 	// --- Top-level router ---
 	top := http.NewServeMux()
 	top.Handle("/api/v1/guest/", guestChain)
-	top.Handle("/api/v1/catalog/", guestChain)
+	top.Handle("/api/v1/catalog/", catalogChain)
 	top.Handle("/", authChain)
 
 	// Shared outer middleware: requestID → accessLog → securityHeaders → CORS → ipRL
