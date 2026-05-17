@@ -122,7 +122,7 @@ export function SearchesPage() {
             value: activeCount,
             color: "text-primary",
             bg: "bg-primary/12",
-            glow: "shadow-[0_0_24px_-4px_rgba(59,130,246,0.3)]",
+            glow: "shadow-[0_4px_20px_-4px_var(--color-glow-primary)]",
           },
           {
             icon: Car,
@@ -130,7 +130,7 @@ export function SearchesPage() {
             value: recentListings?.total ?? 0,
             color: "text-primary",
             bg: "bg-primary/12",
-            glow: "shadow-[0_0_24px_-4px_rgba(59,130,246,0.25)]",
+            glow: "shadow-[0_4px_20px_-4px_var(--color-glow-primary)]",
           },
           {
             icon: Bell,
@@ -139,7 +139,7 @@ export function SearchesPage() {
             color: "text-score-good",
             bg: "bg-score-good/12",
             glow: unread > 0
-              ? "shadow-[0_0_24px_-4px_rgba(245,158,11,0.3)]"
+              ? "shadow-[0_4px_20px_-4px_rgba(217,119,6,0.25)]"
               : "",
           },
           {
@@ -350,7 +350,7 @@ function RecentListingRow({ listing }: { listing: Listing }) {
       <Link
         to={`/listings/${listing.token}`}
         state={{ listing }}
-        className="flex items-center gap-4 rounded-xl border border-border/50 bg-card p-4 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset] transition-all duration-200 hover:border-primary/40 hover:shadow-[0_8px_28px_-8px_rgba(59,130,246,0.18)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset]"
+        className="flex items-center gap-4 rounded-xl border border-border/50 bg-card p-4 transition-all duration-150 hover:border-primary/30 hover:shadow-[0_4px_20px_-8px_var(--color-glow-primary)]"
       >
         <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-secondary">
           {listing.image_url ? (

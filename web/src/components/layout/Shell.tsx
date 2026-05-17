@@ -72,18 +72,17 @@ export function Shell() {
       <ConnectionBanner status={connectionStatus} />
       <aside
         aria-label="ניווט ראשי"
-        className="fixed inset-y-0 right-0 z-40 hidden h-full w-64 flex-col border-l border-[color-mix(in_srgb,var(--color-sidebar-border)_100%,transparent)] bg-sidebar md:flex"
+        className="fixed inset-y-0 right-0 z-40 hidden h-full w-64 flex-col border-l border-sidebar-border bg-sidebar md:flex"
       >
-        {/* Base44-style header */}
-        <div className="flex items-center gap-3 border-b border-[color-mix(in_srgb,white_6%,transparent)] px-5 py-5">
-          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#3b82f6] via-[#3b82f6] to-[#2563eb] text-white shadow-[0_8px_28px_-6px_rgba(59,130,246,0.55),inset_0_1px_0_rgba(255,255,255,0.12)]">
-            <Car className="relative z-[1] h-5 w-5 text-white drop-shadow-sm" />
+        <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 text-white shadow-md">
+            <Car className="h-5 w-5 text-white drop-shadow-sm" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-base leading-none font-bold tracking-tight text-white">
+            <h1 className="text-base leading-none font-bold tracking-tight text-foreground dark:text-white">
               CarWatch
             </h1>
-            <p className="mt-0.5 text-xs text-[color-mix(in_srgb,var(--color-sidebar-foreground)_72%,transparent)]">
+            <p className="mt-0.5 text-xs text-sidebar-muted">
               מעקב רכבים חכם
             </p>
           </div>
@@ -91,14 +90,14 @@ export function Shell() {
             type="button"
             onClick={toggleTheme}
             aria-label={theme === "dark" ? "הפעל מצב בהיר" : "הפעל מצב כהה"}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,white_6%,transparent)] text-[color-mix(in_srgb,var(--color-sidebar-foreground)_85%,transparent)] transition-all duration-200 hover:bg-[color-mix(in_srgb,white_10%,transparent)] hover:text-white active:scale-[0.96] motion-reduce:active:scale-100"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-foreground transition-all duration-150 hover:bg-sidebar-accent-hover hover:text-foreground dark:hover:text-white active:scale-[0.96] motion-reduce:active:scale-100"
             title={theme === "dark" ? "מצב בהיר" : "מצב כהה"}
           >
             {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-4">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const active = isNavActive(location.pathname, item.path);
@@ -110,30 +109,29 @@ export function Shell() {
                 to={item.path}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "group relative flex items-center gap-3 rounded-xl py-2.5 pe-3 ps-4 text-sm font-medium outline-none transition-[background-color,color,box-shadow] duration-200 ease-out",
-                  "focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-sidebar-primary)_38%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+                  "group relative flex items-center gap-3 rounded-lg py-2 pe-3 ps-4 text-sm font-medium outline-none transition-all duration-150",
+                  "focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
                   active
-                    ? "text-white shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-sidebar-primary)_24%,transparent)] [background-image:linear-gradient(270deg,color-mix(in_oklab,var(--color-sidebar-primary)_20%,transparent)_0%,color-mix(in_oklab,var(--color-sidebar-primary)_6%,transparent)_55%,transparent_100%)]"
-                    : "text-sidebar-foreground hover:bg-[color-mix(in_srgb,white_4.5%,transparent)] hover:text-white",
+                    ? "bg-sidebar-active-fade text-primary dark:text-white"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent-hover hover:text-foreground dark:hover:text-white",
                 )}
               >
-                {/* Accent rail — Base44-style strip toward main content */}
                 <span
                   className={cn(
-                    "pointer-events-none absolute left-0 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-r-full transition-all duration-200 ease-out",
+                    "pointer-events-none absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full transition-all duration-150",
                     active
-                      ? "bg-sidebar-primary shadow-[0_0_14px_rgba(59,130,246,0.55)]"
-                      : "bg-[color-mix(in_srgb,var(--color-sidebar-primary)_48%,transparent)] opacity-90 group-hover:bg-sidebar-primary group-hover:opacity-100 group-hover:shadow-[0_0_12px_rgba(59,130,246,0.38)]",
+                      ? "bg-primary shadow-[0_0_10px_var(--color-glow-primary)]"
+                      : "bg-transparent group-hover:bg-primary/40",
                   )}
                   aria-hidden
                 />
                 <Icon
                   size={17}
                   className={cn(
-                    "relative z-[1] shrink-0 transition-colors duration-200",
+                    "relative z-[1] shrink-0 transition-colors duration-150",
                     active
-                      ? "text-sidebar-primary drop-shadow-[0_0_10px_rgba(59,130,246,0.35)]"
-                      : "text-[color-mix(in_srgb,var(--color-sidebar-foreground)_78%,transparent)] group-hover:text-sidebar-primary",
+                      ? "text-primary"
+                      : "text-sidebar-muted group-hover:text-primary",
                   )}
                 />
                 <span className="relative z-[1]">
@@ -145,7 +143,7 @@ export function Shell() {
                   ) : null}
                 </span>
                 {active ? (
-                  <div className="relative z-[1] mr-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary shadow-[0_0_12px_2px_rgba(59,130,246,0.65)]" />
+                  <div className="relative z-[1] mr-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_2px_var(--color-glow-primary)]" />
                 ) : null}
               </Link>
             );
@@ -153,32 +151,32 @@ export function Shell() {
         </nav>
 
         {unread > 0 ? (
-          <div className="border-t border-[color-mix(in_srgb,white_6%,transparent)] px-3 py-4">
+          <div className="border-t border-sidebar-border px-3 py-4">
             <Link
               to="/notifications"
-              className="flex items-center gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--color-sidebar-primary)_28%,transparent)] bg-[linear-gradient(270deg,color-mix(in_oklab,var(--color-sidebar-primary)_14%,transparent),color-mix(in_oklab,var(--color-sidebar-primary)_6%,transparent))] px-3 py-2.5 shadow-[inset_0_1px_0_color-mix(in_srgb,white_8%,transparent)] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--color-sidebar-primary)_40%,transparent)] hover:bg-[linear-gradient(270deg,color-mix(in_oklab,var(--color-sidebar-primary)_20%,transparent),color-mix(in_oklab,var(--color-sidebar-primary)_9%,transparent))]"
+              className="flex items-center gap-2.5 rounded-lg border border-sidebar-active-edge bg-sidebar-active-fade px-3 py-2.5 transition-all duration-150 hover:bg-primary/10"
             >
               <div className="relative shrink-0">
-                <Bell className="h-4 w-4 text-sidebar-primary" />
-                <span className="absolute -top-1 -right-1 h-2 w-2 animate-pulse-glow rounded-full bg-sidebar-primary" />
+                <Bell className="h-4 w-4 text-primary" />
+                <span className="absolute -top-1 -right-1 h-2 w-2 animate-pulse-glow rounded-full bg-primary" />
               </div>
-              <span className="text-xs font-medium text-[#93c5fd]">
+              <span className="text-xs font-medium text-primary">
                 התראות פעילות
               </span>
-              <span className="mr-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-sidebar-primary px-1 text-xs font-bold text-white shadow-[0_4px_14px_-4px_rgba(59,130,246,0.65)]">
+              <span className="mr-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-xs font-bold text-white shadow-sm">
                 {unread > 99 ? "99+" : unread}
               </span>
             </Link>
           </div>
         ) : null}
 
-        <div className="shrink-0 border-t border-[color-mix(in_srgb,white_6%,transparent)] p-4">
+        <div className="shrink-0 border-t border-sidebar-border p-4">
           <div className="mb-3 flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,white_6%,transparent)] text-sm font-semibold text-[color-mix(in_srgb,var(--color-sidebar-foreground)_92%,transparent)] ring-1 ring-[color-mix(in_srgb,white_10%,transparent)]">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-foreground ring-1 ring-sidebar-border">
               {emailInitial}
             </div>
             <p
-              className="min-w-0 flex-1 truncate text-xs text-[color-mix(in_srgb,var(--color-sidebar-foreground)_68%,transparent)]"
+              className="min-w-0 flex-1 truncate text-xs text-sidebar-muted"
               title={user?.email ?? undefined}
             >
               {user?.email ?? ""}
@@ -187,14 +185,14 @@ export function Shell() {
           <button
             type="button"
             onClick={() => void signOut()}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[color-mix(in_srgb,white_8%,transparent)] bg-[color-mix(in_srgb,white_3%,transparent)] px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-all duration-200 hover:border-[color-mix(in_srgb,white_14%,transparent)] hover:bg-[color-mix(in_srgb,white_7%,transparent)] hover:text-white active:scale-[0.99] motion-reduce:active:scale-100"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-all duration-150 hover:bg-sidebar-accent-hover hover:text-foreground dark:hover:text-white active:scale-[0.99] motion-reduce:active:scale-100"
           >
             <LogOut className="h-4 w-4" aria-hidden />
             התנתק
           </button>
           {appVersion ? (
             <p
-              className="mt-2 text-center text-[11px] text-sidebar-foreground/60 tabular-nums"
+              className="mt-2 text-center text-[11px] text-sidebar-muted/60 tabular-nums"
               title={`v${appVersion}`}
             >
               v{appVersion}
@@ -204,7 +202,7 @@ export function Shell() {
       </aside>
 
       <main className="h-[100dvh] overflow-y-auto scroll-smooth pb-[calc(4rem+env(safe-area-inset-bottom,0px))] landscape:pb-16 md:mr-64 md:pb-0">
-        <div className="mx-auto max-w-5xl px-4 py-5 landscape:py-4 sm:px-6 sm:py-6 lg:px-8 md:py-8">
+        <div className="mx-auto max-w-5xl px-4 py-6 landscape:py-4 sm:px-6 md:py-8 lg:px-8">
           <div key={location.pathname} className="animate-fade-in">
             <Outlet />
           </div>
@@ -213,7 +211,7 @@ export function Shell() {
 
       <nav
         aria-label="ניווט"
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-border/40 bg-card/80 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.15)] dark:shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150 pb-[env(safe-area-inset-bottom,0px)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-border/50 bg-card/90 shadow-[0_-2px_16px_-6px_rgba(0,0,0,0.1)] dark:shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.4)] backdrop-blur-xl backdrop-saturate-150 pb-[env(safe-area-inset-bottom,0px)] md:hidden"
       >
         <div className="flex justify-around px-1 py-2 landscape:py-1.5">
           {visibleNavItems.filter((item) => item.mobile).map((item) => {
@@ -227,14 +225,14 @@ export function Shell() {
                 to={item.path}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "group flex min-w-0 flex-1 flex-col items-center gap-1 landscape:gap-0.5 px-2 py-2 landscape:py-0.5 text-[11px] font-medium transition-all duration-200",
+                  "group flex min-w-0 flex-1 flex-col items-center gap-1 landscape:gap-0.5 px-2 py-2 landscape:py-0.5 text-[11px] font-medium transition-all duration-150",
                   "active:scale-[0.94] motion-reduce:active:scale-100",
                   isActive ? "text-primary" : "text-muted-foreground",
                 )}
               >
                 <span className="flex flex-col items-center gap-1 landscape:gap-0">
                   <span className="relative">
-                    <Icon className="h-5 w-5 landscape:h-4 landscape:w-4 transition-transform duration-200 group-active:scale-90" />
+                    <Icon className="h-5 w-5 landscape:h-4 landscape:w-4 transition-transform duration-150 group-active:scale-90" />
                     {showBadge && (
                       <span className="absolute -top-1 -right-2 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-destructive px-0.5 text-[9px] font-bold text-white animate-pulse-soft">
                         {unread > 99 ? "99+" : unread}
@@ -243,7 +241,7 @@ export function Shell() {
                   </span>
                   {isActive && (
                     <span
-                      className="h-1.5 w-1.5 landscape:h-1 landscape:w-1 rounded-full bg-primary shadow-[0_0_10px_2px_rgba(59,130,246,0.65)]"
+                      className="h-1.5 w-1.5 landscape:h-1 landscape:w-1 rounded-full bg-primary shadow-[0_0_8px_2px_var(--color-glow-primary)]"
                       aria-hidden
                     />
                   )}

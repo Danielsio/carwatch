@@ -25,7 +25,7 @@ export function EmptyState({
       )}
     >
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_40%,rgba(59,130,246,0.06),transparent)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_40%,var(--color-glow-primary),transparent)]"
         aria-hidden
       />
       <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/8 text-primary ring-1 ring-primary/10">

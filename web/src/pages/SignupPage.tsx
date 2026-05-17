@@ -111,11 +111,11 @@ export function SignupPage() {
   return (
     <div dir="rtl" className="relative min-h-screen overflow-hidden bg-background">
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(59,130,246,0.18),transparent)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,var(--color-glow-primary),transparent)]"
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_70%,rgba(16,185,129,0.06),transparent_45%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_70%,var(--color-glow-success),transparent_45%)]"
         aria-hidden
       />
 
@@ -125,7 +125,7 @@ export function SignupPage() {
             <img
               src="/logo-login.png"
               alt="CarWatch"
-              className="h-24 w-24 object-contain drop-shadow-[0_4px_24px_rgba(59,130,246,0.25)]"
+              className="h-24 w-24 object-contain drop-shadow-[0_4px_24px_var(--color-glow-primary)]"
               width={96}
               height={96}
             />
