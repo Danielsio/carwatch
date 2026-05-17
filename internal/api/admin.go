@@ -293,6 +293,7 @@ func (s *Server) adminListSearches(w http.ResponseWriter, r *http.Request) {
 		Model        int    `json:"model"`
 		YearMin      int    `json:"year_min"`
 		YearMax      int    `json:"year_max"`
+		PriceMin     int    `json:"price_min"`
 		PriceMax     int    `json:"price_max"`
 		MaxKm        int    `json:"max_km"`
 		MaxHand      int    `json:"max_hand"`
@@ -315,6 +316,7 @@ func (s *Server) adminListSearches(w http.ResponseWriter, r *http.Request) {
 			Model:        s.Model,
 			YearMin:      s.YearMin,
 			YearMax:      s.YearMax,
+			PriceMin:     s.PriceMin,
 			PriceMax:     s.PriceMax,
 			MaxKm:        s.MaxKm,
 			MaxHand:      s.MaxHand,

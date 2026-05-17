@@ -132,6 +132,7 @@ export default function TrySearchPage() {
 
   const validYear = (y: number) => y === 0 || y >= 1990;
   const canSubmit =
+    form.manufacturer > 0 &&
     validYear(form.yearMin) &&
     validYear(form.yearMax) &&
     (form.yearMin === 0 ||
