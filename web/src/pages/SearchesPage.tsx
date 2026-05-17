@@ -16,7 +16,6 @@ import {
 import { formatPrice, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchCard } from "@/components/SearchCard";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -173,19 +172,39 @@ export function SearchesPage() {
         <SectionHeader title="חיפושים שמורים" />
 
         {!searches || searches.length === 0 ? (
-          <EmptyState
-            icon={SearchIcon}
-            title="אין חיפושים פעילים עדיין"
-            description="צור חיפוש ראשון כדי להתחיל לעקוב אחר מודעות רכבים"
-            action={
-              <Button asChild>
+          <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-6 sm:p-8 text-center space-y-5">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Car className="h-8 w-8" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-foreground">ברוך הבא ל-CarWatch!</h2>
+              <p className="mx-auto max-w-md text-sm text-muted-foreground leading-relaxed">
+                צור את החיפוש הראשון שלך ונתחיל לעקוב אחר מודעות רכב בשבילך. הגדרה לוקחת פחות מ-2 דקות.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Button asChild size="lg">
                 <Link to="/searches/new">
                   <Plus className="h-4 w-4" />
-                  צור חיפוש
+                  צור חיפוש ראשון
                 </Link>
               </Button>
-            }
-          />
+            </div>
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border/30">
+              <div className="text-center">
+                <p className="text-xs font-semibold text-primary">01</p>
+                <p className="text-xs text-muted-foreground mt-1">בחר יצרן ודגם</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-primary">02</p>
+                <p className="text-xs text-muted-foreground mt-1">הגדר תקציב</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-primary">03</p>
+                <p className="text-xs text-muted-foreground mt-1">קבל התראות</p>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className={cn("grid gap-4", searches.length > 1 && "sm:grid-cols-2")}>
             {searches.map((search, i) => (
