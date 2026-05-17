@@ -10,6 +10,18 @@ import (
 	"github.com/dsionov/carwatch/internal/notifier"
 )
 
+const (
+	// digestRetryInterval is the shorter flush interval used after a
+	// delivery failure, so retries happen sooner than the next full
+	// digest interval.
+	digestRetryInterval = 2 * time.Minute
+
+	// maxDigestPending is the maximum number of items allowed to
+	// accumulate in a digest queue. When exceeded, the oldest items
+	// are acked (discarded) to prevent unbounded growth.
+	maxDigestPending = 100
+)
+
 func (s *Scheduler) processDigests(ctx context.Context) {
 	if s.stores.Digests == nil {
 		return
@@ -43,6 +55,11 @@ func (s *Scheduler) processDigests(ctx context.Context) {
 			interval = 6 * time.Hour
 		}
 
+		// If a previous flush failed, use a shorter retry interval.
+		if _, failed := s.digestFailures.Load(chatID); failed {
+			interval = digestRetryInterval
+		}
+
 		lastFlushed, err := s.stores.Digests.DigestLastFlushed(ctx, chatID)
 		if err != nil {
 			s.logger.Error("get last flushed failed", "chat_id", chatID, "error", err)
@@ -65,6 +82,18 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 		return
 	}
 
+	// Cap accumulated items to prevent unbounded growth.
+	if len(payloads) > maxDigestPending {
+		overflow := len(payloads) - maxDigestPending
+		s.logger.Warn("digest queue exceeded max pending items, discarding oldest",
+			"chat_id", chatID,
+			"total", len(payloads),
+			"discarding", overflow,
+			"max", maxDigestPending,
+		)
+		payloads = payloads[overflow:]
+	}
+
 	chatIDStr := fmt.Sprintf("%d", chatID)
 	lang := s.userLang(ctx, chatID)
 	header := locale.Tf(lang, "fmt_digest_header", len(payloads))
@@ -76,8 +105,13 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 			"items", len(payloads),
 			"error", err,
 		)
+		// Record the failure so processDigests uses a shorter retry interval.
+		s.digestFailures.Store(chatID, time.Now())
 		return
 	}
+
+	// Delivery succeeded; clear the failure marker.
+	s.digestFailures.Delete(chatID)
 
 	if err := s.stores.Digests.AckDigest(ctx, chatID, cutoff); err != nil {
 		s.logger.Error("digest ack failed after successful send, items may be resent",
