@@ -175,6 +175,7 @@ func run(configPath string, logger *slog.Logger) error {
 		const maxBackoff = 30 * time.Second
 		backoff := time.Second
 		for {
+			h.MarkBotPollingAlive()
 			logger.Info("telegram bot polling loop starting")
 			tgNotif.Bot().Start(ctx)
 			if ctx.Err() != nil {
@@ -190,7 +191,7 @@ func run(configPath string, logger *slog.Logger) error {
 			backoff = min(backoff*2, maxBackoff)
 		}
 	}()
-	h.MarkBotPollingAlive()
+	// health marked inside goroutine
 	logger.Info("bot started",
 		"health", "http://"+cfg.HTTP.Bind+"/healthz",
 	)
@@ -317,6 +318,7 @@ func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 		LogLevel:     logLevel,
 		Fetchers:     fetchers,
 		PriceListSvc: plSvc,
+		Bind:         cfg.HTTP.Bind,
 	})
 
 	return apiServer, nil
