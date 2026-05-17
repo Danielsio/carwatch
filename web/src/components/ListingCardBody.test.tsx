@@ -34,15 +34,15 @@ describe("ListingCardBody", () => {
     const longText = "א".repeat(200);
     const listing = { ...baseListing(), description: longText };
     render(<ListingCardBody listing={listing} />);
-    const toggle = screen.getByRole("button", { name: "המשך קריאה" });
+    const toggle = screen.getByRole("button", { name: "עוד" });
     await user.click(toggle);
     expect(screen.getByRole("button", { name: "הצג פחות" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "הצג פחות" }));
-    expect(screen.getByRole("button", { name: "המשך קריאה" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "עוד" })).toBeInTheDocument();
   });
 
   it("omits description block when empty", () => {
     render(<ListingCardBody listing={baseListing()} />);
-    expect(screen.queryByRole("button", { name: "המשך קריאה" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "עוד" })).not.toBeInTheDocument();
   });
 });

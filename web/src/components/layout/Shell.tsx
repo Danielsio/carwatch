@@ -181,16 +181,16 @@ export function Shell() {
         className="fixed inset-y-0 right-0 z-40 hidden h-full w-60 flex-col border-l border-sidebar-border bg-sidebar md:flex"
       >
         {/* Brand */}
-        <div className="flex items-center gap-3 border-b border-sidebar-border px-4 py-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/80 text-white shadow-sm">
-            <Car className="h-4.5 w-4.5 text-white" />
+        <div className="flex items-center gap-3 border-b border-sidebar-border px-4 py-5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-primary to-blue-400 text-white shadow-[0_4px_16px_-4px_var(--color-glow-primary)]">
+            <Car className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-sm leading-none font-bold tracking-tight text-foreground dark:text-white">
+            <h1 className="text-[15px] leading-none font-extrabold tracking-tight text-foreground dark:text-white">
               CarWatch
             </h1>
-            <p className="mt-0.5 text-[11px] text-sidebar-muted">
-              מעקב רכבים חכם
+            <p className="mt-1 text-[10px] font-medium tracking-widest text-sidebar-muted uppercase">
+              Smart Tracking
             </p>
           </div>
           <button
