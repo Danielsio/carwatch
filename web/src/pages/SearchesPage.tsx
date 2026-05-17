@@ -321,13 +321,10 @@ export function SearchesPage() {
 function DashboardHeader() {
   return (
     <div className="relative flex items-start justify-between gap-4">
-      <div
-        className="pointer-events-none absolute -inset-x-2 -top-3 h-[4.5rem] rounded-2xl bg-gradient-to-b from-primary/[0.07] to-transparent sm:-inset-x-4 dark:from-primary/[0.09]"
-        aria-hidden
-      />
       <div className="relative">
-        <h1 className="text-2xl font-bold tracking-tight">לוח בקרה</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="text-[11px] font-semibold tracking-[0.2em] text-primary uppercase mb-1.5">Dashboard</p>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">לוח בקרה</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
           מעקב אחר חיפושי רכבים שלך
         </p>
       </div>
@@ -362,35 +359,39 @@ function StatCard({
   return (
     <motion.div
       whileHover={
-        reduceMotion ? undefined : { y: -3, transition: { duration: 0.2 } }
+        reduceMotion ? undefined : { y: -4, transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] } }
       }
-      whileTap={reduceMotion ? undefined : { scale: 0.985 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.98 }}
       className={cn(
-        "group relative overflow-hidden rounded-xl border border-border/60 bg-card p-3 sm:p-5 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset] transition-[border-color,box-shadow] duration-200 hover:border-primary/25 dark:shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset]",
+        "group relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-b from-card to-card/80 p-4 sm:p-5 backdrop-blur-sm transition-all duration-300",
+        "hover:border-primary/30 hover:shadow-[0_8px_32px_-8px_var(--color-glow-primary)]",
+        "dark:from-[#0d1017] dark:to-[#0a0d14] dark:border-white/[0.06]",
+        "dark:hover:border-white/[0.12] dark:hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.2)]",
         glow,
       )}
     >
-      <div className="pointer-events-none absolute -end-8 -top-10 h-28 w-28 rounded-full bg-gradient-to-br from-primary/15 via-transparent to-purple-500/10 opacity-80 blur-2xl transition-opacity group-hover:opacity-100" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-transparent via-transparent to-primary/[0.03] opacity-0 transition-opacity group-hover:opacity-100" />
-      <div
-        className="pointer-events-none absolute start-0 top-0 h-8 w-8 rounded-br-xl border-primary/20 border-s-2 border-t-2 opacity-50"
-        aria-hidden
-      />
-      <div className="pointer-events-none absolute bottom-0 start-0 end-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-70" />
-      <div className="relative flex items-center justify-between mb-2 sm:mb-3">
-        <span className="text-xs sm:text-sm text-muted-foreground leading-tight">{label}</span>
+      {/* Ambient glow blob */}
+      <div className="pointer-events-none absolute -end-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br from-primary/20 to-violet-500/10 opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
+      {/* Top edge shine */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent dark:via-white/[0.06]" />
+      {/* Hover overlay */}
+      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+      <div className="relative flex items-center justify-between mb-3 sm:mb-4">
         <div
           className={cn(
-            "relative flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-white/10",
+            "flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl",
+            "ring-1 ring-white/[0.08] dark:ring-white/[0.06]",
             bg,
           )}
         >
-          <Icon className={cn("h-4 w-4 sm:h-[18px] sm:w-[18px]", color)} />
+          <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5", color)} />
         </div>
       </div>
-      <p className="relative text-2xl sm:text-3xl font-bold tabular-nums text-foreground tracking-tight">
+      <p className="relative text-3xl sm:text-4xl font-extrabold tabular-nums text-foreground tracking-tighter">
         {value}
       </p>
+      <span className="relative mt-1 block text-[11px] sm:text-xs font-medium text-muted-foreground tracking-wide uppercase">{label}</span>
     </motion.div>
   );
 }
