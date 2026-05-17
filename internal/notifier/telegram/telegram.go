@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tgbot "github.com/go-telegram/bot"
@@ -25,8 +26,12 @@ const (
 	telegramListingSeparatorLine = "━━━━━━━━━━━━━━━━━━━━"
 
 	// defaultSendDelay is the minimum pause between consecutive Telegram
-	// API calls to avoid hitting rate limits.
+	// API calls within a single split message to avoid hitting rate limits.
 	defaultSendDelay = 50 * time.Millisecond
+
+	// defaultChatDelay is the minimum pause between separate deliveries
+	// to the same chat to avoid per-chat Telegram rate limiting.
+	defaultChatDelay = 100 * time.Millisecond
 
 	// telegramMaxRetries is the maximum number of extra attempts after a
 	// rate-limited (HTTP 429) sendMessage/sendPhoto failure.
@@ -42,9 +47,11 @@ const (
 )
 
 type Notifier struct {
-	bot       *tgbot.Bot
-	logger    *slog.Logger
-	sendDelay time.Duration
+	bot          *tgbot.Bot
+	logger       *slog.Logger
+	sendDelay    time.Duration
+	chatDelay    time.Duration
+	lastSendTime sync.Map // chatID string -> time.Time
 }
 
 func New(token string, logger *slog.Logger, opts ...tgbot.Option) (*Notifier, error) {
@@ -56,7 +63,7 @@ func New(token string, logger *slog.Logger, opts ...tgbot.Option) (*Notifier, er
 	if err != nil {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
-	return &Notifier{bot: b, logger: logger, sendDelay: defaultSendDelay}, nil
+	return &Notifier{bot: b, logger: logger, sendDelay: defaultSendDelay, chatDelay: defaultChatDelay}, nil
 }
 
 func (n *Notifier) Bot() *tgbot.Bot {
@@ -72,7 +79,26 @@ func (n *Notifier) Connect(ctx context.Context) error {
 	return nil
 }
 
+// enforcePerChatDelay sleeps if necessary to maintain at least chatDelay
+// between consecutive API calls targeting the same chat, preventing per-chat
+// rate limiting when multiple searches deliver results in quick succession.
+func (n *Notifier) enforcePerChatDelay(chatID string) {
+	if n.chatDelay <= 0 {
+		return
+	}
+	now := time.Now()
+	if v, ok := n.lastSendTime.Load(chatID); ok {
+		if last, ok := v.(time.Time); ok {
+			if elapsed := now.Sub(last); elapsed < n.chatDelay {
+				time.Sleep(n.chatDelay - elapsed)
+			}
+		}
+	}
+	n.lastSendTime.Store(chatID, time.Now())
+}
+
 func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.Listing, lang locale.Lang) error {
+	n.enforcePerChatDelay(chatID)
 	if len(listings) == 1 && listings[0].ImageURL != "" {
 		return n.sendListingWithPhoto(ctx, chatID, listings[0], lang)
 	}
@@ -81,6 +107,7 @@ func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.L
 }
 
 func (n *Notifier) NotifyRaw(ctx context.Context, chatID string, message string) error {
+	n.enforcePerChatDelay(chatID)
 	n.logger.Debug("notifyRaw",
 		"chat_id", chatID,
 		"msg_len", len(message),

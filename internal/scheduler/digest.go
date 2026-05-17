@@ -10,6 +10,12 @@ import (
 	"github.com/dsionov/carwatch/internal/notifier"
 )
 
+// maxPendingDigestItems is the upper bound on buffered digest items per chat.
+// When a flush fails repeatedly the buffer grows without bound; once it exceeds
+// this limit the oldest items are acknowledged (dropped) to prevent unbounded
+// memory/storage growth.
+const maxPendingDigestItems = 100
+
 func (s *Scheduler) processDigests(ctx context.Context) {
 	if s.stores.Digests == nil {
 		return
@@ -63,6 +69,20 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 	}
 	if len(payloads) == 0 {
 		return
+	}
+
+	// Cap accumulated items to prevent unbounded growth after repeated
+	// flush failures. Drop the oldest items and ack them so they are not
+	// retried forever.
+	if len(payloads) > maxPendingDigestItems {
+		overflow := len(payloads) - maxPendingDigestItems
+		s.logger.Warn("digest queue exceeded max pending items, discarding oldest",
+			"chat_id", chatID,
+			"total", len(payloads),
+			"discarding", overflow,
+			"max", maxPendingDigestItems,
+		)
+		payloads = payloads[overflow:]
 	}
 
 	chatIDStr := fmt.Sprintf("%d", chatID)

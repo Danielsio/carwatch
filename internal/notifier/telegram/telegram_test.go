@@ -68,8 +68,9 @@ func newTestNotifier(t *testing.T, handler http.Handler) *Notifier {
 	if err != nil {
 		t.Fatalf("create notifier: %v", err)
 	}
-	// Disable send delay in tests to avoid sleeping.
+	// Disable delays in tests to avoid sleeping.
 	n.sendDelay = 0
+	n.chatDelay = 0
 	return n
 }
 
@@ -777,5 +778,56 @@ func TestNotifyRaw_AllowsValidMessage(t *testing.T) {
 	}
 	if called.Load() == 0 {
 		t.Error("API should have been called for valid message")
+	}
+}
+
+// --- Per-chat throttle tests ---
+
+func TestEnforcePerChatDelay_SameChatIsThrottled(t *testing.T) {
+	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(sendMessageOK)
+	}))
+	n.chatDelay = 50 * time.Millisecond
+
+	start := time.Now()
+	_ = n.NotifyRaw(context.Background(), "123", "first valid notification message")
+	_ = n.NotifyRaw(context.Background(), "123", "second valid notification message")
+	elapsed := time.Since(start)
+
+	if elapsed < 50*time.Millisecond {
+		t.Errorf("two sends to same chat took %v, expected >= 50ms", elapsed)
+	}
+}
+
+func TestEnforcePerChatDelay_DifferentChatsNotThrottled(t *testing.T) {
+	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(sendMessageOK)
+	}))
+	n.chatDelay = 200 * time.Millisecond
+
+	start := time.Now()
+	_ = n.NotifyRaw(context.Background(), "100", "message for chat 100 here")
+	_ = n.NotifyRaw(context.Background(), "200", "message for chat 200 here")
+	elapsed := time.Since(start)
+
+	if elapsed >= 200*time.Millisecond {
+		t.Errorf("different chats should not be throttled, took %v", elapsed)
+	}
+}
+
+func TestEnforcePerChatDelay_DisabledWhenZero(t *testing.T) {
+	n := newTestNotifier(t, routingHandler(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(sendMessageOK)
+	}))
+	n.chatDelay = 0
+
+	start := time.Now()
+	for i := 0; i < 5; i++ {
+		_ = n.NotifyRaw(context.Background(), "123", "rapid fire notification message")
+	}
+	elapsed := time.Since(start)
+
+	if elapsed > 100*time.Millisecond {
+		t.Errorf("5 sends with zero chatDelay took %v, expected near-instant", elapsed)
 	}
 }
