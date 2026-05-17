@@ -346,7 +346,7 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
           navigate(`/listings/${listing.token}`, { state: { listing } });
         }
       }}
-      className="group block cursor-pointer rounded-2xl border border-border/50 bg-card overflow-hidden shadow-sm transition-all duration-150 hover:border-border hover:shadow-md hover:-translate-y-0.5 dir-rtl"
+      className="group block cursor-pointer rounded-2xl border border-border/40 bg-card overflow-hidden shadow-sm transition-all duration-300 ease-out hover:border-primary/20 hover:shadow-[0_16px_48px_-12px_var(--color-glow-primary)] hover:-translate-y-1 dir-rtl"
     >
       <ListingCardBody
         listing={listing}
