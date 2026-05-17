@@ -108,9 +108,18 @@ type Config struct {
 	BotUsername  string
 	Fetchers     *fetcher.Factory
 	PriceListSvc *pricelist.Service
+	Bind         string
 }
 
 func New(c Config) *Server {
+	if c.FirebaseAuth == nil {
+		bind := c.Bind
+		if bind != "" && !strings.HasPrefix(bind, "127.0.0.1") && !strings.HasPrefix(bind, "localhost") {
+			c.Logger.Warn("firebase auth not configured — using dev auth mode on non-localhost bind address",
+				"bind", bind)
+		}
+	}
+
 	return &Server{
 		catalog:      c.Catalog,
 		searches:     c.Searches,
