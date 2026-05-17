@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const (
@@ -62,7 +63,28 @@ func (s *Store) GetUserByChannelID(ctx context.Context, channel, channelID strin
 	return &u, nil
 }
 
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
 func (s *Store) upsertChannelUser(ctx context.Context, channel, channelID, username string, idOffset int64) (int64, error) {
+	const maxRetries = 3
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		id, err := s.tryUpsertChannelUser(ctx, channel, channelID, username, idOffset)
+		if err == nil {
+			return id, nil
+		}
+		if !isUniqueViolation(err) {
+			return 0, err
+		}
+		slog.Warn("user ID collision, retrying", "channel", channel, "attempt", attempt+1)
+	}
+	return 0, fmt.Errorf("create %s user: max retries exceeded due to concurrent ID collisions", channel)
+}
+
+func (s *Store) tryUpsertChannelUser(ctx context.Context, channel, channelID, username string, idOffset int64) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
@@ -97,10 +119,10 @@ func (s *Store) upsertChannelUser(ctx context.Context, channel, channelID, usern
 		`INSERT INTO users (chat_id, username, channel, channel_id) VALUES ($1, $2, $3, $4)`,
 		newID, username, channel, channelID)
 	if err != nil {
-		return 0, fmt.Errorf("create %s user: %w", channel, err)
+		return 0, err
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("commit: %w", err)
+		return 0, err
 	}
 	return newID, nil
 }
