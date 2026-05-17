@@ -968,3 +968,87 @@ func TestRetryPending_PurgesMalformedPayloads(t *testing.T) {
 		t.Error("valid payload id=3 should be acked after send")
 	}
 }
+
+func TestFlushAndSendDigest_SendError_SetsRetryMarker(t *testing.T) {
+	n := &errNotifier{rawErr: errors.New("send failed")}
+	ds := newMockDigestStore()
+	ds.items[100] = digestItems("item1")
+	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{DigestStore: ds})
+	s.flushAndSendDigest(context.Background(), 100)
+	if _, ok := s.digestFailures.Load(int64(100)); !ok {
+		t.Error("expected digestFailures marker after send failure")
+	}
+}
+
+func TestFlushAndSendDigest_Success_ClearsRetryMarker(t *testing.T) {
+	n := &mockNotifier{}
+	ds := newMockDigestStore()
+	ds.items[100] = digestItems("item1")
+	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{DigestStore: ds})
+	s.digestFailures.Store(int64(100), time.Now())
+	s.flushAndSendDigest(context.Background(), 100)
+	if _, ok := s.digestFailures.Load(int64(100)); ok {
+		t.Error("expected digestFailures marker cleared after success")
+	}
+}
+
+func TestProcessDigests_UsesRetryIntervalAfterFailure(t *testing.T) {
+	n := &mockNotifier{}
+	ds := newMockDigestStore()
+	_ = ds.SetDigestMode(context.Background(), 100, "digest", "24h")
+	ds.items[100] = digestItems("item1")
+	ds.flushed[100] = time.Now().Add(-3 * time.Minute)
+	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{DigestStore: ds})
+	s.digestFailures.Store(int64(100), time.Now().Add(-3*time.Minute))
+	s.processDigests(context.Background())
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.rawMessages) != 1 {
+		t.Errorf("expected retry flush, got %d messages", len(n.rawMessages))
+	}
+}
+
+func TestProcessDigests_NoRetryWithoutFailureMarker(t *testing.T) {
+	n := &mockNotifier{}
+	ds := newMockDigestStore()
+	_ = ds.SetDigestMode(context.Background(), 100, "digest", "24h")
+	ds.items[100] = digestItems("item1")
+	ds.flushed[100] = time.Now().Add(-3 * time.Minute)
+	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{DigestStore: ds})
+	s.processDigests(context.Background())
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.rawMessages) != 0 {
+		t.Errorf("expected no flush without failure marker, got %d", len(n.rawMessages))
+	}
+}
+
+func TestFlushAndSendDigest_CapsOverflowItems(t *testing.T) {
+	n := &mockNotifier{}
+	ds := newMockDigestStore()
+	payloads := make([]string, maxDigestPending+20)
+	for i := range payloads {
+		payloads[i] = fmt.Sprintf("item-%d", i)
+	}
+	ds.items[100] = digestItems(payloads...)
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	s, _ := NewWithOptions(testConfig(), nil, nil, n, logger, Options{DigestStore: ds})
+	s.flushAndSendDigest(context.Background(), 100)
+	n.mu.Lock()
+	sentCount := len(n.rawMessages)
+	n.mu.Unlock()
+	if sentCount != 1 {
+		t.Fatalf("expected 1 message, got %d", sentCount)
+	}
+	msg := n.rawMessages[0].message
+	if strings.Contains(msg, "item-0") {
+		t.Error("oldest items should be discarded")
+	}
+	if !strings.Contains(msg, fmt.Sprintf("item-%d", maxDigestPending+19)) {
+		t.Error("newest items should be present")
+	}
+	if !strings.Contains(logBuf.String(), "digest queue exceeded max pending items") {
+		t.Error("expected overflow warning in log")
+	}
+}
