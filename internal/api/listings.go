@@ -131,6 +131,7 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 
 		var raw []model.RawListing
 		var fetchErr error
+	retryLoop:
 		for attempt := 0; attempt < 3; attempt++ {
 			raw, fetchErr = f.Fetch(r.Context(), params)
 			if fetchErr == nil {
@@ -142,7 +143,8 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 				delay := time.Duration(1<<attempt) * time.Second
 				select {
 				case <-r.Context().Done():
-					break
+					fetchErr = r.Context().Err()
+					break retryLoop
 				case <-time.After(delay):
 				}
 			}
