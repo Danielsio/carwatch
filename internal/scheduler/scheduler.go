@@ -691,7 +691,7 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 			"search_name", search.Name,
 		)
 
-		filtered := filter.Apply(buildFilterCriteria(search), raw)
+		filtered := filter.Apply(model.FilterCriteriaFromSearch(&search), raw)
 		searchLog.Debug("search filter applied",
 			"total_raw", len(raw),
 			"after_filter", len(filtered),

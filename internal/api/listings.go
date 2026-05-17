@@ -155,7 +155,7 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 
 	s.refreshMu.Store(cooldownKey, time.Now())
 
-	criteria := buildFilterCriteriaFromSearch(sr)
+	criteria := model.FilterCriteriaFromSearch(sr)
 	filtered := filter.Apply(criteria, allRaw)
 
 	freshTokens := make([]string, len(filtered))
@@ -240,38 +240,6 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 		Total:   total,
 		Removed: removed,
 	})
-}
-
-func buildFilterCriteriaFromSearch(sr *storage.Search) model.FilterCriteria {
-	criteria := model.FilterCriteria{
-		ModelID:     sr.Model,
-		YearMin:     sr.YearMin,
-		YearMax:     sr.YearMax,
-		PriceMin:    sr.PriceMin,
-		PriceMax:    sr.PriceMax,
-		EngineMinCC: float64(sr.EngineMinCC),
-		MaxKm:       sr.MaxKm,
-		MaxHand:     sr.MaxHand,
-		GearBox:     sr.GearBox,
-		PriceOnly:   sr.PriceOnly,
-		PhotoOnly:   sr.PhotoOnly,
-	}
-
-	if sr.Keywords != "" {
-		for _, kw := range strings.Split(sr.Keywords, ",") {
-			if kw = strings.TrimSpace(kw); kw != "" {
-				criteria.Keywords = append(criteria.Keywords, kw)
-			}
-		}
-	}
-	if sr.ExcludeKeys != "" {
-		for _, ex := range strings.Split(sr.ExcludeKeys, ",") {
-			if ex = strings.TrimSpace(ex); ex != "" {
-				criteria.ExcludeKeys = append(criteria.ExcludeKeys, ex)
-			}
-		}
-	}
-	return criteria
 }
 
 func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {

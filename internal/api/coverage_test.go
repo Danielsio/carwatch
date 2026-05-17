@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dsionov/carwatch/internal/fetcher"
+	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -1077,7 +1078,7 @@ func TestBuildFilterCriteriaFromSearch(t *testing.T) {
 		Keywords:    "automatic, sunroof",
 		ExcludeKeys: "salvage",
 	}
-	fc := buildFilterCriteriaFromSearch(sr)
+	fc := model.FilterCriteriaFromSearch(sr)
 
 	if fc.ModelID != 10226 {
 		t.Errorf("ModelID = %d, want 10226", fc.ModelID)

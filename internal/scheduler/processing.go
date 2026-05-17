@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/locale"
@@ -313,37 +312,4 @@ func filterHiddenListings(filtered []model.RawListing, hidden map[string]bool) [
 		}
 	}
 	return out
-}
-
-func buildFilterCriteria(search storage.Search) model.FilterCriteria {
-	criteria := model.FilterCriteria{
-		ModelID:     search.Model,
-		YearMin:     search.YearMin,
-		YearMax:     search.YearMax,
-		PriceMin:    search.PriceMin,
-		PriceMax:    search.PriceMax,
-		EngineMinCC: float64(search.EngineMinCC),
-		MaxKm:       search.MaxKm,
-		MaxHand:     search.MaxHand,
-		GearBox:     search.GearBox,
-		PriceOnly:   search.PriceOnly,
-		PhotoOnly:   search.PhotoOnly,
-	}
-
-	if search.Keywords != "" {
-		for _, kw := range strings.Split(search.Keywords, ",") {
-			if kw = strings.TrimSpace(kw); kw != "" {
-				criteria.Keywords = append(criteria.Keywords, kw)
-			}
-		}
-	}
-	if search.ExcludeKeys != "" {
-		for _, kw := range strings.Split(search.ExcludeKeys, ",") {
-			if kw = strings.TrimSpace(kw); kw != "" {
-				criteria.ExcludeKeys = append(criteria.ExcludeKeys, kw)
-			}
-		}
-	}
-
-	return criteria
 }
