@@ -318,7 +318,6 @@ func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 		LogLevel:     logLevel,
 		Fetchers:     fetchers,
 		PriceListSvc: plSvc,
-		Bind:         cfg.HTTP.Bind,
 	})
 
 	return apiServer, nil
