@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, memo } from "react";
+import { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import {
   ExternalLink,
@@ -7,10 +7,12 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  ArrowUp,
+  Loader2,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useListings } from "@/hooks/useListings";
+import { useInfiniteListings } from "@/hooks/useInfiniteListings";
 import { useSaveBookmark, useRemoveBookmark } from "@/hooks/useBookmarks";
 import { useMarkListingSeen, useUnmarkListingSeen } from "@/hooks/useListingSeen";
 import { safeHref, cn, formatPrice } from "@/lib/utils";
@@ -23,7 +25,6 @@ import { PageShell } from "@/components/ui/PageShell";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { Pagination } from "@/components/ui/Pagination";
 import { useToast } from "@/components/ui/Toast";
 
 const SORT_OPTIONS = [
@@ -35,7 +36,6 @@ const SORT_OPTIONS = [
   { value: "year", label: "שנה" },
 ];
 
-const PAGE_SIZE = 20;
 const REFRESH_COOLDOWN_S = 60;
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
@@ -43,8 +43,6 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
   return target.closest("button,a,input,select,textarea") != null;
 }
 
-/** Self-contained refresh button that manages its own cooldown timer so ticks
- *  don't re-render the parent (and therefore every listing card). */
 function RefreshButton({ searchId }: { searchId: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -58,7 +56,7 @@ function RefreshButton({ searchId }: { searchId: number }) {
     cooldownRef.current = setInterval(() => {
       setCooldown((prev) => {
         if (prev <= 1) {
-          if (cooldownRef.current) clearInterval(cooldownRef.current);
+          clearInterval(cooldownRef.current!);
           cooldownRef.current = null;
           return 0;
         }
@@ -73,29 +71,20 @@ function RefreshButton({ searchId }: { searchId: number }) {
     };
   }, []);
 
-  const refreshMutation = useMutation<RefreshResponse, Error>({
+  const refreshMutation = useMutation<RefreshResponse>({
     mutationFn: () => api.refreshListings(searchId),
-    meta: { suppressToast: true },
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ["listings", searchId] });
-      queryClient.invalidateQueries({ queryKey: ["searches"] });
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ["listings-infinite", searchId] });
+      void queryClient.invalidateQueries({ queryKey: ["listings", searchId] });
       startCooldown();
-
-      if (res.removed > 0) {
-        toast(`הוסרו ${res.removed} מודעות שכבר לא זמינות`, "info");
-      }
-      toast(
-        `נטענו ${res.total} מודעות מעודכנות`,
-        "success",
-      );
-    },
-    onError: (err) => {
-      if (err.message.includes("wait")) {
-        toast(err.message, "info");
-        startCooldown();
+      if (result.items.length > 0) {
+        toast(`${result.items.length} מודעות חדשות נמצאו!`, "success");
       } else {
-        toast("שגיאה בעת רענון המודעות", "error");
+        toast("אין מודעות חדשות כרגע", "info");
       }
+    },
+    onError: () => {
+      toast("שגיאה ברענון, נסה שוב", "error");
     },
   });
 
@@ -108,7 +97,7 @@ function RefreshButton({ searchId }: { searchId: number }) {
       disabled={isRefreshing || cooldown > 0}
       aria-label={cooldown > 0 ? `רענון זמין בעוד ${cooldown} שניות` : "רענן מודעות"}
       className={cn(
-        "relative flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-300",
+        "relative flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-150",
         "bg-primary/10 text-primary hover:bg-primary/20",
         "disabled:opacity-50 disabled:cursor-not-allowed",
         "focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2",
@@ -129,18 +118,67 @@ function RefreshButton({ searchId }: { searchId: number }) {
   );
 }
 
+function ScrollToTopButton() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const main = document.querySelector("main");
+    if (!main) return;
+    const onScroll = () => setVisible(main.scrollTop > 600);
+    main.addEventListener("scroll", onScroll, { passive: true });
+    return () => main.removeEventListener("scroll", onScroll);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" })}
+      className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] left-4 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-150 hover:opacity-90 active:scale-95 md:bottom-6"
+      aria-label="חזרה למעלה"
+    >
+      <ArrowUp className="h-4 w-4" />
+    </button>
+  );
+}
+
 export function ListingsPage() {
   const { id } = useParams();
   const searchId = Number(id);
   const [sort, setSort] = useState("newest");
-  const [offset, setOffset] = useState(0);
 
-  const { data, isLoading, isError } = useListings(
-    searchId,
-    sort,
-    PAGE_SIZE,
-    offset,
+  const {
+    data,
+    isLoading,
+    isError,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteListings(searchId, sort);
+
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  const allListings = useMemo(
+    () => data?.pages.flatMap((p) => p.items) ?? [],
+    [data],
   );
+  const total = data?.pages[0]?.total ?? 0;
 
   if (!searchId || Number.isNaN(searchId)) {
     return (
@@ -165,11 +203,6 @@ export function ListingsPage() {
 
   const showSkeletons = isLoading && !data;
 
-  const countSubtitle =
-    !showSkeletons && data != null
-      ? `${data.total.toLocaleString("he-IL")} מודעות`
-      : undefined;
-
   return (
     <PageShell gap="sm">
       <PageHeader
@@ -178,32 +211,30 @@ export function ListingsPage() {
         subtitle={
           showSkeletons ? (
             <span className="inline-block h-4 w-24 rounded shimmer-skeleton align-middle" />
-          ) : (
-            countSubtitle
-          )
+          ) : total > 0 ? (
+            `${total.toLocaleString("he-IL")} מודעות`
+          ) : undefined
         }
       />
 
-      {/* Sort pills + refresh button */}
-      <div className="flex items-center gap-2 dir-rtl">
-        <div className="flex flex-wrap gap-2 flex-1">
-          {SORT_OPTIONS.map((opt) => (
-            <Button
-              key={opt.value}
-              type="button"
-              size="sm"
-              variant={sort === opt.value ? "primary" : "secondary"}
-              onClick={() => {
-                setSort(opt.value);
-                setOffset(0);
-              }}
-            >
-              {opt.label}
-            </Button>
-          ))}
+      {/* Sort pills + refresh */}
+      <div className="sticky top-0 z-30 -mx-4 bg-background/90 px-4 py-2 backdrop-blur-lg border-b border-border/30 md:static md:mx-0 md:px-0 md:bg-transparent md:backdrop-blur-none md:border-0">
+        <div className="flex items-center gap-2 dir-rtl">
+          <div className="flex flex-wrap gap-1.5 flex-1">
+            {SORT_OPTIONS.map((opt) => (
+              <Button
+                key={opt.value}
+                type="button"
+                size="sm"
+                variant={sort === opt.value ? "primary" : "secondary"}
+                onClick={() => setSort(opt.value)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+          <RefreshButton searchId={searchId} />
         </div>
-
-        <RefreshButton searchId={searchId} />
       </div>
 
       {/* Grid */}
@@ -220,7 +251,7 @@ export function ListingsPage() {
             </motion.div>
           ))}
         </div>
-      ) : !data || data.items.length === 0 ? (
+      ) : allListings.length === 0 ? (
         <EmptyState
           icon={Car}
           title="אין תוצאות עדיין"
@@ -235,7 +266,7 @@ export function ListingsPage() {
         <>
           <div className="grid gap-5 sm:gap-4 sm:grid-cols-2">
             <AnimatePresence mode="popLayout">
-              {data.items.map((listing, i) => (
+              {allListings.map((listing, i) => (
                 <motion.div
                   key={listing.token}
                   layout
@@ -243,10 +274,10 @@ export function ListingsPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{
-                    delay: i * 0.05,
-                    duration: 0.35,
+                    delay: Math.min(i, 6) * 0.04,
+                    duration: 0.3,
                     ease: "easeOut",
-                    layout: { duration: 0.3 },
+                    layout: { duration: 0.25 },
                   }}
                 >
                   <ListingCard listing={listing} />
@@ -255,21 +286,28 @@ export function ListingsPage() {
             </AnimatePresence>
           </div>
 
-          <Pagination
-            offset={offset}
-            total={data.total}
-            pageSize={PAGE_SIZE}
-            onPrev={() => {
-              setOffset(Math.max(0, offset - PAGE_SIZE));
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            onNext={() => {
-              setOffset(offset + PAGE_SIZE);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-          />
+          {/* Infinite scroll trigger */}
+          <div ref={loadMoreRef} className="flex justify-center py-6">
+            {isFetchingNextPage ? (
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            ) : hasNextPage ? (
+              <button
+                type="button"
+                onClick={() => void fetchNextPage()}
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                טען עוד
+              </button>
+            ) : allListings.length > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                הצגת כל {total.toLocaleString("he-IL")} המודעות
+              </p>
+            ) : null}
+          </div>
         </>
       )}
+
+      <ScrollToTopButton />
     </PageShell>
   );
 }
@@ -308,7 +346,7 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
           navigate(`/listings/${listing.token}`, { state: { listing } });
         }
       }}
-      className="group block cursor-pointer rounded-2xl border border-border/50 bg-card overflow-hidden shadow-sm transition-all duration-300 hover:border-border hover:shadow-[0_12px_40px_rgba(0,0,0,0.45)] hover:-translate-y-1 dir-rtl"
+      className="group block cursor-pointer rounded-2xl border border-border/50 bg-card overflow-hidden shadow-sm transition-all duration-150 hover:border-border hover:shadow-md hover:-translate-y-0.5 dir-rtl"
     >
       <ListingCardBody
         listing={listing}
@@ -330,7 +368,7 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
                 });
               }}
               className={cn(
-                "rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all duration-200",
+                "rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all duration-150",
                 seen
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-primary/5 hover:text-primary",
@@ -363,7 +401,7 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
                 });
               }}
               className={cn(
-                "rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all duration-200",
+                "rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all duration-150",
                 saved
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-primary/5 hover:text-primary",
@@ -380,7 +418,7 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
                 rel="noopener noreferrer"
                 aria-label="פתח מודעה באתר חיצוני"
                 onClick={(e) => e.stopPropagation()}
-                className="rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground transition-all duration-200 hover:bg-primary/5 hover:text-primary"
+                className="rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground transition-all duration-150 hover:bg-primary/5 hover:text-primary"
               >
                 <ExternalLink className="h-4 w-4" />
               </a>
