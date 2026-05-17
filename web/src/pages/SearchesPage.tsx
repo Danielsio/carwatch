@@ -162,6 +162,43 @@ export function SearchesPage() {
         ))}
       </div>
 
+      {/* Daily digest */}
+      {totalSearches > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: reduceMotion ? 0 : 0.06, duration: reduceMotion ? 0.15 : 0.4 }}
+        >
+          <div className="rounded-2xl border border-border/50 bg-card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-foreground">סיכום יומי</h2>
+              {unread > 0 && (
+                <Link
+                  to="/notifications"
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  צפה בכל ההתראות
+                </Link>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-bold tabular-nums text-foreground">{activeCount}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">חיפושים פעילים</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold tabular-nums text-foreground">{recentListings?.total ?? 0}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">מודעות שנמצאו</p>
+              </div>
+              <div>
+                <p className={cn("text-2xl font-bold tabular-nums", unread > 0 ? "text-primary" : "text-foreground")}>{unread}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">חדשות היום</p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Saved searches */}
       <motion.section
         className="space-y-4"
