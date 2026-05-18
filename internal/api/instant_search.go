@@ -49,8 +49,11 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Manufacturer is required for instant search to avoid unbounded result
+	// sets â without it the fetcher would need to crawl all categories which
+	// is slow and expensive (and the results would be too broad to be useful).
 	if req.Manufacturer <= 0 {
-		writeError(w, http.StatusBadRequest, "manufacturer is required")
+		writeError(w, http.StatusBadRequest, "manufacturer is required for instant search")
 		return
 	}
 

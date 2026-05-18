@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useNavigate, Link } from "react-router";
+import { useNavigate, useLocation, Link } from "react-router";
 import { Search, Loader2, Car, Zap, Trees, UserRound, ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { useCreateSearch } from "@/hooks/useSearches";
 import { useToast } from "@/components/ui/Toast";
@@ -64,11 +64,34 @@ const STEPS = [
 
 export function NewSearchPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const createSearch = useCreateSearch();
   const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState<SearchFormData>(defaultFormData);
+
+  // Pre-fill form from TrySearchPage search data passed via location state
+  const [form, setForm] = useState<SearchFormData>(() => {
+    const locState = typeof location.state === "object" && location.state !== null
+      ? (location.state as Record<string, unknown>)
+      : null;
+    if (locState && "searchData" in locState && typeof locState.searchData === "object" && locState.searchData !== null) {
+      const sd = locState.searchData as Record<string, unknown>;
+      const base = defaultFormData();
+      return {
+        ...base,
+        manufacturer: typeof sd.manufacturer === "number" ? sd.manufacturer : base.manufacturer,
+        model: typeof sd.model === "number" ? sd.model : base.model,
+        yearMin: typeof sd.yearMin === "number" ? sd.yearMin : base.yearMin,
+        yearMax: typeof sd.yearMax === "number" ? sd.yearMax : base.yearMax,
+        priceMin: typeof sd.priceMin === "number" ? sd.priceMin : base.priceMin,
+        priceMax: typeof sd.priceMax === "number" ? sd.priceMax : base.priceMax,
+        maxKm: typeof sd.maxKm === "number" ? sd.maxKm : base.maxKm,
+        maxHand: typeof sd.maxHand === "number" ? sd.maxHand : base.maxHand,
+      };
+    }
+    return defaultFormData();
+  });
 
   const [presetsUsed, setPresetsUsed] = useState(false);
   const presets = useMemo(() => getPresets(), []);

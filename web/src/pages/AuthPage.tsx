@@ -65,13 +65,17 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
   const location = useLocation();
   const { user } = useAuth();
 
+  const stateObj =
+    typeof location.state === "object" && location.state !== null
+      ? (location.state as Record<string, unknown>)
+      : {};
+
   const redirectTo =
-    typeof location.state === "object" &&
-    location.state !== null &&
-    "from" in location.state &&
-    typeof (location.state as { from?: unknown }).from === "string"
-      ? (location.state as { from: string }).from
+    "from" in stateObj && typeof stateObj.from === "string"
+      ? stateObj.from
       : undefined;
+
+  const searchData = stateObj.searchData ?? undefined;
 
   const isSafePath =
     !!redirectTo &&
@@ -91,8 +95,8 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
   const [touched, setTouched] = useState({ email: false, password: false, confirm: false });
 
   useEffect(() => {
-    if (user) navigate(from, { replace: true });
-  }, [user, navigate, from]);
+    if (user) navigate(from, { replace: true, state: searchData ? { searchData } : undefined });
+  }, [user, navigate, from, searchData]);
 
   useEffect(() => {
     setError(null);
@@ -137,7 +141,7 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
       } else {
         await createUserWithEmailAndPassword(auth, email.trim(), password);
       }
-      navigate(from, { replace: true });
+      navigate(from, { replace: true, state: searchData ? { searchData } : undefined });
     } catch (err) {
       const mapFn = tab === "login" ? mapLoginError : mapSignupError;
       setError(mapFn(firebaseAuthErrorCode(err)));
@@ -151,7 +155,7 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
     setBusy("google");
     try {
       await signInWithPopup(auth, googleProvider);
-      navigate(from, { replace: true });
+      navigate(from, { replace: true, state: searchData ? { searchData } : undefined });
     } catch (err) {
       const mapFn = tab === "login" ? mapLoginError : mapSignupError;
       setError(mapFn(firebaseAuthErrorCode(err)));

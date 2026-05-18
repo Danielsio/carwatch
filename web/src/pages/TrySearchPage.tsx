@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { Search, Loader2, SearchX, ShieldAlert } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -79,13 +79,26 @@ const INITIAL_FORM: GuestFormData = {
   maxHand: 0,
 };
 
+const STORAGE_KEY = "carwatch_try_search_form";
+
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
 export default function TrySearchPage() {
-  const [form, setForm] = useState<GuestFormData>(INITIAL_FORM);
+  const [form, setForm] = useState<GuestFormData>(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      return saved ? { ...INITIAL_FORM, ...JSON.parse(saved) } : INITIAL_FORM;
+    } catch {
+      return INITIAL_FORM;
+    }
+  });
   const [rateLimited, setRateLimited] = useState(false);
+
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(form));
+  }, [form]);
 
   const set = <K extends keyof GuestFormData>(key: K, val: GuestFormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -394,12 +407,14 @@ export default function TrySearchPage() {
             <div className="flex gap-3 justify-center">
               <Link
                 to="/signup"
+                state={{ from: "/searches/new", searchData: form }}
                 className="rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-lg"
               >
                 הירשם בחינם
               </Link>
               <Link
                 to="/login"
+                state={{ from: "/searches/new", searchData: form }}
                 className="rounded-xl border border-border px-6 py-2.5 text-sm font-medium"
               >
                 התחבר

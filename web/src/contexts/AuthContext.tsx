@@ -11,7 +11,6 @@ import {
 import type { User } from "firebase/auth";
 import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { setAuthTokenGetter } from "@/lib/auth-token";
 
@@ -23,20 +22,6 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-function AuthLoadingScreen() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2
-          className="h-10 w-10 animate-spin text-primary"
-          aria-hidden
-        />
-        <p className="text-sm text-muted-foreground">טוען…</p>
-      </div>
-    </div>
-  );
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -80,9 +65,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user, loading, signOut, getIdToken],
   );
 
+  // Always render children â public pages (landing, /try, /login, /signup)
+  // should never be blocked by the auth loading spinner. The loading gate
+  // now lives in ProtectedRoute, which shows a spinner only for routes
+  // that actually require authentication.
   return (
     <AuthContext.Provider value={value}>
-      {loading ? <AuthLoadingScreen /> : children}
+      {children}
     </AuthContext.Provider>
   );
 }
