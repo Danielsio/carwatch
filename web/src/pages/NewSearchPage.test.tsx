@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Routes, Route } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NewSearchPage } from "./NewSearchPage";
 import { ToastProvider } from "@/components/ui/Toast";
+
+let authState: { user: { email: string } | null; loading: boolean };
+
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => authState,
+}));
 
 vi.mock("@/hooks/useCatalog", () => ({
   useManufacturers: () => ({ data: [] }),
@@ -18,15 +24,18 @@ vi.mock("@/hooks/useSearches", () => ({
   }),
 }));
 
-function renderPage() {
+function renderPage(initialEntries = ["/searches/new"]) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>
         <ToastProvider>
-          <NewSearchPage />
+          <Routes>
+            <Route path="/searches/new" element={<NewSearchPage />} />
+            <Route path="/try" element={<div>Try Search Page</div>} />
+          </Routes>
         </ToastProvider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -36,6 +45,7 @@ function renderPage() {
 describe("NewSearchPage presets", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    authState = { user: { email: "test@example.com" }, loading: false };
   });
 
   it("renders preset cards in initial state", () => {
@@ -75,5 +85,13 @@ describe("NewSearchPage presets", () => {
     const yearMinInput = screen.getByLabelText(/שנה מ-/) as HTMLInputElement;
     const expectedYear = new Date().getFullYear() - 5;
     expect(yearMinInput.value).toBe(String(expectedYear));
+  });
+});
+
+describe("NewSearchPage guest redirect", () => {
+  it("redirects unauthenticated guests to /try", () => {
+    authState = { user: null, loading: false };
+    renderPage();
+    expect(screen.getByText("Try Search Page")).toBeInTheDocument();
   });
 });

@@ -384,11 +384,23 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
             </button>
           </form>
 
-          <p className="mt-5 text-center text-xs text-muted-foreground/70">
-            <Link to="/" className="underline-offset-4 hover:underline hover:text-muted-foreground">
-              מה זה CarWatch?
+          {/* Guest entry */}
+          <div className="mt-5 flex flex-col items-center gap-2">
+            <Link
+              to="/dashboard"
+              className={cn(
+                "flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors",
+                "hover:bg-secondary hover:text-foreground",
+              )}
+            >
+              המשך כאורח
             </Link>
-          </p>
+            <p className="text-center text-xs text-muted-foreground/70">
+              <Link to="/" className="underline-offset-4 hover:underline hover:text-muted-foreground">
+                מה זה CarWatch?
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>

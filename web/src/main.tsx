@@ -8,6 +8,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ToastProvider, showGlobalToast } from "./components/ui/Toast";
 import { errorToHebrew } from "./lib/error-messages";
+import { reportWebVitals } from "./lib/webVitals";
 import "./index.css";
 
 if ('serviceWorker' in navigator) {
@@ -30,6 +31,8 @@ const queryClient = new QueryClient({
     },
   }),
 });
+
+reportWebVitals();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

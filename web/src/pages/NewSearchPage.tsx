@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
-import { useNavigate, useLocation, Link } from "react-router";
+import { useNavigate, useLocation, Link, Navigate } from "react-router";
 import { Search, Loader2, Car, Zap, Trees, UserRound, ArrowRight, ArrowLeft, Check } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useCreateSearch } from "@/hooks/useSearches";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,7 @@ const STEPS = [
 ] as const;
 
 export function NewSearchPage() {
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const createSearch = useCreateSearch();
@@ -96,6 +98,10 @@ export function NewSearchPage() {
   const [presetsUsed, setPresetsUsed] = useState(false);
   const presets = useMemo(() => getPresets(), []);
   const showPresets = !presetsUsed && step === 0 && form.manufacturer === 0;
+
+  if (!loading && !user) {
+    return <Navigate to="/try" replace />;
+  }
 
   const set = <K extends keyof SearchFormData>(key: K, val: SearchFormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
