@@ -177,7 +177,7 @@ export function ListingCardBody({
         {/* Score + meta row */}
         <div className="flex items-center gap-3 mb-2.5">
           {logoSrc ? (
-            <img src={logoSrc} alt="" className="h-7 w-7 shrink-0 object-contain" loading="lazy" decoding="async" />
+            <img src={logoSrc} alt="" className="h-7 w-7 shrink-0 object-contain dark:invert dark:opacity-80" loading="lazy" decoding="async" />
           ) : null}
           {listing.fitness_score != null ? (
             <MatchScoreBox score={listing.fitness_score} size="sm" />
