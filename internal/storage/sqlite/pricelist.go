@@ -3,23 +3,30 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/dsionov/carwatch/internal/timeutil"
 )
 
 func (s *Store) GetPriceListEntry(ctx context.Context, subModelID, year int) (*storage.PriceListEntry, error) {
 	var e storage.PriceListEntry
+	var fetchedAt string
 	err := s.db.QueryRowContext(ctx,
 		`SELECT sub_model_id, year, base_price, title, fetched_at
 		 FROM price_list_cache
 		 WHERE sub_model_id = ? AND year = ?`, subModelID, year,
-	).Scan(&e.SubModelID, &e.Year, &e.BasePrice, &e.Title, &e.FetchedAt)
-	if err == sql.ErrNoRows {
+	).Scan(&e.SubModelID, &e.Year, &e.BasePrice, &e.Title, &fetchedAt)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get price list entry: %w", err)
+	}
+	e.FetchedAt, err = timeutil.ParseFlexible(fetchedAt)
+	if err != nil {
+		return nil, fmt.Errorf("parse fetched_at: %w", err)
 	}
 	return &e, nil
 }

@@ -5,6 +5,7 @@ config.yaml
 coverage.out
 .idea/
 .coverage/
+web/coverage/
 web/node_modules/
 web/dist/
 
