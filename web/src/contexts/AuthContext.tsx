@@ -23,20 +23,6 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function AuthLoadingScreen() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2
-          className="h-10 w-10 animate-spin text-primary"
-          aria-hidden
-        />
-        <p className="text-sm text-muted-foreground">טוען…</p>
-      </div>
-    </div>
-  );
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);

@@ -46,7 +46,6 @@ function SectionCard({
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const STORAGE_KEY = "carwatch_try_search";
 const HAND_OPTIONS = [0, 1, 2, 3, 4];
 
 function formatKmLabel(value: number): string {
