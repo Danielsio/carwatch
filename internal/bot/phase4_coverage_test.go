@@ -102,6 +102,9 @@ func TestHandlePriceMin_ExceedsMax(t *testing.T) {
 	if last.ChatID != 100 {
 		t.Errorf("expected error message, got %d", last.ChatID)
 	}
+	if last.HasKB {
+		t.Error("exceeds-max error should NOT produce a keyboard")
+	}
 }
 
 func TestRegisterHandlers_NilBot(t *testing.T) {

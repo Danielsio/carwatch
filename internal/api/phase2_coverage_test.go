@@ -89,7 +89,10 @@ func TestAdminLogLevel_GetAndSet(t *testing.T) {
 		t.Fatalf("PUT INVALID: expected 400, got %d", w.Code)
 	}
 
-	doRequest(t, srv, "PUT", "/api/v1/admin/logs/level", map[string]string{"level": "INFO"})
+	w = doRequest(t, srv, "PUT", "/api/v1/admin/logs/level", map[string]string{"level": "INFO"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("PUT INFO reset: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
 }
 
 // --- adminListPriceHistory ---
@@ -120,9 +123,12 @@ func TestAdminListSeenListings(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()
 
-	searchID, _ := store.CreateSearch(ctx, storage.Search{
+	searchID, err := store.CreateSearch(ctx, storage.Search{
 		ChatID: 999, Name: "seen-admin", Manufacturer: 1, Model: 1,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := store.ClaimNew(ctx, "admin-seen-tok", 999, searchID); err != nil {
 		t.Fatal(err)
 	}
@@ -155,12 +161,15 @@ func TestListingFilterFromSearch(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()
 
-	searchID, _ := store.CreateSearch(ctx, storage.Search{
+	searchID, err := store.CreateSearch(ctx, storage.Search{
 		ChatID: 999, Name: "filter-test", Manufacturer: 19, Model: 10226,
 		YearMin: 2018, YearMax: 2024, PriceMax: 200000, MaxKm: 100000,
 		MaxHand: 3, SellerFilter: "private", GearBox: "automatic",
 		PriceOnly: true, PhotoOnly: true,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for _, rec := range []storage.ListingRecord{
 		{Token: "pass-1", ChatID: 999, SearchID: searchID, SearchName: "filter-test",

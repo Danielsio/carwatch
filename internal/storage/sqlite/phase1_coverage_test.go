@@ -216,12 +216,18 @@ func TestBackfillListings_FillsMissingFieldsOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	l1, _ := store.GetListing(ctx, 100, "bf-1")
+	l1, err := store.GetListing(ctx, 100, "bf-1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if l1.Km != 30000 || l1.City != "Tel Aviv" || l1.ImageURL != "https://img.com/2.jpg" {
 		t.Errorf("bf-1 should be backfilled: km=%d city=%s img=%s", l1.Km, l1.City, l1.ImageURL)
 	}
 
-	l2, _ := store.GetListing(ctx, 100, "bf-2")
+	l2, err := store.GetListing(ctx, 100, "bf-2")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if l2.Km != 50000 || l2.City != "Haifa" || l2.ImageURL != "https://img.com/1.jpg" {
 		t.Errorf("bf-2 should NOT be overwritten: km=%d city=%s img=%s", l2.Km, l2.City, l2.ImageURL)
 	}
@@ -378,8 +384,8 @@ func TestAdminListSeenListings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total != 1 || items[0].Token != "seen-tok" {
-		t.Errorf("filtered: total=%d", total)
+	if total != 1 || len(items) != 1 || items[0].Token != "seen-tok" {
+		t.Errorf("filtered: total=%d items=%d", total, len(items))
 	}
 }
 
