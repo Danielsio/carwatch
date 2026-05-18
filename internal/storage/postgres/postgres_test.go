@@ -1266,16 +1266,23 @@ func TestPostgres_NotificationCenter(t *testing.T) {
 	ctx := context.Background()
 	seedPgUser(t, store, 100)
 
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "notif-test", Manufacturer: 1, Model: 1,
+	})
+	if err != nil {
+		t.Fatalf("create search: %v", err)
+	}
+
 	cutoff := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	now := time.Now().UTC()
 
 	_ = store.SaveListing(ctx, storage.ListingRecord{
-		Token: "new-1", ChatID: 100, SearchName: "s1",
+		Token: "new-1", ChatID: 100, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 		FirstSeenAt: now,
 	})
 	_ = store.SaveListing(ctx, storage.ListingRecord{
-		Token: "new-2", ChatID: 100, SearchName: "s1",
+		Token: "new-2", ChatID: 100, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 90000,
 		FirstSeenAt: now,
 	})
