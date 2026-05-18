@@ -525,7 +525,8 @@ func TestAuth_NoChatID(t *testing.T) {
 	srv, _ := setupTestServer(t)
 	srv.cfg.DevChatID = 0
 
-	w := doRequest(t, srv, "GET", "/api/v1/searches", nil)
+	// Use a strict-auth endpoint; GET /api/v1/searches uses optional auth now.
+	w := doRequest(t, srv, "GET", "/api/v1/telegram/status", nil)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 with no DevChatID, got %d", w.Code)
 	}

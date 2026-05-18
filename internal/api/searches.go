@@ -177,8 +177,10 @@ func (s *Server) searchResponseWithListingCount(ctx context.Context, chatID int6
 }
 
 func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := chatIDFromContext(r.Context())
 	if !ok {
+		// Guest user — return empty list.
+		writeJSON(w, http.StatusOK, []searchResponse{})
 		return
 	}
 	log := s.handlerLogger(r, "op", "list_searches")

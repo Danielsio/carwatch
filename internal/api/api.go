@@ -178,9 +178,6 @@ func (s *Server) Routes() http.Handler {
 	authMux.HandleFunc("GET /api/v1/catalog/manufacturers", s.listManufacturers)
 	authMux.HandleFunc("GET /api/v1/catalog/manufacturers/{id}/models", s.listModels)
 
-	authMux.HandleFunc("GET /api/v1/me", s.getMe)
-
-	authMux.HandleFunc("GET /api/v1/searches", s.listSearches)
 	authMux.HandleFunc("POST /api/v1/searches", s.createSearch)
 	authMux.HandleFunc("GET /api/v1/searches/{id}", s.getSearch)
 	authMux.HandleFunc("PUT /api/v1/searches/{id}", s.updateSearch)
@@ -220,7 +217,6 @@ func (s *Server) Routes() http.Handler {
 
 	if s.notifs != nil {
 		authMux.HandleFunc("GET /api/v1/notifications", s.listNotifications)
-		authMux.HandleFunc("GET /api/v1/notifications/count", s.notificationCount)
 		authMux.HandleFunc("POST /api/v1/notifications/seen", s.markNotificationsSeen)
 		authMux.HandleFunc("POST /api/v1/listings/{token}/seen", s.markListingSeen)
 		authMux.HandleFunc("DELETE /api/v1/listings/{token}/seen", s.unmarkListingSeen)
@@ -244,6 +240,18 @@ func (s *Server) Routes() http.Handler {
 	authChain = s.withRateLimit(authChain)
 	authChain = s.authMiddleware(authChain)
 
+	// --- Optional-auth routes (read-only, return empty data for guests) ---
+	optAuthMux := http.NewServeMux()
+	optAuthMux.HandleFunc("GET /api/v1/me", s.getMe)
+	optAuthMux.HandleFunc("GET /api/v1/searches", s.listSearches)
+	if s.notifs != nil {
+		optAuthMux.HandleFunc("GET /api/v1/notifications/count", s.notificationCount)
+	}
+
+	optAuthChain := s.withMaxBody(optAuthMux)
+	optAuthChain = s.withRateLimit(optAuthChain)
+	optAuthChain = s.optionalAuthMiddleware(optAuthChain)
+
 	// --- Guest instant-search (rate-limited, no auth) ---
 	guestMux := http.NewServeMux()
 	guestMux.HandleFunc("POST /api/v1/guest/instant-search", s.instantSearch)
@@ -262,9 +270,15 @@ func (s *Server) Routes() http.Handler {
 	catalogChain := s.withMaxBody(catalogMux)
 
 	// --- Top-level router ---
+	// More-specific prefixes are matched first by net/http.ServeMux.
 	top := http.NewServeMux()
 	top.Handle("/api/v1/guest/", guestChain)
 	top.Handle("/api/v1/catalog/", catalogChain)
+	top.Handle("GET /api/v1/me", optAuthChain)
+	top.Handle("GET /api/v1/searches", optAuthChain)
+	if s.notifs != nil {
+		top.Handle("GET /api/v1/notifications/count", optAuthChain)
+	}
 	top.Handle("/", authChain)
 
 	// Shared outer middleware: requestID → accessLog → securityHeaders → CORS → ipRL
@@ -308,6 +322,43 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(w, r)
+	})
+}
+
+// optionalAuthMiddleware tries to authenticate the request but does not
+// reject it when credentials are missing or invalid. If authentication
+// succeeds the resolved chatID and email are injected into the context;
+// otherwise chatID is set to 0 (guest sentinel) and the request is
+// allowed to proceed.  Handlers behind this middleware can call
+// chatIDFromContext to distinguish guests (0) from real users.
+func (s *Server) optionalAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHdr := r.Header.Get("Authorization")
+		bearer := bearerFromAuthHeader(authHdr)
+
+		var chatID int64
+		var userEmail string
+
+		if s.firebaseAuth != nil && bearer != "" {
+			tok, err := s.firebaseAuth.VerifyIDToken(r.Context(), bearer)
+			if err == nil {
+				userEmail = emailFromClaims(tok)
+				id, upsertErr := s.users.UpsertWebUser(r.Context(), tok.UID, userEmail)
+				if upsertErr == nil {
+					chatID = id
+				}
+			}
+		} else if s.firebaseAuth == nil {
+			if s.cfg.AuthToken != "" && bearer == s.cfg.AuthToken {
+				chatID = s.cfg.DevChatID
+			} else if s.cfg.AuthToken == "" {
+				chatID = s.cfg.DevChatID
+			}
+		}
+
+		ctx := context.WithValue(r.Context(), chatIDKey, chatID)
+		ctx = context.WithValue(ctx, emailKey, userEmail)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

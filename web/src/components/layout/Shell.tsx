@@ -9,8 +9,11 @@ import {
   History,
   Bell,
   LogOut,
+  LogIn,
   Sun,
   Moon,
+  User,
+  Search,
 } from "lucide-react";
 import { useNotificationCount } from "@/hooks/useNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
@@ -27,22 +30,24 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   badge?: boolean;
   adminOnly?: boolean;
+  authOnly?: boolean;
 }
 
 const mainNav: NavItem[] = [
   { path: "/dashboard", label: "לוח בקרה", icon: LayoutDashboard },
-  { path: "/searches/new", label: "חיפוש חדש", icon: Plus },
+  { path: "/searches/new", label: "חיפוש חדש", icon: Plus, authOnly: true },
 ];
 
 const libraryNav: NavItem[] = [
-  { path: "/saved", label: "מועדפים", icon: Bookmark },
-  { path: "/history", label: "היסטוריה", icon: History },
-  { path: "/notifications", label: "התראות", icon: Bell, badge: true },
+  { path: "/saved", label: "מועדפים", icon: Bookmark, authOnly: true },
+  { path: "/history", label: "היסטוריה", icon: History, authOnly: true },
+  { path: "/notifications", label: "התראות", icon: Bell, badge: true, authOnly: true },
 ];
 
 const systemNav: NavItem[] = [
-  { path: "/settings", label: "הגדרות", icon: Settings },
+  { path: "/settings", label: "הגדרות", icon: Settings, authOnly: true },
   { path: "/admin", label: "ניהול", icon: Wrench, adminOnly: true },
+  { path: "/try", label: "נסה חיפוש", icon: Search },
 ];
 
 interface MobileNavItem {
@@ -129,14 +134,18 @@ function SidebarSection({
   pathname,
   unread,
   isAdmin,
+  isAuthenticated,
 }: {
   label: string;
   items: NavItem[];
   pathname: string;
   unread: number;
   isAdmin: boolean;
+  isAuthenticated: boolean;
 }) {
-  const visibleItems = items.filter((item) => !item.adminOnly || isAdmin);
+  const visibleItems = items.filter(
+    (item) => (!item.adminOnly || isAdmin) && (!item.authOnly || isAuthenticated),
+  );
   if (visibleItems.length === 0) return null;
 
   return (
@@ -160,13 +169,13 @@ function SidebarSection({
 
 export function Shell() {
   const location = useLocation();
-  const { data: notifCount } = useNotificationCount();
-  const unread = notifCount?.count ?? 0;
   const { user, signOut } = useAuth();
+  const { data: notifCount } = useNotificationCount(!!user);
+  const unread = notifCount?.count ?? 0;
   const { theme, toggle: toggleTheme } = useTheme();
   const appVersion = useAppVersion();
   const connectionStatus = useHealthCheck();
-  const { data: me } = useMe();
+  const { data: me } = useMe(!!user);
   const isAdmin = me?.is_admin ?? false;
   const emailInitial =
     user?.email?.trim().charAt(0)?.toLocaleUpperCase("he-IL") || "?";
@@ -206,9 +215,9 @@ export function Shell() {
 
         {/* Navigation */}
         <nav className="flex-1 space-y-5 overflow-y-auto px-2.5 py-4">
-          <SidebarSection label="ראשי" items={mainNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} />
-          <SidebarSection label="ספריה" items={libraryNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} />
-          <SidebarSection label="מערכת" items={systemNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} />
+          <SidebarSection label="ראשי" items={mainNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} isAuthenticated={!!user} />
+          <SidebarSection label="ספריה" items={libraryNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} isAuthenticated={!!user} />
+          <SidebarSection label="מערכת" items={systemNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} isAuthenticated={!!user} />
         </nav>
 
         {/* Notification Banner */}
@@ -232,27 +241,47 @@ export function Shell() {
           </div>
         ) : null}
 
+        {/* Guest signup banner */}
+        {!user && (
+          <div className="mx-4 mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3 text-center text-xs text-muted-foreground">
+            <Link to="/login" className="font-medium text-primary hover:underline">
+              הירשם בחינם
+            </Link>{" "}
+            כדי לשמור חיפושים ולקבל התראות
+          </div>
+        )}
+
         {/* User */}
         <div className="shrink-0 border-t border-sidebar-border p-3">
           <div className="mb-2.5 flex items-center gap-2.5">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-foreground ring-1 ring-sidebar-border">
-              {emailInitial}
+              {user ? emailInitial : <User className="h-4 w-4" />}
             </div>
             <p
               className="min-w-0 flex-1 truncate text-xs text-sidebar-muted"
               title={user?.email ?? undefined}
             >
-              {user?.email ?? ""}
+              {user?.email ?? "אורח"}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent px-3 py-2 text-sm font-medium text-sidebar-foreground transition-all duration-150 hover:bg-sidebar-accent-hover hover:text-foreground dark:hover:text-white active:scale-[0.99] motion-reduce:active:scale-100"
-          >
-            <LogOut className="h-3.5 w-3.5" aria-hidden />
-            התנתק
-          </button>
+          {user ? (
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent px-3 py-2 text-sm font-medium text-sidebar-foreground transition-all duration-150 hover:bg-sidebar-accent-hover hover:text-foreground dark:hover:text-white active:scale-[0.99] motion-reduce:active:scale-100"
+            >
+              <LogOut className="h-3.5 w-3.5" aria-hidden />
+              התנתק
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition-all duration-150 hover:bg-primary/20 active:scale-[0.99] motion-reduce:active:scale-100"
+            >
+              <LogIn className="h-3.5 w-3.5" aria-hidden />
+              התחבר
+            </Link>
+          )}
           {appVersion ? (
             <p
               className="mt-1.5 text-center text-[10px] text-sidebar-muted/50 tabular-nums"

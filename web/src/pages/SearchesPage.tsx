@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { Plus, Search as SearchIcon, Activity, Bell, Car } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Plus, Search as SearchIcon, Activity, Bell, Car, Sparkles } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import {
   useSearches,
@@ -16,6 +17,7 @@ import {
 import { formatPrice, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchCard } from "@/components/SearchCard";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -42,12 +44,13 @@ function useFadeUpVariants() {
 
 export function SearchesPage() {
   usePageTitle("לוח בקרה");
+  const { user } = useAuth();
   const fadeUp = useFadeUpVariants();
   const reduceMotion = useReducedMotion();
   const { toast } = useToast();
-  const { data: searches, isLoading, isError } = useSearches();
-  const { data: notifCount } = useNotificationCount();
-  const { data: recentListings } = useNotifications(5, 0);
+  const { data: searches, isLoading, isError } = useSearches(!!user);
+  const { data: notifCount } = useNotificationCount(!!user);
+  const { data: recentListings } = useNotifications(5, 0, !!user);
   const deleteSearch = useDeleteSearch();
   const pauseSearch = usePauseSearch();
   const resumeSearch = useResumeSearch();
@@ -58,6 +61,39 @@ export function SearchesPage() {
   const unread = notifCount?.count ?? 0;
   const activeCount = searches?.filter((s) => s.active).length ?? 0;
   const totalSearches = searches?.length ?? 0;
+
+  if (!user) {
+    return (
+      <div className="space-y-8 animate-fade-in">
+        <PageHeader title="לוח בקרה" />
+        <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-6 sm:p-10 text-center space-y-6">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Sparkles className="h-8 w-8" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-foreground">ברוך הבא ל-CarWatch!</h2>
+            <p className="mx-auto max-w-md text-sm text-muted-foreground leading-relaxed">
+              הירשם בחינם כדי ליצור חיפושים, לעקוב אחר מודעות רכב ולקבל התראות בזמן אמת. תוכל גם לנסות חיפוש מהיר בלי הרשמה.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Button asChild size="lg">
+              <Link to="/login">
+                <Plus className="h-4 w-4" />
+                הירשם בחינם
+              </Link>
+            </Button>
+            <Button asChild variant="secondary" size="lg">
+              <Link to="/try">
+                <SearchIcon className="h-4 w-4" />
+                נסה חיפוש מהיר
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

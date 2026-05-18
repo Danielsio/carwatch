@@ -21,10 +21,11 @@ export function useUpdateSearch() {
   });
 }
 
-export function useSearches() {
+export function useSearches(enabled = true) {
   return useQuery({
     queryKey: ["searches"],
     queryFn: api.searches.list,
+    enabled,
   });
 }
 
