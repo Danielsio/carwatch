@@ -69,10 +69,6 @@ export function NewSearchPage() {
   const location = useLocation();
   const createSearch = useCreateSearch();
   const { toast } = useToast();
-
-  if (!loading && !user) {
-    return <Navigate to="/try" replace />;
-  }
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
 
@@ -102,6 +98,10 @@ export function NewSearchPage() {
   const [presetsUsed, setPresetsUsed] = useState(false);
   const presets = useMemo(() => getPresets(), []);
   const showPresets = !presetsUsed && step === 0 && form.manufacturer === 0;
+
+  if (!loading && !user) {
+    return <Navigate to="/try" replace />;
+  }
 
   const set = <K extends keyof SearchFormData>(key: K, val: SearchFormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
