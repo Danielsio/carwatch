@@ -217,7 +217,10 @@ func TestSend_Error_LogsAndContinues(t *testing.T) {
 	b := newErrBot(t, msg, users, searches)
 
 	b.send(context.Background(), 100, "hello")
-	// Should not panic — error is logged.
+	// Since SendMessage returns an error, no message should be recorded by the mock.
+	if len(msg.messages) != 0 {
+		t.Errorf("expected no stored messages when send fails, got %d", len(msg.messages))
+	}
 }
 
 func TestSendMarkdown_Error_LogsAndContinues(t *testing.T) {
@@ -227,7 +230,11 @@ func TestSendMarkdown_Error_LogsAndContinues(t *testing.T) {
 	b := newErrBot(t, msg, users, searches)
 
 	b.sendMarkdown(context.Background(), 100, "*bold*")
-	// Should not panic.
+	// sendMarkdown with a generic error (not a markdown parse error) should not
+	// retry as plain text. No message should be recorded.
+	if len(msg.messages) != 0 {
+		t.Errorf("expected no stored messages when sendMarkdown fails, got %d", len(msg.messages))
+	}
 }
 
 func TestSendWithKeyboard_Error_LogsAndContinues(t *testing.T) {
@@ -242,7 +249,10 @@ func TestSendWithKeyboard_Error_LogsAndContinues(t *testing.T) {
 		},
 	}
 	b.sendWithKeyboard(context.Background(), 100, "choose", kb)
-	// Should not panic.
+	// No message should be recorded since SendMessage returned an error.
+	if len(msg.messages) != 0 {
+		t.Errorf("expected no stored messages when sendWithKeyboard fails, got %d", len(msg.messages))
+	}
 }
 
 // --- ensureUser error test ---
@@ -254,7 +264,10 @@ func TestEnsureUser_Error_LogsAndContinues(t *testing.T) {
 	b := newErrBot(t, msg, users, searches)
 
 	b.ensureUser(context.Background(), 100, "alice")
-	// Should not panic.
+	// ensureUser swallows DB errors; verify no error message was sent to the user.
+	if len(msg.messages) != 0 {
+		t.Errorf("expected no messages sent on ensureUser error, got %d", len(msg.messages))
+	}
 }
 
 // --- loadWizardData error tests ---
@@ -306,7 +319,10 @@ func TestSaveWizardState_UpdateError(t *testing.T) {
 	b := newErrBot(t, msg, users, searches)
 
 	b.saveWizardState(context.Background(), 100, StateAskYearMin, WizardData{Manufacturer: 27})
-	// Should not panic — error is logged.
+	// saveWizardState swallows the DB error; verify no error message was sent to the user.
+	if len(msg.messages) != 0 {
+		t.Errorf("expected no messages sent on saveWizardState error, got %d", len(msg.messages))
+	}
 }
 
 // --- handleList error test ---
@@ -495,7 +511,10 @@ func TestHandleCallback_InaccessibleMessage(t *testing.T) {
 	}
 
 	tb.bot.handleCallback(ctx, nil, update)
-	// Should return early without panicking.
+	// Should return early without panicking or sending any messages.
+	if len(tb.msg.messages) != 0 {
+		t.Errorf("expected no messages for inaccessible callback message, got %d", len(tb.msg.messages))
+	}
 }
 
 func TestHandleCallback_AnswerCallbackError(t *testing.T) {
@@ -506,7 +525,10 @@ func TestHandleCallback_AnswerCallbackError(t *testing.T) {
 
 	update := fakeCallback(100, cbConfirm)
 	b.handleCallback(context.Background(), nil, update)
-	// Should continue despite callback ack failure.
+	// Should continue processing despite callback ack failure.
+	// The handler still processes the confirm callback action.
+	// We just verify it doesn't crash; response messages depend on user state.
+	t.Logf("messages sent after callback ack failure: %d", len(msg.messages))
 }
 
 // --- handleDefault with GetUser error ---
