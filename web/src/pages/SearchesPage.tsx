@@ -17,6 +17,7 @@ import {
 import { formatPrice, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchCard } from "@/components/SearchCard";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -47,7 +48,7 @@ export function SearchesPage() {
   const fadeUp = useFadeUpVariants();
   const reduceMotion = useReducedMotion();
   const { toast } = useToast();
-  const { data: searches, isLoading, isError } = useSearches();
+  const { data: searches, isLoading, isError } = useSearches(!!user);
   const { data: notifCount } = useNotificationCount(!!user);
   const { data: recentListings } = useNotifications(5, 0, !!user);
   const deleteSearch = useDeleteSearch();
@@ -61,35 +62,10 @@ export function SearchesPage() {
   const activeCount = searches?.filter((s) => s.active).length ?? 0;
   const totalSearches = searches?.length ?? 0;
 
-  if (isLoading) {
-    return (
-      <div className="space-y-8 animate-fade-in motion-reduce:animate-none">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-40" />
-            <Skeleton className="h-4 w-56" />
-          </div>
-          <Skeleton className="h-10 w-36 rounded-xl" />
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-[100px] rounded-xl" />
-          ))}
-        </div>
-        <Skeleton className="h-5 w-32" />
-        <div className="grid gap-4 sm:grid-cols-2">
-          {[1, 2].map((i) => (
-            <Skeleton key={i} className="h-52 rounded-2xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   if (!user) {
     return (
       <div className="space-y-8 animate-fade-in">
-        <DashboardHeader />
+        <PageHeader title="לוח בקרה" />
         <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-6 sm:p-10 text-center space-y-6">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Sparkles className="h-8 w-8" />
@@ -114,6 +90,31 @@ export function SearchesPage() {
               </Link>
             </Button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-8 animate-fade-in motion-reduce:animate-none">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-4 w-56" />
+          </div>
+          <Skeleton className="h-10 w-36 rounded-xl" />
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-[100px] rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-5 w-32" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          {[1, 2].map((i) => (
+            <Skeleton key={i} className="h-52 rounded-2xl" />
+          ))}
         </div>
       </div>
     );

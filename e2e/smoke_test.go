@@ -159,7 +159,7 @@ func TestSmoke_FullStack(t *testing.T) {
 		}
 	})
 
-	t.Run("unauthenticated API returns 200 on optional-auth endpoints", func(t *testing.T) {
+	t.Run("unauthenticated API returns 200 with empty data on optional-auth endpoints", func(t *testing.T) {
 		resp, err := client.Get(srv.URL + "/api/v1/searches")
 		if err != nil {
 			t.Fatalf("GET /api/v1/searches: %v", err)
@@ -167,6 +167,13 @@ func TestSmoke_FullStack(t *testing.T) {
 		defer resp.Body.Close()
 		if resp.StatusCode != 200 {
 			t.Errorf("status = %d, want 200", resp.StatusCode)
+		}
+		var searches []map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&searches); err != nil {
+			t.Fatalf("decode /api/v1/searches: %v", err)
+		}
+		if len(searches) != 0 {
+			t.Errorf("guest searches length = %d, want 0", len(searches))
 		}
 	})
 

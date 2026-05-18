@@ -13,6 +13,7 @@ import {
   Sun,
   Moon,
   User,
+  Search,
 } from "lucide-react";
 import { useNotificationCount } from "@/hooks/useNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
@@ -29,22 +30,24 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   badge?: boolean;
   adminOnly?: boolean;
+  authOnly?: boolean;
 }
 
 const mainNav: NavItem[] = [
   { path: "/dashboard", label: "לוח בקרה", icon: LayoutDashboard },
-  { path: "/searches/new", label: "חיפוש חדש", icon: Plus },
+  { path: "/searches/new", label: "חיפוש חדש", icon: Plus, authOnly: true },
 ];
 
 const libraryNav: NavItem[] = [
-  { path: "/saved", label: "מועדפים", icon: Bookmark },
-  { path: "/history", label: "היסטוריה", icon: History },
-  { path: "/notifications", label: "התראות", icon: Bell, badge: true },
+  { path: "/saved", label: "מועדפים", icon: Bookmark, authOnly: true },
+  { path: "/history", label: "היסטוריה", icon: History, authOnly: true },
+  { path: "/notifications", label: "התראות", icon: Bell, badge: true, authOnly: true },
 ];
 
 const systemNav: NavItem[] = [
-  { path: "/settings", label: "הגדרות", icon: Settings },
+  { path: "/settings", label: "הגדרות", icon: Settings, authOnly: true },
   { path: "/admin", label: "ניהול", icon: Wrench, adminOnly: true },
+  { path: "/try", label: "נסה חיפוש", icon: Search },
 ];
 
 interface MobileNavItem {
@@ -131,14 +134,18 @@ function SidebarSection({
   pathname,
   unread,
   isAdmin,
+  isAuthenticated,
 }: {
   label: string;
   items: NavItem[];
   pathname: string;
   unread: number;
   isAdmin: boolean;
+  isAuthenticated: boolean;
 }) {
-  const visibleItems = items.filter((item) => !item.adminOnly || isAdmin);
+  const visibleItems = items.filter(
+    (item) => (!item.adminOnly || isAdmin) && (!item.authOnly || isAuthenticated),
+  );
   if (visibleItems.length === 0) return null;
 
   return (
@@ -208,9 +215,9 @@ export function Shell() {
 
         {/* Navigation */}
         <nav className="flex-1 space-y-5 overflow-y-auto px-2.5 py-4">
-          <SidebarSection label="ראשי" items={mainNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} />
-          <SidebarSection label="ספריה" items={libraryNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} />
-          <SidebarSection label="מערכת" items={systemNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} />
+          <SidebarSection label="ראשי" items={mainNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} isAuthenticated={!!user} />
+          <SidebarSection label="ספריה" items={libraryNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} isAuthenticated={!!user} />
+          <SidebarSection label="מערכת" items={systemNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} isAuthenticated={!!user} />
         </nav>
 
         {/* Notification Banner */}
