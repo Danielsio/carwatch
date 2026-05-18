@@ -1252,9 +1252,21 @@ func setLastSeenAt(t *testing.T, store *sqlite.Store, chatID int64, when time.Ti
 	}
 }
 
+func seedNotifSearch(t *testing.T, store *sqlite.Store, chatID int64) int64 {
+	t.Helper()
+	id, err := store.CreateSearch(context.Background(), storage.Search{
+		ChatID: chatID, Name: "notif-test", Manufacturer: 1, Model: 1,
+	})
+	if err != nil {
+		t.Fatalf("seed notif search: %v", err)
+	}
+	return id
+}
+
 func TestNotificationCount(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()
+	searchID := seedNotifSearch(t, store, 999)
 
 	// Set last_seen_at to now so no listings are new
 	if err := store.UpdateLastSeenAt(ctx, 999); err != nil {
@@ -1274,7 +1286,7 @@ func TestNotificationCount(t *testing.T) {
 	}
 
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "notif-1", ChatID: 999, SearchName: "s1",
+		Token: "notif-1", ChatID: 999, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 		FirstSeenAt: time.Now().UTC(),
 	}); err != nil {
@@ -1291,11 +1303,12 @@ func TestNotificationCount(t *testing.T) {
 func TestNotificationsList(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()
+	searchID := seedNotifSearch(t, store, 999)
 
 	setLastSeenAt(t, store, 999, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
 
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "notif-list-1", ChatID: 999, SearchName: "s1",
+		Token: "notif-list-1", ChatID: 999, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 		FirstSeenAt: time.Now().UTC(),
 	}); err != nil {
@@ -1319,11 +1332,12 @@ func TestNotificationsList(t *testing.T) {
 func TestNotificationsMarkSeen(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()
+	searchID := seedNotifSearch(t, store, 999)
 
 	setLastSeenAt(t, store, 999, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
 
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "notif-seen-1", ChatID: 999, SearchName: "s1",
+		Token: "notif-seen-1", ChatID: 999, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 		FirstSeenAt: time.Now().UTC(),
 	}); err != nil {
@@ -1419,11 +1433,12 @@ func TestHideListing_LimitEnforced(t *testing.T) {
 func TestMarkListingUserSeen(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()
+	searchID := seedNotifSearch(t, store, 999)
 
 	setLastSeenAt(t, store, 999, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
 
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "seen-token-1", ChatID: 999, SearchName: "s1",
+		Token: "seen-token-1", ChatID: 999, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 		FirstSeenAt: time.Now().UTC(),
 	}); err != nil {

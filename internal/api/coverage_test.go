@@ -465,11 +465,18 @@ func TestNotificationsList_Pagination(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()
 
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 999, Name: "notif-test", Manufacturer: 1, Model: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	setLastSeenAt(t, store, 999, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
 
 	for i := range 5 {
 		if err := store.SaveListing(ctx, storage.ListingRecord{
-			Token: fmt.Sprintf("notif-pg-%d", i), ChatID: 999, SearchName: "s1",
+			Token: fmt.Sprintf("notif-pg-%d", i), ChatID: 999, SearchID: searchID, SearchName: "s1",
 			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000 + i*1000,
 			FirstSeenAt: time.Now().UTC(),
 		}); err != nil {
