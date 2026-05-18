@@ -20,15 +20,16 @@ function sendToServer(metric: Metric) {
   });
 
   if (navigator.sendBeacon) {
-    navigator.sendBeacon(VITALS_ENDPOINT, body);
-  } else {
-    fetch(VITALS_ENDPOINT, {
-      body,
-      method: "POST",
-      keepalive: true,
-      headers: { "Content-Type": "application/json" },
-    }).catch(() => {});
+    const blob = new Blob([body], { type: "application/json" });
+    if (navigator.sendBeacon(VITALS_ENDPOINT, blob)) return;
   }
+
+  fetch(VITALS_ENDPOINT, {
+    body,
+    method: "POST",
+    keepalive: true,
+    headers: { "Content-Type": "application/json" },
+  }).catch(() => {});
 }
 
 function logToConsole(metric: Metric) {
