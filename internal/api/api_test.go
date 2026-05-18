@@ -606,14 +606,17 @@ func TestAuthMiddleware(t *testing.T) {
 		},
 	})
 
+	// Use a strict-auth endpoint (GET /api/v1/telegram/status) to test the middleware.
+	// GET /api/v1/searches now uses optional auth and allows guests.
+
 	// No token — should fail
-	w := doRequest(t, srv, "GET", "/api/v1/searches", nil)
+	w := doRequest(t, srv, "GET", "/api/v1/telegram/status", nil)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 without token, got %d", w.Code)
 	}
 
 	// Wrong token — should fail
-	req := httptest.NewRequest("GET", "/api/v1/searches", nil)
+	req := httptest.NewRequest("GET", "/api/v1/telegram/status", nil)
 	req.Header.Set("Authorization", "Bearer wrong")
 	w2 := httptest.NewRecorder()
 	srv.Routes().ServeHTTP(w2, req)
@@ -625,7 +628,7 @@ func TestAuthMiddleware(t *testing.T) {
 	if err := store.UpsertUser(context.Background(), 999, "testuser"); err != nil {
 		t.Fatal(err)
 	}
-	req = httptest.NewRequest("GET", "/api/v1/searches", nil)
+	req = httptest.NewRequest("GET", "/api/v1/telegram/status", nil)
 	req.Header.Set("Authorization", "Bearer secret123")
 	w3 := httptest.NewRecorder()
 	srv.Routes().ServeHTTP(w3, req)

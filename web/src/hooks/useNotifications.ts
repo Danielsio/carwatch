@@ -1,20 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notificationsApi } from "@/lib/api";
 
-export function useNotificationCount() {
+export function useNotificationCount(enabled = true) {
   return useQuery({
     queryKey: ["notification-count"],
     queryFn: () => notificationsApi.count(),
-    refetchInterval: 60_000,
+    enabled,
+    refetchInterval: enabled ? 60_000 : false,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: enabled,
   });
 }
 
-export function useNotifications(limit: number, offset: number) {
+export function useNotifications(limit: number, offset: number, enabled = true) {
   return useQuery({
     queryKey: ["notifications", limit, offset],
     queryFn: () => notificationsApi.list({ limit, offset }),
+    enabled,
   });
 }
 
