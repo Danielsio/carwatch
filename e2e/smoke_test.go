@@ -148,14 +148,25 @@ func TestSmoke_FullStack(t *testing.T) {
 		}
 	})
 
-	t.Run("unauthenticated API returns 401", func(t *testing.T) {
+	t.Run("unauthenticated API returns 401 on strict endpoints", func(t *testing.T) {
+		resp, err := client.Get(srv.URL + "/api/v1/telegram/status")
+		if err != nil {
+			t.Fatalf("GET /api/v1/telegram/status: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 401 {
+			t.Errorf("status = %d, want 401", resp.StatusCode)
+		}
+	})
+
+	t.Run("unauthenticated API returns 200 on optional-auth endpoints", func(t *testing.T) {
 		resp, err := client.Get(srv.URL + "/api/v1/searches")
 		if err != nil {
 			t.Fatalf("GET /api/v1/searches: %v", err)
 		}
 		defer resp.Body.Close()
-		if resp.StatusCode != 401 {
-			t.Errorf("status = %d, want 401", resp.StatusCode)
+		if resp.StatusCode != 200 {
+			t.Errorf("status = %d, want 200", resp.StatusCode)
 		}
 	})
 
