@@ -57,11 +57,9 @@ describe("AuthContext", () => {
     mockSignOut.mockClear();
   });
 
-  it("shows loading screen initially", () => {
+  it("exposes loading=true initially while rendering children", () => {
     renderWithProviders();
-    // AuthProvider renders a loading spinner while loading=true
-    // The TestConsumer is NOT rendered because AuthProvider shows AuthLoadingScreen instead of children
-    expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loading")).toHaveTextContent("true");
   });
 
   it("sets user after auth resolves with a user", async () => {
