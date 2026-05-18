@@ -19,8 +19,8 @@ const notifFilterSQL = `
 	AND (s.year_min = 0 OR lh.year >= s.year_min)
 	AND (s.year_max = 0 OR lh.year <= s.year_max)
 	AND (s.seller_filter = '' OR s.seller_filter = 'any'
-		OR (s.seller_filter = 'private' AND lh.is_commercial = false)
-		OR (s.seller_filter = 'commercial' AND lh.is_commercial = true))`
+		OR (s.seller_filter = 'private' AND lh.is_commercial = 0)
+		OR (s.seller_filter = 'commercial' AND lh.is_commercial = 1))`
 
 func (s *Store) NewListingsSince(ctx context.Context, chatID int64, since time.Time, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
