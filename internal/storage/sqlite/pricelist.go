@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -17,7 +18,7 @@ func (s *Store) GetPriceListEntry(ctx context.Context, subModelID, year int) (*s
 		 FROM price_list_cache
 		 WHERE sub_model_id = ? AND year = ?`, subModelID, year,
 	).Scan(&e.SubModelID, &e.Year, &e.BasePrice, &e.Title, &fetchedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
