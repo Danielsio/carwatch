@@ -8,18 +8,33 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
+// notifFilterSQL applies each listing's parent search criteria so that
+// notifications respect the user's current search settings (MaxKm,
+// seller_filter, etc.) even if they were changed after the listing was saved.
+const notifFilterSQL = `
+	AND (s.max_km = 0 OR lh.km <= s.max_km OR lh.km = 0)
+	AND (s.max_hand = 0 OR lh.hand <= s.max_hand)
+	AND (s.price_min = 0 OR lh.price >= s.price_min OR lh.price = 0)
+	AND (s.price_max = 0 OR lh.price <= s.price_max)
+	AND (s.year_min = 0 OR lh.year >= s.year_min)
+	AND (s.year_max = 0 OR lh.year <= s.year_max)
+	AND (s.seller_filter = '' OR s.seller_filter = 'any'
+		OR (s.seller_filter = 'private' AND lh.is_commercial = 0)
+		OR (s.seller_filter = 'commercial' AND lh.is_commercial = 1))`
+
 func (s *Store) NewListingsSince(ctx context.Context, chatID int64, since time.Time, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
-			km, hand, city, page_link, image_url,
-			engine_volume, horse_power, engine_type, gear_box, description,
-			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, removed_at
+		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.sub_model, lh.sub_model_id, lh.year, lh.price,
+			lh.km, lh.hand, lh.city, lh.page_link, lh.image_url,
+			lh.engine_volume, lh.horse_power, lh.engine_type, lh.gear_box, lh.description,
+			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at, lh.removed_at
 		FROM listing_history lh
+		JOIN searches s ON s.id = lh.search_id AND s.chat_id = lh.chat_id
 		WHERE lh.chat_id = $1 AND lh.first_seen_at > $2
 		AND NOT EXISTS (
 			SELECT 1 FROM listing_user_seen u
 			WHERE u.chat_id = lh.chat_id AND u.token = lh.token
-		)
+		)`+notifFilterSQL+`
 		ORDER BY lh.first_seen_at DESC, lh.token DESC
 		LIMIT $3 OFFSET $4`,
 		chatID, since, limit, offset)
@@ -46,11 +61,12 @@ func (s *Store) CountNewListingsSince(ctx context.Context, chatID int64, since t
 	var count int64
 	err := s.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM listing_history lh
+		JOIN searches s ON s.id = lh.search_id AND s.chat_id = lh.chat_id
 		WHERE lh.chat_id = $1 AND lh.first_seen_at > $2
 		AND NOT EXISTS (
 			SELECT 1 FROM listing_user_seen u
 			WHERE u.chat_id = lh.chat_id AND u.token = lh.token
-		)`,
+		)`+notifFilterSQL,
 		chatID, since).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count new listings since: %w", err)

@@ -578,11 +578,12 @@ func TestNewListingsSince_Offset(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 	seedUser(t, store, 100)
+	searchID := seedSearchForNotif(t, store, 100)
 
 	since := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	for i := range 5 {
 		if err := store.SaveListing(ctx, storage.ListingRecord{
-			Token: "nls-" + string(rune('a'+i)), ChatID: 100, SearchName: "s1",
+			Token: "nls-" + string(rune('a'+i)), ChatID: 100, SearchID: searchID, SearchName: "s1",
 			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 			FirstSeenAt: time.Now().UTC(),
 		}); err != nil {

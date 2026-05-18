@@ -2686,24 +2686,35 @@ func TestNew_CreatesDirectory(t *testing.T) {
 
 // --- Notification Center Tests ---
 
+func seedSearchForNotif(t *testing.T, store *Store, chatID int64) int64 {
+	t.Helper()
+	id, err := store.CreateSearch(context.Background(), storage.Search{
+		ChatID: chatID, Name: "notif-test", Manufacturer: 1, Model: 1,
+	})
+	if err != nil {
+		t.Fatalf("seed search: %v", err)
+	}
+	return id
+}
+
 func TestNewListingsSince(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 	seedUser(t, store, 100)
+	searchID := seedSearchForNotif(t, store, 100)
 
-	// Use a cutoff well in the past so all inserts are after it
 	cutoff := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	now := time.Now().UTC()
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "new-1", ChatID: 100, SearchName: "s1",
+		Token: "new-1", ChatID: 100, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 		FirstSeenAt: now,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "new-2", ChatID: 100, SearchName: "s1",
+		Token: "new-2", ChatID: 100, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 90000,
 		FirstSeenAt: now,
 	}); err != nil {
@@ -2748,11 +2759,12 @@ func TestCountNewListingsSince(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 	seedUser(t, store, 100)
+	searchID := seedSearchForNotif(t, store, 100)
 
 	cutoff := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "cnt-1", ChatID: 100, SearchName: "s1",
+		Token: "cnt-1", ChatID: 100, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 		FirstSeenAt: time.Now().UTC(),
 	}); err != nil {
@@ -2780,11 +2792,12 @@ func TestNewListingsSince_RespectsListingUserSeen(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 	seedUser(t, store, 100)
+	searchID := seedSearchForNotif(t, store, 100)
 
 	cutoff := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	if err := store.SaveListing(ctx, storage.ListingRecord{
-		Token: "lus-1", ChatID: 100, SearchName: "s1",
+		Token: "lus-1", ChatID: 100, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 		FirstSeenAt: time.Now().UTC(),
 	}); err != nil {
@@ -2808,6 +2821,76 @@ func TestNewListingsSince_RespectsListingUserSeen(t *testing.T) {
 	}
 	if count != 0 {
 		t.Errorf("expected count 0, got %d", count)
+	}
+}
+
+func TestNewListingsSince_FiltersKmAndSellerType(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "filtered-search", Manufacturer: 1, Model: 1,
+		MaxKm: 100000, SellerFilter: "private",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cutoff := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
+
+	commercial := true
+	private := false
+
+	for _, rec := range []storage.ListingRecord{
+		{Token: "ok-1", ChatID: 100, SearchID: searchID, SearchName: "filtered-search",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+			Km: 80000, IsCommercial: &private, FirstSeenAt: now},
+		{Token: "km-over", ChatID: 100, SearchID: searchID, SearchName: "filtered-search",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+			Km: 150000, IsCommercial: &private, FirstSeenAt: now},
+		{Token: "commercial", ChatID: 100, SearchID: searchID, SearchName: "filtered-search",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+			Km: 50000, IsCommercial: &commercial, FirstSeenAt: now},
+		{Token: "km-zero", ChatID: 100, SearchID: searchID, SearchName: "filtered-search",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
+			Km: 0, IsCommercial: &private, FirstSeenAt: now},
+	} {
+		if err := store.SaveListing(ctx, rec); err != nil {
+			t.Fatalf("save %s: %v", rec.Token, err)
+		}
+	}
+
+	listings, err := store.NewListingsSince(ctx, 100, cutoff, 20, 0)
+	if err != nil {
+		t.Fatalf("NewListingsSince: %v", err)
+	}
+
+	tokens := make(map[string]bool)
+	for _, l := range listings {
+		tokens[l.Token] = true
+	}
+
+	if !tokens["ok-1"] {
+		t.Error("expected ok-1 (km within range, private) to be present")
+	}
+	if !tokens["km-zero"] {
+		t.Error("expected km-zero (unknown km, private) to be present")
+	}
+	if tokens["km-over"] {
+		t.Error("expected km-over (km exceeds max) to be filtered out")
+	}
+	if tokens["commercial"] {
+		t.Error("expected commercial (seller type mismatch) to be filtered out")
+	}
+
+	count, err := store.CountNewListingsSince(ctx, 100, cutoff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Errorf("count: expected 2, got %d", count)
 	}
 }
 
