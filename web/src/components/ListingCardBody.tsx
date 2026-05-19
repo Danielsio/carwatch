@@ -47,15 +47,13 @@ function dealInfo(listing: Listing): {
       priceClass: "text-muted-foreground",
     };
   }
-  if (mc.diffPercent < -10) {
-    return {
-      label: `+${-mc.diffPercent}%`,
-      icon: TrendingUp,
-      badgeClass: "bg-red-500/90 text-white",
-      priceClass: "text-red-400",
-    };
-  }
-  return null;
+  // Remaining range: diffPercent < -5 (slightly to heavily overpriced)
+  return {
+    label: `+${-mc.diffPercent}%`,
+    icon: TrendingUp,
+    badgeClass: "bg-red-500/90 text-white",
+    priceClass: "text-red-400",
+  };
 }
 
 export function ListingCardBody({

@@ -8,7 +8,8 @@ export function feedSSE(
   buffer: string,
   onData: (payload: string) => void,
 ): string {
-  let buf = buffer + chunk;
+  // Normalize CRLF / bare CR to LF per SSE spec.
+  let buf = buffer + chunk.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   for (;;) {
     const idx = buf.indexOf("\n\n");
     if (idx === -1) {
