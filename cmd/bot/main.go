@@ -26,6 +26,7 @@ import (
 	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/notifier/telegram"
+	"github.com/dsionov/carwatch/internal/notifier/webpush"
 	"github.com/dsionov/carwatch/internal/pricelist"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/spa"
@@ -282,6 +283,20 @@ func buildBot(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 	multi := notifier.NewMultiNotifier(store, logger.With("component", "notifier"))
 	if err := multi.Register("telegram", tgNotif); err != nil {
 		return nil, nil, nil, fmt.Errorf("register telegram notifier: %w", err)
+	}
+
+	// Register web push notifier when VAPID keys are configured and the storage
+	// backend implements the PushSubscriptionStore interface (added in PR #898).
+	if cfg.Push.VAPIDPublicKey != "" && cfg.Push.VAPIDPrivateKey != "" {
+		if subStore, ok := store.(webpush.SubscriptionStore); ok {
+			wpNotif := webpush.New(subStore, cfg.Push.VAPIDPublicKey, cfg.Push.VAPIDPrivateKey, cfg.Push.VAPIDSubject, logger.With("component", "webpush"))
+			if err := multi.Register("webpush", wpNotif); err != nil {
+				return nil, nil, nil, fmt.Errorf("register webpush notifier: %w", err)
+			}
+			logger.Info("webpush notifier registered")
+		} else {
+			logger.Warn("VAPID keys configured but storage does not support push subscriptions yet")
+		}
 	}
 
 	return botHandler, tgNotif, multi, nil
