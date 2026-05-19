@@ -72,6 +72,9 @@ func (b *Bot) onDeleteSearch(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	lang := b.getUserLang(ctx, chatID)
 	token := strings.TrimPrefix(data, cbPrefixShareCopy)
 	if len(token) == 0 || len(token) > 64 {
@@ -196,6 +199,9 @@ func (b *Bot) onLanguageSwitch(ctx context.Context, chatID int64, lang locale.La
 }
 
 func (b *Bot) onQuickStart(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	lang := b.getUserLang(ctx, chatID)
 
 	if b.checkSearchLimit(ctx, chatID, lang, "watch_limit") {
@@ -264,6 +270,9 @@ func isValidToken(token string) bool {
 }
 
 func (b *Bot) onSaveListing(ctx context.Context, chatID int64, data string) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	lang := b.getUserLang(ctx, chatID)
 	token := strings.TrimPrefix(data, cbPrefixSave)
 	if b.saved == nil {
@@ -293,6 +302,9 @@ func (b *Bot) onSaveListing(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onHideListing(ctx context.Context, chatID int64, data string) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	lang := b.getUserLang(ctx, chatID)
 	token := strings.TrimPrefix(data, cbPrefixHide)
 	if b.hidden == nil {
