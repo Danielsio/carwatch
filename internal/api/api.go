@@ -272,6 +272,7 @@ func (s *Server) Routes() http.Handler {
 	// --- Top-level router ---
 	// More-specific prefixes are matched first by net/http.ServeMux.
 	top := http.NewServeMux()
+	top.HandleFunc("POST /api/v1/vitals", s.receiveVitals)
 	top.Handle("/api/v1/guest/", guestChain)
 	top.Handle("/api/v1/catalog/", catalogChain)
 	top.Handle("GET /api/v1/me", optAuthChain)
