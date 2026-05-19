@@ -293,6 +293,47 @@ func TestApply(t *testing.T) {
 			},
 			want: []string{"a", "b"},
 		},
+		// --- Zero/unknown value edge cases (issue #867) ---
+		{
+			name:     "hand=0 passes MaxHand filter (unknown hand not rejected)",
+			criteria: model.FilterCriteria{MaxHand: 2},
+			listings: []model.RawListing{
+				{Token: "unknown-hand", Hand: 0},
+				{Token: "within-limit", Hand: 2},
+				{Token: "over-limit", Hand: 3},
+			},
+			want: []string{"unknown-hand", "within-limit"},
+		},
+		{
+			name:     "km=0 passes MaxKm filter (unknown km not rejected)",
+			criteria: model.FilterCriteria{MaxKm: 100000},
+			listings: []model.RawListing{
+				{Token: "unknown-km", Km: 0},
+				{Token: "within-limit", Km: 80000},
+				{Token: "over-limit", Km: 150000},
+			},
+			want: []string{"unknown-km", "within-limit"},
+		},
+		{
+			name:     "price=0 passes PriceMax filter (no price not rejected)",
+			criteria: model.FilterCriteria{PriceMax: 150000},
+			listings: []model.RawListing{
+				{Token: "no-price", Price: 0},
+				{Token: "within-limit", Price: 120000},
+				{Token: "over-limit", Price: 200000},
+			},
+			want: []string{"no-price", "within-limit"},
+		},
+		{
+			name:     "year=0 rejected by YearMin filter (unknown year is rejected)",
+			criteria: model.FilterCriteria{YearMin: 2018},
+			listings: []model.RawListing{
+				{Token: "unknown-year", Year: 0},
+				{Token: "old-year", Year: 2015},
+				{Token: "valid-year", Year: 2020},
+			},
+			want: []string{"valid-year"},
+		},
 	}
 
 	for _, tt := range tests {
