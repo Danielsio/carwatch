@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -104,6 +105,30 @@ func TestConvertValue_OtherTypes(t *testing.T) {
 		got := convertValue(input)
 		if got != input {
 			t.Errorf("convertValue(%v) = %v, want same value", input, got)
+		}
+	}
+}
+
+func TestTableSpec_ColumnCountMatchesList(t *testing.T) {
+	tables := []tableSpec{
+		{name: "users", columns: "chat_id, username, state, state_data, created_at, active, digest_mode, digest_interval, digest_last_flushed, language, tier, tier_expires_at, trial_used, daily_digest, daily_digest_time, daily_digest_last_sent, channel, channel_id, linked_web_id, last_seen_at", count: 20},
+		{name: "searches", columns: "id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max, price_min, price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys, seller_filter, gear_box, price_only, photo_only, active, created_at, share_token", count: 23},
+		{name: "seen_listings", columns: "token, chat_id, search_id, first_seen_at", count: 4},
+		{name: "listing_user_seen", columns: "chat_id, token, seen_at", count: 3},
+		{name: "pending_notifications", columns: "id, recipient, search_name, payload, created_at", count: 5},
+		{name: "price_history", columns: "id, token, price, observed_at", count: 4},
+		{name: "listing_history", columns: "token, chat_id, search_id, search_name, manufacturer, model, sub_model, sub_model_id, year, price, km, hand, city, page_link, image_url, engine_volume, horse_power, engine_type, gear_box, description, is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, removed_at, first_seen_at", count: 28},
+		{name: "pending_digest", columns: "id, chat_id, listing_payload, created_at", count: 4},
+		{name: "saved_listings", columns: "chat_id, token, saved_at", count: 3},
+		{name: "hidden_listings", columns: "chat_id, token, hidden_at", count: 3},
+		{name: "link_tokens", columns: "token, web_chat_id, created_at, expires_at, used", count: 5},
+	}
+
+	for _, tt := range tables {
+		cols := strings.Split(tt.columns, ", ")
+		if len(cols) != tt.count {
+			t.Errorf("table %s: column list has %d entries but count is %d\ncolumns: %v",
+				tt.name, len(cols), tt.count, cols)
 		}
 	}
 }
