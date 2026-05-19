@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	firebase.google.com/go/v4 v4.19.0
 	github.com/Noooste/azuretls-client v1.13.2
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/go-telegram/bot v1.20.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/jackc/pgx/v5 v5.9.2
@@ -53,6 +54,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect

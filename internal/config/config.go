@@ -24,6 +24,12 @@ type Config struct {
 	LogFormat string         `yaml:"log_format"`
 }
 
+type PushConfig struct {
+	VAPIDPublicKey  string `yaml:"vapid_public_key"`
+	VAPIDPrivateKey string `yaml:"vapid_private_key"`
+	VAPIDSubject    string `yaml:"vapid_subject"`
+}
+
 type FirebaseConfig struct {
 	CredentialsFile string `yaml:"credentials_file"`
 	CredentialsJSON string `yaml:"credentials_json"`
