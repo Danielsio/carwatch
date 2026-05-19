@@ -398,3 +398,33 @@ func TestStatus_DegradedAfterGracePeriod(t *testing.T) {
 		t.Errorf("status = %q, want degraded", resp["status"])
 	}
 }
+
+func TestStatus_DegradedWhenSchedulerNeverStarts(t *testing.T) {
+	s := New()
+	s.startTime = time.Now().Add(-10 * time.Minute)
+
+	snap := s.Snapshot()
+	if snap["status"] != "degraded" {
+		t.Errorf("status = %q, want degraded when scheduler never started past grace period", snap["status"])
+	}
+}
+
+func TestStatus_DegradedWhenZeroCyclesPastGrace(t *testing.T) {
+	s := New()
+	s.startTime = time.Now().Add(-10 * time.Minute)
+	s.MarkSchedulerStarted()
+
+	snap := s.Snapshot()
+	if snap["status"] != "degraded" {
+		t.Errorf("status = %q, want degraded when zero cycles completed past grace period", snap["status"])
+	}
+}
+
+func TestStatus_OKDuringGracePeriodBeforeSchedulerStarts(t *testing.T) {
+	s := New()
+
+	snap := s.Snapshot()
+	if snap["status"] != "ok" {
+		t.Errorf("status = %q, want ok during grace period before scheduler starts", snap["status"])
+	}
+}

@@ -178,12 +178,19 @@ func (s *Status) coreMetrics() map[string]any {
 
 	status := "ok"
 	uptime := time.Since(s.startTime)
-	if s.schedulerStarted.Load() && cycles > 0 && (lastSuccessNs == 0 || time.Since(lastSuccess) > degradedThreshold) {
-		if uptime > startupGracePeriod {
-			status = "degraded"
-		} else {
+	schedulerUp := s.schedulerStarted.Load()
+
+	switch {
+	case uptime <= startupGracePeriod:
+		if schedulerUp && cycles > 0 && lastSuccessNs == 0 {
 			status = "starting"
 		}
+	case !schedulerUp:
+		status = "degraded"
+	case cycles == 0:
+		status = "degraded"
+	case lastSuccessNs == 0 || time.Since(lastSuccess) > degradedThreshold:
+		status = "degraded"
 	}
 
 	return map[string]any{
