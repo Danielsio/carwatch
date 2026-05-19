@@ -20,6 +20,7 @@ type Store interface {
 	DailyDigestStore
 	AdminStore
 	NotificationStore
+	PushSubscriptionStore
 
 	DB() *sql.DB
 	DBSizeBytes() (int64, error)

@@ -19,6 +19,7 @@ type Config struct {
 	HTTP      HTTPConfig     `yaml:"http"`
 	API       APIConfig      `yaml:"api"`
 	Firebase  FirebaseConfig `yaml:"firebase"`
+	Push      PushConfig     `yaml:"push"`
 	LogLevel  string         `yaml:"log_level"`
 	LogFormat string         `yaml:"log_format"`
 }
@@ -27,6 +28,12 @@ type FirebaseConfig struct {
 	CredentialsFile string `yaml:"credentials_file"`
 	CredentialsJSON string `yaml:"credentials_json"`
 	ProjectID       string `yaml:"project_id"`
+}
+
+type PushConfig struct {
+	VAPIDPublicKey  string `yaml:"vapid_public_key"`
+	VAPIDPrivateKey string `yaml:"vapid_private_key"`
+	VAPIDSubject    string `yaml:"vapid_subject"`
 }
 
 type APIConfig struct {
