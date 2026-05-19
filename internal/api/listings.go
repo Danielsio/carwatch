@@ -8,6 +8,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/filter"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -172,45 +173,14 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	records := make([]storage.ListingRecord, 0, len(filtered))
-	for _, l := range filtered {
-		rec := storage.ListingRecord{
-			Token:        l.Token,
-			ChatID:       chatID,
-			SearchID:     sr.ID,
-			SearchName:   sr.Name,
-			Manufacturer: l.Manufacturer,
-			Model:        l.Model,
-			SubModel:     l.SubModel,
-			SubModelID:   l.SubModelID,
-			Year:         l.Year,
-			Price:        l.Price,
-			Km:           l.Km,
-			Hand:         l.Hand,
-			City:         l.City,
-			PageLink:     l.PageLink,
-			ImageURL:     l.ImageURL,
-			EngineVolume: l.EngineVolume,
-			HorsePower:   l.HorsePower,
-			EngineType:   l.EngineType,
-			GearBox:      l.GearBox,
-			Description:  l.Description,
-			IsCommercial: l.Commercial,
-			FirstSeenAt:  time.Now(),
-		}
-		if s.priceListSvc != nil && l.SubModelID > 0 && l.Year > 0 {
-			if bp, ok := s.priceListSvc.Lookup(r.Context(), l.SubModelID, l.Year, l.Token); ok && bp > 0 {
-				rec.BasePrice = &bp
-				log.Debug("enriched with base_price",
-					"token", l.Token, "sub_model_id", l.SubModelID,
-					"year", l.Year, "base_price", bp)
-			}
-		}
-		records = append(records, rec)
-	}
-	if len(records) > 0 {
-		if err := s.listings.SaveListings(r.Context(), records); err != nil {
-			log.Error("save listings failed", "records", len(records), "error", err)
+	// Run the shared pipeline to score, enrich, and build ListingRecords.
+	// The API does not have a market cache, so deal scoring is skipped (nil).
+	params := scheduler.ProcessParamsFromSearch(*sr, nil)
+	params.ChatID = chatID // override with the authenticated user's chat ID
+	pr := s.pipeline.Process(r.Context(), filtered, params)
+	if len(pr.Records) > 0 {
+		if err := s.listings.SaveListings(r.Context(), pr.Records); err != nil {
+			log.Error("save listings failed", "records", len(pr.Records), "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to save listings")
 			return
 		}

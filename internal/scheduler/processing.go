@@ -16,6 +16,9 @@ import (
 func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Search, filtered []model.RawListing, marketCache *scoring.MarketCache, lang locale.Lang, log *slog.Logger) searchResult {
 	var out searchResult
 	hidden := s.loadHiddenTokens(ctx, search.ChatID)
+
+	// Collect new listings that pass dedup/hidden/seller/price-drop filters.
+	var newRaw []model.RawListing
 	for _, l := range filterHiddenListings(filtered, hidden) {
 		if !storage.RawListingMatchesSellerFilter(l.Commercial, search.SellerFilter) {
 			continue
@@ -30,118 +33,16 @@ func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Se
 		if !isNew {
 			continue
 		}
-		listing := s.scoreAndRecordListings(search, l, marketCache)
-		s.enrichWithBasePrice(ctx, &listing, log)
-		buildNotifications(search, listing, &out)
+		newRaw = append(newRaw, l)
+	}
+
+	if len(newRaw) > 0 {
+		params := ProcessParamsFromSearch(search, marketCache)
+		pr := s.pipeline.Process(ctx, newRaw, params)
+		out.newListings = append(out.newListings, pr.Listings...)
+		out.listingRecords = append(out.listingRecords, pr.Records...)
 	}
 	return out
-}
-
-func (s *Scheduler) scoreAndRecordListings(search storage.Search, l model.RawListing, marketCache *scoring.MarketCache) model.Listing {
-	listing := model.Listing{RawListing: l, SearchName: search.Name}
-
-	// Look up market median before fitness scoring so the price dimension
-	// can score against market value instead of just the budget cap.
-	var medianPrice, medianKm, cohort int
-	var marketOK bool
-	if marketCache != nil && l.Price > 0 {
-		medianPrice, medianKm, cohort, marketOK = marketCache.Lookup(l.Manufacturer, l.Model, l.Year)
-	}
-
-	fp := scoring.FitnessParams{
-		Price:        l.Price,
-		Km:           l.Km,
-		Hand:         l.Hand,
-		Year:         l.Year,
-		EngineVolume: l.EngineVolume,
-		PriceMax:     search.PriceMax,
-		MaxKm:        search.MaxKm,
-		MaxHand:      search.MaxHand,
-		YearMin:      search.YearMin,
-		YearMax:      search.YearMax,
-		EngineMinCC:  search.EngineMinCC,
-	}
-	if marketOK {
-		fp.MedianPrice = medianPrice
-	}
-
-	detailed := scoring.FitnessScoreDetailed(fp)
-	listing.FitnessScore = detailed.Total
-	listing.FitnessBreakdown = make([]model.FitnessDim, len(detailed.Dims))
-	for i, d := range detailed.Dims {
-		listing.FitnessBreakdown[i] = model.FitnessDim{
-			Name: d.Name, Score: d.Score, Weight: d.Weight,
-		}
-	}
-	if marketOK {
-		listing.DealScore = &model.ScoreInfo{
-			Score:       scoring.ScoreWithKm(l.Price, l.Km, medianPrice, medianKm),
-			MedianPrice: medianPrice,
-			MedianKm:    medianKm,
-			CohortSize:  cohort,
-		}
-		listing.SuspiciousReasons = scoring.DetectSuspicious(l, medianPrice)
-	}
-	return listing
-}
-
-func buildNotifications(search storage.Search, listing model.Listing, out *searchResult) {
-	out.newListings = append(out.newListings, listing)
-	rec := storage.ListingRecord{
-		Token: listing.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
-		Manufacturer: listing.Manufacturer, Model: listing.Model, SubModel: listing.SubModel,
-		SubModelID: listing.SubModelID,
-		Year:       listing.Year, Price: listing.Price, Km: listing.Km, Hand: listing.Hand,
-		City: listing.City, PageLink: listing.PageLink, ImageURL: listing.ImageURL,
-		EngineVolume: listing.EngineVolume, HorsePower: listing.HorsePower,
-		EngineType: listing.EngineType, GearBox: listing.GearBox, Description: listing.Description,
-		IsCommercial: listing.Commercial,
-		FitnessScore: &listing.FitnessScore, BasePrice: listing.BasePrice, FirstSeenAt: time.Now(),
-	}
-	if listing.DealScore != nil {
-		rec.MedianPrice = &listing.DealScore.MedianPrice
-		rec.CohortSize = &listing.DealScore.CohortSize
-		rec.DealScore = &listing.DealScore.Score
-	}
-	out.listingRecords = append(out.listingRecords, rec)
-}
-
-func (s *Scheduler) enrichWithBasePrice(ctx context.Context, listing *model.Listing, log *slog.Logger) {
-	if s.priceListSvc == nil {
-		log.Debug("enrichWithBasePrice: skipped, pricelist service is nil",
-			"token", listing.Token)
-		return
-	}
-	if listing.SubModelID <= 0 {
-		log.Debug("enrichWithBasePrice: skipped, no sub_model_id",
-			"token", listing.Token, "sub_model_id", listing.SubModelID,
-			"sub_model", listing.SubModel, "model", listing.Model)
-		return
-	}
-	if listing.Year <= 0 {
-		log.Debug("enrichWithBasePrice: skipped, no year",
-			"token", listing.Token, "year", listing.Year)
-		return
-	}
-
-	bp, ok := s.priceListSvc.Lookup(ctx, listing.SubModelID, listing.Year, listing.Token)
-	if !ok {
-		log.Warn("enrichWithBasePrice: lookup failed",
-			"token", listing.Token, "sub_model_id", listing.SubModelID,
-			"year", listing.Year)
-		return
-	}
-	if bp <= 0 {
-		log.Warn("enrichWithBasePrice: zero/negative price",
-			"token", listing.Token, "sub_model_id", listing.SubModelID,
-			"year", listing.Year, "base_price", bp)
-		return
-	}
-
-	listing.BasePrice = &bp
-	log.Info("enrichWithBasePrice: set base_price",
-		"token", listing.Token, "sub_model_id", listing.SubModelID,
-		"year", listing.Year, "base_price", bp)
 }
 
 func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, lang locale.Lang, sr searchResult, log *slog.Logger) bool {
