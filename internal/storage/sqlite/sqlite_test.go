@@ -887,6 +887,68 @@ func TestRecordPrice(t *testing.T) {
 	}
 }
 
+func TestRevertPrice(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	// Record an initial price.
+	_, _, _ = store.RecordPrice(ctx, "rev1", 100000)
+
+	// Revert should remove the most recent row.
+	if err := store.RevertPrice(ctx, "rev1"); err != nil {
+		t.Fatalf("RevertPrice: %v", err)
+	}
+
+	// After revert, recording the same token should behave like a first
+	// observation (no change detected, no old price).
+	oldPrice, changed, err := store.RecordPrice(ctx, "rev1", 90000)
+	if err != nil {
+		t.Fatalf("RecordPrice after revert: %v", err)
+	}
+	if changed {
+		t.Error("first observation after revert should not be a change")
+	}
+	if oldPrice != 0 {
+		t.Errorf("old price = %d, want 0 (first observation)", oldPrice)
+	}
+}
+
+func TestRevertPrice_MultipleRows(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	// Record two prices: 100k then 90k.
+	_, _, _ = store.RecordPrice(ctx, "rev2", 100000)
+	_, _, _ = store.RecordPrice(ctx, "rev2", 90000)
+
+	// Revert removes only the most recent row (90k).
+	if err := store.RevertPrice(ctx, "rev2"); err != nil {
+		t.Fatalf("RevertPrice: %v", err)
+	}
+
+	// Next observation should see prev=100k (the remaining row).
+	oldPrice, changed, err := store.RecordPrice(ctx, "rev2", 80000)
+	if err != nil {
+		t.Fatalf("RecordPrice after revert: %v", err)
+	}
+	if !changed {
+		t.Error("price change should be detected after revert")
+	}
+	if oldPrice != 100000 {
+		t.Errorf("old price = %d, want 100000", oldPrice)
+	}
+}
+
+func TestRevertPrice_NoRows(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	// Reverting a token that was never recorded should not error.
+	if err := store.RevertPrice(ctx, "nonexistent"); err != nil {
+		t.Fatalf("RevertPrice on nonexistent token: %v", err)
+	}
+}
+
 func TestRecordPrice_OscillationNoFalseDrop(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()

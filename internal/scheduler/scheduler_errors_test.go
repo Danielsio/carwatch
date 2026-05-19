@@ -20,6 +20,20 @@ import (
 
 // --- Error-returning mock variants ---
 
+// errListingStore wraps mockListingStore and lets tests inject errors into
+// SaveListings (used by persistListings).
+type errListingStore struct {
+	mockListingStore
+	saveErr error
+}
+
+func (m *errListingStore) SaveListings(_ context.Context, records []storage.ListingRecord) error {
+	if m.saveErr != nil {
+		return m.saveErr
+	}
+	return m.mockListingStore.SaveListings(context.Background(), records)
+}
+
 type errDedup struct {
 	mockDedup
 	claimErr   error
@@ -1050,5 +1064,92 @@ func TestFlushAndSendDigest_CapsOverflowItems(t *testing.T) {
 	}
 	if !strings.Contains(logBuf.String(), "digest queue exceeded max pending items") {
 		t.Error("expected overflow warning in log")
+	}
+}
+
+// TestProcessGroup_PersistFails_RevertsPriceRecords verifies that when
+// persistListings fails, any prices recorded during processSearchListings
+// are reverted so the next scheduler cycle does not fire spurious
+// price-drop notifications (see issue #860).
+func TestProcessGroup_PersistFails_RevertsPriceRecords(t *testing.T) {
+	// Set up a listing with a known price that will be recorded by
+	// tryPriceDropListing on the first cycle.
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "tok-860", Manufacturer: "Toyota", ModelID: 1, Model: "Corolla",
+				Price: 85000, Year: 2021, EngineVolume: 2000, Km: 30000},
+		},
+	}
+	d := newMockDedup()
+	n := &mockNotifier{}
+	cfg := testConfig()
+	pt := newMockPriceTracker()
+	ls := &errListingStore{saveErr: errors.New("db write failed")}
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 200, Name: "test-search", Source: "yad2",
+				Manufacturer: 1, Model: 1,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, Active: true},
+		},
+	}
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore:  ss,
+		Prices:       pt,
+		ListingStore: ls,
+	})
+
+	// Cycle 1: persistListings fails. The price should be reverted.
+	if err := s.runMultiTenantCycle(context.Background()); err != nil {
+		t.Fatalf("cycle 1: %v", err)
+	}
+
+	// Verify the price was reverted (token should not exist in the tracker).
+	pt.mu.Lock()
+	_, priceExists := pt.prices["tok-860"]
+	pt.mu.Unlock()
+	if priceExists {
+		t.Fatal("price for tok-860 should have been reverted after persistListings failure")
+	}
+
+	// Verify the dedup claim was also released (so the listing can be
+	// re-processed on the next cycle).
+	d.mu.Lock()
+	_, claimExists := d.seen[dedupKey{"tok-860", 200}]
+	d.mu.Unlock()
+	if claimExists {
+		t.Fatal("dedup claim for tok-860 should have been released after persistListings failure")
+	}
+
+	// Cycle 2: fix the listing store so persist succeeds. Simulate a seller
+	// price change between cycles.
+	ls.saveErr = nil
+	f.mu.Lock()
+	f.listings = []model.RawListing{
+		{Token: "tok-860", Manufacturer: "Toyota", ModelID: 1, Model: "Corolla",
+			Price: 80000, Year: 2021, EngineVolume: 2000, Km: 30000},
+	}
+	f.mu.Unlock()
+
+	if err := s.runMultiTenantCycle(context.Background()); err != nil {
+		t.Fatalf("cycle 2: %v", err)
+	}
+
+	// The listing should be treated as a brand-new listing (first price
+	// observation), NOT as a price drop from 85000 -> 80000.
+	n.mu.Lock()
+	rawCount := len(n.rawMessages)
+	n.mu.Unlock()
+	if rawCount != 0 {
+		t.Errorf("expected 0 price-drop notifications (spurious), got %d", rawCount)
+	}
+
+	// The new listing should have been notified via Notify (batch), not
+	// NotifyRaw (price drop).
+	n.mu.Lock()
+	batchCount := len(n.messages)
+	n.mu.Unlock()
+	if batchCount != 1 {
+		t.Errorf("expected 1 batch notification for new listing, got %d", batchCount)
 	}
 }

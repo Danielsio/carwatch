@@ -58,6 +58,16 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 	return prev, false, nil
 }
 
+func (s *Store) RevertPrice(ctx context.Context, token string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM price_history WHERE id = (SELECT id FROM price_history WHERE token = $1 ORDER BY observed_at DESC, id DESC LIMIT 1)`,
+		token)
+	if err != nil {
+		return fmt.Errorf("revert price: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) GetPriceHistory(ctx context.Context, token string) ([]storage.PricePoint, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT price, observed_at FROM price_history WHERE token = $1 ORDER BY observed_at DESC, id DESC`,

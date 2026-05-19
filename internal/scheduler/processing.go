@@ -208,6 +208,14 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 		log.Error("record price failed", "token", l.Token, "error", err)
 		return false
 	}
+	// Track tokens where RecordPrice inserted a row so that we can revert
+	// them if downstream persistence fails (prevents spurious price-drop
+	// notifications on the next scheduler cycle).
+	// A row is inserted when: (a) first observation (changed=false, oldPrice=0)
+	// or (b) price actually changed (changed=true).
+	if changed || oldPrice == 0 {
+		out.recordedTokens = append(out.recordedTokens, l.Token)
+	}
 	if !changed || l.Price >= oldPrice {
 		return false
 	}
@@ -287,6 +295,23 @@ func (s *Scheduler) deduplicateListings(ctx context.Context, token string, chatI
 		return false, false
 	}
 	return isNew, true
+}
+
+// revertPriceRecords undoes RecordPrice calls for the given tokens.
+// Called when persistListings fails to avoid stale price records that
+// would cause spurious price-drop notifications on the next cycle.
+func (s *Scheduler) revertPriceRecords(ctx context.Context, tokens []string, log *slog.Logger) {
+	if s.stores.Prices == nil || len(tokens) == 0 {
+		return
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, token := range tokens {
+		if err := s.stores.Prices.RevertPrice(cleanupCtx, token); err != nil {
+			log.Error("revert price after persist failure",
+				"token", token, "error", err)
+		}
+	}
 }
 
 func (s *Scheduler) loadHiddenTokens(ctx context.Context, chatID int64) map[string]bool {

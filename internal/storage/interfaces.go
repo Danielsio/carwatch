@@ -118,6 +118,11 @@ type NotificationQueue interface {
 
 type PriceTracker interface {
 	RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error)
+	// RevertPrice removes the most recent price_history row for the given
+	// token.  It is used to undo a RecordPrice call when downstream
+	// persistence (e.g. listing save) fails, preventing spurious price-drop
+	// notifications on the next scheduler cycle.
+	RevertPrice(ctx context.Context, token string) error
 	PrunePrices(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetPriceHistory(ctx context.Context, token string) ([]PricePoint, error)
 }
