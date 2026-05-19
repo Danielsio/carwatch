@@ -116,6 +116,11 @@ type searchResult struct {
 	newListings       []model.Listing
 	priceDropMessages []string
 	listingRecords    []storage.ListingRecord
+	// recordedTokens tracks tokens whose prices were recorded via
+	// RecordPrice during this processing pass.  When persistListings
+	// fails the scheduler reverts these records so the next cycle does
+	// not see stale prices and fire spurious price-drop notifications.
+	recordedTokens []string
 }
 
 type Options struct {
@@ -712,6 +717,9 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 		if !persistOK {
 			sr.newListings = nil
 			sr.listingRecords = nil
+			// Roll back price records so the next cycle does not see
+			// stale prices and fire spurious price-drop notifications.
+			s.revertPriceRecords(ctx, sr.recordedTokens, searchLog)
 		}
 		gs.newListings += len(sr.newListings)
 		delivered := s.deliverResults(ctx, search, lang, sr, searchLog)

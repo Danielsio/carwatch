@@ -138,6 +138,13 @@ func (m *mockPriceTracker) RecordPrice(_ context.Context, token string, price in
 	return 0, false, nil
 }
 
+func (m *mockPriceTracker) RevertPrice(_ context.Context, token string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.prices, token)
+	return nil
+}
+
 func (m *mockPriceTracker) PrunePrices(_ context.Context, _ time.Duration) (int64, error) {
 	return 0, nil
 }
