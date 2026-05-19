@@ -237,7 +237,7 @@ func (s *Server) validateCreateSearchInput(ctx context.Context, chatID int64, re
 	var mfrName, modelName string
 	if req.Manufacturer > 0 {
 		mfrName = s.catalog.ManufacturerName(req.Manufacturer)
-		if mfrName == "" {
+		if mfrName == "" || mfrName == "Unknown" {
 			return "", http.StatusBadRequest, "unknown manufacturer id"
 		}
 	}
@@ -246,7 +246,7 @@ func (s *Server) validateCreateSearchInput(ctx context.Context, chatID int64, re
 			return "", http.StatusBadRequest, "model requires a manufacturer"
 		}
 		modelName = s.catalog.ModelName(req.Manufacturer, req.Model)
-		if modelName == "" {
+		if modelName == "" || modelName == "Unknown" {
 			return "", http.StatusBadRequest, "unknown model id"
 		}
 	}
