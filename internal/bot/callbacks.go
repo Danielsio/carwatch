@@ -39,11 +39,17 @@ func (b *Bot) handleCallback(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	}
 
 	chatID := update.CallbackQuery.Message.Message.Chat.ID
+	fromID := update.CallbackQuery.From.ID
 	data := update.CallbackQuery.Data
-	b.logger.Debug("callback received", "chat_id", chatID, "data", data)
+	b.logger.Debug("callback received", "chat_id", chatID, "from_id", fromID, "data", data)
 
 	if err := b.msg.AnswerCallback(ctx, update.CallbackQuery.ID); err != nil {
 		b.logger.Error("answer callback query failed", "chat_id", chatID, "error", err)
+	}
+
+	if chatID != fromID {
+		b.logger.Warn("callback from non-owner ignored", "chat_id", chatID, "from_id", fromID)
+		return
 	}
 
 	b.dispatchCallbackData(ctx, chatID, data)
