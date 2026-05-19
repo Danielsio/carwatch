@@ -895,8 +895,8 @@ func TestAdminDeleteSearch_NotFound(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
 	w := doRequest(t, srv, "DELETE", "/api/v1/admin/searches/999", nil)
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
