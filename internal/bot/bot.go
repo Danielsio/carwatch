@@ -68,22 +68,22 @@ const (
 )
 
 func (b *Bot) isRateLimited(chatID int64) bool {
+	now := b.now()
 	v, _ := b.rateLimiter.LoadOrStore(chatID, &userRateLimit{
 		tokens:   rateLimitBurst,
-		lastTick: time.Now(),
+		lastTick: now,
 	})
 	rl, ok := v.(*userRateLimit)
 	if !ok {
 		rl = &userRateLimit{
 			tokens:   rateLimitBurst,
-			lastTick: time.Now(),
+			lastTick: now,
 		}
 		b.rateLimiter.Store(chatID, rl)
 	}
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	now := time.Now()
 	elapsed := now.Sub(rl.lastTick)
 	refill := int(elapsed / rateLimitInterval)
 	if refill > 0 {

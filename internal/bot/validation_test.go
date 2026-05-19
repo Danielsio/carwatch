@@ -1,26 +1,29 @@
 package bot
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
+	"time"
 )
 
 func TestYearValidation(t *testing.T) {
+	maxYear := time.Now().Year() + 2
 	tests := []struct {
 		input string
 		valid bool
 	}{
 		{"2020", true},
 		{"1990", true},
-		{"2030", true},
+		{fmt.Sprintf("%d", maxYear), true},
 		{"1989", false},
-		{"2031", false},
+		{fmt.Sprintf("%d", maxYear+1), false},
 		{"abc", false},
 		{"", false},
 	}
 	for _, tt := range tests {
 		year, err := strconv.Atoi(tt.input)
-		valid := err == nil && year >= 1990 && year <= 2030
+		valid := err == nil && year >= 1990 && year <= maxYear
 		if valid != tt.valid {
 			t.Errorf("year %q: valid=%v, want %v", tt.input, valid, tt.valid)
 		}
