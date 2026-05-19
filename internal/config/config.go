@@ -181,6 +181,13 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("firebase.credentials_file or firebase.credentials_json is required when project_id is set")
 	}
 
+	if cfg.Polling.Interval <= 0 {
+		return fmt.Errorf("polling.interval must be positive, got %s", cfg.Polling.Interval)
+	}
+	if cfg.Polling.Jitter < 0 {
+		return fmt.Errorf("polling.jitter must be non-negative, got %s", cfg.Polling.Jitter)
+	}
+
 	if ah := cfg.Polling.ActiveHours; ah != nil {
 		if _, err := parseTimeOfDay(ah.Start); err != nil {
 			return fmt.Errorf("active_hours.start %q: must be HH:MM format", ah.Start)

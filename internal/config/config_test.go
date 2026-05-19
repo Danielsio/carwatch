@@ -216,6 +216,26 @@ polling:
 	}
 }
 
+func TestLoad_NegativeInterval(t *testing.T) {
+	yaml := `
+telegram:
+  token: "test-token"
+polling:
+  interval: -5m
+`
+	expectLoadError(t, yaml, "polling.interval must be positive")
+}
+
+func TestLoad_NegativeJitter(t *testing.T) {
+	yaml := `
+telegram:
+  token: "test-token"
+polling:
+  jitter: -1m
+`
+	expectLoadError(t, yaml, "polling.jitter must be non-negative")
+}
+
 func loadFromString(t *testing.T, yaml string) *Config {
 	t.Helper()
 	dir := t.TempDir()
