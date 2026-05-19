@@ -495,6 +495,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 
 	if len(searches) == 0 {
 		s.logger.Info("scan complete (no active searches)", "scan", cycle, "elapsed", time.Since(cycleStart).Round(time.Millisecond))
+		s.observer.RecordSuccess()
 		return nil
 	}
 
