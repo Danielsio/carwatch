@@ -49,6 +49,7 @@ func migrate(db *sql.DB) error {
 		migrateSearchPricePhotoFilters,
 		migrateSearchPriceMinAndGearBox,
 		migrateListingRemovedAt,
+		migratePushSubscriptions,
 	}
 	for _, step := range steps {
 		if err := step(db); err != nil {

@@ -64,6 +64,8 @@ type Server struct {
 	fetchers         *fetcher.Factory
 	priceListSvc     *pricelist.Service
 	pipeline         *scheduler.ListingPipeline
+	pushSubs         storage.PushSubscriptionStore
+	vapidPublicKey   string
 	refreshMu        sync.Map
 	lastRefreshSweep atomic.Int64 // unix nano of last sweep
 
@@ -102,10 +104,12 @@ type Config struct {
 	Saved        storage.SavedListingStore
 	Hidden       storage.HiddenListingStore
 	Notifs       storage.NotificationStore
+	PushSubs     storage.PushSubscriptionStore
 	LogHub       *logstream.Hub
 	LogLevel     *slog.LevelVar
 	Logger       *slog.Logger
 	API          config.APIConfig
+	Push         config.PushConfig
 	FirebaseAuth TokenVerifier
 	BotUsername  string
 	Fetchers     *fetcher.Factory
@@ -123,29 +127,31 @@ func New(c Config) *Server {
 	}
 
 	return &Server{
-		catalog:      c.Catalog,
-		searches:     c.Searches,
-		listings:     c.Listings,
-		users:        c.Users,
-		linkTokens:   c.LinkTokens,
-		firebaseAuth: c.FirebaseAuth,
-		prices:       c.Prices,
-		admin:        c.Admin,
-		saved:        c.Saved,
-		hidden:       c.Hidden,
-		notifs:       c.Notifs,
-		logHub:       c.LogHub,
-		logLevel:     c.LogLevel,
-		logger:       c.Logger,
-		cfg:          c.API,
-		botUsername:  c.BotUsername,
-		startTime:    time.Now(),
-		rl:           newRateLimiter(60, time.Second/60),
-		ipRL:         newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
-		guestRL:      newIPRateLimiter(15, 3*time.Minute, c.API.TrustForwardedFor),
-		fetchers:     c.Fetchers,
-		priceListSvc: c.PriceListSvc,
-		pipeline:     scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger),
+		catalog:        c.Catalog,
+		searches:       c.Searches,
+		listings:       c.Listings,
+		users:          c.Users,
+		linkTokens:     c.LinkTokens,
+		firebaseAuth:   c.FirebaseAuth,
+		prices:         c.Prices,
+		admin:          c.Admin,
+		saved:          c.Saved,
+		hidden:         c.Hidden,
+		notifs:         c.Notifs,
+		pushSubs:       c.PushSubs,
+		vapidPublicKey: c.Push.VAPIDPublicKey,
+		logHub:         c.LogHub,
+		logLevel:       c.LogLevel,
+		logger:         c.Logger,
+		cfg:            c.API,
+		botUsername:    c.BotUsername,
+		startTime:      time.Now(),
+		rl:             newRateLimiter(60, time.Second/60),
+		ipRL:           newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
+		guestRL:        newIPRateLimiter(15, 3*time.Minute, c.API.TrustForwardedFor),
+		fetchers:       c.Fetchers,
+		priceListSvc:   c.PriceListSvc,
+		pipeline:       scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger),
 	}
 }
 
@@ -223,6 +229,12 @@ func (s *Server) Routes() http.Handler {
 		authMux.HandleFunc("POST /api/v1/notifications/seen", s.markNotificationsSeen)
 		authMux.HandleFunc("POST /api/v1/listings/{token}/seen", s.markListingSeen)
 		authMux.HandleFunc("DELETE /api/v1/listings/{token}/seen", s.unmarkListingSeen)
+	}
+
+	if s.pushSubs != nil {
+		authMux.HandleFunc("POST /api/v1/push/subscribe", s.pushSubscribe)
+		authMux.HandleFunc("DELETE /api/v1/push/subscribe", s.pushUnsubscribe)
+		authMux.HandleFunc("GET /api/v1/push/vapid-key", s.pushVAPIDKey)
 	}
 
 	authMux.HandleFunc("GET /api/v1/telegram/status", s.getTelegramStatus)

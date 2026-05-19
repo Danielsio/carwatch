@@ -62,12 +62,16 @@ func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
 		Saved:       store,
 		Hidden:      store,
 		Notifs:      store,
+		PushSubs:    store,
 		Logger:      slog.Default(),
 		BotUsername: "carwatch_test_bot",
 		API: config.APIConfig{
 			CORSOrigins: []string{"http://localhost:5173"},
 			DevChatID:   999,
 			AdminChatID: 999,
+		},
+		Push: config.PushConfig{
+			VAPIDPublicKey: "test-vapid-public-key",
 		},
 	})
 

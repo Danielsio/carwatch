@@ -355,3 +355,18 @@ type NotificationStore interface {
 	UnmarkListingUserSeen(ctx context.Context, chatID int64, token string) error
 	ListingUserSeenAmong(ctx context.Context, chatID int64, tokens []string) (map[string]bool, error)
 }
+
+type PushSubscription struct {
+	ID        int64
+	ChatID    int64
+	Endpoint  string
+	P256DH    string
+	Auth      string
+	CreatedAt time.Time
+}
+
+type PushSubscriptionStore interface {
+	SavePushSubscription(ctx context.Context, sub PushSubscription) error
+	DeletePushSubscription(ctx context.Context, chatID int64, endpoint string) error
+	ListPushSubscriptions(ctx context.Context, chatID int64) ([]PushSubscription, error)
+}

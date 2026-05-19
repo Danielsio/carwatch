@@ -843,3 +843,30 @@ func migrateListingRemovedAt(db *sql.DB) error {
 	}
 	return nil
 }
+
+func migratePushSubscriptions(db *sql.DB) error {
+	var n int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='push_subscriptions'",
+	).Scan(&n); err != nil {
+		return fmt.Errorf("check push_subscriptions table: %w", err)
+	}
+	if n > 0 {
+		return nil
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE push_subscriptions (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			chat_id    INTEGER NOT NULL,
+			endpoint   TEXT NOT NULL UNIQUE,
+			p256dh     TEXT NOT NULL,
+			auth       TEXT NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`); err != nil {
+		return fmt.Errorf("create push_subscriptions: %w", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_push_subs_chat_id ON push_subscriptions(chat_id)`); err != nil {
+		return fmt.Errorf("index push_subscriptions: %w", err)
+	}
+	return nil
+}
