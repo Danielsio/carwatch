@@ -89,7 +89,8 @@ export function useSaveBookmark() {
           });
           continue;
         }
-        if (params.offset === 0 && savedListing) {
+        if (!savedListing) continue;
+        if (params.offset === 0) {
           qc.setQueryData(queryKey, {
             ...d,
             items: [savedListing, ...d.items],
