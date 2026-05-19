@@ -123,7 +123,7 @@ func fakeCallback(chatID int64, data string) *tgmodels.Update {
 		CallbackQuery: &tgmodels.CallbackQuery{
 			ID:   "cb-1",
 			Data: data,
-			From: tgmodels.User{Username: "testuser"},
+			From: tgmodels.User{ID: chatID, Username: "testuser"},
 			Message: tgmodels.MaybeInaccessibleMessage{
 				Message: &tgmodels.Message{
 					Chat: tgmodels.Chat{ID: chatID},
