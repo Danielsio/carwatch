@@ -351,20 +351,20 @@ func TestRunMultiTenantCycle_ObserverSuccessPath(t *testing.T) {
 		t.Fatalf("runMultiTenantCycle: %v", err)
 	}
 
-	if obs.fetches != 1 {
-		t.Errorf("RecordFetch calls = %d, want 1", obs.fetches)
+	if v := obs.fetches.Load(); v != 1 {
+		t.Errorf("RecordFetch calls = %d, want 1", v)
 	}
-	if obs.listingsFound != 1 {
-		t.Errorf("listings aggregate = %d, want 1", obs.listingsFound)
+	if v := obs.listingsFound.Load(); v != 1 {
+		t.Errorf("listings aggregate = %d, want 1", v)
 	}
-	if obs.notifications != 1 {
-		t.Errorf("notifications = %d, want 1", obs.notifications)
+	if v := obs.notifications.Load(); v != 1 {
+		t.Errorf("notifications = %d, want 1", v)
 	}
-	if obs.successes != 1 {
-		t.Errorf("successes = %d, want 1", obs.successes)
+	if v := obs.successes.Load(); v != 1 {
+		t.Errorf("successes = %d, want 1", v)
 	}
-	if obs.errors != 0 {
-		t.Errorf("errors = %d, want 0", obs.errors)
+	if v := obs.errors.Load(); v != 0 {
+		t.Errorf("errors = %d, want 0", v)
 	}
 }
 
@@ -542,13 +542,13 @@ func TestRunMultiTenantCycle_ObserverErrorOnFetchFailure(t *testing.T) {
 	if err := s.runMultiTenantCycle(ctx); err == nil {
 		t.Fatal("expected error when all fetch groups fail")
 	}
-	if obs.errors != 1 {
-		t.Errorf("errors = %d, want 1", obs.errors)
+	if v := obs.errors.Load(); v != 1 {
+		t.Errorf("errors = %d, want 1", v)
 	}
-	if obs.fetches != 1 {
-		t.Errorf("fetches = %d, want 1", obs.fetches)
+	if v := obs.fetches.Load(); v != 1 {
+		t.Errorf("fetches = %d, want 1", v)
 	}
-	if obs.successes != 0 {
-		t.Errorf("successes = %d, want 0", obs.successes)
+	if v := obs.successes.Load(); v != 0 {
+		t.Errorf("successes = %d, want 0", v)
 	}
 }
