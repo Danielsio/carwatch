@@ -15,13 +15,14 @@ import (
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 // --- mock subscription store ---
 
 type mockSubStore struct {
 	mu     sync.Mutex
-	subs   map[int64][]PushSubscription
+	subs   map[int64][]storage.PushSubscription
 	delErr error
 	// deleted tracks (chatID, endpoint) pairs removed via DeletePushSubscription.
 	deleted []struct {
@@ -30,11 +31,11 @@ type mockSubStore struct {
 	}
 }
 
-func newMockStore(subs map[int64][]PushSubscription) *mockSubStore {
+func newMockStore(subs map[int64][]storage.PushSubscription) *mockSubStore {
 	return &mockSubStore{subs: subs}
 }
 
-func (m *mockSubStore) ListPushSubscriptions(_ context.Context, chatID int64) ([]PushSubscription, error) {
+func (m *mockSubStore) ListPushSubscriptions(_ context.Context, chatID int64) ([]storage.PushSubscription, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.subs[chatID], nil
@@ -51,7 +52,7 @@ func (m *mockSubStore) DeletePushSubscription(_ context.Context, chatID int64, e
 		endpoint string
 	}{chatID, endpoint})
 	// Also remove from the in-memory map so subsequent calls reflect the deletion.
-	remaining := make([]PushSubscription, 0, len(m.subs[chatID]))
+	remaining := make([]storage.PushSubscription, 0, len(m.subs[chatID]))
 	for _, s := range m.subs[chatID] {
 		if s.Endpoint != endpoint {
 			remaining = append(remaining, s)
@@ -109,7 +110,7 @@ func TestDisconnect_ReturnsNil(t *testing.T) {
 // --- Notify with no subscriptions ---
 
 func TestNotify_NoSubscriptions_Noop(t *testing.T) {
-	store := newMockStore(map[int64][]PushSubscription{})
+	store := newMockStore(map[int64][]storage.PushSubscription{})
 	n := New(store, "pub", "priv", "test@example.com", testLogger())
 
 	sendFn, calls, _ := fakeSendFunc(http.StatusCreated) //nolint:bodyclose // closed inside deliver()
@@ -130,7 +131,7 @@ func TestNotify_NoSubscriptions_Noop(t *testing.T) {
 // --- Notify with subscriptions ---
 
 func TestNotify_SingleListing_FormatsPayload(t *testing.T) {
-	store := newMockStore(map[int64][]PushSubscription{
+	store := newMockStore(map[int64][]storage.PushSubscription{
 		42: {{Endpoint: "https://push.example.com/sub1", P256DH: "key1", Auth: "auth1"}},
 	})
 	n := New(store, "pub", "priv", "test@example.com", testLogger())
@@ -184,7 +185,7 @@ func TestNotify_SingleListing_FormatsPayload(t *testing.T) {
 }
 
 func TestNotify_MultipleListings_SummaryPayload(t *testing.T) {
-	store := newMockStore(map[int64][]PushSubscription{
+	store := newMockStore(map[int64][]storage.PushSubscription{
 		10: {{Endpoint: "https://push.example.com/s1", P256DH: "k", Auth: "a"}},
 	})
 	n := New(store, "pub", "priv", "test@example.com", testLogger())
@@ -218,7 +219,7 @@ func TestNotify_MultipleListings_SummaryPayload(t *testing.T) {
 // --- NotifyRaw ---
 
 func TestNotifyRaw_FormatsPayload(t *testing.T) {
-	store := newMockStore(map[int64][]PushSubscription{
+	store := newMockStore(map[int64][]storage.PushSubscription{
 		7: {{Endpoint: "https://push.example.com/s1", P256DH: "k", Auth: "a"}},
 	})
 	n := New(store, "pub", "priv", "test@example.com", testLogger())
@@ -244,7 +245,7 @@ func TestNotifyRaw_FormatsPayload(t *testing.T) {
 }
 
 func TestNotifyRaw_NoSubscriptions_Noop(t *testing.T) {
-	store := newMockStore(map[int64][]PushSubscription{})
+	store := newMockStore(map[int64][]storage.PushSubscription{})
 	n := New(store, "pub", "priv", "test@example.com", testLogger())
 
 	sendFn, calls, _ := fakeSendFunc(http.StatusCreated) //nolint:bodyclose // closed inside deliver()
@@ -280,7 +281,7 @@ func TestNotifyRaw_InvalidRecipient(t *testing.T) {
 // --- Gone subscription cleanup ---
 
 func TestDeliver_GoneSubscription_Deleted(t *testing.T) {
-	store := newMockStore(map[int64][]PushSubscription{
+	store := newMockStore(map[int64][]storage.PushSubscription{
 		1: {
 			{Endpoint: "https://push.example.com/gone", P256DH: "k", Auth: "a"},
 			{Endpoint: "https://push.example.com/ok", P256DH: "k2", Auth: "a2"},
@@ -318,7 +319,7 @@ func TestDeliver_GoneSubscription_Deleted(t *testing.T) {
 // --- Rate limited subscription ---
 
 func TestDeliver_RateLimited_Skipped(t *testing.T) {
-	store := newMockStore(map[int64][]PushSubscription{
+	store := newMockStore(map[int64][]storage.PushSubscription{
 		1: {{Endpoint: "https://push.example.com/rl", P256DH: "k", Auth: "a"}},
 	})
 	n := New(store, "pub", "priv", "test@example.com", testLogger())
@@ -341,7 +342,7 @@ func TestDeliver_RateLimited_Skipped(t *testing.T) {
 // --- Send error ---
 
 func TestDeliver_SendError_ReturnsFirstError(t *testing.T) {
-	store := newMockStore(map[int64][]PushSubscription{
+	store := newMockStore(map[int64][]storage.PushSubscription{
 		1: {
 			{Endpoint: "https://push.example.com/fail1", P256DH: "k", Auth: "a"},
 			{Endpoint: "https://push.example.com/fail2", P256DH: "k2", Auth: "a2"},
@@ -365,7 +366,7 @@ func TestDeliver_SendError_ReturnsFirstError(t *testing.T) {
 // --- Multiple subscriptions fan-out ---
 
 func TestDeliver_MultipleSubscriptions_FansOut(t *testing.T) {
-	store := newMockStore(map[int64][]PushSubscription{
+	store := newMockStore(map[int64][]storage.PushSubscription{
 		5: {
 			{Endpoint: "https://push.example.com/s1", P256DH: "k1", Auth: "a1"},
 			{Endpoint: "https://push.example.com/s2", P256DH: "k2", Auth: "a2"},

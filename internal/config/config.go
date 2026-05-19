@@ -36,12 +36,6 @@ type FirebaseConfig struct {
 	ProjectID       string `yaml:"project_id"`
 }
 
-type PushConfig struct {
-	VAPIDPublicKey  string `yaml:"vapid_public_key"`
-	VAPIDPrivateKey string `yaml:"vapid_private_key"`
-	VAPIDSubject    string `yaml:"vapid_subject"`
-}
-
 type APIConfig struct {
 	CORSOrigins []string `yaml:"cors_origins"`
 	// TrustForwardedFor, when true, uses X-Forwarded-For (leftmost hop) for IP rate limiting.

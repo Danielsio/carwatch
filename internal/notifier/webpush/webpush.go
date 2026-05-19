@@ -15,21 +15,12 @@ import (
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
-// PushSubscription mirrors the W3C PushSubscription object stored by the backend.
-// When PR #898 merges this will align with storage.PushSubscription.
-type PushSubscription struct {
-	Endpoint string
-	P256DH   string
-	Auth     string
-}
-
 // SubscriptionStore abstracts the persistence layer for web push subscriptions.
-// The interface is intentionally narrow so that the concrete storage.PushSubscriptionStore
-// (added in PR #898) satisfies it without any adapter code.
 type SubscriptionStore interface {
-	ListPushSubscriptions(ctx context.Context, chatID int64) ([]PushSubscription, error)
+	ListPushSubscriptions(ctx context.Context, chatID int64) ([]storage.PushSubscription, error)
 	DeletePushSubscription(ctx context.Context, chatID int64, endpoint string) error
 }
 
@@ -126,7 +117,7 @@ func (n *Notifier) NotifyRaw(ctx context.Context, recipient string, message stri
 
 // deliver fans out the push message to every subscription, removing stale
 // endpoints (HTTP 410 Gone) and skipping rate-limited ones (HTTP 429).
-func (n *Notifier) deliver(ctx context.Context, chatID int64, subs []PushSubscription, data []byte) error {
+func (n *Notifier) deliver(ctx context.Context, chatID int64, subs []storage.PushSubscription, data []byte) error {
 	var firstErr error
 	for _, sub := range subs {
 		resp, err := n.sendFunc(data, &wp.Subscription{
