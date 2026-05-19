@@ -38,12 +38,14 @@ function TestConsumer() {
   );
 }
 
-function renderWithProviders() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+function renderWithProviders(queryClient?: QueryClient) {
+  const qc =
+    queryClient ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
   return render(
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={qc}>
       <AuthProvider>
         <TestConsumer />
       </AuthProvider>
@@ -94,5 +96,68 @@ describe("AuthContext", () => {
 
     await user.click(screen.getByRole("button", { name: "logout" }));
     expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears query cache when user UID changes (prevents data leaking between users)", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const clearSpy = vi.spyOn(queryClient, "clear");
+
+    renderWithProviders(queryClient);
+
+    // User A logs in
+    await act(async () => {
+      authStateCallback?.({ uid: "user-a", email: "a@example.com" });
+    });
+    expect(clearSpy).not.toHaveBeenCalled();
+
+    // User B replaces User A (e.g. sign-out then sign-in as different user)
+    await act(async () => {
+      authStateCallback?.({ uid: "user-b", email: "b@example.com" });
+    });
+    expect(clearSpy).toHaveBeenCalledTimes(1);
+
+    clearSpy.mockRestore();
+  });
+
+  it("clears query cache when user signs out after being logged in", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const clearSpy = vi.spyOn(queryClient, "clear");
+
+    renderWithProviders(queryClient);
+
+    // User logs in
+    await act(async () => {
+      authStateCallback?.({ uid: "u1", email: "test@example.com" });
+    });
+    expect(clearSpy).not.toHaveBeenCalled();
+
+    // User signs out (uid becomes null)
+    await act(async () => {
+      authStateCallback?.(null);
+    });
+    expect(clearSpy).toHaveBeenCalledTimes(1);
+
+    clearSpy.mockRestore();
+  });
+
+  it("does not clear query cache on initial auth resolve", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const clearSpy = vi.spyOn(queryClient, "clear");
+
+    renderWithProviders(queryClient);
+
+    // First auth callback (initial load) should not clear cache
+    await act(async () => {
+      authStateCallback?.({ uid: "u1", email: "test@example.com" });
+    });
+    expect(clearSpy).not.toHaveBeenCalled();
+
+    clearSpy.mockRestore();
   });
 });

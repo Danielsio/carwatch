@@ -40,6 +40,9 @@ describe("ProtectedRoute", () => {
     expect(screen.getByText("טוען...")).toBeInTheDocument();
   });
 
+  // Guest access is intentional (see PR #847). The dashboard is open to
+  // unauthenticated visitors with limited functionality. Individual pages
+  // handle their own auth guards where needed (e.g. settings, admin).
   it("renders content for unauthenticated guests (no redirect)", () => {
     authState = { user: null, loading: false };
     renderWithRoute();
