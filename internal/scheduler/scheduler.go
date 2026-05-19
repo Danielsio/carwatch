@@ -76,6 +76,7 @@ type Scheduler struct {
 	carNames          CarNameResolver
 	kmEnricher        KmEnricher
 	priceListSvc      *pricelist.Service
+	pipeline          *ListingPipeline
 	triggerCh         chan struct{}
 
 	langCache      sync.Map
@@ -210,6 +211,7 @@ func NewWithOptions(
 		carNames:          opts.CarNames,
 		kmEnricher:        opts.KmEnricher,
 		priceListSvc:      plSvc,
+		pipeline:          NewListingPipeline(opts.ListingStore, plSvc, logger),
 		triggerCh:         make(chan struct{}, 1),
 		marketCacheTTL:    mcTTL,
 	}, nil

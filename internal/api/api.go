@@ -22,6 +22,7 @@ import (
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/pricelist"
+	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -62,6 +63,7 @@ type Server struct {
 	vacuumMu         sync.Mutex
 	fetchers         *fetcher.Factory
 	priceListSvc     *pricelist.Service
+	pipeline         *scheduler.ListingPipeline
 	refreshMu        sync.Map
 	lastRefreshSweep atomic.Int64 // unix nano of last sweep
 
@@ -143,6 +145,7 @@ func New(c Config) *Server {
 		guestRL:      newIPRateLimiter(15, 3*time.Minute, c.API.TrustForwardedFor),
 		fetchers:     c.Fetchers,
 		priceListSvc: c.PriceListSvc,
+		pipeline:     scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger),
 	}
 }
 
