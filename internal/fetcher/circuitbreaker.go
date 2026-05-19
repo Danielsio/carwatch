@@ -92,16 +92,12 @@ func (cb *CircuitBreaker) Fetch(ctx context.Context, params model.SourceParams) 
 	cb.probing = cb.state == StateHalfOpen
 	cb.mu.Unlock()
 
-	defer func() {
-		cb.mu.Lock()
-		cb.probing = false
-		cb.mu.Unlock()
-	}()
-
 	listings, err := cb.inner.Fetch(ctx, params)
 
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
+
+	cb.probing = false
 
 	if err != nil {
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {

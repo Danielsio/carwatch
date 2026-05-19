@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -15,18 +16,18 @@ func TestNopObserver_DoesNotPanic(t *testing.T) {
 }
 
 type countingObserver struct {
-	successes     int
-	errors        int
-	listingsFound int
-	notifications int
-	fetches       int
+	successes     atomic.Int64
+	errors        atomic.Int64
+	listingsFound atomic.Int64
+	notifications atomic.Int64
+	fetches       atomic.Int64
 }
 
-func (o *countingObserver) RecordSuccess()                                 { o.successes++ }
-func (o *countingObserver) RecordError()                                   { o.errors++ }
-func (o *countingObserver) RecordListingsFound(n int)                      { o.listingsFound += n }
-func (o *countingObserver) RecordNotificationSent()                        { o.notifications++ }
-func (o *countingObserver) RecordFetch(_ string, _ time.Duration, _ error) { o.fetches++ }
+func (o *countingObserver) RecordSuccess()                                 { o.successes.Add(1) }
+func (o *countingObserver) RecordError()                                   { o.errors.Add(1) }
+func (o *countingObserver) RecordListingsFound(n int)                      { o.listingsFound.Add(int64(n)) }
+func (o *countingObserver) RecordNotificationSent()                        { o.notifications.Add(1) }
+func (o *countingObserver) RecordFetch(_ string, _ time.Duration, _ error) { o.fetches.Add(1) }
 
 func TestCycleObserver_Interface(t *testing.T) {
 	var obs CycleObserver = &countingObserver{}
@@ -36,17 +37,17 @@ func TestCycleObserver_Interface(t *testing.T) {
 	obs.RecordNotificationSent()
 
 	co := obs.(*countingObserver)
-	if co.successes != 1 {
-		t.Errorf("successes = %d, want 1", co.successes)
+	if v := co.successes.Load(); v != 1 {
+		t.Errorf("successes = %d, want 1", v)
 	}
-	if co.errors != 1 {
-		t.Errorf("errors = %d, want 1", co.errors)
+	if v := co.errors.Load(); v != 1 {
+		t.Errorf("errors = %d, want 1", v)
 	}
-	if co.listingsFound != 5 {
-		t.Errorf("listingsFound = %d, want 5", co.listingsFound)
+	if v := co.listingsFound.Load(); v != 5 {
+		t.Errorf("listingsFound = %d, want 5", v)
 	}
-	if co.notifications != 1 {
-		t.Errorf("notifications = %d, want 1", co.notifications)
+	if v := co.notifications.Load(); v != 1 {
+		t.Errorf("notifications = %d, want 1", v)
 	}
 }
 
