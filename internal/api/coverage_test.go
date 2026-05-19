@@ -228,35 +228,25 @@ func TestCreateSearch_ModelRequiresManufacturer(t *testing.T) {
 	}
 }
 
-func TestCreateSearch_UnknownManufacturer_AcceptsWithFallback(t *testing.T) {
+func TestCreateSearch_UnknownManufacturer_Rejected(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
 	w := doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{
 		Manufacturer: 999999, Model: 10226,
 	})
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201 (catalog falls back to 'Unknown'), got %d", w.Code)
-	}
-	var resp searchResponse
-	mustUnmarshal(t, w.Body.Bytes(), &resp)
-	if resp.ManufacturerName != "Unknown" {
-		t.Errorf("manufacturer_name = %q, want Unknown", resp.ManufacturerName)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown manufacturer, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
-func TestCreateSearch_UnknownModel_AcceptsWithFallback(t *testing.T) {
+func TestCreateSearch_UnknownModel_Rejected(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
 	w := doRequest(t, srv, "POST", "/api/v1/searches", createSearchRequest{
 		Manufacturer: 19, Model: 999999,
 	})
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201 (catalog falls back to 'Unknown'), got %d", w.Code)
-	}
-	var resp searchResponse
-	mustUnmarshal(t, w.Body.Bytes(), &resp)
-	if resp.ModelName != "Unknown" {
-		t.Errorf("model_name = %q, want Unknown", resp.ModelName)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown model, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
