@@ -49,4 +49,18 @@ describe("feedSSE", () => {
     feedSSE("data:  spaced\n\n", "", onData);
     expect(onData).toHaveBeenCalledWith(" spaced");
   });
+
+  it("handles CRLF line endings", () => {
+    const onData = vi.fn();
+    feedSSE("data: hello\r\ndata: world\r\n\r\n", "", onData);
+    expect(onData).toHaveBeenCalledTimes(1);
+    expect(onData).toHaveBeenCalledWith("hello\nworld");
+  });
+
+  it("handles bare CR line endings", () => {
+    const onData = vi.fn();
+    feedSSE("data: solo\r\r", "", onData);
+    expect(onData).toHaveBeenCalledTimes(1);
+    expect(onData).toHaveBeenCalledWith("solo");
+  });
 });
