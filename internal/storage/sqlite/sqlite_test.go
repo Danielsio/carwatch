@@ -3800,3 +3800,281 @@ func TestSearchStats_CrossUserIsolation(t *testing.T) {
 		t.Errorf("user 200 Total = %d, want 1", stats2.Total)
 	}
 }
+
+// --- NULL / zero-value handling tests (#863) ---
+
+func TestListSearchListings_NullIsCommercial_ExcludedBySellerFilter(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "null-commercial", Source: "yad2",
+		Manufacturer: 8, Model: 10061, Active: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Listing with is_commercial=nil (unknown seller type).
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "nc-unknown", ChatID: 100, SearchID: searchID, SearchName: "null-commercial",
+		Manufacturer: "Mazda", Model: "3", Year: 2022, Price: 100000, Km: 30000, Hand: 1,
+		IsCommercial: nil,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Listing with is_commercial=false (private seller).
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "nc-private", ChatID: 100, SearchID: searchID, SearchName: "null-commercial",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 110000, Km: 40000, Hand: 2,
+		IsCommercial: ptrBool(false),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Listing with is_commercial=true (dealer).
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "nc-dealer", ChatID: 100, SearchID: searchID, SearchName: "null-commercial",
+		Manufacturer: "Mazda", Model: "3", Year: 2020, Price: 120000, Km: 50000, Hand: 3,
+		IsCommercial: ptrBool(true),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// No filter: all 3 listings returned.
+	all, err := store.ListSearchListings(ctx, 100, searchID, storage.ListingFilter{}, 20, 0, "newest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("no filter: got %d listings, want 3", len(all))
+	}
+
+	// Private filter: only nc-private (is_commercial=0). The NULL listing is excluded
+	// because SQL `NULL = 0` evaluates to NULL (falsy).
+	privFilter := storage.ListingFilter{Commercial: ptrBool(false)}
+	privListings, err := store.ListSearchListings(ctx, 100, searchID, privFilter, 20, 0, "newest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(privListings) != 1 {
+		t.Fatalf("private filter: got %d listings, want 1", len(privListings))
+	}
+	if privListings[0].Token != "nc-private" {
+		t.Errorf("private filter: got token %q, want nc-private", privListings[0].Token)
+	}
+
+	// Dealer filter: only nc-dealer (is_commercial=1). NULL excluded similarly.
+	dealerFilter := storage.ListingFilter{Commercial: ptrBool(true)}
+	dealerListings, err := store.ListSearchListings(ctx, 100, searchID, dealerFilter, 20, 0, "newest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dealerListings) != 1 {
+		t.Fatalf("dealer filter: got %d listings, want 1", len(dealerListings))
+	}
+	if dealerListings[0].Token != "nc-dealer" {
+		t.Errorf("dealer filter: got token %q, want nc-dealer", dealerListings[0].Token)
+	}
+
+	// Verify counts match.
+	privCount, err := store.CountSearchListings(ctx, 100, searchID, privFilter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if privCount != 1 {
+		t.Errorf("private count: got %d, want 1", privCount)
+	}
+	dealerCount, err := store.CountSearchListings(ctx, 100, searchID, dealerFilter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dealerCount != 1 {
+		t.Errorf("dealer count: got %d, want 1", dealerCount)
+	}
+}
+
+func TestCountSearchListingsForChat_NullIsCommercial_ExcludedBySellerFilter(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	// Search with seller_filter="private".
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "priv-null-test", Source: "yad2",
+		Manufacturer: 8, Model: 10061, Active: true,
+		SellerFilter: storage.SellerFilterPrivate,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Save one listing with is_commercial=nil (unknown).
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "csn-unknown", ChatID: 100, SearchID: searchID, SearchName: "priv-null-test",
+		Manufacturer: "Mazda", Model: "3", Year: 2022, Price: 90000, Km: 30000, Hand: 1,
+		IsCommercial: nil,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Save one listing with is_commercial=false (private).
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "csn-private", ChatID: 100, SearchID: searchID, SearchName: "priv-null-test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 100000, Km: 40000, Hand: 2,
+		IsCommercial: ptrBool(false),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// CountSearchListingsForChat applies the search's seller_filter.
+	// The NULL listing should be excluded because the search requires private sellers
+	// and `is_commercial = 0` does not match NULL.
+	got, err := store.CountSearchListingsForChat(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[searchID] != 1 {
+		t.Errorf("CountSearchListingsForChat with seller_filter=private: got %d, want 1 (NULL listing should be excluded)", got[searchID])
+	}
+}
+
+func TestListSearchListings_PriceZero_PassesPriceMaxFilter(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "price-zero", Source: "yad2",
+		Manufacturer: 8, Model: 10061, Active: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Listing with price=0 ("price on request" or unpriced).
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "pz-zero", ChatID: 100, SearchID: searchID, SearchName: "price-zero",
+		Manufacturer: "Mazda", Model: "3", Year: 2022, Price: 0, Km: 30000, Hand: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Listing with a normal price.
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "pz-normal", ChatID: 100, SearchID: searchID, SearchName: "price-zero",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 100000, Km: 40000, Hand: 2,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Listing above budget.
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "pz-expensive", ChatID: 100, SearchID: searchID, SearchName: "price-zero",
+		Manufacturer: "Mazda", Model: "3", Year: 2020, Price: 200000, Km: 50000, Hand: 3,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// PriceMax=150000: the filter uses `price <= 150000`, which matches price=0.
+	// This documents the current behavior: unpriced listings (price=0) pass PriceMax
+	// because 0 <= 150000. This is a known issue (#863) -- users with a budget cap
+	// will see unpriced listings that could cost far more than their budget.
+	f := storage.ListingFilter{PriceMax: 150000}
+	listings, err := store.ListSearchListings(ctx, 100, searchID, f, 20, 0, "newest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Current behavior: price=0 passes PriceMax because 0 <= 150000.
+	if len(listings) != 2 {
+		t.Fatalf("PriceMax=150000: got %d listings, want 2 (price=0 passes PriceMax)", len(listings))
+	}
+
+	tokens := map[string]bool{}
+	for _, l := range listings {
+		tokens[l.Token] = true
+	}
+	if !tokens["pz-zero"] {
+		t.Error("PriceMax=150000: expected price=0 listing to be included (current behavior)")
+	}
+	if !tokens["pz-normal"] {
+		t.Error("PriceMax=150000: expected price=100000 listing to be included")
+	}
+	if tokens["pz-expensive"] {
+		t.Error("PriceMax=150000: price=200000 should be excluded")
+	}
+
+	// Verify count matches list.
+	count, err := store.CountSearchListings(ctx, 100, searchID, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Errorf("CountSearchListings PriceMax=150000: got %d, want 2", count)
+	}
+}
+
+func TestListSearchListings_UnknownSort_DefaultsToNewest(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	seedUser(t, store, 100)
+
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "sort-test", Source: "yad2",
+		Manufacturer: 8, Model: 10061, Active: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Two listings with distinct first_seen_at to verify ordering.
+	older := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	newer := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "sort-old", ChatID: 100, SearchID: searchID, SearchName: "sort-test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 120000, Km: 50000, Hand: 2,
+		FirstSeenAt: older,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "sort-new", ChatID: 100, SearchID: searchID, SearchName: "sort-test",
+		Manufacturer: "Mazda", Model: "3", Year: 2022, Price: 90000, Km: 30000, Hand: 1,
+		FirstSeenAt: newer,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// An unknown sort value should fall through to the default: newest first.
+	invalidSorts := []string{"invalid_sort", "", "bogus", "NEWEST"}
+	for _, sort := range invalidSorts {
+		listings, err := store.ListSearchListings(ctx, 100, searchID, storage.ListingFilter{}, 20, 0, sort)
+		if err != nil {
+			t.Fatalf("sort=%q: %v", sort, err)
+		}
+		if len(listings) != 2 {
+			t.Fatalf("sort=%q: got %d listings, want 2", sort, len(listings))
+		}
+		// Newest first = sort-new before sort-old.
+		if listings[0].Token != "sort-new" || listings[1].Token != "sort-old" {
+			t.Errorf("sort=%q: got [%s, %s], want [sort-new, sort-old] (newest first)",
+				sort, listings[0].Token, listings[1].Token)
+		}
+	}
+
+	// Verify "newest" (the explicit valid sort) produces identical ordering.
+	expected, err := store.ListSearchListings(ctx, 100, searchID, storage.ListingFilter{}, 20, 0, "newest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid, err := store.ListSearchListings(ctx, 100, searchID, storage.ListingFilter{}, 20, 0, "invalid_sort")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(expected) != len(invalid) {
+		t.Fatalf("newest vs invalid_sort: different lengths %d vs %d", len(expected), len(invalid))
+	}
+	for i := range expected {
+		if expected[i].Token != invalid[i].Token {
+			t.Errorf("newest vs invalid_sort: index %d got %q vs %q", i, expected[i].Token, invalid[i].Token)
+		}
+	}
+}
