@@ -514,6 +514,20 @@ export interface TelegramStatus {
   telegram_username: string | null;
 }
 
+export const pushApi = {
+  vapidKey: () => fetchAPI<{ public_key: string }>("/push/vapid-key"),
+  subscribe: (subscription: PushSubscriptionJSON) =>
+    fetchAPI<void>("/push/subscribe", {
+      method: "POST",
+      body: JSON.stringify(subscription),
+    }),
+  unsubscribe: (endpoint: string) =>
+    fetchAPI<void>("/push/subscribe", {
+      method: "DELETE",
+      body: JSON.stringify({ endpoint }),
+    }),
+};
+
 export const telegramApi = {
   status: () => fetchAPI<TelegramStatus>("/telegram/status"),
   createLink: () =>

@@ -10,6 +10,9 @@ import {
   Moon,
   User,
   LogOut,
+  Bell,
+  BellOff,
+  BellRing,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -17,12 +20,16 @@ import { useToast } from "@/components/ui/Toast";
 import { telegramApi, type TelegramStatus } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { usePushSubscription } from "@/hooks/usePushSubscription";
 
 export function SettingsPage() {
   usePageTitle("הגדרות");
   const { toast } = useToast();
   const { user, signOut } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
+
+  const { pushState, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } =
+    usePushSubscription(!!user);
 
   const [tgStatus, setTgStatus] = useState<TelegramStatus | null>(null);
   const [tgLoading, setTgLoading] = useState(true);
@@ -173,6 +180,84 @@ export function SettingsPage() {
                 <ExternalLink className="h-4 w-4" />
               )}
               חבר חשבון Telegram
+            </Button>
+          </div>
+        )}
+      </section>
+
+      {/* Push Notifications */}
+      <section className="rounded-2xl border border-border/50 bg-card p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            {pushState.subscribed ? (
+              <BellRing className="h-4 w-4 text-primary" />
+            ) : (
+              <Bell className="h-4 w-4 text-primary" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold text-foreground">
+              התראות Push
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              קבל התראות ישירות בדפדפן על מודעות חדשות
+            </p>
+          </div>
+        </div>
+
+        {!pushState.supported ? (
+          <div className="flex items-center gap-3 rounded-xl bg-muted/50 border border-border/30 p-3">
+            <BellOff className="h-5 w-5 text-muted-foreground shrink-0" />
+            <p className="text-sm text-muted-foreground">
+              הדפדפן שלך לא תומך בהתראות
+            </p>
+          </div>
+        ) : pushState.permission === "denied" ? (
+          <div className="flex items-center gap-3 rounded-xl bg-destructive/5 border border-destructive/20 p-3">
+            <BellOff className="h-5 w-5 text-destructive shrink-0" />
+            <p className="text-sm text-muted-foreground">
+              ההתראות חסומות בדפדפן. שנה את ההגדרות בדפדפן.
+            </p>
+          </div>
+        ) : pushState.subscribed ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 rounded-xl bg-success/5 border border-success/20 p-3">
+              <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
+              <p className="text-sm font-medium text-foreground">
+                התראות Push מופעלות
+              </p>
+            </div>
+            <Button
+              onClick={() => pushUnsubscribe.mutate()}
+              disabled={pushUnsubscribe.isPending}
+              variant="secondary"
+              className="w-full sm:w-auto"
+            >
+              {pushUnsubscribe.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <BellOff className="h-4 w-4" />
+              )}
+              כבה התראות
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              הפעל התראות Push כדי לקבל עדכונים מיידיים על מודעות חדשות ישירות בדפדפן.
+            </p>
+            <Button
+              onClick={() => pushSubscribe.mutate()}
+              disabled={pushSubscribe.isPending}
+              variant="secondary"
+              className="w-full sm:w-auto"
+            >
+              {pushSubscribe.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Bell className="h-4 w-4" />
+              )}
+              הפעל התראות
             </Button>
           </div>
         )}
