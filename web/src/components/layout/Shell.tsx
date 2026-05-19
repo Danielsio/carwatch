@@ -31,6 +31,7 @@ interface NavItem {
   badge?: boolean;
   adminOnly?: boolean;
   authOnly?: boolean;
+  guestOnly?: boolean;
 }
 
 const mainNav: NavItem[] = [
@@ -47,7 +48,7 @@ const libraryNav: NavItem[] = [
 const systemNav: NavItem[] = [
   { path: "/settings", label: "הגדרות", icon: Settings, authOnly: true },
   { path: "/admin", label: "ניהול", icon: Wrench, adminOnly: true },
-  { path: "/try", label: "נסה חיפוש", icon: Search },
+  { path: "/try", label: "נסה חיפוש", icon: Search, guestOnly: true },
 ];
 
 interface MobileNavItem {
@@ -144,7 +145,7 @@ function SidebarSection({
   isAuthenticated: boolean;
 }) {
   const visibleItems = items.filter(
-    (item) => (!item.adminOnly || isAdmin) && (!item.authOnly || isAuthenticated),
+    (item) => (!item.adminOnly || isAdmin) && (!item.authOnly || isAuthenticated) && (!item.guestOnly || !isAuthenticated),
   );
   if (visibleItems.length === 0) return null;
 
