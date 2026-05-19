@@ -21,7 +21,7 @@ func mustNoErr(t *testing.T, err error) {
 
 func newTestBotFull(t *testing.T) *testBot {
 	t.Helper()
-	store, err := sqlite.New("file::memory:?cache=shared")
+	store, err := sqlite.New(":memory:")
 	if err != nil {
 		t.Fatalf("create store: %v", err)
 	}
