@@ -42,13 +42,14 @@ function renderWithProviders() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  const result = render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TestConsumer />
       </AuthProvider>
     </QueryClientProvider>,
   );
+  return { ...result, queryClient };
 }
 
 describe("AuthContext", () => {
@@ -94,5 +95,52 @@ describe("AuthContext", () => {
 
     await user.click(screen.getByRole("button", { name: "logout" }));
     expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears query cache when user UID changes (user switch)", async () => {
+    const { queryClient } = renderWithProviders();
+    const clearSpy = vi.spyOn(queryClient, "clear");
+
+    // User A logs in — first auth event, prevUid is null so no clear
+    await act(async () => {
+      authStateCallback?.({ uid: "user-a", email: "a@example.com" });
+    });
+    expect(screen.getByTestId("user").textContent).toBe("a@example.com");
+    expect(clearSpy).not.toHaveBeenCalled();
+
+    // User B takes over — UID changed, cache must be cleared
+    await act(async () => {
+      authStateCallback?.({ uid: "user-b", email: "b@example.com" });
+    });
+    expect(screen.getByTestId("user").textContent).toBe("b@example.com");
+    expect(clearSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not clear query cache on initial login", async () => {
+    const { queryClient } = renderWithProviders();
+    const clearSpy = vi.spyOn(queryClient, "clear");
+
+    // First auth event — prevUid starts as null, no clear expected
+    await act(async () => {
+      authStateCallback?.({ uid: "u1", email: "test@example.com" });
+    });
+    expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it("clears query cache when switching from a user to signed-out", async () => {
+    const { queryClient } = renderWithProviders();
+    const clearSpy = vi.spyOn(queryClient, "clear");
+
+    // User logs in
+    await act(async () => {
+      authStateCallback?.({ uid: "u1", email: "test@example.com" });
+    });
+    expect(clearSpy).not.toHaveBeenCalled();
+
+    // User signs out — UID changes from "u1" to null
+    await act(async () => {
+      authStateCallback?.(null);
+    });
+    expect(clearSpy).toHaveBeenCalledTimes(1);
   });
 });
