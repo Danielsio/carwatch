@@ -194,6 +194,9 @@ func formatBreakdown(dims []model.FitnessDim, lang locale.Lang) string {
 }
 
 func basePriceLine(lang locale.Lang, basePrice, price int) string {
+	if basePrice <= 0 {
+		return ""
+	}
 	bpStr := format.Number(basePrice)
 	pctDiff := int(math.Round(100.0 * (1.0 - float64(price)/float64(basePrice))))
 	if pctDiff > 5 {

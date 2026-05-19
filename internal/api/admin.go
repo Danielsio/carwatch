@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -339,6 +340,10 @@ func (s *Server) adminDeleteSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.admin.AdminDeleteSearch(r.Context(), id); err != nil {
+		if errors.Is(err, storage.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "search not found")
+			return
+		}
 		s.logger.Error("admin: delete search", "id", id, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to delete search")
 		return
