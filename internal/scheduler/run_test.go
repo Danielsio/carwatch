@@ -303,7 +303,7 @@ func (m *mockListingStore) PruneListings(_ context.Context, _ time.Duration) (in
 	return 0, nil
 }
 
-func (m *mockListingStore) SearchStats(_ context.Context, _ int64, _ int64) (*storage.SearchStats, error) {
+func (m *mockListingStore) SearchStats(_ context.Context, _ int64, _ int64, _ storage.ListingFilter) (*storage.SearchStats, error) {
 	return &storage.SearchStats{}, nil
 }
 

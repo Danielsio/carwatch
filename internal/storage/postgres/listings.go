@@ -456,10 +456,10 @@ func (s *Store) CountSearchListingsForChat(ctx context.Context, chatID int64) (m
 	return out, rows.Err()
 }
 
-func (s *Store) SearchStats(ctx context.Context, chatID int64, searchID int64) (*storage.SearchStats, error) {
-	var st storage.SearchStats
-	var avgPrice, minPrice, maxPrice sql.NullFloat64
-	err := s.db.QueryRowContext(ctx, `
+func (s *Store) SearchStats(ctx context.Context, chatID int64, searchID int64, f storage.ListingFilter) (*storage.SearchStats, error) {
+	filterSQL, filterArgs, _ := buildFilterClauses(f, 3)
+
+	query := `
 		SELECT
 			COUNT(*) AS total,
 			COUNT(CASE WHEN first_seen_at > NOW() - INTERVAL '1 day' THEN 1 END) AS new_24h,
@@ -467,7 +467,13 @@ func (s *Store) SearchStats(ctx context.Context, chatID int64, searchID int64) (
 			MIN(CASE WHEN price > 0 THEN price END) AS min_price,
 			MAX(CASE WHEN price > 0 THEN price END) AS max_price
 		FROM listing_history
-		WHERE search_id = $1 AND chat_id = $2`, searchID, chatID).
+		WHERE search_id = $1 AND chat_id = $2` + filterSQL
+
+	args := append([]any{searchID, chatID}, filterArgs...)
+
+	var st storage.SearchStats
+	var avgPrice, minPrice, maxPrice sql.NullFloat64
+	err := s.db.QueryRowContext(ctx, query, args...).
 		Scan(&st.Total, &st.New24h, &avgPrice, &minPrice, &maxPrice)
 	if err != nil {
 		return nil, fmt.Errorf("search stats: %w", err)

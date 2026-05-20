@@ -238,7 +238,7 @@ type ListingStore interface {
 	// CountSearchListingsForChat returns listing counts per search_id for chatID,
 	// applying each search row's price/year/km/hand constraints like CountSearchListings.
 	CountSearchListingsForChat(ctx context.Context, chatID int64) (map[int64]int64, error)
-	SearchStats(ctx context.Context, chatID int64, searchID int64) (*SearchStats, error)
+	SearchStats(ctx context.Context, chatID int64, searchID int64, f ListingFilter) (*SearchStats, error)
 	PruneListings(ctx context.Context, olderThan time.Duration) (int64, error)
 	DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error)
 }
