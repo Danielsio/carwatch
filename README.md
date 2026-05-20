@@ -97,14 +97,28 @@ carwatch/
 
 ## Development
 
+### Local setup
+
+Prerequisites: Go 1.25+, Docker (for PostgreSQL).
+
+```bash
+make dev-db        # Start PostgreSQL via Docker
+make dev           # Build + run with local PostgreSQL
+make dev-stop      # Stop PostgreSQL
+make dev-reset     # Wipe database and start fresh
+make dev-pg-shell  # Open psql shell to local database
+```
+
+Set `TELEGRAM_BOT_TOKEN` in your environment before running `make dev`.
+
+### Testing
+
 ```bash
 make test          # Run tests with coverage
 make lint          # Run golangci-lint
 make ci            # Lint + test (what CI runs)
 make test-cover    # Generate HTML coverage report
 ```
-
-Requires Go 1.25+ and PostgreSQL (or Docker for local dev).
 
 ## License
 

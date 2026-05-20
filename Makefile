@@ -1,4 +1,5 @@
 .PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
+       dev dev-db dev-stop dev-reset dev-pg-shell \
        vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
        vm-backup vm-backup-list vm-pg-shell \
        vm-setup-backup vm-backup-status \
@@ -63,6 +64,23 @@ web-dev:
 
 web-build:
 	cd web && npm run build
+
+dev-db:
+	docker compose -f docker-compose.dev.yaml up -d
+	@echo "PostgreSQL running on localhost:5432 (user: carwatch, pass: carwatch, db: carwatch)"
+
+dev-stop:
+	docker compose -f docker-compose.dev.yaml down
+
+dev-reset:
+	docker compose -f docker-compose.dev.yaml down -v
+	@echo "Database volume removed. Run 'make dev-db' to start fresh."
+
+dev-pg-shell:
+	docker exec -it carwatch-dev-pg psql -U carwatch carwatch
+
+dev: build dev-db
+	./bot -config config.dev.yaml
 
 docker-build:
 	docker build -t carwatch .
