@@ -144,7 +144,6 @@ func run(configPath string, logger *slog.Logger) error {
 
 	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, multi, logger.With("component", "scheduler"), scheduler.Options{
 		Observer:         h,
-		Queue:            store,
 		Prices:           store,
 		ConfigPath:       configPath,
 		FetcherFactory:   fetcherFactory,

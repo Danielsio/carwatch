@@ -70,14 +70,13 @@ func quoteIdent(ident string) string {
 }
 
 var purgeable = map[string]bool{
-	"listing_history":       true,
-	"price_history":         true,
-	"seen_listings":         true,
-	"listing_user_seen":     true,
-	"pending_notifications": true,
-	"saved_listings":        true,
-	"hidden_listings":       true,
-	"pending_digest":        true,
+	"listing_history":   true,
+	"price_history":     true,
+	"seen_listings":     true,
+	"listing_user_seen": true,
+	"saved_listings":    true,
+	"hidden_listings":   true,
+	"pending_digest":    true,
 }
 
 func (s *Store) PurgeTable(ctx context.Context, table string) (int64, error) {
@@ -245,10 +244,6 @@ func (s *Store) AdminDeleteUser(ctx context.Context, chatID int64) error {
 		}
 	}
 
-	recipientStr := fmt.Sprintf("%d", chatID)
-	if _, err := tx.ExecContext(ctx, `DELETE FROM pending_notifications WHERE recipient = $1`, recipientStr); err != nil {
-		return fmt.Errorf("admin delete user pending_notifications: %w", err)
-	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM link_tokens WHERE web_chat_id = $1`, chatID); err != nil {
 		return fmt.Errorf("admin delete user link_tokens: %w", err)
 	}

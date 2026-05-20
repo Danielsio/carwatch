@@ -114,38 +114,6 @@ func TestReloadConfig_InvalidPath(t *testing.T) {
 	}
 }
 
-func TestRetryPending_NilQueue(t *testing.T) {
-	cfg := testConfig()
-	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
-	s.retryPending(context.Background())
-}
-
-func TestRetryPending_EmptyQueue(t *testing.T) {
-	cfg := testConfig()
-	queue := &mockNotificationQueue{}
-	s, _ := NewWithOptions(cfg, nil, nil, &mockNotifier{}, testLogger(), Options{Queue: queue})
-	s.retryPending(context.Background())
-}
-
-func TestRetryPending_WithPending(t *testing.T) {
-	cfg := testConfig()
-	n := &mockNotifier{}
-	queue := &mockNotificationQueue{
-		pending: []storage.PendingNotification{
-			{ID: 1, Recipient: "+972501234567", Payload: "test message"},
-		},
-	}
-	s, _ := NewWithOptions(cfg, nil, nil, n, testLogger(), Options{Queue: queue})
-	s.retryPending(context.Background())
-
-	if len(n.rawMessages) != 1 {
-		t.Errorf("expected 1 retried message, got %d", len(n.rawMessages))
-	}
-	if !queue.acked[1] {
-		t.Error("expected notification to be acknowledged")
-	}
-}
-
 func TestNewWithOptions_HealthStatus(t *testing.T) {
 	cfg := testConfig()
 	h := health.New()
@@ -180,31 +148,6 @@ func TestNextDelay_WithJitter(t *testing.T) {
 			t.Errorf("delay with jitter should be 8-12m, got %v", delay)
 		}
 	}
-}
-
-type mockNotificationQueue struct {
-	pending []storage.PendingNotification
-	acked   map[int64]bool
-}
-
-func (m *mockNotificationQueue) EnqueueNotification(_ context.Context, _, _, _ string) error {
-	return nil
-}
-
-func (m *mockNotificationQueue) PendingNotifications(_ context.Context) ([]storage.PendingNotification, error) {
-	return m.pending, nil
-}
-
-func (m *mockNotificationQueue) AckNotification(_ context.Context, id int64) error {
-	if m.acked == nil {
-		m.acked = make(map[int64]bool)
-	}
-	m.acked[id] = true
-	return nil
-}
-
-func (m *mockNotificationQueue) PruneNotifications(_ context.Context, _ time.Duration) (int64, error) {
-	return 0, nil
 }
 
 // --- mockDailyDigestStore ---

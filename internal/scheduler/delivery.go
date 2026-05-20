@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
@@ -22,13 +21,12 @@ type DeliveryStrategy interface {
 
 type InstantDelivery struct {
 	notifier notifier.Notifier
-	queue    storage.NotificationQueue
 	lang     locale.Lang
 	logger   *slog.Logger
 }
 
-func NewInstantDelivery(n notifier.Notifier, q storage.NotificationQueue, lang locale.Lang, opts ...func(*InstantDelivery)) *InstantDelivery {
-	d := &InstantDelivery{notifier: n, queue: q, lang: lang, logger: slog.Default()}
+func NewInstantDelivery(n notifier.Notifier, lang locale.Lang, opts ...func(*InstantDelivery)) *InstantDelivery {
+	d := &InstantDelivery{notifier: n, lang: lang, logger: slog.Default()}
 	for _, o := range opts {
 		o(d)
 	}
@@ -52,28 +50,7 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 	if errors.Is(err, notifier.ErrRecipientBlocked) {
 		return err
 	}
-	if errors.Is(err, notifier.ErrNoChannelNotifier) {
-		d.logger.Debug("no push notifier for channel, falling back to queue", "chat_id", chatID)
-	}
-
-	if d.queue != nil {
-		msg := notifier.FormatBatch(listings, d.lang)
-		if notifier.IsMalformedMessage(msg) {
-			d.logger.Error("blocked malformed batch message before enqueue",
-				"chat_id", chatID, "msg_len", len(msg))
-			return errMalformedMessage
-		}
-		d.logger.Debug("enqueueing batch notification after send failure",
-			"chat_id", chatID, "msg_len", len(msg))
-		enqCtx, enqCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer enqCancel()
-		if qErr := d.queue.EnqueueNotification(enqCtx, chatIDStr, "", msg); qErr == nil {
-			return nil
-		} else {
-			d.logger.Error("batch enqueue failed", "chat_id", chatID, "error", qErr)
-		}
-	}
-
+	d.logger.Error("batch notification failed", "chat_id", chatID, "error", err)
 	return err
 }
 
@@ -86,21 +63,8 @@ func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message 
 	}
 	chatIDStr := fmt.Sprintf("%d", chatID)
 	err := d.notifier.NotifyRaw(ctx, chatIDStr, message)
-	if err == nil || d.queue == nil {
-		return err
-	}
-	if errors.Is(err, notifier.ErrRecipientBlocked) {
-		return err
-	}
-	if errors.Is(err, notifier.ErrNoChannelNotifier) {
-		d.logger.Debug("no push notifier for channel, falling back to queue", "chat_id", chatID)
-	}
-	enqCtx, enqCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer enqCancel()
-	if qErr := d.queue.EnqueueNotification(enqCtx, chatIDStr, "", message); qErr == nil {
-		return nil
-	} else {
-		d.logger.Error("raw enqueue failed", "chat_id", chatID, "error", qErr)
+	if err != nil && !errors.Is(err, notifier.ErrRecipientBlocked) {
+		d.logger.Error("raw notification failed", "chat_id", chatID, "error", err)
 	}
 	return err
 }
