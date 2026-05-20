@@ -14,8 +14,8 @@ func (s *Store) RefreshMarketMedians(ctx context.Context) error {
 func (s *Store) LoadMarketMedians(ctx context.Context) ([]storage.MarketMedianRow, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT manufacturer, model, year,
-		       COALESCE(median_price, 0)::int,
-		       COALESCE(median_km, 0)::int,
+		       ROUND(COALESCE(median_price, 0))::int,
+		       ROUND(COALESCE(median_km, 0))::int,
 		       cohort_size
 		FROM market_medians`)
 	if err != nil {

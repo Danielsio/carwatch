@@ -573,20 +573,21 @@ func (s *Scheduler) getOrBuildMarketCache(ctx context.Context) *scoring.MarketCa
 	}
 
 	mc := s.buildMarketCache(ctx)
-	s.marketCache = mc
-	s.marketCacheBuiltAt = time.Now()
-	return mc
+	if mc != nil {
+		s.marketCache = mc
+		s.marketCacheBuiltAt = time.Now()
+	}
+	return s.marketCache
 }
 
 func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
 	if err := s.stores.Market.RefreshMarketMedians(ctx); err != nil {
 		s.logger.Error("refresh market medians failed", "error", err)
-		// Continue with stale view data — better than no data.
 	}
 
 	rows, err := s.stores.Market.LoadMarketMedians(ctx)
 	if err != nil {
-		s.logger.Error("load market medians failed", "error", err)
+		s.logger.Error("load market medians failed, keeping previous cache", "error", err)
 		return nil
 	}
 

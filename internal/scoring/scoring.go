@@ -96,18 +96,31 @@ func medianKey(manufacturer, model string, year int) string {
 }
 
 // Lookup returns the median price, median km, cohort size, and whether enough data exists.
+// For precomputed data, it checks year ±1 band and aggregates cohorts (matching the raw path behavior).
 func (mc *MarketCache) Lookup(manufacturer, model string, year int) (median int, medianKm int, cohortSize int, ok bool) {
 	if mc.precomputed != nil {
-		res, found := mc.precomputed[medianKey(manufacturer, model, year)]
-		if !found {
-			return 0, 0, 0, false
-		}
-		return res.median, res.medianKm, res.cohortSize, res.ok
+		return mc.lookupPrecomputed(manufacturer, model, year)
 	}
-
-	// Raw path: compute medians from listings with year-band matching.
 	res := mc.computeFromRaw(manufacturer, model, year)
 	return res.median, res.medianKm, res.cohortSize, res.ok
+}
+
+func (mc *MarketCache) lookupPrecomputed(manufacturer, model string, year int) (int, int, int, bool) {
+	var totalPrice, totalKm, totalCohort int
+	var count int
+	for dy := -1; dy <= 1; dy++ {
+		res, found := mc.precomputed[medianKey(manufacturer, model, year+dy)]
+		if found && res.ok {
+			totalPrice += res.median * res.cohortSize
+			totalKm += res.medianKm * res.cohortSize
+			totalCohort += res.cohortSize
+			count++
+		}
+	}
+	if totalCohort < MinCohortSize {
+		return 0, 0, 0, false
+	}
+	return totalPrice / totalCohort, totalKm / totalCohort, totalCohort, true
 }
 
 func (mc *MarketCache) computeFromRaw(manufacturer, model string, year int) lookupResult {
