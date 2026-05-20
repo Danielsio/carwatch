@@ -140,7 +140,6 @@ func TestE2E_FullPipeline(t *testing.T) {
 
 	sched, err := scheduler.NewWithOptions(cfg, f, store, n, testLogger, scheduler.Options{
 		Observer:       h,
-		Queue:          store,
 		Prices:         store,
 		FetcherFactory: factory,
 		ListingStore:   store,
@@ -183,7 +182,6 @@ func TestE2E_FullPipeline(t *testing.T) {
 	n2 := &mockNotifier{}
 	sched2, _ := scheduler.NewWithOptions(cfg, f, store, n2, testLogger, scheduler.Options{
 		Observer:       h,
-		Queue:          store,
 		Prices:         store,
 		FetcherFactory: factory,
 		ListingStore:   store,

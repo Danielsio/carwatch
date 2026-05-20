@@ -775,14 +775,9 @@ func TestAdminListListings(t *testing.T) {
 }
 
 func TestAdminPurgeTable(t *testing.T) {
-	srv, store := setupTestServer(t)
-	ctx := context.Background()
+	srv, _ := setupTestServer(t)
 
-	if err := store.EnqueueNotification(ctx, "999", "test", "{}"); err != nil {
-		t.Fatal(err)
-	}
-
-	w := doRequest(t, srv, "POST", "/api/v1/admin/purge", map[string]string{"table": "pending_notifications"})
+	w := doRequest(t, srv, "POST", "/api/v1/admin/purge", map[string]string{"table": "seen_listings"})
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}

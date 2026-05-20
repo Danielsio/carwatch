@@ -176,15 +176,15 @@ func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error 
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var searchName string
+	var exists bool
 	err = tx.QueryRowContext(ctx,
-		`SELECT name FROM searches WHERE id = $1 AND chat_id = $2`, id, chatID,
-	).Scan(&searchName)
-	if errors.Is(err, sql.ErrNoRows) {
-		return storage.ErrNotFound
-	}
+		`SELECT EXISTS(SELECT 1 FROM searches WHERE id = $1 AND chat_id = $2)`, id, chatID,
+	).Scan(&exists)
 	if err != nil {
-		return fmt.Errorf("fetch search name: %w", err)
+		return fmt.Errorf("check search exists: %w", err)
+	}
+	if !exists {
+		return storage.ErrNotFound
 	}
 
 	if _, err := tx.ExecContext(ctx,
@@ -199,12 +199,6 @@ func (s *Store) DeleteSearch(ctx context.Context, id int64, chatID int64) error 
 		return fmt.Errorf("delete listing_history: %w", err)
 	}
 
-	recipientStr := fmt.Sprintf("%d", chatID)
-	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM pending_notifications WHERE search_name = $1 AND recipient = $2`,
-		searchName, recipientStr); err != nil {
-		return fmt.Errorf("delete pending_notifications by name: %w", err)
-	}
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM searches WHERE id = $1 AND chat_id = $2`,
 		id, chatID); err != nil {

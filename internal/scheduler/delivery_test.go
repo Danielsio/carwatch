@@ -12,7 +12,7 @@ import (
 
 func TestInstantDelivery_DeliverBatch_Success(t *testing.T) {
 	n := &mockNotifier{}
-	d := NewInstantDelivery(n, nil, locale.English)
+	d := NewInstantDelivery(n, locale.English)
 
 	listings := []model.Listing{
 		{RawListing: model.RawListing{Token: "a", Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000}},
@@ -30,28 +30,18 @@ func TestInstantDelivery_DeliverBatch_Success(t *testing.T) {
 	}
 }
 
-func TestInstantDelivery_DeliverBatch_FallsBackToQueue(t *testing.T) {
+func TestInstantDelivery_DeliverBatch_NotifyFails(t *testing.T) {
 	n := &mockNotifier{err: errors.New("telegram down")}
-	q := &mockNotificationQueue{}
-	d := NewInstantDelivery(n, q, locale.English)
+	d := NewInstantDelivery(n, locale.English)
 
 	listings := []model.Listing{
 		{RawListing: model.RawListing{Token: "a"}},
 	}
 
 	err := d.DeliverBatch(context.Background(), 100, listings)
-	if err != nil {
-		t.Errorf("should succeed with queue fallback, got: %v", err)
+	if err == nil {
+		t.Fatal("expected error when notifier fails")
 	}
-}
-
-type failQueue struct {
-	mockNotificationQueue
-	enqueueErr error
-}
-
-func (q *failQueue) EnqueueNotification(_ context.Context, _, _, _ string) error {
-	return q.enqueueErr
 }
 
 type failDigestStore struct {
@@ -74,38 +64,9 @@ func (m *failDigestStore) AddDigestItem(_ context.Context, _ int64, _ string) er
 	return m.addErr
 }
 
-func TestInstantDelivery_DeliverBatch_BothFail(t *testing.T) {
-	n := &mockNotifier{err: errors.New("telegram down")}
-	q := &failQueue{enqueueErr: errors.New("queue full")}
-	d := NewInstantDelivery(n, q, locale.English)
-
-	listings := []model.Listing{
-		{RawListing: model.RawListing{Token: "a"}},
-	}
-
-	err := d.DeliverBatch(context.Background(), 100, listings)
-	if err == nil {
-		t.Fatal("expected error when both notifier and queue fail")
-	}
-}
-
-func TestInstantDelivery_DeliverBatch_NoQueue(t *testing.T) {
-	n := &mockNotifier{err: errors.New("telegram down")}
-	d := NewInstantDelivery(n, nil, locale.English)
-
-	listings := []model.Listing{
-		{RawListing: model.RawListing{Token: "a"}},
-	}
-
-	err := d.DeliverBatch(context.Background(), 100, listings)
-	if err == nil {
-		t.Fatal("expected error when notifier fails and no queue")
-	}
-}
-
 func TestInstantDelivery_DeliverRaw_Success(t *testing.T) {
 	n := &mockNotifier{}
-	d := NewInstantDelivery(n, nil, locale.English)
+	d := NewInstantDelivery(n, locale.English)
 
 	err := d.DeliverRaw(context.Background(), 100, "price drop!")
 	if err != nil {
@@ -137,25 +98,13 @@ func (m *errRawNotifier) NotifyRaw(_ context.Context, recipient string, message 
 	return nil
 }
 
-func TestInstantDelivery_DeliverRaw_FallsBackToQueue(t *testing.T) {
+func TestInstantDelivery_DeliverRaw_NotifyFails(t *testing.T) {
 	n := &errRawNotifier{rawErr: errors.New("telegram down")}
-	q := &mockNotificationQueue{}
-	d := NewInstantDelivery(n, q, locale.English)
-
-	err := d.DeliverRaw(context.Background(), 100, "price drop!")
-	if err != nil {
-		t.Errorf("should succeed with queue fallback, got: %v", err)
-	}
-}
-
-func TestInstantDelivery_DeliverRaw_BothFail(t *testing.T) {
-	n := &errRawNotifier{rawErr: errors.New("telegram down")}
-	q := &failQueue{enqueueErr: errors.New("queue full")}
-	d := NewInstantDelivery(n, q, locale.English)
+	d := NewInstantDelivery(n, locale.English)
 
 	err := d.DeliverRaw(context.Background(), 100, "price drop!")
 	if err == nil {
-		t.Fatal("expected error when both notifier and queue fail")
+		t.Fatal("expected error when notifier fails")
 	}
 }
 
@@ -198,57 +147,6 @@ func TestDigestDelivery_DeliverRaw(t *testing.T) {
 	}
 }
 
-type ctxSensitiveQueue struct {
-	mockNotificationQueue
-	enqueued int
-}
-
-func (q *ctxSensitiveQueue) EnqueueNotification(ctx context.Context, _, _, _ string) error {
-	q.enqueued++
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-	return nil
-}
-
-func TestInstantDelivery_DeliverBatch_QueueOnCancelledCtx(t *testing.T) {
-	n := &mockNotifier{err: context.Canceled}
-	q := &ctxSensitiveQueue{}
-	d := NewInstantDelivery(n, q, locale.English)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	listings := []model.Listing{
-		{RawListing: model.RawListing{Token: "a"}},
-	}
-
-	err := d.DeliverBatch(ctx, 100, listings)
-	if err != nil {
-		t.Errorf("should enqueue even with cancelled ctx, got: %v", err)
-	}
-	if q.enqueued != 1 {
-		t.Fatalf("expected one enqueue attempt, got %d", q.enqueued)
-	}
-}
-
-func TestInstantDelivery_DeliverRaw_QueueOnCancelledCtx(t *testing.T) {
-	n := &errRawNotifier{rawErr: context.Canceled}
-	q := &ctxSensitiveQueue{}
-	d := NewInstantDelivery(n, q, locale.English)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	err := d.DeliverRaw(ctx, 100, "price drop!")
-	if err != nil {
-		t.Errorf("should enqueue even with cancelled ctx, got: %v", err)
-	}
-	if q.enqueued != 1 {
-		t.Fatalf("expected one enqueue attempt, got %d", q.enqueued)
-	}
-}
-
 func TestDigestDelivery_DeliverBatch_Error(t *testing.T) {
 	ds := newFailDigestStore(errors.New("write failed"))
 	d := NewDigestDelivery(ds, locale.English)
@@ -265,7 +163,7 @@ func TestDigestDelivery_DeliverBatch_Error(t *testing.T) {
 
 func TestInstantDelivery_DeliverRaw_BlocksMalformed(t *testing.T) {
 	n := &mockNotifier{}
-	d := NewInstantDelivery(n, nil, locale.English)
+	d := NewInstantDelivery(n, locale.English)
 
 	tests := []struct {
 		name string
@@ -294,7 +192,7 @@ func TestInstantDelivery_DeliverRaw_BlocksMalformed(t *testing.T) {
 
 func TestInstantDelivery_DeliverRaw_AllowsValid(t *testing.T) {
 	n := &mockNotifier{}
-	d := NewInstantDelivery(n, nil, locale.English)
+	d := NewInstantDelivery(n, locale.English)
 
 	err := d.DeliverRaw(context.Background(), 100, "Valid notification message here")
 	if err != nil {

@@ -35,7 +35,6 @@ const (
 	maxRetries              = 3
 	retryBaseDelay          = 2 * time.Second
 	defaultConcurrency      = 4
-	notificationPruneAge    = 48 * time.Hour
 	priceHistoryRetention   = 90 * 24 * time.Hour
 	listingHistoryRetention = 90 * 24 * time.Hour
 	defaultMarketCacheTTL   = 30 * time.Minute
@@ -101,7 +100,6 @@ const digestCacheTTL = 5 * time.Minute
 // Stores groups all storage interfaces the scheduler depends on.
 type Stores struct {
 	Dedup        storage.DedupStore
-	Queue        storage.NotificationQueue
 	Prices       storage.PriceTracker
 	Listings     storage.ListingStore
 	Searches     storage.SearchStore
@@ -126,7 +124,6 @@ type searchResult struct {
 
 type Options struct {
 	Observer         CycleObserver
-	Queue            storage.NotificationQueue
 	Prices           storage.PriceTracker
 	ConfigPath       string
 	FetcherFactory   *fetcher.Factory
@@ -190,7 +187,6 @@ func NewWithOptions(
 		fetcher:    f,
 		stores: Stores{
 			Dedup:        d,
-			Queue:        opts.Queue,
 			Prices:       opts.Prices,
 			Listings:     opts.ListingStore,
 			Searches:     opts.SearchStore,
@@ -233,8 +229,6 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		"check_interval", logInterval.String(),
 		"jitter", logJitter.String(),
 	)
-
-	s.retryPending(ctx)
 
 	sighup := make(chan os.Signal, 1)
 	signal.Notify(sighup, syscall.SIGHUP)
@@ -301,7 +295,6 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			}
 			s.logger.Error("scan failed", "error", err)
 		}
-		s.retryPending(ctx)
 	}
 }
 
@@ -330,7 +323,7 @@ func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.L
 			return NewDigestDelivery(s.stores.Digests, lang)
 		}
 	}
-	return NewInstantDelivery(s.notifier, s.stores.Queue, lang, WithLogger(s.logger))
+	return NewInstantDelivery(s.notifier, lang, WithLogger(s.logger))
 }
 
 func (s *Scheduler) fetcherForSource(source string) fetcher.Fetcher {

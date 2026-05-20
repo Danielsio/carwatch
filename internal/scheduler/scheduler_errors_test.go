@@ -14,7 +14,6 @@ import (
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/model"
-	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -176,38 +175,6 @@ func (m *errNotifier) NotifyRaw(_ context.Context, recipient string, message str
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.rawMessages = append(m.rawMessages, rawNotifyCall{recipient: recipient, message: message})
-	return nil
-}
-
-type errNotificationQueue struct {
-	mockNotificationQueue
-	pendingErr error
-	enqueueErr error
-	ackErr     error
-}
-
-func (m *errNotificationQueue) PendingNotifications(_ context.Context) ([]storage.PendingNotification, error) {
-	if m.pendingErr != nil {
-		return nil, m.pendingErr
-	}
-	return m.pending, nil
-}
-
-func (m *errNotificationQueue) EnqueueNotification(_ context.Context, _, _, _ string) error {
-	if m.enqueueErr != nil {
-		return m.enqueueErr
-	}
-	return nil
-}
-
-func (m *errNotificationQueue) AckNotification(_ context.Context, id int64) error {
-	if m.ackErr != nil {
-		return m.ackErr
-	}
-	if m.acked == nil {
-		m.acked = make(map[int64]bool)
-	}
-	m.acked[id] = true
 	return nil
 }
 
@@ -415,7 +382,7 @@ func TestProcessGroup_PriceDropInDigestMode(t *testing.T) {
 	}
 }
 
-func TestProcessGroup_NotifyFails_EnqueuesAndKeepsClaim(t *testing.T) {
+func TestProcessGroup_NotifyFails_ReleasesClaim(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
 			{Token: "a", ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
@@ -423,7 +390,6 @@ func TestProcessGroup_NotifyFails_EnqueuesAndKeepsClaim(t *testing.T) {
 	}
 	d := newMockDedup()
 	n := &mockNotifier{err: errors.New("telegram down")}
-	q := &errNotificationQueue{}
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
@@ -434,39 +400,6 @@ func TestProcessGroup_NotifyFails_EnqueuesAndKeepsClaim(t *testing.T) {
 
 	s, _ := NewWithOptions(testConfig(), f, d, n, testLogger(), Options{
 		SearchStore: ss,
-		Queue:       q,
-	})
-
-	_ = s.runMultiTenantCycle(context.Background())
-
-	d.mu.Lock()
-	_, claimed := d.seen[dedupKey{"a", 100}]
-	d.mu.Unlock()
-	if !claimed {
-		t.Error("claim should be kept when enqueue succeeds")
-	}
-}
-
-func TestProcessGroup_NotifyFails_EnqueueFails_ReleasesClaim(t *testing.T) {
-	f := &mockFetcher{
-		listings: []model.RawListing{
-			{Token: "a", ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
-		},
-	}
-	d := newMockDedup()
-	n := &mockNotifier{err: errors.New("telegram down")}
-	q := &errNotificationQueue{enqueueErr: errors.New("queue full")}
-
-	ss := &mockSearchStore{
-		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
-				YearMin: 2018, YearMax: 2024, PriceMax: 150000, EngineMinCC: 1800, Active: true},
-		},
-	}
-
-	s, _ := NewWithOptions(testConfig(), f, d, n, testLogger(), Options{
-		SearchStore: ss,
-		Queue:       q,
 	})
 
 	_ = s.runMultiTenantCycle(context.Background())
@@ -475,7 +408,7 @@ func TestProcessGroup_NotifyFails_EnqueueFails_ReleasesClaim(t *testing.T) {
 	_, claimed := d.seen[dedupKey{"a", 100}]
 	d.mu.Unlock()
 	if claimed {
-		t.Error("claim should be released when both notify and enqueue fail")
+		t.Error("claim should be released when notify fails")
 	}
 }
 
@@ -516,81 +449,6 @@ func TestRunMultiTenantCycle_PruneError(t *testing.T) {
 	err := s.runMultiTenantCycle(context.Background())
 	if err != nil {
 		t.Fatalf("cycle should succeed despite prune error: %v", err)
-	}
-}
-
-func TestRetryPending_PendingNotificationsError(t *testing.T) {
-	q := &errNotificationQueue{
-		pendingErr: errors.New("db error"),
-	}
-	s, _ := NewWithOptions(testConfig(), nil, nil, &mockNotifier{}, testLogger(), Options{Queue: q})
-	s.retryPending(context.Background())
-}
-
-func TestRetryPending_NotifyRawFails(t *testing.T) {
-	n := &errNotifier{rawErr: errors.New("send failed")}
-	q := &errNotificationQueue{
-		mockNotificationQueue: mockNotificationQueue{
-			pending: []storage.PendingNotification{
-				{ID: 1, Recipient: "123", Payload: "test notification payload"},
-			},
-		},
-	}
-
-	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{Queue: q})
-	s.retryPending(context.Background())
-
-	if q.acked != nil && q.acked[1] {
-		t.Error("should not ack notification when retry fails with transient error")
-	}
-}
-
-func TestRetryPending_PurgesUnreachableRecipient(t *testing.T) {
-	n := &errNotifier{rawErr: fmt.Errorf("%w: chat not found", notifier.ErrRecipientBlocked)}
-	q := &errNotificationQueue{
-		mockNotificationQueue: mockNotificationQueue{
-			pending: []storage.PendingNotification{
-				{ID: 1, Recipient: "200000000001", Payload: "valid notification message"},
-				{ID: 2, Recipient: "200000000001", Payload: "another valid notification"},
-			},
-		},
-	}
-
-	var logBuf bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
-
-	s, _ := NewWithOptions(testConfig(), nil, nil, n, logger, Options{Queue: q})
-	s.retryPending(context.Background())
-
-	if !q.acked[1] {
-		t.Error("unreachable notification id=1 should be acked (purged)")
-	}
-	if !q.acked[2] {
-		t.Error("unreachable notification id=2 should be acked (purged)")
-	}
-
-	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "purging notification for unreachable recipient") {
-		t.Errorf("expected purge log message, got: %s", logOutput)
-	}
-}
-
-func TestRetryPending_AckFails(t *testing.T) {
-	n := &mockNotifier{}
-	q := &errNotificationQueue{
-		mockNotificationQueue: mockNotificationQueue{
-			pending: []storage.PendingNotification{
-				{ID: 1, Recipient: "123", Payload: "test notification payload"},
-			},
-		},
-		ackErr: errors.New("ack failed"),
-	}
-
-	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{Queue: q})
-	s.retryPending(context.Background())
-
-	if len(n.rawMessages) != 1 {
-		t.Errorf("message should still be sent, got %d", len(n.rawMessages))
 	}
 }
 
@@ -950,37 +808,6 @@ func (m *errDailyDigestStore) ListDailyDigestUsers(_ context.Context) ([]storage
 
 func (m *errDailyDigestStore) DailyStats(_ context.Context, _ int64) ([]storage.DailySearchStats, error) {
 	return m.stats, nil
-}
-
-func TestRetryPending_PurgesMalformedPayloads(t *testing.T) {
-	n := &mockNotifier{}
-	q := &mockNotificationQueue{
-		pending: []storage.PendingNotification{
-			{ID: 1, Recipient: "123", Payload: "{{.}}"},
-			{ID: 2, Recipient: "123", Payload: "short"},
-			{ID: 3, Recipient: "123", Payload: "valid notification message"},
-		},
-	}
-
-	s, _ := NewWithOptions(testConfig(), nil, nil, n, testLogger(), Options{Queue: q})
-	s.retryPending(context.Background())
-
-	if len(n.rawMessages) != 1 {
-		t.Errorf("expected only 1 valid message sent, got %d", len(n.rawMessages))
-	}
-	if n.rawMessages[0].message != "valid notification message" {
-		t.Errorf("expected valid message, got %q", n.rawMessages[0].message)
-	}
-
-	if !q.acked[1] {
-		t.Error("malformed payload id=1 should be acked (purged)")
-	}
-	if !q.acked[2] {
-		t.Error("malformed payload id=2 should be acked (purged)")
-	}
-	if !q.acked[3] {
-		t.Error("valid payload id=3 should be acked after send")
-	}
 }
 
 func TestFlushAndSendDigest_SendError_SetsRetryMarker(t *testing.T) {

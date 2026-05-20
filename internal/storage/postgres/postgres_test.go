@@ -29,7 +29,7 @@ func testStore(t *testing.T) *Store {
 	t.Cleanup(func() {
 		db := store.DB()
 		tables := []string{
-			"listing_user_seen", "pending_digest", "pending_notifications",
+			"listing_user_seen", "pending_digest",
 			"saved_listings", "hidden_listings", "listing_history",
 			"seen_listings", "price_history", "link_tokens",
 			"daily_digest", "searches", "price_list_cache", "users",
@@ -983,51 +983,6 @@ func TestPostgres_LinkTokens(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Notifications
-// ---------------------------------------------------------------------------
-
-func TestPostgres_Notifications(t *testing.T) {
-	store := testStore(t)
-	ctx := context.Background()
-
-	// Enqueue
-	_ = store.EnqueueNotification(ctx, "100", "search1", "hello")
-	_ = store.EnqueueNotification(ctx, "200", "search2", "world")
-
-	// Pending
-	pending, err := store.PendingNotifications(ctx)
-	if err != nil {
-		t.Fatalf("PendingNotifications: %v", err)
-	}
-	if len(pending) != 2 {
-		t.Fatalf("expected 2, got %d", len(pending))
-	}
-
-	// Ack
-	_ = store.AckNotification(ctx, pending[0].ID)
-	remaining, _ := store.PendingNotifications(ctx)
-	if len(remaining) != 1 {
-		t.Errorf("expected 1 remaining, got %d", len(remaining))
-	}
-
-	// PruneNotifications keeps recent
-	_ = store.EnqueueNotification(ctx, "300", "search3", "fresh")
-	pruned, _ := store.PruneNotifications(ctx, 24*time.Hour)
-	if pruned != 0 {
-		t.Errorf("expected 0 pruned (recent), got %d", pruned)
-	}
-
-	// PruneNotifications removes all with zero duration
-	pruned, err = store.PruneNotifications(ctx, 0)
-	if err != nil {
-		t.Fatalf("prune: %v", err)
-	}
-	if pruned < 1 {
-		t.Errorf("expected at least 1 pruned, got %d", pruned)
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Delete search cascade
 // ---------------------------------------------------------------------------
 
@@ -1057,10 +1012,6 @@ func TestPostgres_DeleteSearchCascade(t *testing.T) {
 		Token: "tok1", ChatID: 200, SearchID: id2, SearchName: "mazda-3",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 95000,
 	})
-
-	// Seed notifications
-	_ = store.EnqueueNotification(ctx, "100", "mazda-3", "payload1")
-	_ = store.EnqueueNotification(ctx, "200", "mazda-3", "payload2")
 
 	// Delete user 100's search
 	if err := store.DeleteSearch(ctx, id1, 100); err != nil {
@@ -1095,14 +1046,6 @@ func TestPostgres_DeleteSearchCascade(t *testing.T) {
 	count200, _ := store.CountSearchListings(ctx, 200, id2, storage.ListingFilter{})
 	if count200 != 1 {
 		t.Errorf("expected 1 listing for user 200, got %d", count200)
-	}
-
-	// Pending notifications for user 100 cleaned
-	pending, _ := store.PendingNotifications(ctx)
-	for _, p := range pending {
-		if p.Recipient == "100" && p.SearchName == "mazda-3" {
-			t.Error("notification for user 100 should have been deleted")
-		}
 	}
 }
 
