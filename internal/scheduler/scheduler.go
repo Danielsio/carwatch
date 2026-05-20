@@ -579,22 +579,29 @@ func (s *Scheduler) getOrBuildMarketCache(ctx context.Context) *scoring.MarketCa
 }
 
 func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
-	listings, err := s.stores.Market.MarketListings(ctx)
+	if err := s.stores.Market.RefreshMarketMedians(ctx); err != nil {
+		s.logger.Error("refresh market medians failed", "error", err)
+		// Continue with stale view data — better than no data.
+	}
+
+	rows, err := s.stores.Market.LoadMarketMedians(ctx)
 	if err != nil {
-		s.logger.Error("load market data failed", "error", err)
+		s.logger.Error("load market medians failed", "error", err)
 		return nil
 	}
-	data := make([]scoring.ListingData, len(listings))
-	for i, l := range listings {
-		data[i] = scoring.ListingData{
-			Manufacturer: l.Manufacturer,
-			Model:        l.Model,
-			Year:         l.Year,
-			Price:        l.Price,
-			Km:           l.Km,
+
+	entries := make([]scoring.MedianEntry, len(rows))
+	for i, r := range rows {
+		entries[i] = scoring.MedianEntry{
+			Manufacturer: r.Manufacturer,
+			Model:        r.Model,
+			Year:         r.Year,
+			MedianPrice:  r.MedianPrice,
+			MedianKm:     r.MedianKm,
+			CohortSize:   r.CohortSize,
 		}
 	}
-	return scoring.NewMarketCache(data)
+	return scoring.NewMarketCacheFromMedians(entries)
 }
 
 func (s *Scheduler) invalidateMarketCache() {

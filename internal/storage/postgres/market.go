@@ -6,26 +6,30 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
-func (s *Store) MarketListings(ctx context.Context) ([]storage.MarketListing, error) {
+func (s *Store) RefreshMarketMedians(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, "REFRESH MATERIALIZED VIEW CONCURRENTLY market_medians")
+	return err
+}
+
+func (s *Store) LoadMarketMedians(ctx context.Context) ([]storage.MarketMedianRow, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT DISTINCT ON (token) manufacturer, model, year, price, km
-		FROM listing_history
-		WHERE manufacturer IS NOT NULL AND manufacturer != ''
-		  AND model IS NOT NULL AND model != ''
-		  AND year > 0 AND price > 0
-		ORDER BY token, first_seen_at DESC`)
+		SELECT manufacturer, model, year,
+		       COALESCE(median_price, 0)::int,
+		       COALESCE(median_km, 0)::int,
+		       cohort_size
+		FROM market_medians`)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
 
-	var listings []storage.MarketListing
+	var result []storage.MarketMedianRow
 	for rows.Next() {
-		var l storage.MarketListing
-		if err := rows.Scan(&l.Manufacturer, &l.Model, &l.Year, &l.Price, &l.Km); err != nil {
+		var r storage.MarketMedianRow
+		if err := rows.Scan(&r.Manufacturer, &r.Model, &r.Year, &r.MedianPrice, &r.MedianKm, &r.CohortSize); err != nil {
 			return nil, err
 		}
-		listings = append(listings, l)
+		result = append(result, r)
 	}
-	return listings, rows.Err()
+	return result, rows.Err()
 }
