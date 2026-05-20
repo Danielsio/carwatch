@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCreateSearch } from "@/hooks/useSearches";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
+import { errorToHebrew } from "@/lib/error-messages";
 import {
   type SearchFormData,
   defaultFormData,
@@ -124,7 +125,7 @@ export function NewSearchPage() {
         toast("החיפוש נוצר בהצלחה!", "success");
         navigate("/dashboard");
       },
-      onError: () => setError("שגיאה ביצירת החיפוש, נסה שוב"),
+      onError: (err) => setError(errorToHebrew(err)),
     });
   }
 

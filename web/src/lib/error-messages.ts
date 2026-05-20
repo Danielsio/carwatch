@@ -1,7 +1,16 @@
 import { ApiError } from "./api";
 
+const knownMessages: Record<string, string> = {
+  "search limit reached": "הגעת למגבלת החיפושים — מחק חיפוש קיים כדי ליצור חדש",
+  "search name already exists": "שם החיפוש כבר קיים — בחר שם אחר",
+};
+
 export function errorToHebrew(error: unknown): string {
   if (error instanceof ApiError) {
+    const translated = knownMessages[error.message];
+    if (translated) {
+      return translated;
+    }
     if (error.status === 401 || error.status === 403) {
       return "ההרשאה פגה — נסה להתחבר מחדש";
     }
