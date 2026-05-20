@@ -331,7 +331,7 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if count >= int64(s.cfg.MaxSearches) {
-			writeError(w, http.StatusForbidden, "search limit reached")
+			writeError(w, http.StatusConflict, "search limit reached")
 			return
 		}
 	}
