@@ -516,7 +516,7 @@ func (s *Server) searchStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats, err := s.listings.SearchStats(r.Context(), chatID, id)
+	stats, err := s.listings.SearchStats(r.Context(), chatID, id, listingFilterFromSearch(sr))
 	if err != nil {
 		log.Error("search stats query failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to get search stats")
