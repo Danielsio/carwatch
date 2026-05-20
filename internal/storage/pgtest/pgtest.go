@@ -71,7 +71,7 @@ func isolatedSchema(t *testing.T, dsn string) string {
 	t.Helper()
 
 	// Generate a unique schema name from the test name.
-	schema := "test_" + sanitizeName(t.Name()) + fmt.Sprintf("_%d", time.Now().UnixNano()%1_000_000)
+	schema := "test_" + sanitizeName(t.Name()) + fmt.Sprintf("_%d", time.Now().UnixNano())
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -113,8 +113,8 @@ func sanitizeName(name string) string {
 		}
 	}
 	s := b.String()
-	if len(s) > 40 {
-		s = s[:40]
+	if len(s) > 30 {
+		s = s[:30]
 	}
 	return s
 }
