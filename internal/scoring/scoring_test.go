@@ -669,6 +669,103 @@ func TestMarketCache_LookupConcurrent(t *testing.T) {
 	}
 }
 
+func TestNewMarketCacheFromMedians(t *testing.T) {
+	entries := []MedianEntry{
+		{Manufacturer: "Toyota", Model: "Corolla", Year: 2020, MedianPrice: 105000, MedianKm: 55000, CohortSize: 25},
+		{Manufacturer: "Honda", Model: "Civic", Year: 2021, MedianPrice: 98000, MedianKm: 40000, CohortSize: 18},
+	}
+	mc := NewMarketCacheFromMedians(entries)
+
+	t.Run("exact match", func(t *testing.T) {
+		median, medianKm, cohort, ok := mc.Lookup("Toyota", "Corolla", 2020)
+		if !ok {
+			t.Fatal("expected ok=true")
+		}
+		if median != 105000 {
+			t.Errorf("median=%d, want 105000", median)
+		}
+		if medianKm != 55000 {
+			t.Errorf("medianKm=%d, want 55000", medianKm)
+		}
+		if cohort != 25 {
+			t.Errorf("cohort=%d, want 25", cohort)
+		}
+	})
+
+	t.Run("case insensitive", func(t *testing.T) {
+		_, _, _, ok := mc.Lookup("toyota", "corolla", 2020)
+		if !ok {
+			t.Error("expected case-insensitive lookup to work")
+		}
+	})
+
+	t.Run("year band matching", func(t *testing.T) {
+		// Precomputed path uses ±1 year band, same as raw path.
+		median, _, cohort, ok := mc.Lookup("Toyota", "Corolla", 2021)
+		if !ok {
+			t.Fatal("expected ok=true for adjacent year (2021 within ±1 of 2020)")
+		}
+		if median != 105000 {
+			t.Errorf("median=%d, want 105000", median)
+		}
+		if cohort != 25 {
+			t.Errorf("cohort=%d, want 25", cohort)
+		}
+	})
+
+	t.Run("year too far", func(t *testing.T) {
+		_, _, _, ok := mc.Lookup("Toyota", "Corolla", 2023)
+		if ok {
+			t.Error("expected ok=false for year 2023 (>1 from 2020)")
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		_, _, _, ok := mc.Lookup("Mazda", "3", 2020)
+		if ok {
+			t.Error("expected ok=false for missing manufacturer/model")
+		}
+	})
+
+	t.Run("below min cohort", func(t *testing.T) {
+		small := []MedianEntry{
+			{Manufacturer: "Kia", Model: "Rio", Year: 2020, MedianPrice: 60000, MedianKm: 30000, CohortSize: 5},
+		}
+		mc2 := NewMarketCacheFromMedians(small)
+		_, _, _, ok := mc2.Lookup("Kia", "Rio", 2020)
+		if ok {
+			t.Error("expected ok=false when cohort < MinCohortSize")
+		}
+	})
+
+	t.Run("empty entries", func(t *testing.T) {
+		mc3 := NewMarketCacheFromMedians(nil)
+		_, _, _, ok := mc3.Lookup("Toyota", "Corolla", 2020)
+		if ok {
+			t.Error("expected ok=false for empty cache")
+		}
+	})
+
+	t.Run("concurrent reads", func(t *testing.T) {
+		var wg sync.WaitGroup
+		var bad atomic.Int32
+		for range 32 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				median, _, cohort, ok := mc.Lookup("Honda", "Civic", 2021)
+				if !ok || cohort != 18 || median != 98000 {
+					bad.Add(1)
+				}
+			}()
+		}
+		wg.Wait()
+		if bad.Load() != 0 {
+			t.Fatalf("concurrent lookups: %d mismatches", bad.Load())
+		}
+	})
+}
+
 // stubCurrentYear overrides the currentYear func for deterministic scoring tests.
 func stubCurrentYear(t *testing.T, year int) {
 	t.Helper()

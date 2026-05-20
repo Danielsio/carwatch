@@ -277,16 +277,22 @@ type PriceListStore interface {
 	SetPriceListEntry(ctx context.Context, e PriceListEntry) error
 }
 
-type MarketListing struct {
+// MarketMedianRow holds a pre-aggregated median row from the market_medians
+// materialized view.
+type MarketMedianRow struct {
 	Manufacturer string
 	Model        string
 	Year         int
-	Price        int
-	Km           int
+	MedianPrice  int
+	MedianKm     int
+	CohortSize   int
 }
 
 type MarketStore interface {
-	MarketListings(ctx context.Context) ([]MarketListing, error)
+	// RefreshMarketMedians refreshes the market_medians materialized view.
+	RefreshMarketMedians(ctx context.Context) error
+	// LoadMarketMedians returns all rows from the materialized view.
+	LoadMarketMedians(ctx context.Context) ([]MarketMedianRow, error)
 }
 
 type DailyDigestUser struct {

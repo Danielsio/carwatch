@@ -374,24 +374,26 @@ func TestRunMultiTenantCycle_ObserverSuccessPath(t *testing.T) {
 // --- mockMarketStore ---
 
 type mockMarketStore struct {
-	mu       sync.Mutex
-	listings []storage.MarketListing
-	calls    int
+	mu    sync.Mutex
+	rows  []storage.MarketMedianRow
+	calls int // counts LoadMarketMedians calls
 }
 
-func (m *mockMarketStore) MarketListings(_ context.Context) ([]storage.MarketListing, error) {
+func (m *mockMarketStore) RefreshMarketMedians(_ context.Context) error {
+	return nil
+}
+
+func (m *mockMarketStore) LoadMarketMedians(_ context.Context) ([]storage.MarketMedianRow, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.calls++
-	return m.listings, nil
+	return m.rows, nil
 }
 
 func TestMarketCacheReusedAcrossCycles(t *testing.T) {
 	ms := &mockMarketStore{
-		listings: []storage.MarketListing{
-			{Manufacturer: "toyota", Model: "corolla", Year: 2020, Price: 100000, Km: 50000},
-			{Manufacturer: "toyota", Model: "corolla", Year: 2020, Price: 110000, Km: 60000},
-			{Manufacturer: "toyota", Model: "corolla", Year: 2020, Price: 120000, Km: 40000},
+		rows: []storage.MarketMedianRow{
+			{Manufacturer: "toyota", Model: "corolla", Year: 2020, MedianPrice: 110000, MedianKm: 50000, CohortSize: 15},
 		},
 	}
 
@@ -440,10 +442,8 @@ func TestMarketCacheReusedAcrossCycles(t *testing.T) {
 
 func TestMarketCacheInvalidatedOnNewListings(t *testing.T) {
 	ms := &mockMarketStore{
-		listings: []storage.MarketListing{
-			{Manufacturer: "mazda", Model: "3", Year: 2020, Price: 90000, Km: 50000},
-			{Manufacturer: "mazda", Model: "3", Year: 2020, Price: 95000, Km: 55000},
-			{Manufacturer: "mazda", Model: "3", Year: 2020, Price: 100000, Km: 60000},
+		rows: []storage.MarketMedianRow{
+			{Manufacturer: "mazda", Model: "3", Year: 2020, MedianPrice: 95000, MedianKm: 55000, CohortSize: 15},
 		},
 	}
 

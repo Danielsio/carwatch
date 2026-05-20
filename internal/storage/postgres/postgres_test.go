@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -858,10 +859,10 @@ func TestPostgres_PriceTracking(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Market listings
+// Market medians (materialized view)
 // ---------------------------------------------------------------------------
 
-func TestPostgres_MarketListings(t *testing.T) {
+func TestPostgres_MarketMedians(t *testing.T) {
 	store := testStore(t)
 	ctx := context.Background()
 	seedPgUser(t, store, 100)
@@ -869,60 +870,58 @@ func TestPostgres_MarketListings(t *testing.T) {
 
 	now := time.Now().UTC()
 
-	// Insert listings for two users with same token
-	for _, chatID := range []int64{100, 200} {
+	// Seed enough listings for a cohort (>= 10 with price > 5000).
+	for i := range 12 {
 		_ = store.SaveListing(ctx, storage.ListingRecord{
-			Token: "tok1", ChatID: chatID, SearchName: "toyota",
+			Token: fmt.Sprintf("mkt-%d", i), ChatID: 100, SearchName: "toyota",
 			Manufacturer: "Toyota", Model: "Corolla", Year: 2020,
-			Price: 100000, FirstSeenAt: now,
+			Price: 90000 + i*2000, Km: 40000 + i*1000,
+			FirstSeenAt: now,
 		})
 	}
-	// Another unique token
+	// A few listings with empty manufacturer (should be excluded).
 	_ = store.SaveListing(ctx, storage.ListingRecord{
-		Token: "tok2", ChatID: 100, SearchName: "toyota",
-		Manufacturer: "Toyota", Model: "Corolla", Year: 2021,
-		Price: 110000, FirstSeenAt: now,
-	})
-	// Empty manufacturer should be excluded
-	_ = store.SaveListing(ctx, storage.ListingRecord{
-		Token: "tok3", ChatID: 100, SearchName: "test",
+		Token: "mkt-empty", ChatID: 100, SearchName: "test",
 		Manufacturer: "", Model: "X", Year: 2020,
 		Price: 50000, FirstSeenAt: now,
 	})
-
-	listings, err := store.MarketListings(ctx)
-	if err != nil {
-		t.Fatalf("MarketListings: %v", err)
-	}
-	if len(listings) != 2 {
-		t.Errorf("expected 2 deduplicated listings, got %d", len(listings))
-	}
-
-	// Verify latest by first_seen_at is returned
-	t.Run("selects latest first_seen_at", func(t *testing.T) {
-		older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-		newer := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
-
-		_ = store.SaveListing(ctx, storage.ListingRecord{
-			Token: "tok-parity", ChatID: 100, SearchName: "test",
-			Manufacturer: "Honda", Model: "Civic", Year: 2021,
-			Price: 90000, FirstSeenAt: newer,
-		})
-		_ = store.SaveListing(ctx, storage.ListingRecord{
-			Token: "tok-parity", ChatID: 200, SearchName: "test",
-			Manufacturer: "Honda", Model: "Civic", Year: 2021,
-			Price: 100000, FirstSeenAt: older,
-		})
-
-		all, _ := store.MarketListings(ctx)
-		for _, l := range all {
-			if l.Manufacturer == "Honda" && l.Model == "Civic" {
-				if l.Price != 90000 {
-					t.Errorf("expected price 90000 (newer), got %d", l.Price)
-				}
-			}
-		}
+	// A few listings below the price floor (should be excluded).
+	_ = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "mkt-cheap", ChatID: 100, SearchName: "test",
+		Manufacturer: "Toyota", Model: "Corolla", Year: 2020,
+		Price: 1000, FirstSeenAt: now,
 	})
+
+	// Refresh the materialized view.
+	if err := store.RefreshMarketMedians(ctx); err != nil {
+		t.Fatalf("RefreshMarketMedians: %v", err)
+	}
+
+	// Load the computed medians.
+	rows, err := store.LoadMarketMedians(ctx)
+	if err != nil {
+		t.Fatalf("LoadMarketMedians: %v", err)
+	}
+
+	// Should have exactly one cohort (Toyota Corolla 2020).
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 cohort, got %d", len(rows))
+	}
+
+	r := rows[0]
+	if r.Manufacturer != "Toyota" || r.Model != "Corolla" || r.Year != 2020 {
+		t.Errorf("unexpected cohort: %s %s %d", r.Manufacturer, r.Model, r.Year)
+	}
+	if r.CohortSize != 12 {
+		t.Errorf("expected cohort_size=12, got %d", r.CohortSize)
+	}
+	// Median of 90000..112000 (12 values): avg of 6th and 7th = (100000+102000)/2 = 101000
+	if r.MedianPrice < 95000 || r.MedianPrice > 107000 {
+		t.Errorf("median_price=%d out of expected range [95000, 107000]", r.MedianPrice)
+	}
+	if r.MedianKm <= 0 {
+		t.Error("median_km should be positive")
+	}
 }
 
 // ---------------------------------------------------------------------------

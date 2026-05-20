@@ -1,13 +1,11 @@
 package scoring
 
 import (
-	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -15,6 +13,9 @@ const (
 	minPriceFloor = 5000 // ignore placeholder prices below this (NIS)
 )
 
+// ListingData holds a raw listing for building a MarketCache from unprocessed
+// listings (used by instant search). For the scheduler path prefer
+// NewMarketCacheFromMedians which accepts pre-aggregated data.
 type ListingData struct {
 	Manufacturer string
 	Model        string
@@ -29,18 +30,58 @@ type entry struct {
 	Km    int
 }
 
-type MarketCache struct {
-	data map[string][]entry
-	sf   singleflight.Group
+// MedianEntry holds pre-computed median data for a single
+// (manufacturer, model, year) cohort from the materialized view.
+type MedianEntry struct {
+	Manufacturer string
+	Model        string
+	Year         int
+	MedianPrice  int
+	MedianKm     int
+	CohortSize   int
 }
 
+// MarketCache provides market median lookups.
+//
+// Two construction paths exist:
+//   - NewMarketCache: builds from raw listings; Lookup performs year-band
+//     matching (+/- 1 year) and computes medians on demand.
+//   - NewMarketCacheFromMedians: builds from pre-aggregated medians
+//     (materialized view); Lookup does a direct map hit on exact year.
+type MarketCache struct {
+	// raw path: populated by NewMarketCache
+	raw map[string][]entry
+
+	// precomputed path: populated by NewMarketCacheFromMedians
+	precomputed map[string]lookupResult
+}
+
+// NewMarketCache builds a cache from raw listings. Lookup computes medians
+// lazily using a year +/- 1 band (used by instant search).
 func NewMarketCache(listings []ListingData) *MarketCache {
-	m := make(map[string][]entry)
+	m := make(map[string][]entry, len(listings))
 	for _, l := range listings {
 		key := cacheKey(l.Manufacturer, l.Model)
 		m[key] = append(m[key], entry{Year: l.Year, Price: l.Price, Km: l.Km})
 	}
-	return &MarketCache{data: m}
+	return &MarketCache{raw: m}
+}
+
+// NewMarketCacheFromMedians builds a cache from pre-computed medians (e.g.
+// loaded from the market_medians materialized view). Lookup is a direct map
+// hit on the exact (manufacturer, model, year) key.
+func NewMarketCacheFromMedians(entries []MedianEntry) *MarketCache {
+	m := make(map[string]lookupResult, len(entries))
+	for _, e := range entries {
+		key := medianKey(e.Manufacturer, e.Model, e.Year)
+		m[key] = lookupResult{
+			median:     e.MedianPrice,
+			medianKm:   e.MedianKm,
+			cohortSize: e.CohortSize,
+			ok:         e.CohortSize >= MinCohortSize,
+		}
+	}
+	return &MarketCache{precomputed: m}
 }
 
 type lookupResult struct {
@@ -50,22 +91,40 @@ type lookupResult struct {
 	ok         bool
 }
 
-func cohortLookupKey(manufacturer, model string, year int) string {
-	return fmt.Sprintf("%s|%d", cacheKey(manufacturer, model), year)
+func medianKey(manufacturer, model string, year int) string {
+	return strings.ToLower(manufacturer) + "|" + strings.ToLower(model) + "|" + strconv.Itoa(year)
 }
 
 // Lookup returns the median price, median km, cohort size, and whether enough data exists.
+// For precomputed data, it checks year ±1 band and aggregates cohorts (matching the raw path behavior).
 func (mc *MarketCache) Lookup(manufacturer, model string, year int) (median int, medianKm int, cohortSize int, ok bool) {
-	key := cohortLookupKey(manufacturer, model, year)
-	v, _, _ := mc.sf.Do(key, func() (interface{}, error) {
-		return mc.lookupUnsynchronized(manufacturer, model, year), nil
-	})
-	res := v.(lookupResult)
+	if mc.precomputed != nil {
+		return mc.lookupPrecomputed(manufacturer, model, year)
+	}
+	res := mc.computeFromRaw(manufacturer, model, year)
 	return res.median, res.medianKm, res.cohortSize, res.ok
 }
 
-func (mc *MarketCache) lookupUnsynchronized(manufacturer, model string, year int) lookupResult {
-	entries := mc.data[cacheKey(manufacturer, model)]
+func (mc *MarketCache) lookupPrecomputed(manufacturer, model string, year int) (int, int, int, bool) {
+	var totalPrice, totalKm, totalCohort int
+	var count int
+	for dy := -1; dy <= 1; dy++ {
+		res, found := mc.precomputed[medianKey(manufacturer, model, year+dy)]
+		if found && res.ok {
+			totalPrice += res.median * res.cohortSize
+			totalKm += res.medianKm * res.cohortSize
+			totalCohort += res.cohortSize
+			count++
+		}
+	}
+	if totalCohort < MinCohortSize {
+		return 0, 0, 0, false
+	}
+	return totalPrice / totalCohort, totalKm / totalCohort, totalCohort, true
+}
+
+func (mc *MarketCache) computeFromRaw(manufacturer, model string, year int) lookupResult {
+	entries := mc.raw[cacheKey(manufacturer, model)]
 	var prices, kms []int
 	for _, e := range entries {
 		if abs(e.Year-year) <= 1 && e.Price >= minPriceFloor {
