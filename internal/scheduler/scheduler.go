@@ -8,7 +8,6 @@ import (
 	"math/rand/v2"
 	"os"
 	"os/signal"
-	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
@@ -16,10 +15,10 @@ import (
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
-	"github.com/dsionov/carwatch/internal/filter"
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
+	"github.com/dsionov/carwatch/internal/percolator"
 	"github.com/dsionov/carwatch/internal/pricelist"
 	"github.com/dsionov/carwatch/internal/scoring"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -77,6 +76,7 @@ type Scheduler struct {
 	kmEnricher        KmEnricher
 	priceListSvc      *pricelist.Service
 	pipeline          *ListingPipeline
+	percolator        *percolator.Percolator
 	triggerCh         chan struct{}
 
 	langCache      sync.Map
@@ -209,6 +209,7 @@ func NewWithOptions(
 		kmEnricher:        opts.KmEnricher,
 		priceListSvc:      plSvc,
 		pipeline:          NewListingPipeline(opts.ListingStore, plSvc, logger),
+		percolator:        percolator.New(),
 		triggerCh:         make(chan struct{}, 1),
 		marketCacheTTL:    mcTTL,
 	}, nil
@@ -500,15 +501,17 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		return nil
 	}
 
+	// Phase 3: load all searches into the percolator for reverse matching.
+	s.percolator.Load(searches)
+
 	marketCache := s.getOrBuildMarketCache(ctx)
-	groups := GroupSearches(searches)
 	s.logger.Info("active searches loaded",
 		"scan", cycle,
-		"car_models", len(groups),
 		"searches", len(searches),
 	)
 
-	allFailed, stats := s.runFetchGroups(ctx, groups, marketCache)
+	// Fetch the global feed (empty SourceParams = no manufacturer/model filter).
+	stats, fetchErr := s.fetchGlobalAndMatch(ctx, searches, marketCache)
 
 	if s.catalogIngester != nil {
 		s.catalogIngester.Flush(ctx)
@@ -520,12 +523,10 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.logger.Info("scan complete",
 		"scan", cycle,
 		"elapsed", time.Since(cycleStart).Round(time.Millisecond),
-		"car_models", len(groups),
 		"searches", len(searches),
 		"listings_checked", stats.listingsFetched,
 		"new_matches", stats.newListings,
 		"notifications_sent", stats.notificationsSent,
-		"failed", stats.groupsFailed,
 	)
 
 	if telemetry.SchedulerCycles != nil {
@@ -538,13 +539,173 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		telemetry.ListingsMatched.Add(ctx, int64(stats.newListings))
 	}
 
-	if allFailed && len(groups) > 0 {
+	if fetchErr != nil {
 		s.observer.RecordError()
-		return fmt.Errorf("all %d car models failed to fetch", len(groups))
+		return fetchErr
 	}
 
 	s.observer.RecordSuccess()
 	return nil
+}
+
+// fetchGlobalAndMatch fetches the global Yad2 feed once, enriches it, then
+// uses the percolator to match each listing against all active searches.
+// Per-user dedup, pipeline processing, and notification delivery happen
+// per match.
+func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.Search, marketCache *scoring.MarketCache) (cycleStats, error) {
+	var stats cycleStats
+
+	// 1. Fetch global feed (empty SourceParams).
+	globalParams := model.SourceParams{}
+	activeFetcher := s.fetcherForSource("yad2")
+
+	fetchCtx, cancelFetch := context.WithTimeout(ctx, fetchTimeout)
+	defer cancelFetch()
+
+	fetchStart := time.Now()
+	raw, err := s.fetchWithRetryUsing(fetchCtx, activeFetcher, globalParams, s.logger)
+	s.observer.RecordFetch("yad2", time.Since(fetchStart), err)
+	if err != nil {
+		return stats, fmt.Errorf("global feed fetch failed: %w", err)
+	}
+	stats.listingsFetched = len(raw)
+
+	// 2. Catalog ingestion.
+	if s.catalogIngester != nil {
+		for _, l := range raw {
+			s.catalogIngester.Ingest(ctx, catalog.IngestEntry{
+				ManufacturerID:     l.ManufacturerID,
+				ManufacturerName:   l.Manufacturer,
+				ManufacturerNameHe: l.ManufacturerNameHe,
+				ModelID:            l.ModelID,
+				ModelName:          l.Model,
+				ModelNameHe:        l.ModelNameHe,
+			})
+		}
+	}
+
+	// 3. KM enrichment on the global feed.
+	if s.kmEnricher != nil {
+		enrichCtx, cancelEnrich := context.WithTimeout(ctx, kmEnrichTimeout)
+		enriched := s.kmEnricher.Enrich(enrichCtx, raw)
+		cancelEnrich()
+		if enriched > 0 {
+			s.logger.Info("mileage data enriched",
+				"enriched", enriched,
+				"total", len(raw),
+			)
+			if s.stores.Listings != nil {
+				s.backfillEnrichedListings(ctx, raw)
+			}
+		}
+		if s.stores.Listings != nil {
+			s.prefillFromDB(ctx, raw)
+		}
+	}
+
+	// 4. Build a per-search accumulator to collect results across listings.
+	type searchAccum struct {
+		search storage.Search
+		result searchResult
+		lang   locale.Lang
+	}
+	accums := make(map[int64]*searchAccum, len(searches))
+
+	// 5. Percolator match: for each listing, find matching searches.
+	for i := range raw {
+		matches := s.percolator.Match(raw[i])
+		if len(matches) == 0 {
+			continue
+		}
+
+		for _, m := range matches {
+			acc, ok := accums[m.SearchID]
+			if !ok {
+				lang := s.userLang(ctx, m.ChatID)
+				acc = &searchAccum{
+					search: m.Search,
+					lang:   lang,
+				}
+				accums[m.SearchID] = acc
+			}
+
+			// Per-user hidden listing check.
+			hidden := s.loadHiddenTokens(ctx, m.ChatID)
+			if len(hidden) > 0 && hidden[raw[i].Token] {
+				continue
+			}
+
+			// Seller filter (from storage package).
+			if !storage.RawListingMatchesSellerFilter(raw[i].Commercial, m.Search.SellerFilter) {
+				continue
+			}
+
+			// Per-user, per-search dedup.
+			isNew, ok := s.deduplicateListings(ctx, raw[i].Token, m.ChatID, m.SearchID, s.logger)
+			if !ok {
+				continue
+			}
+
+			// Price drop detection.
+			if s.tryPriceDropListing(ctx, m.Search, raw[i], acc.lang, marketCache, &acc.result, s.logger) {
+				continue
+			}
+
+			if !isNew {
+				continue
+			}
+
+			// Collect the raw listing for pipeline processing.
+			acc.result.newListings = append(acc.result.newListings, model.Listing{RawListing: raw[i]})
+		}
+	}
+
+	// 6. Run pipeline and deliver results per search.
+	for _, acc := range accums {
+		// Convert collected raw listings through the pipeline.
+		if len(acc.result.newListings) > 0 {
+			rawForPipeline := make([]model.RawListing, len(acc.result.newListings))
+			for i, l := range acc.result.newListings {
+				rawForPipeline[i] = l.RawListing
+			}
+			params := ProcessParamsFromSearch(acc.search, marketCache)
+			pr := s.pipeline.Process(ctx, rawForPipeline, params)
+			acc.result.newListings = pr.Listings
+			acc.result.listingRecords = pr.Records
+		}
+
+		// Persist listings.
+		persistOK := true
+		if s.stores.Listings != nil && len(acc.result.listingRecords) > 0 {
+			searchLog := s.logger.With("search_id", acc.search.ID, "chat_id", acc.search.ChatID)
+			if err := s.persistListings(ctx, acc.result.listingRecords, searchLog); err != nil {
+				persistOK = false
+			} else {
+				s.invalidateMarketCache()
+			}
+		}
+		if !persistOK {
+			searchLog := s.logger.With("search_id", acc.search.ID, "chat_id", acc.search.ChatID)
+			acc.result.newListings = nil
+			acc.result.listingRecords = nil
+			s.revertPriceRecords(ctx, acc.result.recordedTokens, searchLog)
+		}
+
+		stats.newListings += len(acc.result.newListings)
+
+		// Deliver notifications.
+		searchLog := s.logger.With(
+			"search_id", acc.search.ID,
+			"chat_id", acc.search.ChatID,
+			"search_name", acc.search.Name,
+		)
+		delivered := s.deliverResults(ctx, acc.search, acc.lang, acc.result, searchLog)
+		if delivered {
+			stats.notificationsSent++
+		}
+	}
+
+	return stats, nil
 }
 
 func (s *Scheduler) getOrBuildMarketCache(ctx context.Context) *scoring.MarketCache {
@@ -616,208 +777,10 @@ type cycleStats struct {
 	listingsFetched   int
 	newListings       int
 	notificationsSent int
-	groupsFailed      int
 }
 
 // runFetchGroups runs processGroup for each canonical group with bounded concurrency.
 // It reports whether every group failed and aggregate stats.
-func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup, marketCache *scoring.MarketCache) (bool, cycleStats) {
-	s.cfgMu.RLock()
-	concurrency := s.cfg.Polling.MaxConcurrentFetches
-	s.cfgMu.RUnlock()
-	if concurrency <= 0 {
-		concurrency = defaultConcurrency
-	}
-
-	sem := make(chan struct{}, concurrency)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	allFailed := true
-	var stats cycleStats
-
-	cancelled := false
-	for _, group := range groups {
-		if cancelled {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			cancelled = true
-			continue
-		case sem <- struct{}{}:
-		}
-
-		wg.Add(1)
-		go func(g CanonicalGroup) {
-			defer wg.Done()
-			defer func() { <-sem }()
-			defer func() {
-				if r := recover(); r != nil {
-					sIDs, cIDs := groupSearchAndChatIDs(g)
-					s.logger.Error("unexpected crash while fetching listings",
-						"car", s.carName(g.Manufacturer, g.Model),
-						"search_ids", sIDs,
-						"chat_ids", cIDs,
-						"panic", r,
-						"stack", string(debug.Stack()))
-					s.observer.RecordError()
-				}
-			}()
-
-			gs, err := s.processGroup(ctx, g, marketCache)
-			if err != nil {
-				sIDs, _ := groupSearchAndChatIDs(g)
-				s.logger.Error("failed to fetch listings",
-					"car", s.carName(g.Manufacturer, g.Model),
-					"source", g.Source,
-					"search_ids", sIDs,
-					"error", err)
-				if errors.Is(err, fetcher.ErrChallenge) {
-					s.boMu.Lock()
-					s.backoffMultiplier = min(s.backoffMultiplier*2, maxBackoff)
-					s.boMu.Unlock()
-				}
-				mu.Lock()
-				stats.groupsFailed++
-				mu.Unlock()
-				return
-			}
-			mu.Lock()
-			allFailed = false
-			stats.listingsFetched += gs.listingsFetched
-			stats.newListings += gs.newListings
-			stats.notificationsSent += gs.notificationsSent
-			mu.Unlock()
-			s.boMu.Lock()
-			s.backoffMultiplier = max(s.backoffMultiplier/2, minBackoff)
-			s.boMu.Unlock()
-		}(group)
-	}
-	wg.Wait()
-	return allFailed, stats
-}
-
-func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, marketCache *scoring.MarketCache) (cycleStats, error) {
-	groupStart := time.Now()
-	searchIDs, chatIDs := groupSearchAndChatIDs(group)
-	s.logger.Debug("fetching car model",
-		"car", s.carName(group.Manufacturer, group.Model),
-		"searches", len(group.Searches),
-		"search_ids", searchIDs,
-		"chat_ids", chatIDs,
-	)
-	groupLog := s.logger.With("search_ids", searchIDs, "chat_ids", chatIDs)
-	raw, source, err := s.fetchAndEnrich(ctx, group, groupLog)
-	if err != nil {
-		return cycleStats{}, err
-	}
-
-	var gs cycleStats
-	gs.listingsFetched = len(raw)
-
-	for _, search := range group.Searches {
-		searchLog := s.logger.With(
-			"search_id", search.ID,
-			"chat_id", search.ChatID,
-			"search_name", search.Name,
-		)
-
-		filtered := filter.Apply(model.FilterCriteriaFromSearch(&search), raw)
-		searchLog.Debug("search filter applied",
-			"total_raw", len(raw),
-			"after_filter", len(filtered),
-		)
-		lang := s.userLang(ctx, search.ChatID)
-		sr := s.processSearchListings(ctx, search, filtered, marketCache, lang, searchLog)
-		persistOK := true
-		if s.stores.Listings != nil && len(sr.listingRecords) > 0 {
-			if err := s.persistListings(ctx, sr.listingRecords, searchLog); err != nil {
-				persistOK = false
-			} else {
-				s.invalidateMarketCache()
-			}
-		}
-		if !persistOK {
-			sr.newListings = nil
-			sr.listingRecords = nil
-			// Roll back price records so the next cycle does not see
-			// stale prices and fire spurious price-drop notifications.
-			s.revertPriceRecords(ctx, sr.recordedTokens, searchLog)
-		}
-		gs.newListings += len(sr.newListings)
-		delivered := s.deliverResults(ctx, search, lang, sr, searchLog)
-		if delivered {
-			gs.notificationsSent++
-		}
-	}
-
-	s.logger.Info("car model checked",
-		"car", s.carName(group.Manufacturer, group.Model),
-		"source", source,
-		"listings", len(raw),
-		"new_matches", gs.newListings,
-		"searches", len(group.Searches),
-		"search_ids", searchIDs,
-		"elapsed", time.Since(groupStart).Round(time.Millisecond),
-	)
-
-	return gs, nil
-}
-
-func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup, log *slog.Logger) ([]model.RawListing, string, error) {
-	listCtx, cancelList := context.WithTimeout(ctx, fetchTimeout)
-	defer cancelList()
-
-	source := group.Source
-	if source == "" {
-		source = "yad2"
-	}
-	activeFetcher := s.fetcherForSource(source)
-	fetchStart := time.Now()
-	raw, err := s.fetchWithRetryUsing(listCtx, activeFetcher, group.Params, log)
-	s.observer.RecordFetch(source, time.Since(fetchStart), err)
-	if err != nil {
-		return nil, source, err
-	}
-
-	if s.catalogIngester != nil {
-		for _, l := range raw {
-			s.catalogIngester.Ingest(ctx, catalog.IngestEntry{
-				ManufacturerID:     l.ManufacturerID,
-				ManufacturerName:   l.Manufacturer,
-				ManufacturerNameHe: l.ManufacturerNameHe,
-				ModelID:            l.ModelID,
-				ModelName:          l.Model,
-				ModelNameHe:        l.ModelNameHe,
-			})
-		}
-	}
-
-	if source == "yad2" && s.kmEnricher != nil {
-		enrichCtx, cancelEnrich := context.WithTimeout(ctx, kmEnrichTimeout)
-		defer cancelEnrich()
-		enriched := s.kmEnricher.Enrich(enrichCtx, raw)
-		if enriched > 0 {
-			s.logger.Info("mileage data enriched",
-				"car", s.carName(group.Manufacturer, group.Model),
-				"enriched", enriched,
-				"total", len(raw),
-			)
-			if s.stores.Listings != nil {
-				s.backfillEnrichedListings(ctx, raw)
-			}
-		}
-
-		// Pre-fill: load previously-known km/city/image from DB for listings
-		// that still lack km after enrichment.
-		if s.stores.Listings != nil {
-			s.prefillFromDB(ctx, raw)
-		}
-	}
-
-	return raw, source, nil
-}
-
 // prefillFromDB fills in km/city/image from listing_history for listings
 // that the enricher could not reach this cycle. Once a listing's km is
 // learned in any previous cycle, it is remembered here.
@@ -971,20 +934,6 @@ func (s *Scheduler) carName(manufacturerID, modelID int) string {
 		return fmt.Sprintf("%d/%d", manufacturerID, modelID)
 	}
 	return mfr + " " + mdl
-}
-
-// groupSearchAndChatIDs extracts deduplicated search IDs and chat IDs from
-// a canonical group for structured log fields.
-func groupSearchAndChatIDs(g CanonicalGroup) (searchIDs []int64, chatIDs []int64) {
-	seen := make(map[int64]bool, len(g.Searches))
-	for _, s := range g.Searches {
-		searchIDs = append(searchIDs, s.ID)
-		if !seen[s.ChatID] {
-			seen[s.ChatID] = true
-			chatIDs = append(chatIDs, s.ChatID)
-		}
-	}
-	return searchIDs, chatIDs
 }
 
 func truncateStr(s string, n int) string {
