@@ -7,13 +7,13 @@
 
 ## 1. System Overview
 
-CarWatch is a **multi-tenant vehicle listing aggregator** for the Israeli used-car market. It continuously scrapes marketplace websites (Yad2, WinWin), deduplicates and scores listings against user-defined search criteria, and delivers real-time notifications via Telegram and Web Push. A React SPA provides a web dashboard for managing searches, browsing results, and viewing market analytics.
+CarWatch is a **multi-tenant vehicle listing aggregator** for the Israeli used-car market. It continuously scrapes Yad2, deduplicates and scores listings against user-defined search criteria, and delivers real-time notifications via Telegram and Web Push. A React SPA provides a web dashboard for managing searches, browsing results, and viewing market analytics.
 
 ### Key Stats
 - **Language:** Go 1.25 (backend), TypeScript/React (frontend)
-- **Entry points:** 3 binaries (`bot`, `catalog-gen`, `migrate-sqlite-to-pg`)
-- **Internal packages:** 18
-- **Database:** PostgreSQL (prod) / SQLite (dev)
+- **Entry points:** 2 binaries (`bot`, `catalog-gen`)
+- **Internal packages:** 16
+- **Database:** PostgreSQL
 - **Schema migrations:** 10 (versioned, up/down)
 
 ---
@@ -93,13 +93,12 @@ CarWatch is a **multi-tenant vehicle listing aggregator** for the Israeli used-c
 │  │  ┌────────────────────────────────────────────────────────┐  │  │
 │  │  │              Fetcher Factory (registry)                │  │  │
 │  │  │  "yad2" → CircuitBreaker → Cache → Paginator → Yad2   │  │  │
-│  │  │  "winwin" → CircuitBreaker → Cache → WinWin           │  │  │
 │  │  └────────────────────────────────────────────────────────┘  │  │
 │  │                                                              │  │
-│  │  ┌──── Yad2 Adapter ──────┐  ┌──── WinWin Adapter ───────┐  │  │
-│  │  │ Client (HTTP, UA rot., │  │ Client (HTTP)              │  │  │
-│  │  │   SOCKS5 proxy pool,   │  │ Parser (HTML scraping)     │  │  │
-│  │  │   cookie isolation)    │  └────────────────────────────┘  │  │
+│  │  ┌──── Yad2 Adapter ──────┐                                  │  │
+│  │  │ Client (HTTP, UA rot., │                                  │  │
+│  │  │   SOCKS5 proxy pool,   │                                  │  │
+│  │  │   cookie isolation)    │                                  │  │
 │  │  │ Parser (__NEXT_DATA__) │                                  │  │
 │  │  │ ItemParser (specs)     │                                  │  │
 │  │  │ Enricher (km/city)     │                                  │  │
@@ -128,14 +127,13 @@ CarWatch is a **multi-tenant vehicle listing aggregator** for the Israeli used-c
 │  │  │  + PriceListStore + MarketStore + DailyDigestStore    │    │  │
 │  │  │  + LinkTokenStore + PushSubscriptionStore + AdminStore│    │  │
 │  │  │  + NotificationStore                                  │    │  │
-│  │  └────────────────────────┬─────────────────┬────────────┘    │  │
-│  │                           │                 │                 │  │
-│  │              ┌────────────▼──┐     ┌────────▼──────────┐     │  │
-│  │              │  PostgreSQL   │     │    SQLite          │     │  │
-│  │              │  (pgx/v5,    │     │  (WAL mode,        │     │  │
-│  │              │   conn pool, │     │   busy timeout,    │     │  │
-│  │              │   migrations)│     │   auto-migrate)    │     │  │
-│  │              └───────────────┘     └────────────────────┘     │  │
+│  │  └──────────────────────────────┬──────────────────────────┘    │  │
+│  │                                │                               │  │
+│  │                      ┌─────────▼─────────────┐                │  │
+│  │                      │      PostgreSQL        │                │  │
+│  │                      │  (pgx/v5, conn pool,   │                │  │
+│  │                      │   migrations)          │                │  │
+│  │                      └───────────────────────┘                │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │                                                                    │
 │  ┌─── Supporting ───────────────────────────────────────────────┐  │
@@ -151,12 +149,12 @@ CarWatch is a **multi-tenant vehicle listing aggregator** for the Israeli used-c
 
 ┌────────────────────────────────────────────────────────────────────┐
 │                    EXTERNAL SERVICES                                │
-│  ┌──────────┐  ┌──────────────┐  ┌─────────────┐  ┌────────────┐  │
-│  │ Yad2.co.il│  │ WinWin.co.il│  │ Firebase    │  │  Telegram  │  │
-│  │ (listings,│  │ (listings)  │  │ Auth        │  │  Bot API   │  │
-│  │  catalog, │  │             │  │             │  │            │  │
-│  │  pricing) │  │             │  │             │  │            │  │
-│  └──────────┘  └──────────────┘  └─────────────┘  └────────────┘  │
+│  ┌──────────┐  ┌─────────────┐  ┌────────────┐                    │
+│  │ Yad2.co.il│  │ Firebase    │  │  Telegram  │                    │
+│  │ (listings,│  │ Auth        │  │  Bot API   │                    │
+│  │  catalog, │  │             │  │            │                    │
+│  │  pricing) │  │             │  │            │                    │
+│  └──────────┘  └─────────────┘  └────────────┘                    │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -170,12 +168,11 @@ CarWatch is a **multi-tenant vehicle listing aggregator** for the Israeli used-c
 |--------|---------|-----------|
 | `cmd/bot/main.go` | Primary application: wires all components, runs scheduler + bot + API server | Long-running daemon |
 | `cmd/catalog-gen/main.go` | Scrapes Yad2 manufacturer/model catalog into JSON | One-shot CLI utility |
-| `cmd/migrate-sqlite-to-pg/main.go` | Migrates data from SQLite to PostgreSQL | One-shot migration tool |
 
 **`cmd/bot/main.go` initialization order:**
 1. Parse flags & load YAML config (with `${ENV_VAR}` interpolation)
-2. Open storage (SQLite or PostgreSQL)
-3. Build fetcher chain: `Yad2/WinWin → Paginator → Cache(5m TTL) → CircuitBreaker`
+2. Open storage (PostgreSQL)
+3. Build fetcher chain: `Yad2 → Paginator → Cache(5m TTL) → CircuitBreaker`
 4. Load dynamic catalog from Yad2 HTML
 5. Initialize health tracker
 6. Build Telegram bot + multi-notifier (Telegram + optional WebPush)
@@ -311,43 +308,41 @@ Each marketplace source is wrapped in a composable middleware chain:
                     Fetcher Interface
                     Fetch(ctx, SourceParams) → ([]RawListing, error)
                            │
-              ┌────────────┴────────────┐
-              │                         │
-     ┌────────▼────────┐      ┌────────▼────────┐
-     │ CircuitBreaker   │      │ CircuitBreaker   │
-     │ (5 failures →    │      │ (5 failures →    │
-     │  10min cooldown) │      │  10min cooldown) │
-     └────────┬────────┘      └────────┬────────┘
-              │                         │
-     ┌────────▼────────┐      ┌────────▼────────┐
-     │ CachingFetcher   │      │ CachingFetcher   │
-     │ (5-min TTL,      │      │ (5-min TTL)      │
-     │  in-memory)      │      │                  │
-     └────────┬────────┘      └────────┬────────┘
-              │                         │
-     ┌────────▼────────┐               │
-     │ PaginatingFetcher│               │
-     │ (maxPages config,│               │
-     │  per-page timeout)│               │
-     └────────┬────────┘               │
-              │                         │
-     ┌────────▼────────┐      ┌────────▼────────┐
-     │   Yad2Fetcher    │      │  WinWinFetcher   │
-     │                  │      │                  │
-     │ Client:          │      │ Client:          │
-     │  - UA rotation   │      │  - HTTP client   │
-     │  - SOCKS5 proxy  │      │                  │
-     │  - Proxy pool    │      │ Parser:          │
-     │  - Cookie jar    │      │  - HTML scraping │
-     │                  │      │                  │
-     │ Parser:          │      └──────────────────┘
-     │  - __NEXT_DATA__ │
-     │  - JSON extract  │
-     │                  │
-     │ Enricher:        │
-     │  - Item page     │
-     │  - km/city fill  │
-     └──────────────────┘
+                  ┌────────▼────────┐
+                  │ CircuitBreaker   │
+                  │ (5 failures →    │
+                  │  10min cooldown) │
+                  └────────┬────────┘
+                           │
+                  ┌────────▼────────┐
+                  │ CachingFetcher   │
+                  │ (5-min TTL,      │
+                  │  in-memory)      │
+                  └────────┬────────┘
+                           │
+                  ┌────────▼────────┐
+                  │ PaginatingFetcher│
+                  │ (maxPages config,│
+                  │  per-page timeout)│
+                  └────────┬────────┘
+                           │
+                  ┌────────▼────────┐
+                  │   Yad2Fetcher    │
+                  │                  │
+                  │ Client:          │
+                  │  - UA rotation   │
+                  │  - SOCKS5 proxy  │
+                  │  - Proxy pool    │
+                  │  - Cookie jar    │
+                  │                  │
+                  │ Parser:          │
+                  │  - __NEXT_DATA__ │
+                  │  - JSON extract  │
+                  │                  │
+                  │ Enricher:        │
+                  │  - Item page     │
+                  │  - km/city fill  │
+                  └──────────────────┘
 ```
 
 **Error sentinels:**
@@ -438,18 +433,6 @@ Store (composed interface)
 │  fetched_at              │  │  created_at              │
 └──────────────────────────┘  └──────────────────────────┘
 ```
-
-#### Dual-Driver Support
-
-Both SQLite and PostgreSQL implement the same `Store` interface:
-
-| Aspect | SQLite | PostgreSQL |
-|--------|--------|------------|
-| Use case | Development, single-instance | Production |
-| Driver | `mattn/go-sqlite3` (CGo) | `jackc/pgx/v5` |
-| Migrations | Embedded in Go code (10 steps) | File-based (`golang-migrate/migrate`) |
-| Concurrency | WAL mode, 5s busy timeout | Connection pool |
-| Dedup strategy | `INSERT OR IGNORE` + `RowsAffected` | `INSERT ... ON CONFLICT DO NOTHING` + `RowsAffected` |
 
 ---
 
@@ -698,7 +681,7 @@ telegram:
   bot_username: carwatch_bot
 
 storage:
-  driver: postgres                 # sqlite | postgres
+  driver: postgres
   dsn: ${DATABASE_URL}
   migrations_path: ./migrations
   prune_after: 720h                # 30 days
@@ -801,7 +784,7 @@ Flags listings with unusual characteristics:
 | Circuit Breaker | 5 consecutive failures → 10-min cooldown | Per-source fetcher |
 | Adaptive Backoff | Multiplier 1x→4x on challenge, halves on success | Scheduler polling |
 | Response Cache | 5-minute TTL, in-memory | Per-source fetcher |
-| Proxy Pool | SOCKS5 rotation across requests | Yad2/WinWin clients |
+| Proxy Pool | SOCKS5 rotation across requests | Yad2 client |
 | User-Agent Rotation | Random selection per request | HTTP clients |
 | Cookie Isolation | Separate jar for item-page fetches | Yad2 client pool |
 | Price Revert | Undo RecordPrice on downstream failure | PriceTracker |
@@ -819,7 +802,7 @@ Flags listings with unusual characteristics:
 |--------|---------------|
 | Health endpoint | `/healthz` — status (ok/starting/degraded), uptime, cycle count, user/search counts, DB size |
 | Structured logging | `slog` with JSON (prod) or colored (dev) output |
-| Log streaming | SSE endpoint `/api/v1/logs/stream` — filtered by component (yad2, winwin, scheduler, enricher, bot, telegram, notifier, circuit_breaker, api-pricelist) |
+| Log streaming | SSE endpoint `/api/v1/logs/stream` — filtered by component (yad2, scheduler, enricher, bot, telegram, notifier, circuit_breaker, api-pricelist) |
 | Web Vitals | Client-side CLS/FID/LCP reporting to `/api/v1/vitals` |
 | Admin metrics | Table sizes, activity stats (new listings, price drops, new users per day), DB pool stats |
 | Access logging | HTTP request logging with method, path, status, duration |
@@ -851,7 +834,6 @@ Flags listings with unusual characteristics:
 | Decision | Rationale | Trade-off |
 |----------|-----------|-----------|
 | Hexagonal architecture (ports & adapters) | Decouples domain from infra; easy to add sources/notifiers | More interfaces and indirection |
-| Dual-database support (SQLite + PostgreSQL) | SQLite for dev simplicity, PostgreSQL for prod reliability | Maintaining two implementations (~40 files) |
 | Embedded SPA (`go:embed`) | Single binary deployment, no separate web server needed | Larger binary, requires rebuild on frontend changes |
 | Polling over WebSocket (for scraping) | Marketplaces don't offer real-time APIs | 15-minute latency on new listings |
 | Multi-notifier fan-out | Users can receive on multiple channels simultaneously | Complexity in delivery tracking |
@@ -873,7 +855,6 @@ Flags listings with unusual characteristics:
 | `firebase.google.com/go/v4` | Firebase Auth token verification |
 | `github.com/go-telegram/bot` | Telegram Bot API client |
 | `github.com/jackc/pgx/v5` | PostgreSQL driver (pure Go) |
-| `github.com/mattn/go-sqlite3` | SQLite driver (CGo) |
 | `github.com/golang-migrate/migrate/v4` | Schema migration runner |
 | `github.com/SherClockHolmes/webpush-go` | Web Push (VAPID) |
 | `github.com/lmittmann/tint` | Colored log output |
@@ -898,20 +879,18 @@ These are areas where the reviewer's feedback would be most valuable:
 
 1. **Store interface granularity** — 16 sub-interfaces composed into one `Store`. Is this the right decomposition, or should some be merged/split differently?
 
-2. **Dual-database maintenance** — Maintaining both SQLite and PostgreSQL implementations (~40 files). Worth the ongoing cost, or should SQLite be dropped for production simplicity?
+2. **Scraping resilience** — Circuit breaker + cache + proxy rotation + UA rotation + cookie isolation. Are there gaps in the anti-detection strategy?
 
-3. **Scraping resilience** — Circuit breaker + cache + proxy rotation + UA rotation + cookie isolation. Are there gaps in the anti-detection strategy?
+3. **Single-binary monolith** — Everything in one process (scheduler, bot, API, SPA). At what scale or failure mode would this need to be split?
 
-4. **Single-binary monolith** — Everything in one process (scheduler, bot, API, SPA). At what scale or failure mode would this need to be split?
+4. **Market cache staleness** — 30-minute TTL for the market cache used in deal scoring. What is the impact on scoring accuracy vs. database load?
 
-5. **Market cache staleness** — 30-minute TTL for the market cache used in deal scoring. What is the impact on scoring accuracy vs. database load?
+5. **Notification delivery guarantees** — Current queue is DB-backed with ack/prune. Is this sufficient, or should a proper message broker be considered?
 
-6. **Notification delivery guarantees** — Current queue is DB-backed with ack/prune. Is this sufficient, or should a proper message broker be considered?
+6. **Frontend architecture** — Custom hooks + contexts vs. a state management library (e.g., Zustand, TanStack Query). Scaling implications as the app grows?
 
-7. **Frontend architecture** — Custom hooks + contexts vs. a state management library (e.g., Zustand, TanStack Query). Scaling implications as the app grows?
+7. **Testing strategy** — Unit + integration tests exist. Missing: API contract tests, load/stress tests for the scheduler, end-to-end browser tests.
 
-8. **Testing strategy** — Unit + integration tests exist. Missing: API contract tests, load/stress tests for the scheduler, end-to-end browser tests.
+8. **Monitoring gaps** — No metrics export to external systems (Prometheus/Grafana), no structured alerting beyond the health endpoint. Sufficient for current scale?
 
-9. **Monitoring gaps** — No metrics export to external systems (Prometheus/Grafana), no structured alerting beyond the health endpoint. Sufficient for current scale?
-
-10. **Data retention** — 90-day automatic prune for listings and price history. Is this the right retention period for users who want long-term market trend analysis?
+9. **Data retention** — 90-day automatic prune for listings and price history. Is this the right retention period for users who want long-term market trend analysis?

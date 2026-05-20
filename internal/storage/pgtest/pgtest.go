@@ -1,14 +1,18 @@
 // Package pgtest provides a PostgreSQL-backed storage.Store for tests.
 //
-// If TEST_POSTGRES_DSN is set, it connects directly. Otherwise it spins up
-// a throwaway PostgreSQL container via testcontainers.
+// If TEST_POSTGRES_DSN is set, it connects directly and creates an isolated
+// schema per test. Otherwise it spins up a throwaway PostgreSQL container
+// via testcontainers.
 package pgtest
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,27 +27,16 @@ import (
 // directory by navigating from this source file's location.
 func migrationsDir() string {
 	_, thisFile, _, _ := runtime.Caller(0)
-	// thisFile is .../internal/storage/pgtest/pgtest.go
-	// Navigate up 4 levels to the repo root, then into migrations/.
 	return filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "migrations")
-}
-
-// tables lists every application table in deletion-safe order
-// (children before parents to respect foreign-key constraints).
-var tables = []string{
-	"listing_user_seen", "pending_digest", "pending_notifications",
-	"saved_listings", "hidden_listings", "listing_history",
-	"seen_listings", "price_history", "link_tokens",
-	"daily_digest", "searches", "price_list_cache",
-	"push_subscriptions", "users",
 }
 
 // NewStore returns a storage.Store backed by PostgreSQL.
 //
-// When TEST_POSTGRES_DSN is set the store connects to that database directly.
-// Otherwise a disposable PostgreSQL 16 container is started via
-// testcontainers. In both cases migrations are applied automatically and
-// t.Cleanup truncates all tables and closes the store.
+// When TEST_POSTGRES_DSN is set the store creates an isolated schema per
+// test to avoid interference between concurrent tests. Otherwise a
+// disposable PostgreSQL 16 container is started via testcontainers.
+// In both cases migrations are applied automatically and t.Cleanup
+// drops the schema (or terminates the container).
 func NewStore(t *testing.T) storage.Store {
 	t.Helper()
 
@@ -57,20 +50,73 @@ func NewStore(t *testing.T) storage.Store {
 		migrations = migrationsDir()
 	}
 
+	dsn = isolatedSchema(t, dsn)
+
 	store, err := postgres.New(dsn, migrations)
 	if err != nil {
 		t.Fatalf("pgtest: create store: %v", err)
 	}
 
 	t.Cleanup(func() {
-		db := store.DB()
-		for _, tbl := range tables {
-			_, _ = db.Exec("DELETE FROM " + tbl)
-		}
 		_ = store.Close()
 	})
 
 	return store
+}
+
+// isolatedSchema creates a unique PostgreSQL schema for this test and
+// returns a modified DSN that uses it via search_path. The schema is
+// dropped when the test finishes.
+func isolatedSchema(t *testing.T, dsn string) string {
+	t.Helper()
+
+	// Generate a unique schema name from the test name.
+	schema := "test_" + sanitizeName(t.Name()) + fmt.Sprintf("_%d", time.Now().UnixNano()%1_000_000)
+
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("pgtest: open for schema creation: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	if _, err := db.Exec("CREATE SCHEMA " + schema); err != nil {
+		t.Fatalf("pgtest: create schema %s: %v", schema, err)
+	}
+
+	t.Cleanup(func() {
+		db2, err := sql.Open("pgx", dsn)
+		if err != nil {
+			t.Logf("pgtest: open for schema drop: %v", err)
+			return
+		}
+		defer func() { _ = db2.Close() }()
+		if _, err := db2.Exec("DROP SCHEMA " + schema + " CASCADE"); err != nil {
+			t.Logf("pgtest: drop schema %s: %v", schema, err)
+		}
+	})
+
+	// Add search_path to DSN.
+	if strings.Contains(dsn, "?") {
+		return dsn + "&search_path=" + schema
+	}
+	return dsn + "?search_path=" + schema
+}
+
+// sanitizeName converts a test name into a valid PostgreSQL identifier.
+func sanitizeName(name string) string {
+	var b strings.Builder
+	for _, c := range strings.ToLower(name) {
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' {
+			b.WriteRune(c)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	s := b.String()
+	if len(s) > 40 {
+		s = s[:40]
+	}
+	return s
 }
 
 // startContainer launches a throwaway PostgreSQL 16 container and returns its

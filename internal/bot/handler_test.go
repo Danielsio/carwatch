@@ -130,8 +130,8 @@ func TestWizardFlow_EndToEnd(t *testing.T) {
 	// Step 1: /watch → source keyboard
 	tb.simulateCommand(ctx, chatID, "/watch")
 	msg := tb.msg.last()
-	if !msg.HasKB || msg.Buttons != 2 {
-		t.Fatalf("step 1: expected 2-button keyboard, got buttons=%d hasKB=%v", msg.Buttons, msg.HasKB)
+	if !msg.HasKB || msg.Buttons != 1 {
+		t.Fatalf("step 1: expected 1-button keyboard (Yad2 only), got buttons=%d hasKB=%v", msg.Buttons, msg.HasKB)
 	}
 	user, _ := tb.store.GetUser(ctx, chatID)
 	if user.State != StateAskSource {

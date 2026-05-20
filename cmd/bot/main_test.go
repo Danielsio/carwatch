@@ -22,7 +22,9 @@ func TestRun_InvalidConfigPath(t *testing.T) {
 func TestRun_InvalidConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.yaml")
-	_ = os.WriteFile(path, []byte("invalid: {[broken yaml"), 0644)
+	if err := os.WriteFile(path, []byte("invalid: {[broken yaml"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := run(path, testLogger())
 	if err == nil {
@@ -41,7 +43,9 @@ polling:
 storage:
   dsn: "postgres://localhost/test"
 `
-	_ = os.WriteFile(path, []byte(cfg), 0644)
+	if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := run(path, testLogger())
 	if err == nil {
@@ -63,7 +67,9 @@ polling:
 telegram:
   token: "test-token"
 `
-	_ = os.WriteFile(path, []byte(cfg), 0644)
+	if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := run(path, testLogger())
 	if err == nil {
@@ -87,7 +93,9 @@ telegram:
 storage:
   dsn: "postgres://localhost:99999/nonexistent_db?sslmode=disable&connect_timeout=1"
 `
-	_ = os.WriteFile(path, []byte(cfg), 0644)
+	if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := run(path, testLogger())
 	if err == nil {
@@ -108,7 +116,9 @@ telegram:
 storage:
   dsn: "postgres://localhost/test"
 `
-	_ = os.WriteFile(path, []byte(cfg), 0644)
+	if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := run(path, testLogger())
 	if err == nil {
@@ -135,7 +145,9 @@ telegram:
 storage:
   dsn: "postgres://localhost/test"
 `
-	_ = os.WriteFile(path, []byte(cfg), 0644)
+	if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := run(path, testLogger())
 	if err == nil {
@@ -158,7 +170,9 @@ telegram:
 storage:
   dsn: "postgres://localhost:99999/nonexistent?sslmode=disable&connect_timeout=1"
 `
-			_ = os.WriteFile(path, []byte(cfg), 0644)
+			if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+				t.Fatal(err)
+			}
 
 			err := run(path, testLogger())
 			if err == nil {

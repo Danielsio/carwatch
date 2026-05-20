@@ -204,7 +204,7 @@ func validate(cfg *Config) error {
 	default:
 		return fmt.Errorf("storage.driver %q: must be postgres", cfg.Storage.Driver)
 	}
-	if cfg.Storage.DSN == "" {
+	if strings.TrimSpace(cfg.Storage.DSN) == "" {
 		return fmt.Errorf("storage.dsn is required")
 	}
 	if _, err := net.ResolveTCPAddr("tcp", cfg.HTTP.Bind); err != nil {

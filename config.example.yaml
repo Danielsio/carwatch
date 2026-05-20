@@ -22,7 +22,7 @@ polling:
 
 # Database (PostgreSQL)
 storage:
-  dsn: "postgres://carwatch:carwatch@localhost:5432/carwatch?sslmode=disable"
+  dsn: "${CARWATCH_DATABASE_DSN}"  # e.g. postgres://carwatch:password@localhost:5432/carwatch?sslmode=disable
   migrations_path: "./migrations"
   prune_after: 720h  # 30 days
 

@@ -1238,7 +1238,7 @@ func TestAdminStats_FirebaseNonAdmin(t *testing.T) {
 func setLastSeenAt(t *testing.T, store storage.Store, chatID int64, when time.Time) {
 	t.Helper()
 	db := store.DB()
-	if _, err := db.Exec("UPDATE users SET last_seen_at = ? WHERE chat_id = ?", when, chatID); err != nil {
+	if _, err := db.Exec("UPDATE users SET last_seen_at = $1 WHERE chat_id = $2", when, chatID); err != nil {
 		t.Fatalf("set last_seen_at: %v", err)
 	}
 }
