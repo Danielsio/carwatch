@@ -29,7 +29,6 @@ import (
 	"github.com/dsionov/carwatch/internal/pricelist"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/spa"
-	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/postgres"
 	"github.com/dsionov/carwatch/web"
 )
@@ -228,11 +227,11 @@ func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, 
 	return yad2Fetcher, cachingFetcher, fetcherFactory, proxyPool, nil
 }
 
-func openStore(cfg *config.Config) (storage.Store, error) {
+func openStore(cfg *config.Config) (*postgres.Store, error) {
 	return postgres.New(cfg.Storage.DSN, cfg.Storage.MigrationsPath)
 }
 
-func buildBot(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, h *health.Status, logger *slog.Logger) (*cwbot.Bot, *telegram.Notifier, *notifier.MultiNotifier, error) {
+func buildBot(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, h *health.Status, logger *slog.Logger) (*cwbot.Bot, *telegram.Notifier, *notifier.MultiNotifier, error) {
 	botHandler := cwbot.New(nil, store, store, cwbot.Config{
 		AdminChatID:  cfg.Telegram.AdminChatID,
 		MaxSearches:  cfg.Telegram.MaxSearches,
@@ -263,24 +262,18 @@ func buildBot(cfg *config.Config, store storage.Store, dynCatalog *catalog.Dynam
 		return nil, nil, nil, fmt.Errorf("register telegram notifier: %w", err)
 	}
 
-	// Register web push notifier when VAPID keys are configured and the storage
-	// backend implements the PushSubscriptionStore interface (added in PR #898).
 	if cfg.Push.VAPIDPublicKey != "" && cfg.Push.VAPIDPrivateKey != "" {
-		if subStore, ok := store.(webpush.SubscriptionStore); ok {
-			wpNotif := webpush.New(subStore, cfg.Push.VAPIDPublicKey, cfg.Push.VAPIDPrivateKey, cfg.Push.VAPIDSubject, logger.With("component", "webpush"))
-			if err := multi.Register("webpush", wpNotif); err != nil {
-				return nil, nil, nil, fmt.Errorf("register webpush notifier: %w", err)
-			}
-			logger.Info("webpush notifier registered")
-		} else {
-			logger.Warn("VAPID keys configured but storage does not support push subscriptions yet")
+		wpNotif := webpush.New(store, cfg.Push.VAPIDPublicKey, cfg.Push.VAPIDPrivateKey, cfg.Push.VAPIDSubject, logger.With("component", "webpush"))
+		if err := multi.Register("webpush", wpNotif); err != nil {
+			return nil, nil, nil, fmt.Errorf("register webpush notifier: %w", err)
 		}
+		logger.Info("webpush notifier registered")
 	}
 
 	return botHandler, tgNotif, multi, nil
 }
 
-func buildAPI(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, logHub *logstream.Hub, logLevel *slog.LevelVar, logger *slog.Logger, fetchers *fetcher.Factory, plSvc *pricelist.Service) (*api.Server, error) {
+func buildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, logHub *logstream.Hub, logLevel *slog.LevelVar, logger *slog.Logger, fetchers *fetcher.Factory, plSvc *pricelist.Service) (*api.Server, error) {
 	var firebaseAuth api.TokenVerifier
 	if cfg.Firebase.ProjectID != "" {
 		v, err := api.NewFirebaseVerifier(cfg.Firebase.CredentialsFile, cfg.Firebase.CredentialsJSON, cfg.Firebase.ProjectID)

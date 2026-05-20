@@ -1,4 +1,4 @@
-// Package pgtest provides a PostgreSQL-backed storage.Store for tests.
+// Package pgtest provides a PostgreSQL-backed store for tests.
 //
 // If TEST_POSTGRES_DSN is set, it connects directly and creates an isolated
 // schema per test. Otherwise it spins up a throwaway PostgreSQL container
@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/postgres"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -30,14 +29,14 @@ func migrationsDir() string {
 	return filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "migrations")
 }
 
-// NewStore returns a storage.Store backed by PostgreSQL.
+// NewStore returns a *postgres.Store backed by PostgreSQL.
 //
 // When TEST_POSTGRES_DSN is set the store creates an isolated schema per
 // test to avoid interference between concurrent tests. Otherwise a
 // disposable PostgreSQL 16 container is started via testcontainers.
 // In both cases migrations are applied automatically and t.Cleanup
 // drops the schema (or terminates the container).
-func NewStore(t *testing.T) storage.Store {
+func NewStore(t *testing.T) *postgres.Store {
 	t.Helper()
 
 	dsn := os.Getenv("TEST_POSTGRES_DSN")

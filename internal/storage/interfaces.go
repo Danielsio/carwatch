@@ -99,7 +99,6 @@ type DedupStore interface {
 	ClaimNew(ctx context.Context, token string, chatID int64, searchID int64) (bool, error)
 	ReleaseClaim(ctx context.Context, token string, chatID int64) error
 	Prune(ctx context.Context, olderThan time.Duration) (int64, error)
-	Close() error
 }
 
 type PendingNotification struct {

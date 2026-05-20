@@ -14,6 +14,7 @@ import (
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/pgtest"
+	"github.com/dsionov/carwatch/internal/storage/postgres"
 )
 
 func TestIsRateLimited(t *testing.T) {
@@ -546,7 +547,7 @@ func searchString(s, substr string) bool {
 	return false
 }
 
-func newBotTestStore(t *testing.T) storage.Store {
+func newBotTestStore(t *testing.T) *postgres.Store {
 	t.Helper()
 	return pgtest.NewStore(t)
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/pgtest"
+	"github.com/dsionov/carwatch/internal/storage/postgres"
 )
 
 type fakeTokenVerifier struct {
@@ -37,7 +38,7 @@ func (f *fakeTokenVerifier) VerifyIDToken(_ context.Context, _ string) (*fbauth.
 	}, nil
 }
 
-func setupTestServer(t *testing.T) (*Server, storage.Store) {
+func setupTestServer(t *testing.T) (*Server, *postgres.Store) {
 	t.Helper()
 	store := pgtest.NewStore(t)
 
@@ -1235,7 +1236,7 @@ func TestAdminStats_FirebaseNonAdmin(t *testing.T) {
 	}
 }
 
-func setLastSeenAt(t *testing.T, store storage.Store, chatID int64, when time.Time) {
+func setLastSeenAt(t *testing.T, store *postgres.Store, chatID int64, when time.Time) {
 	t.Helper()
 	db := store.DB()
 	if _, err := db.Exec("UPDATE users SET last_seen_at = $1 WHERE chat_id = $2", when, chatID); err != nil {
@@ -1243,7 +1244,7 @@ func setLastSeenAt(t *testing.T, store storage.Store, chatID int64, when time.Ti
 	}
 }
 
-func seedNotifSearch(t *testing.T, store storage.Store, chatID int64) int64 {
+func seedNotifSearch(t *testing.T, store *postgres.Store, chatID int64) int64 {
 	t.Helper()
 	id, err := store.CreateSearch(context.Background(), storage.Search{
 		ChatID: chatID, Name: "notif-test", Manufacturer: 1, Model: 1,

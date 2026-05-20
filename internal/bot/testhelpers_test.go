@@ -11,8 +11,8 @@ import (
 	tgmodels "github.com/go-telegram/bot/models"
 
 	"github.com/dsionov/carwatch/internal/catalog"
-	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/pgtest"
+	"github.com/dsionov/carwatch/internal/storage/postgres"
 )
 
 type sentMessage struct {
@@ -76,7 +76,7 @@ func (m *mockMessenger) reset() {
 type testBot struct {
 	bot   *Bot
 	msg   *mockMessenger
-	store storage.Store
+	store *postgres.Store
 }
 
 func newTestBot(t *testing.T) *testBot {

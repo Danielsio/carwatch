@@ -8,9 +8,10 @@ import (
 
 	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/pgtest"
+	"github.com/dsionov/carwatch/internal/storage/postgres"
 )
 
-func newTestStore(t *testing.T) storage.Store {
+func newTestStore(t *testing.T) *postgres.Store {
 	t.Helper()
 	return pgtest.NewStore(t)
 }
