@@ -1,0 +1,31 @@
+# Local development configuration.
+# Connects to the PostgreSQL started by: make dev-db
+# Run the app with: make dev
+
+log_level: debug
+log_format: pretty
+
+telegram:
+  token: "${TELEGRAM_BOT_TOKEN}"
+  admin_chat_id: 0
+  max_searches: 10
+
+polling:
+  interval: 15m
+  jitter: 5m
+  active_hours:
+    start: "08:00"
+    end: "23:00"
+  timezone: "Asia/Jerusalem"
+
+storage:
+  dsn: "postgres://carwatch:carwatch@localhost:5432/carwatch?sslmode=disable"
+  migrations_path: "./migrations"
+  prune_after: 720h
+
+http:
+  bind: "0.0.0.0:8080"
+
+api:
+  cors_origins:
+    - "http://localhost:5173"
