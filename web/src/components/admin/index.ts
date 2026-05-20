@@ -5,6 +5,5 @@ export { OverviewTab } from "./OverviewTab";
 export { ListingsTab } from "./ListingsTab";
 export { SearchesTab } from "./SearchesTab";
 export { UsersTab } from "./UsersTab";
-export { LogsTab } from "./LogsTab";
 export { ActivityChart } from "./ActivityChart";
 export { PriceHistoryTab } from "./PriceHistoryTab";

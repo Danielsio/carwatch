@@ -20,7 +20,6 @@ import (
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
-	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/pricelist"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -50,8 +49,6 @@ type Server struct {
 	saved            storage.SavedListingStore
 	hidden           storage.HiddenListingStore
 	notifs           storage.NotificationStore
-	logHub           *logstream.Hub
-	logLevel         *slog.LevelVar
 	poller           PollTrigger
 	logger           *slog.Logger
 	cfg              config.APIConfig
@@ -105,8 +102,6 @@ type Config struct {
 	Hidden       storage.HiddenListingStore
 	Notifs       storage.NotificationStore
 	PushSubs     storage.PushSubscriptionStore
-	LogHub       *logstream.Hub
-	LogLevel     *slog.LevelVar
 	Logger       *slog.Logger
 	API          config.APIConfig
 	Push         config.PushConfig
@@ -140,8 +135,6 @@ func New(c Config) *Server {
 		notifs:         c.Notifs,
 		pushSubs:       c.PushSubs,
 		vapidPublicKey: c.Push.VAPIDPublicKey,
-		logHub:         c.LogHub,
-		logLevel:       c.LogLevel,
 		logger:         c.Logger,
 		cfg:            c.API,
 		botUsername:    c.BotUsername,
@@ -214,14 +207,6 @@ func (s *Server) Routes() http.Handler {
 		authMux.HandleFunc("GET /api/v1/admin/price-history", s.requireAdmin(s.adminListPriceHistory))
 		authMux.HandleFunc("GET /api/v1/admin/seen-listings", s.requireAdmin(s.adminListSeenListings))
 		authMux.HandleFunc("GET /api/v1/admin/activity", s.requireAdmin(s.adminActivity))
-		if s.logHub != nil {
-			authMux.HandleFunc("GET /api/v1/admin/logs", s.requireAdmin(s.adminLogs))
-			authMux.HandleFunc("GET /api/v1/admin/logs/stream", s.requireAdmin(s.adminLogStream))
-		}
-		if s.logLevel != nil {
-			authMux.HandleFunc("GET /api/v1/admin/logs/level", s.requireAdmin(s.adminGetLogLevel))
-			authMux.HandleFunc("PUT /api/v1/admin/logs/level", s.requireAdmin(s.adminSetLogLevel))
-		}
 	}
 
 	if s.notifs != nil {
