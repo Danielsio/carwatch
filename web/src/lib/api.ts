@@ -418,30 +418,8 @@ export interface AdminUsersResponse {
   total: number;
 }
 
-export interface LogEntry {
-  time: string;
-  level: string;
-  message: string;
-  component: string;
-  attrs?: Record<string, string>;
-}
-
-export interface AdminLogsResponse {
-  items: LogEntry[];
-}
-
 export const adminApi = {
   stats: () => fetchAPI<AdminStats>("/admin/stats"),
-  logs: (limit?: number) =>
-    fetchAPI<AdminLogsResponse>(
-      `/admin/logs${limit ? `?limit=${limit}` : ""}`,
-    ),
-  getLogLevel: () => fetchAPI<{ level: string }>("/admin/logs/level"),
-  setLogLevel: (level: string) =>
-    fetchAPI<{ level: string }>("/admin/logs/level", {
-      method: "PUT",
-      body: JSON.stringify({ level }),
-    }),
   listings: (params?: ListingsParams & { search_id?: number }) => {
     const query = new URLSearchParams();
     if (params?.limit !== undefined) query.set("limit", String(params.limit));

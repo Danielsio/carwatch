@@ -6,7 +6,6 @@ import {
   FileSearch,
   History,
   RefreshCw,
-  ScrollText,
   Shield,
   Users,
 } from "lucide-react";
@@ -20,11 +19,10 @@ import {
   ListingsTab,
   SearchesTab,
   UsersTab,
-  LogsTab,
   PriceHistoryTab,
 } from "@/components/admin";
 
-type TabKey = "overview" | "listings" | "searches" | "users" | "logs" | "priceHistory";
+type TabKey = "overview" | "listings" | "searches" | "users" | "priceHistory";
 
 const TABS: { key: TabKey; label: string; icon: typeof Car }[] = [
   { key: "overview", label: "סקירה כללית", icon: Database },
@@ -32,7 +30,6 @@ const TABS: { key: TabKey; label: string; icon: typeof Car }[] = [
   { key: "searches", label: "חיפושים", icon: FileSearch },
   { key: "users", label: "משתמשים", icon: Users },
   { key: "priceHistory", label: "היסטוריית מחירים", icon: History },
-  { key: "logs", label: "לוגים", icon: ScrollText },
 ];
 
 function AdminHeader({ action }: { action?: React.ReactNode }) {
@@ -198,9 +195,6 @@ export function AdminPage() {
           )}
           {activeTab === "users" && <UsersTab />}
           {activeTab === "priceHistory" && <PriceHistoryTab />}
-          {activeTab === "logs" && (
-            <LogsTab active={activeTab === "logs"} />
-          )}
         </motion.div>
       </AnimatePresence>
     </div>

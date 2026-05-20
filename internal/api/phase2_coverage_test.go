@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -57,41 +56,6 @@ func TestAdminSetUserActive_BadID(t *testing.T) {
 	w := doRequest(t, srv, "PATCH", "/api/v1/admin/users/abc", map[string]bool{"active": true})
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-// --- adminGetLogLevel / adminSetLogLevel ---
-
-func TestAdminLogLevel_GetAndSet(t *testing.T) {
-	srv, _ := setupTestServer(t)
-
-	lvl := &slog.LevelVar{}
-	lvl.Set(slog.LevelInfo)
-	srv.logLevel = lvl
-
-	w := doRequest(t, srv, "GET", "/api/v1/admin/logs/level", nil)
-	if w.Code != http.StatusOK {
-		t.Fatalf("GET: expected 200, got %d", w.Code)
-	}
-	var resp map[string]string
-	mustUnmarshal(t, w.Body.Bytes(), &resp)
-	if resp["level"] == "" {
-		t.Error("expected a level string")
-	}
-
-	w = doRequest(t, srv, "PUT", "/api/v1/admin/logs/level", map[string]string{"level": "WARN"})
-	if w.Code != http.StatusOK {
-		t.Fatalf("PUT WARN: expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	w = doRequest(t, srv, "PUT", "/api/v1/admin/logs/level", map[string]string{"level": "INVALID"})
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("PUT INVALID: expected 400, got %d", w.Code)
-	}
-
-	w = doRequest(t, srv, "PUT", "/api/v1/admin/logs/level", map[string]string{"level": "INFO"})
-	if w.Code != http.StatusOK {
-		t.Fatalf("PUT INFO reset: expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

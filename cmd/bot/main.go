@@ -22,7 +22,6 @@ import (
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
-	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/notifier/telegram"
 	"github.com/dsionov/carwatch/internal/notifier/webpush"
@@ -69,14 +68,8 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	var logLevelVar slog.LevelVar
 	logLevelVar.Set(logLevel)
-	logHub := logstream.NewHub(2000)
-	baseHandler := newLogHandler(cfg.LogFormat, &logLevelVar)
-	teeHandler := logstream.NewTeeHandler(baseHandler, logHub,
-		"yad2", "scheduler", "enricher",
-		"api-pricelist", "bot", "telegram", "notifier",
-		"circuit_breaker",
-	)
-	logger = slog.New(teeHandler)
+	handler := newLogHandler(cfg.LogFormat, &logLevelVar)
+	logger = slog.New(handler)
 	slog.SetDefault(logger)
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
@@ -125,7 +118,7 @@ func run(configPath string, logger *slog.Logger) error {
 	plHTTP := pricelist.NewYad2Client(plClient)
 
 	apiPriceListSvc := pricelist.NewService(store, plHTTP, logger.With("component", "api-pricelist"))
-	apiServer, err := buildAPI(cfg, store, dynCatalog, logHub, &logLevelVar, logger, fetcherFactory, apiPriceListSvc)
+	apiServer, err := buildAPI(cfg, store, dynCatalog, logger, fetcherFactory, apiPriceListSvc)
 	if err != nil {
 		return err
 	}
@@ -272,7 +265,7 @@ func buildBot(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 	return botHandler, tgNotif, multi, nil
 }
 
-func buildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, logHub *logstream.Hub, logLevel *slog.LevelVar, logger *slog.Logger, fetchers *fetcher.Factory, plSvc *pricelist.Service) (*api.Server, error) {
+func buildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, logger *slog.Logger, fetchers *fetcher.Factory, plSvc *pricelist.Service) (*api.Server, error) {
 	var firebaseAuth api.TokenVerifier
 	if cfg.Firebase.ProjectID != "" {
 		v, err := api.NewFirebaseVerifier(cfg.Firebase.CredentialsFile, cfg.Firebase.CredentialsJSON, cfg.Firebase.ProjectID)
@@ -301,8 +294,6 @@ func buildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		Push:         cfg.Push,
 		FirebaseAuth: firebaseAuth,
 		BotUsername:  cfg.Telegram.BotUsername,
-		LogHub:       logHub,
-		LogLevel:     logLevel,
 		Fetchers:     fetchers,
 		PriceListSvc: plSvc,
 		Bind:         cfg.HTTP.Bind,
