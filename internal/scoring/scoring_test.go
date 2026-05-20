@@ -699,11 +699,24 @@ func TestNewMarketCacheFromMedians(t *testing.T) {
 		}
 	})
 
-	t.Run("no year band matching", func(t *testing.T) {
-		// Unlike the raw-listing constructor, pre-computed medians use exact year.
-		_, _, _, ok := mc.Lookup("Toyota", "Corolla", 2021)
+	t.Run("year band matching", func(t *testing.T) {
+		// Precomputed path uses ±1 year band, same as raw path.
+		median, _, cohort, ok := mc.Lookup("Toyota", "Corolla", 2021)
+		if !ok {
+			t.Fatal("expected ok=true for adjacent year (2021 within ±1 of 2020)")
+		}
+		if median != 105000 {
+			t.Errorf("median=%d, want 105000", median)
+		}
+		if cohort != 25 {
+			t.Errorf("cohort=%d, want 25", cohort)
+		}
+	})
+
+	t.Run("year too far", func(t *testing.T) {
+		_, _, _, ok := mc.Lookup("Toyota", "Corolla", 2023)
 		if ok {
-			t.Error("precomputed path should not do year-band matching")
+			t.Error("expected ok=false for year 2023 (>1 from 2020)")
 		}
 	})
 
