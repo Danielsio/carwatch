@@ -264,6 +264,59 @@ polling:
 	expectLoadError(t, yaml, "polling.jitter must be non-negative")
 }
 
+func TestLoad_TelemetryDefaults(t *testing.T) {
+	yaml := `
+telegram:
+  token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
+`
+	cfg := loadFromString(t, yaml)
+
+	if cfg.Telemetry.TracesExporter != "none" {
+		t.Errorf("default traces_exporter = %q, want none", cfg.Telemetry.TracesExporter)
+	}
+	if cfg.Telemetry.MetricsPath != "/metrics" {
+		t.Errorf("default metrics_path = %q, want /metrics", cfg.Telemetry.MetricsPath)
+	}
+}
+
+func TestLoad_TelemetryExplicit(t *testing.T) {
+	yaml := `
+telegram:
+  token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
+telemetry:
+  traces_exporter: stdout
+  otlp_endpoint: "collector:4317"
+  metrics_path: /prom
+`
+	cfg := loadFromString(t, yaml)
+
+	if cfg.Telemetry.TracesExporter != "stdout" {
+		t.Errorf("traces_exporter = %q, want stdout", cfg.Telemetry.TracesExporter)
+	}
+	if cfg.Telemetry.OTLPEndpoint != "collector:4317" {
+		t.Errorf("otlp_endpoint = %q, want collector:4317", cfg.Telemetry.OTLPEndpoint)
+	}
+	if cfg.Telemetry.MetricsPath != "/prom" {
+		t.Errorf("metrics_path = %q, want /prom", cfg.Telemetry.MetricsPath)
+	}
+}
+
+func TestLoad_TelemetryInvalidExporter(t *testing.T) {
+	yaml := `
+telegram:
+  token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
+telemetry:
+  traces_exporter: kafka
+`
+	expectLoadError(t, yaml, "telemetry.traces_exporter")
+}
+
 func loadFromString(t *testing.T, yaml string) *Config {
 	t.Helper()
 	dir := t.TempDir()

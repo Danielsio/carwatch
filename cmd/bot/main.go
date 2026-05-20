@@ -15,6 +15,8 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/mattn/go-isatty"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/dsionov/carwatch/internal/api"
 	cwbot "github.com/dsionov/carwatch/internal/bot"
 	"github.com/dsionov/carwatch/internal/catalog"
@@ -29,6 +31,7 @@ import (
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/spa"
 	"github.com/dsionov/carwatch/internal/storage/postgres"
+	"github.com/dsionov/carwatch/internal/telemetry"
 	"github.com/dsionov/carwatch/web"
 )
 
@@ -72,6 +75,21 @@ func run(configPath string, logger *slog.Logger) error {
 	logger = slog.New(handler)
 	slog.SetDefault(logger)
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
+
+	telShutdown, err := telemetry.Init(context.Background(), telemetry.Config{
+		ServiceName:    "carwatch",
+		ServiceVersion: version,
+		Exporter:       cfg.Telemetry.TracesExporter,
+		OTLPEndpoint:   cfg.Telemetry.OTLPEndpoint,
+	})
+	if err != nil {
+		return fmt.Errorf("init telemetry: %w", err)
+	}
+	defer func() { _ = telShutdown(context.Background()) }()
+
+	if err := telemetry.InitMetrics(); err != nil {
+		logger.Error("init metrics failed", "error", err)
+	}
 
 	store, err := openStore(cfg)
 	if err != nil {
@@ -307,9 +325,17 @@ func buildHTTPServer(cfg *config.Config, h *health.Status, apiServer *api.Server
 	mux.HandleFunc("/healthz", h.PublicHandler())
 	mux.Handle("/api/v1/", apiServer.Routes())
 	mux.Handle("/", spa.Handler(web.DistFS()))
+
+	metricsHandler, err := telemetry.MetricsHandler()
+	if err != nil {
+		logger.Error("metrics handler setup failed", "error", err)
+	} else {
+		mux.Handle(cfg.Telemetry.MetricsPath, metricsHandler)
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Bind,
-		Handler:           mux,
+		Handler:           otelhttp.NewHandler(mux, "carwatch"),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,

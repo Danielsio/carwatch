@@ -23,6 +23,7 @@ import (
 	"github.com/dsionov/carwatch/internal/pricelist"
 	"github.com/dsionov/carwatch/internal/scoring"
 	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/dsionov/carwatch/internal/telemetry"
 )
 
 const (
@@ -526,6 +527,16 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		"notifications_sent", stats.notificationsSent,
 		"failed", stats.groupsFailed,
 	)
+
+	if telemetry.SchedulerCycles != nil {
+		telemetry.SchedulerCycles.Add(ctx, 1)
+	}
+	if telemetry.ListingsFetched != nil {
+		telemetry.ListingsFetched.Add(ctx, int64(stats.listingsFetched))
+	}
+	if telemetry.ListingsMatched != nil {
+		telemetry.ListingsMatched.Add(ctx, int64(stats.newListings))
+	}
 
 	if allFailed && len(groups) > 0 {
 		s.observer.RecordError()
