@@ -20,9 +20,16 @@ type Config struct {
 	API       APIConfig       `yaml:"api"`
 	Firebase  FirebaseConfig  `yaml:"firebase"`
 	Push      PushConfig      `yaml:"push"`
+	Redis     RedisConfig     `yaml:"redis"`
 	Telemetry TelemetryConfig `yaml:"telemetry"`
 	LogLevel  string          `yaml:"log_level"`
 	LogFormat string          `yaml:"log_format"`
+}
+
+type RedisConfig struct {
+	Addr     string `yaml:"addr"`     // default "localhost:6379"
+	Password string `yaml:"password"` // default ""
+	DB       int    `yaml:"db"`       // default 0
 }
 
 type TelemetryConfig struct {

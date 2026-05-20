@@ -19,6 +19,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/api"
 	cwbot "github.com/dsionov/carwatch/internal/bot"
+	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
@@ -151,6 +152,32 @@ func run(configPath string, logger *slog.Logger) error {
 		}
 	}()
 
+	// Redis broker (optional): publish alerts to a stream instead of
+	// delivering directly; a consumer goroutine processes them with
+	// rate limiting.
+	var pub *broker.Publisher
+	if cfg.Redis.Addr != "" {
+		p, err := broker.NewPublisher(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+		if err != nil {
+			return fmt.Errorf("create redis publisher: %w", err)
+		}
+		pub = p
+		defer func() { _ = pub.Close() }()
+
+		cons, err := broker.NewConsumer(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB,
+			multi.NotifyRaw, logger.With("component", "broker-consumer"))
+		if err != nil {
+			return fmt.Errorf("create redis consumer: %w", err)
+		}
+		defer func() { _ = cons.Close() }()
+		go func() {
+			if err := cons.Run(ctx); err != nil && ctx.Err() == nil {
+				logger.Error("broker consumer exited", "error", err)
+			}
+		}()
+		logger.Info("redis broker enabled", "addr", cfg.Redis.Addr)
+	}
+
 	kmEnricher := yad2.NewEnricher(yad2Fetcher, logger.With("component", "enricher"), yad2.EnricherConfig{})
 
 	sched, err := scheduler.NewWithOptions(cfg, cachingFetcher, store, multi, logger.With("component", "scheduler"), scheduler.Options{
@@ -170,6 +197,7 @@ func run(configPath string, logger *slog.Logger) error {
 		PriceListStore:   store,
 		PriceListSvc:     apiPriceListSvc,
 		DailyDigestStore: store,
+		Publisher:        pub,
 	})
 	if err != nil {
 		return fmt.Errorf("create scheduler: %w", err)

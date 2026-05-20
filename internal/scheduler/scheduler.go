@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
@@ -75,6 +76,7 @@ type Scheduler struct {
 	carNames          CarNameResolver
 	kmEnricher        KmEnricher
 	priceListSvc      *pricelist.Service
+	publisher         *broker.Publisher
 	pipeline          *ListingPipeline
 	percolator        *percolator.Percolator
 	triggerCh         chan struct{}
@@ -142,6 +144,7 @@ type Options struct {
 	PriceListSvc     *pricelist.Service
 	DailyDigestStore storage.DailyDigestStore
 	MarketCacheTTL   time.Duration
+	Publisher        *broker.Publisher
 }
 
 func New(
@@ -208,6 +211,7 @@ func NewWithOptions(
 		carNames:          opts.CarNames,
 		kmEnricher:        opts.KmEnricher,
 		priceListSvc:      plSvc,
+		publisher:         opts.Publisher,
 		pipeline:          NewListingPipeline(opts.ListingStore, plSvc, logger),
 		percolator:        percolator.New(),
 		triggerCh:         make(chan struct{}, 1),
@@ -325,7 +329,11 @@ func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.L
 			return NewDigestDelivery(s.stores.Digests, lang)
 		}
 	}
-	return NewInstantDelivery(s.notifier, lang, WithLogger(log))
+	opts := []func(*InstantDelivery){WithLogger(log)}
+	if s.publisher != nil {
+		opts = append(opts, WithPublisher(s.publisher))
+	}
+	return NewInstantDelivery(s.notifier, lang, opts...)
 }
 
 func (s *Scheduler) fetcherForSource(source string) fetcher.Fetcher {
