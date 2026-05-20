@@ -13,38 +13,6 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
-func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Search, filtered []model.RawListing, marketCache *scoring.MarketCache, lang locale.Lang, log *slog.Logger) searchResult {
-	var out searchResult
-	hidden := s.loadHiddenTokens(ctx, search.ChatID)
-
-	// Collect new listings that pass dedup/hidden/seller/price-drop filters.
-	var newRaw []model.RawListing
-	for _, l := range filterHiddenListings(filtered, hidden) {
-		if !storage.RawListingMatchesSellerFilter(l.Commercial, search.SellerFilter) {
-			continue
-		}
-		isNew, ok := s.deduplicateListings(ctx, l.Token, search.ChatID, search.ID, log)
-		if !ok {
-			continue
-		}
-		if s.tryPriceDropListing(ctx, search, l, lang, marketCache, &out, log) {
-			continue
-		}
-		if !isNew {
-			continue
-		}
-		newRaw = append(newRaw, l)
-	}
-
-	if len(newRaw) > 0 {
-		params := ProcessParamsFromSearch(search, marketCache)
-		pr := s.pipeline.Process(ctx, newRaw, params)
-		out.newListings = append(out.newListings, pr.Listings...)
-		out.listingRecords = append(out.listingRecords, pr.Records...)
-	}
-	return out
-}
-
 func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, lang locale.Lang, sr searchResult, log *slog.Logger) bool {
 	delivery := s.deliveryFor(ctx, search.ChatID, lang, log)
 	sent := false
@@ -225,17 +193,4 @@ func (s *Scheduler) loadHiddenTokens(ctx context.Context, chatID int64) map[stri
 		return nil
 	}
 	return tokens
-}
-
-func filterHiddenListings(filtered []model.RawListing, hidden map[string]bool) []model.RawListing {
-	if len(hidden) == 0 {
-		return filtered
-	}
-	out := make([]model.RawListing, 0, len(filtered))
-	for _, l := range filtered {
-		if !hidden[l.Token] {
-			out = append(out, l)
-		}
-	}
-	return out
 }

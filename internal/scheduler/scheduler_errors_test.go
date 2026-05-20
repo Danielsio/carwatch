@@ -201,7 +201,7 @@ func (m *mockCatalogIngester) Flush(_ context.Context) {
 func TestProcessGroup_ClaimNewError(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newErrDedup()
@@ -232,7 +232,7 @@ func TestProcessGroup_ClaimNewError(t *testing.T) {
 func TestProcessGroup_RecordPriceError(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -267,7 +267,7 @@ func TestProcessGroup_RecordPriceError(t *testing.T) {
 func TestProcessGroup_DigestModeError(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -303,7 +303,7 @@ func TestProcessGroup_DigestModeError(t *testing.T) {
 func TestProcessGroup_DigestAddItemError_ReleasesClaims(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -339,7 +339,7 @@ func TestProcessGroup_DigestAddItemError_ReleasesClaims(t *testing.T) {
 func TestProcessGroup_PriceDropInDigestMode(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 89000, Year: 2021, EngineVolume: 2000, Km: 50000},
+			{Token: "a", ManufacturerID: 27, Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 89000, Year: 2021, EngineVolume: 2000, Km: 50000},
 		},
 	}
 	d := newMockDedup()
@@ -385,7 +385,7 @@ func TestProcessGroup_PriceDropInDigestMode(t *testing.T) {
 func TestProcessGroup_NotifyFails_ReleasesClaim(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -566,7 +566,7 @@ func TestRunMultiTenantCycle_CatalogIngester(t *testing.T) {
 func TestRunMultiTenantCycle_HealthRecording(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -625,10 +625,10 @@ func TestReloadConfig_InvalidTimezone(t *testing.T) {
 func TestProcessGroup_FiltersCorrectly(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "cheap", ModelID: 10332, Price: 50000, Year: 2020, EngineVolume: 2000},
-			{Token: "expensive", ModelID: 10332, Price: 200000, Year: 2020, EngineVolume: 2000},
-			{Token: "old", ModelID: 10332, Price: 90000, Year: 2010, EngineVolume: 2000},
-			{Token: "future", ModelID: 10332, Price: 90000, Year: 2030, EngineVolume: 2000},
+			{Token: "cheap", ManufacturerID: 27, ModelID: 10332, Price: 50000, Year: 2020, EngineVolume: 2000},
+			{Token: "expensive", ManufacturerID: 27, ModelID: 10332, Price: 200000, Year: 2020, EngineVolume: 2000},
+			{Token: "old", ManufacturerID: 27, ModelID: 10332, Price: 90000, Year: 2010, EngineVolume: 2000},
+			{Token: "future", ManufacturerID: 27, ModelID: 10332, Price: 90000, Year: 2030, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -657,7 +657,7 @@ func TestProcessGroup_FiltersCorrectly(t *testing.T) {
 func TestProcessGroup_PriceMaxZero_NoFilter(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", ModelID: 10332, Price: 999999, Year: 2020, EngineVolume: 2000},
+			{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 999999, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -683,7 +683,7 @@ func TestProcessGroup_PriceMaxZero_NoFilter(t *testing.T) {
 func TestProcessGroup_YearMaxZero_NoUpperBound(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", ModelID: 10332, Price: 90000, Year: 2030, EngineVolume: 2000},
+			{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 90000, Year: 2030, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -903,7 +903,7 @@ func TestProcessGroup_PersistFails_RevertsPriceRecords(t *testing.T) {
 	// tryPriceDropListing on the first cycle.
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "tok-860", Manufacturer: "Toyota", ModelID: 1, Model: "Corolla",
+			{Token: "tok-860", ManufacturerID: 1, Manufacturer: "Toyota", ModelID: 1, Model: "Corolla",
 				Price: 85000, Year: 2021, EngineVolume: 2000, Km: 30000},
 		},
 	}
@@ -953,7 +953,7 @@ func TestProcessGroup_PersistFails_RevertsPriceRecords(t *testing.T) {
 	ls.saveErr = nil
 	f.mu.Lock()
 	f.listings = []model.RawListing{
-		{Token: "tok-860", Manufacturer: "Toyota", ModelID: 1, Model: "Corolla",
+		{Token: "tok-860", ManufacturerID: 1, Manufacturer: "Toyota", ModelID: 1, Model: "Corolla",
 			Price: 80000, Year: 2021, EngineVolume: 2000, Km: 30000},
 	}
 	f.mu.Unlock()

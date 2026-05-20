@@ -129,7 +129,7 @@ func TestRunMultiTenantCycle_PrunesOldListings(t *testing.T) {
 func TestProcessGroup_NotifyFails_ReleaseClaims(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", Manufacturer: "Mazda", Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", ManufacturerID: 27, Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
@@ -161,7 +161,7 @@ func TestProcessGroup_NotifyFails_ReleaseClaims(t *testing.T) {
 func TestProcessGroup_SavesListings(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
-			{Token: "a", Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
+			{Token: "a", ManufacturerID: 27, Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
 		},
 	}
 	d := newMockDedup()
