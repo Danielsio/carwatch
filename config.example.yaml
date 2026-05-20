@@ -37,6 +37,12 @@ http:
   #   - "socks5://user:pass@host1:port"
   #   - "socks5://user:pass@host2:port"
 
+# Telemetry (OpenTelemetry)
+# telemetry:
+#   traces_exporter: none  # none | stdout | otlp
+#   otlp_endpoint: ""      # e.g. localhost:4317
+#   metrics_path: /metrics
+
 # REST API settings (for web frontend)
 api:
   cors_origins:

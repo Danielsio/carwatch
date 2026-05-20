@@ -13,15 +13,22 @@ import (
 )
 
 type Config struct {
-	Polling   PollingConfig  `yaml:"polling"`
-	Telegram  TelegramConfig `yaml:"telegram"`
-	Storage   StorageConfig  `yaml:"storage"`
-	HTTP      HTTPConfig     `yaml:"http"`
-	API       APIConfig      `yaml:"api"`
-	Firebase  FirebaseConfig `yaml:"firebase"`
-	Push      PushConfig     `yaml:"push"`
-	LogLevel  string         `yaml:"log_level"`
-	LogFormat string         `yaml:"log_format"`
+	Polling   PollingConfig   `yaml:"polling"`
+	Telegram  TelegramConfig  `yaml:"telegram"`
+	Storage   StorageConfig   `yaml:"storage"`
+	HTTP      HTTPConfig      `yaml:"http"`
+	API       APIConfig       `yaml:"api"`
+	Firebase  FirebaseConfig  `yaml:"firebase"`
+	Push      PushConfig      `yaml:"push"`
+	Telemetry TelemetryConfig `yaml:"telemetry"`
+	LogLevel  string          `yaml:"log_level"`
+	LogFormat string          `yaml:"log_format"`
+}
+
+type TelemetryConfig struct {
+	TracesExporter string `yaml:"traces_exporter"` // "none" (default), "stdout", "otlp"
+	OTLPEndpoint   string `yaml:"otlp_endpoint"`   // e.g. "localhost:4317"
+	MetricsPath    string `yaml:"metrics_path"`    // default "/metrics"
 }
 
 type PushConfig struct {
@@ -161,6 +168,12 @@ func applyDefaults(cfg *Config) {
 	if cfg.LogFormat == "" {
 		cfg.LogFormat = "auto"
 	}
+	if cfg.Telemetry.TracesExporter == "" {
+		cfg.Telemetry.TracesExporter = "none"
+	}
+	if cfg.Telemetry.MetricsPath == "" {
+		cfg.Telemetry.MetricsPath = "/metrics"
+	}
 	var filtered []string
 	for _, o := range cfg.API.CORSOrigins {
 		o = strings.TrimSpace(o)
@@ -223,6 +236,11 @@ func validate(cfg *Config) error {
 	}
 	if cfg.Telegram.Token == "" {
 		return fmt.Errorf("telegram.token is required")
+	}
+	switch cfg.Telemetry.TracesExporter {
+	case "none", "stdout", "otlp":
+	default:
+		return fmt.Errorf("telemetry.traces_exporter %q: must be none, stdout, or otlp", cfg.Telemetry.TracesExporter)
 	}
 	for _, origin := range cfg.API.CORSOrigins {
 		u, err := url.Parse(origin)
