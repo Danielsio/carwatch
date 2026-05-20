@@ -298,7 +298,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.Lang) DeliveryStrategy {
+func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.Lang, log *slog.Logger) DeliveryStrategy {
 	if s.stores.Digests != nil {
 		var mode string
 		needFetch := true
@@ -312,7 +312,7 @@ func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.L
 			m, interval, err := s.stores.Digests.GetDigestMode(ctx, chatID)
 			if err != nil {
 				if !errors.Is(err, storage.ErrNotFound) {
-					s.logger.Error("get digest mode failed", "chat_id", chatID, "error", err)
+					log.Error("get digest mode failed", "chat_id", chatID, "error", err)
 				}
 			} else {
 				mode = m
@@ -323,7 +323,7 @@ func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.L
 			return NewDigestDelivery(s.stores.Digests, lang)
 		}
 	}
-	return NewInstantDelivery(s.notifier, lang, WithLogger(s.logger))
+	return NewInstantDelivery(s.notifier, lang, WithLogger(log))
 }
 
 func (s *Scheduler) fetcherForSource(source string) fetcher.Fetcher {
@@ -335,7 +335,7 @@ func (s *Scheduler) fetcherForSource(source string) fetcher.Fetcher {
 	return s.fetcher
 }
 
-func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, params model.SourceParams) ([]model.RawListing, error) {
+func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, params model.SourceParams, log *slog.Logger) ([]model.RawListing, error) {
 	var lastErr error
 	for attempt := range maxRetries {
 		listings, err := f.Fetch(ctx, params)
@@ -345,7 +345,7 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 		lastErr = err
 
 		if errors.Is(err, fetcher.ErrPartialResults) && len(listings) > 0 {
-			s.logger.Warn("partial results (some pages failed)",
+			log.Warn("partial results (some pages failed)",
 				"car", s.carName(params.Manufacturer, params.Model),
 				"listings_returned", len(listings),
 				"error", err,
@@ -359,7 +359,7 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 
 		if attempt < maxRetries-1 {
 			delay := retryBaseDelay * (1 << attempt)
-			s.logger.Warn("fetch failed, retrying",
+			log.Warn("fetch failed, retrying",
 				"car", s.carName(params.Manufacturer, params.Model),
 				"attempt", fmt.Sprintf("%d/%d", attempt+1, maxRetries),
 				"retry_in", delay.String(),
@@ -634,8 +634,11 @@ func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup,
 			defer func() { <-sem }()
 			defer func() {
 				if r := recover(); r != nil {
+					sIDs, cIDs := groupSearchAndChatIDs(g)
 					s.logger.Error("unexpected crash while fetching listings",
 						"car", s.carName(g.Manufacturer, g.Model),
+						"search_ids", sIDs,
+						"chat_ids", cIDs,
 						"panic", r,
 						"stack", string(debug.Stack()))
 					s.observer.RecordError()
@@ -644,9 +647,11 @@ func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup,
 
 			gs, err := s.processGroup(ctx, g, marketCache)
 			if err != nil {
+				sIDs, _ := groupSearchAndChatIDs(g)
 				s.logger.Error("failed to fetch listings",
 					"car", s.carName(g.Manufacturer, g.Model),
 					"source", g.Source,
+					"search_ids", sIDs,
 					"error", err)
 				if errors.Is(err, fetcher.ErrChallenge) {
 					s.boMu.Lock()
@@ -675,11 +680,15 @@ func (s *Scheduler) runFetchGroups(ctx context.Context, groups []CanonicalGroup,
 
 func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, marketCache *scoring.MarketCache) (cycleStats, error) {
 	groupStart := time.Now()
+	searchIDs, chatIDs := groupSearchAndChatIDs(group)
 	s.logger.Debug("fetching car model",
 		"car", s.carName(group.Manufacturer, group.Model),
 		"searches", len(group.Searches),
+		"search_ids", searchIDs,
+		"chat_ids", chatIDs,
 	)
-	raw, source, err := s.fetchAndEnrich(ctx, group)
+	groupLog := s.logger.With("search_ids", searchIDs, "chat_ids", chatIDs)
+	raw, source, err := s.fetchAndEnrich(ctx, group, groupLog)
 	if err != nil {
 		return cycleStats{}, err
 	}
@@ -729,13 +738,14 @@ func (s *Scheduler) processGroup(ctx context.Context, group CanonicalGroup, mark
 		"listings", len(raw),
 		"new_matches", gs.newListings,
 		"searches", len(group.Searches),
+		"search_ids", searchIDs,
 		"elapsed", time.Since(groupStart).Round(time.Millisecond),
 	)
 
 	return gs, nil
 }
 
-func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup) ([]model.RawListing, string, error) {
+func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup, log *slog.Logger) ([]model.RawListing, string, error) {
 	listCtx, cancelList := context.WithTimeout(ctx, fetchTimeout)
 	defer cancelList()
 
@@ -745,7 +755,7 @@ func (s *Scheduler) fetchAndEnrich(ctx context.Context, group CanonicalGroup) ([
 	}
 	activeFetcher := s.fetcherForSource(source)
 	fetchStart := time.Now()
-	raw, err := s.fetchWithRetryUsing(listCtx, activeFetcher, group.Params)
+	raw, err := s.fetchWithRetryUsing(listCtx, activeFetcher, group.Params, log)
 	s.observer.RecordFetch(source, time.Since(fetchStart), err)
 	if err != nil {
 		return nil, source, err
@@ -942,6 +952,20 @@ func (s *Scheduler) carName(manufacturerID, modelID int) string {
 		return fmt.Sprintf("%d/%d", manufacturerID, modelID)
 	}
 	return mfr + " " + mdl
+}
+
+// groupSearchAndChatIDs extracts deduplicated search IDs and chat IDs from
+// a canonical group for structured log fields.
+func groupSearchAndChatIDs(g CanonicalGroup) (searchIDs []int64, chatIDs []int64) {
+	seen := make(map[int64]bool, len(g.Searches))
+	for _, s := range g.Searches {
+		searchIDs = append(searchIDs, s.ID)
+		if !seen[s.ChatID] {
+			seen[s.ChatID] = true
+			chatIDs = append(chatIDs, s.ChatID)
+		}
+	}
+	return searchIDs, chatIDs
 }
 
 func truncateStr(s string, n int) string {

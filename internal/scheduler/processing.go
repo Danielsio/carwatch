@@ -46,7 +46,7 @@ func (s *Scheduler) processSearchListings(ctx context.Context, search storage.Se
 }
 
 func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, lang locale.Lang, sr searchResult, log *slog.Logger) bool {
-	delivery := s.deliveryFor(ctx, search.ChatID, lang)
+	delivery := s.deliveryFor(ctx, search.ChatID, lang, log)
 	sent := false
 
 	for _, msg := range sr.priceDropMessages {
