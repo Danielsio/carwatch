@@ -18,7 +18,7 @@ import (
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/storage"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage/pgtest"
 )
 
 type fakeTokenVerifier struct {
@@ -37,13 +37,9 @@ func (f *fakeTokenVerifier) VerifyIDToken(_ context.Context, _ string) (*fbauth.
 	}, nil
 }
 
-func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
+func setupTestServer(t *testing.T) (*Server, storage.Store) {
 	t.Helper()
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := pgtest.NewStore(t)
 
 	cat := catalog.NewDynamic(slog.Default())
 	cat.Load(context.Background())
@@ -588,11 +584,7 @@ func TestPauseResumeForeignSearch(t *testing.T) {
 }
 
 func TestAuthMiddleware(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	cat := catalog.NewDynamic(slog.Default())
 
@@ -1184,11 +1176,7 @@ func TestAdminStats_NonAdmin(t *testing.T) {
 }
 
 func TestAdminStats_FirebaseAdmin(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := pgtest.NewStore(t)
 
 	cat := catalog.NewDynamic(slog.Default())
 	cat.Load(context.Background())
@@ -1218,11 +1206,7 @@ func TestAdminStats_FirebaseAdmin(t *testing.T) {
 }
 
 func TestAdminStats_FirebaseNonAdmin(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := pgtest.NewStore(t)
 
 	cat := catalog.NewDynamic(slog.Default())
 	cat.Load(context.Background())
@@ -1251,7 +1235,7 @@ func TestAdminStats_FirebaseNonAdmin(t *testing.T) {
 	}
 }
 
-func setLastSeenAt(t *testing.T, store *sqlite.Store, chatID int64, when time.Time) {
+func setLastSeenAt(t *testing.T, store storage.Store, chatID int64, when time.Time) {
 	t.Helper()
 	db := store.DB()
 	if _, err := db.Exec("UPDATE users SET last_seen_at = ? WHERE chat_id = ?", when, chatID); err != nil {
@@ -1259,7 +1243,7 @@ func setLastSeenAt(t *testing.T, store *sqlite.Store, chatID int64, when time.Ti
 	}
 }
 
-func seedNotifSearch(t *testing.T, store *sqlite.Store, chatID int64) int64 {
+func seedNotifSearch(t *testing.T, store storage.Store, chatID int64) int64 {
 	t.Helper()
 	id, err := store.CreateSearch(context.Background(), storage.Search{
 		ChatID: chatID, Name: "notif-test", Manufacturer: 1, Model: 1,

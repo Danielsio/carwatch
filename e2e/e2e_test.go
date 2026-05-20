@@ -19,7 +19,7 @@ import (
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage/pgtest"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -57,11 +57,7 @@ func (f *stubFetcher) Fetch(_ context.Context, _ model.SourceParams) ([]model.Ra
 // TestE2E_FullPipeline tests the complete pipeline:
 // store → search creation → fetch → dedup → notify
 func TestE2E_FullPipeline(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatalf("create store: %v", err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 	ctx := context.Background()
 
 	if err := store.UpsertUser(ctx, 100, "testuser"); err != nil {
@@ -247,11 +243,7 @@ func TestE2E_HealthEndpoint(t *testing.T) {
 
 // TestE2E_DigestFlow tests the full digest workflow
 func TestE2E_DigestFlow(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatalf("create store: %v", err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 	ctx := context.Background()
 
 	if err := store.UpsertUser(ctx, 100, "digestuser"); err != nil {
@@ -308,11 +300,7 @@ func TestE2E_DigestFlow(t *testing.T) {
 
 // TestE2E_PriceTracking tests price drop detection
 func TestE2E_PriceTracking(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatalf("create store: %v", err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 	ctx := context.Background()
 
 	_, changed, err := store.RecordPrice(ctx, "tok-1", 100000)

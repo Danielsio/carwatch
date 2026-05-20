@@ -13,7 +13,7 @@ import (
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage/pgtest"
 )
 
 // fakeFetcher returns canned listings for testing.
@@ -27,11 +27,7 @@ func (f *fakeFetcher) Fetch(_ context.Context, _ model.SourceParams) ([]model.Ra
 
 func setupGuestTestServer(t *testing.T, listings []model.RawListing) *Server {
 	t.Helper()
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := pgtest.NewStore(t)
 
 	cat := catalog.NewDynamic(slog.Default())
 	cat.Load(context.Background())

@@ -11,7 +11,8 @@ import (
 	tgmodels "github.com/go-telegram/bot/models"
 
 	"github.com/dsionov/carwatch/internal/catalog"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/dsionov/carwatch/internal/storage/pgtest"
 )
 
 type sentMessage struct {
@@ -75,16 +76,12 @@ func (m *mockMessenger) reset() {
 type testBot struct {
 	bot   *Bot
 	msg   *mockMessenger
-	store *sqlite.Store
+	store storage.Store
 }
 
 func newTestBot(t *testing.T) *testBot {
 	t.Helper()
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatalf("create store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := pgtest.NewStore(t)
 
 	mm := &mockMessenger{}
 	logger := slog.New(slog.NewTextHandler(&discardWriter{}, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -135,11 +132,7 @@ func fakeCallback(chatID int64, data string) *tgmodels.Update {
 
 func newTestBotWithDigests(t *testing.T) *testBot {
 	t.Helper()
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatalf("create store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := pgtest.NewStore(t)
 
 	mm := &mockMessenger{}
 	logger := slog.New(slog.NewTextHandler(&discardWriter{}, &slog.HandlerOptions{Level: slog.LevelError}))

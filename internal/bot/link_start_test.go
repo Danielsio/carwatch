@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/dsionov/carwatch/internal/catalog"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage/pgtest"
 )
 
 type stubLinkTokens struct {
@@ -25,11 +25,7 @@ func (s *stubLinkTokens) ConsumeLinkToken(_ context.Context, token string) (int6
 
 func TestHandleLinkStart_RejectsNonPrivateChat(t *testing.T) {
 	ctx := context.Background()
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatalf("sqlite: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := pgtest.NewStore(t)
 
 	mm := &mockMessenger{}
 	lt := &stubLinkTokens{}

@@ -34,9 +34,9 @@ reviews:
     - label: "feature"
       instructions: "Apply when the PR adds new user-facing functionality or a new command."
     - label: "scraper"
-      instructions: "Apply when the PR touches internal/fetcher/** — Yad2 or WinWin parsing, client, or cache logic."
+      instructions: "Apply when the PR touches internal/fetcher/** — Yad2 parsing, client, or cache logic."
     - label: "storage"
-      instructions: "Apply when the PR modifies internal/storage/** — SQLite schema, queries, or dedup logic."
+      instructions: "Apply when the PR modifies internal/storage/** — PostgreSQL schema, queries, or dedup logic."
     - label: "bot"
       instructions: "Apply when the PR modifies internal/bot/** — Telegram commands, callbacks, or wizard."
     - label: "breaking-change"
@@ -97,15 +97,15 @@ reviews:
         - Active-hours boundary conditions (timezone edge cases, DST transitions)
         - Resource leaks (unclosed channels, abandoned goroutines, ticker cleanup)
 
-    - path: "internal/storage/sqlite/**/*.go"
+    - path: "internal/storage/postgres/**/*.go"
       instructions: |
-        DATA INTEGRITY CRITICAL — SQLite is the single source of truth.
+        DATA INTEGRITY CRITICAL — PostgreSQL is the single source of truth.
         Review for:
         - SQL injection (all queries must use parameterized statements)
         - Transaction safety — multi-step operations must be atomic
         - Deduplication correctness under concurrent writes
         - Schema migration safety (backward compatibility, data preservation)
-        - Connection pool / WAL mode / busy timeout configuration
+        - Connection pool configuration
         - Proper resource cleanup (defer rows.Close(), stmt.Close())
 
     - path: "internal/bot/**/*.go"

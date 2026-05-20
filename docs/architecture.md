@@ -1,188 +1,917 @@
-# Architecture
+# CarWatch Architecture Document
 
-CarWatch follows a ports-and-adapters pattern. The scheduler orchestrates the pipeline, and each stage communicates through interfaces so implementations can be swapped independently.
+**Date:** 2026-05-20
+**Status:** Living document for reviewer feedback
 
-## Component diagram
+---
+
+## 1. System Overview
+
+CarWatch is a **multi-tenant vehicle listing aggregator** for the Israeli used-car market. It continuously scrapes marketplace websites (Yad2, WinWin), deduplicates and scores listings against user-defined search criteria, and delivers real-time notifications via Telegram and Web Push. A React SPA provides a web dashboard for managing searches, browsing results, and viewing market analytics.
+
+### Key Stats
+- **Language:** Go 1.25 (backend), TypeScript/React (frontend)
+- **Entry points:** 3 binaries (`bot`, `catalog-gen`, `migrate-sqlite-to-pg`)
+- **Internal packages:** 18
+- **Database:** PostgreSQL (prod) / SQLite (dev)
+- **Schema migrations:** 10 (versioned, up/down)
+
+---
+
+## 2. High-Level Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         CLIENTS                                     │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────────┐  │
+│  │ Telegram Bot │  │  Web SPA     │  │  Admin Dashboard (SPA)    │  │
+│  │  (long-poll) │  │ (React/Vite) │  │  (embedded in SPA)       │  │
+│  └──────┬───────┘  └──────┬───────┘  └────────────┬──────────────┘  │
+└─────────┼─────────────────┼───────────────────────┼─────────────────┘
+          │                 │                       │
+          │ Telegram API    │ REST + SSE            │ REST
+          ▼                 ▼                       ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     APPLICATION LAYER                                │
+│                                                                     │
+│  ┌──────────────┐  ┌──────────────────────────────────────────────┐ │
+│  │   Bot        │  │              API Server                      │ │
+│  │  (Telegram   │  │  ┌────────┐ ┌──────────┐ ┌────────────────┐ │ │
+│  │   handlers,  │  │  │Listings│ │ Searches │ │ Instant Search │ │ │
+│  │   wizard,    │  │  ├────────┤ ├──────────┤ ├────────────────┤ │ │
+│  │   callbacks) │  │  │Bookmarks│ │ Catalog │ │ Notifications  │ │ │
+│  │             │  │  ├────────┤ ├──────────┤ ├────────────────┤ │ │
+│  │             │  │  │ Push   │ │ Admin   │ │ Log Stream(SSE)│ │ │
+│  │             │  │  ├────────┤ ├──────────┤ ├────────────────┤ │ │
+│  │             │  │  │Firebase│ │Rate Limit│ │  Metrics       │ │ │
+│  │             │  │  │  Auth  │ │(per user)│ │  (Vitals)      │ │ │
+│  └──────┬──────┘  │  └────────┘ └──────────┘ └────────────────┘ │ │
+│         │         └──────────────────┬───────────────────────────┘ │
+│         │                            │                             │
+│         ▼                            ▼                             │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │                    SCHEDULER                                 │   │
+│  │  ┌──────────┐  ┌────────────┐  ┌──────────┐  ┌──────────┐  │   │
+│  │  │ Polling  │  │ Processing │  │ Delivery │  │Maintenance│  │   │
+│  │  │ Loop     │  │ (pipeline) │  │ (notify) │  │ (prune,  │  │   │
+│  │  │ (jitter, │  │            │  │          │  │  vacuum,  │  │   │
+│  │  │ backoff) │  │            │  │          │  │  market)  │  │   │
+│  │  └──────────┘  └────────────┘  └──────────┘  └──────────┘  │   │
+│  └─────────────────────────┬───────────────────────────────────┘   │
+└────────────────────────────┼───────────────────────────────────────┘
+                             │
+┌────────────────────────────┼───────────────────────────────────────┐
+│                    DOMAIN / BUSINESS LOGIC                          │
+│                            │                                       │
+│  ┌─────────────────────────▼─────────────────────────────────────┐ │
+│  │                  Listing Pipeline                              │ │
+│  │  1. Prefill from DB  →  2. Fitness Score  →  3. Deal Score    │ │
+│  │  4. Suspicious Detection  →  5. Base Price Enrichment         │ │
+│  │  6. Build ListingRecords                                      │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+│                                                                    │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────────┐  │
+│  │  Filter   │  │  Scoring  │  │ Pricelist │  │   Catalog     │  │
+│  │ (criteria │  │(market    │  │ (Yad2 base│  │ (mfr/model    │  │
+│  │  matching)│  │ cache,    │  │  price    │  │  directory,   │  │
+│  │           │  │ fitness,  │  │  lookup,  │  │  fuzzy search,│  │
+│  │           │  │ suspicious│  │  7-day    │  │  static +     │  │
+│  │           │  │ detection)│  │  cache)   │  │  dynamic)     │  │
+│  └───────────┘  └───────────┘  └───────────┘  └───────────────┘  │
+│                                                                    │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐                     │
+│  │  Locale   │  │  Format   │  │  TimeUtil │                     │
+│  │ (HE/EN   │  │ (numbers, │  │ (timezone,│                     │
+│  │  i18n)    │  │  markdown)│  │  duration)│                     │
+│  └───────────┘  └───────────┘  └───────────┘                     │
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│                    INFRASTRUCTURE / ADAPTERS                        │
+│                                                                    │
+│  ┌─── Fetchers ─────────────────────────────────────────────────┐  │
+│  │  ┌────────────────────────────────────────────────────────┐  │  │
+│  │  │              Fetcher Factory (registry)                │  │  │
+│  │  │  "yad2" → CircuitBreaker → Cache → Paginator → Yad2   │  │  │
+│  │  │  "winwin" → CircuitBreaker → Cache → WinWin           │  │  │
+│  │  └────────────────────────────────────────────────────────┘  │  │
+│  │                                                              │  │
+│  │  ┌──── Yad2 Adapter ──────┐  ┌──── WinWin Adapter ───────┐  │  │
+│  │  │ Client (HTTP, UA rot., │  │ Client (HTTP)              │  │  │
+│  │  │   SOCKS5 proxy pool,   │  │ Parser (HTML scraping)     │  │  │
+│  │  │   cookie isolation)    │  └────────────────────────────┘  │  │
+│  │  │ Parser (__NEXT_DATA__) │                                  │  │
+│  │  │ ItemParser (specs)     │                                  │  │
+│  │  │ Enricher (km/city)     │                                  │  │
+│  │  │ URL builder (ranges)   │                                  │  │
+│  │  └────────────────────────┘                                  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  ┌─── Notifiers ────────────────────────────────────────────────┐  │
+│  │  ┌────────────────────────────────────────────────────────┐  │  │
+│  │  │          MultiNotifier (fan-out to channels)           │  │  │
+│  │  │  ┌───────────────────┐  ┌────────────────────────┐    │  │  │
+│  │  │  │ Telegram Notifier │  │ WebPush Notifier       │    │  │  │
+│  │  │  │ (rate-limited,    │  │ (VAPID auth,           │    │  │  │
+│  │  │  │  blocked-user     │  │  endpoint validation)  │    │  │  │
+│  │  │  │  detection)       │  │                        │    │  │  │
+│  │  │  └───────────────────┘  └────────────────────────┘    │  │  │
+│  │  └────────────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  ┌─── Storage ──────────────────────────────────────────────────┐  │
+│  │  ┌──────────────────────────────────────────────────────┐    │  │
+│  │  │           Store Interface (composed)                  │    │  │
+│  │  │  UserStore + SearchStore + ListingStore + DedupStore  │    │  │
+│  │  │  + SavedListingStore + HiddenListingStore             │    │  │
+│  │  │  + NotificationQueue + PriceTracker + DigestStore     │    │  │
+│  │  │  + PriceListStore + MarketStore + DailyDigestStore    │    │  │
+│  │  │  + LinkTokenStore + PushSubscriptionStore + AdminStore│    │  │
+│  │  │  + NotificationStore                                  │    │  │
+│  │  └────────────────────────┬─────────────────┬────────────┘    │  │
+│  │                           │                 │                 │  │
+│  │              ┌────────────▼──┐     ┌────────▼──────────┐     │  │
+│  │              │  PostgreSQL   │     │    SQLite          │     │  │
+│  │              │  (pgx/v5,    │     │  (WAL mode,        │     │  │
+│  │              │   conn pool, │     │   busy timeout,    │     │  │
+│  │              │   migrations)│     │   auto-migrate)    │     │  │
+│  │              └───────────────┘     └────────────────────┘     │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  ┌─── Supporting ───────────────────────────────────────────────┐  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │  │
+│  │  │   Health     │  │  LogStream   │  │   SPA Server     │   │  │
+│  │  │ (uptime,     │  │ (pub-sub hub,│  │ (go:embed,       │   │  │
+│  │  │  cycle count,│  │  ring buffer,│  │  CSP headers,    │   │  │
+│  │  │  degraded    │  │  SSE handler)│  │  history-mode    │   │  │
+│  │  │  detection)  │  │              │  │  fallback)       │   │  │
+│  │  └──────────────┘  └──────────────┘  └──────────────────┘   │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│                    EXTERNAL SERVICES                                │
+│  ┌──────────┐  ┌──────────────┐  ┌─────────────┐  ┌────────────┐  │
+│  │ Yad2.co.il│  │ WinWin.co.il│  │ Firebase    │  │  Telegram  │  │
+│  │ (listings,│  │ (listings)  │  │ Auth        │  │  Bot API   │  │
+│  │  catalog, │  │             │  │             │  │            │  │
+│  │  pricing) │  │             │  │             │  │            │  │
+│  └──────────┘  └──────────────┘  └─────────────┘  └────────────┘  │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Component Deep Dives
+
+### 3.1 Entry Points (`cmd/`)
+
+| Binary | Purpose | Lifecycle |
+|--------|---------|-----------|
+| `cmd/bot/main.go` | Primary application: wires all components, runs scheduler + bot + API server | Long-running daemon |
+| `cmd/catalog-gen/main.go` | Scrapes Yad2 manufacturer/model catalog into JSON | One-shot CLI utility |
+| `cmd/migrate-sqlite-to-pg/main.go` | Migrates data from SQLite to PostgreSQL | One-shot migration tool |
+
+**`cmd/bot/main.go` initialization order:**
+1. Parse flags & load YAML config (with `${ENV_VAR}` interpolation)
+2. Open storage (SQLite or PostgreSQL)
+3. Build fetcher chain: `Yad2/WinWin → Paginator → Cache(5m TTL) → CircuitBreaker`
+4. Load dynamic catalog from Yad2 HTML
+5. Initialize health tracker
+6. Build Telegram bot + multi-notifier (Telegram + optional WebPush)
+7. Build API server with Firebase auth
+8. Build HTTP server (mux: `/healthz`, `/api/v1/*`, `/` → SPA)
+9. Start Telegram long-polling goroutine (with exponential backoff on disconnect)
+10. Run scheduler (blocking)
+
+---
+
+### 3.2 Scheduler
+
+The scheduler is the core engine. It runs a continuous polling loop that fetches, filters, deduplicates, scores, and delivers listings.
+
+**Polling cycle:**
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Scheduler.Run()                       │
+│                                                         │
+│  ┌─── Every interval ± jitter ───────────────────────┐  │
+│  │                                                    │  │
+│  │  1. Check active hours (08:00-22:00 Asia/Jerusalem)│  │
+│  │  2. List all active searches                       │  │
+│  │  3. For each search (up to N concurrent):          │  │
+│  │     ┌────────────────────────────────────────────┐  │  │
+│  │     │ a. Fetch raw listings (via fetcher chain)  │  │  │
+│  │     │ b. Filter by search criteria               │  │  │
+│  │     │ c. Dedup (INSERT OR IGNORE + RowsAffected) │  │  │
+│  │     │ d. Run listing pipeline (score & enrich)   │  │  │
+│  │     │ e. Save to DB                              │  │  │
+│  │     │ f. Enqueue notifications                   │  │  │
+│  │     └────────────────────────────────────────────┘  │  │
+│  │  4. Deliver notifications (worker pool)            │  │
+│  │  5. Flush catalog updates                          │  │
+│  │  6. Update observer (health metrics)               │  │
+│  │                                                    │  │
+│  │  Adaptive backoff:                                 │  │
+│  │    On challenge/rate-limit: multiplier *= 2 (max 4)│  │
+│  │    On success: multiplier *= 0.5 (floor 1)         │  │
+│  └────────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌─── Every 24h ─────────────────────────────────────┐  │
+│  │  Maintenance:                                      │  │
+│  │  - Prune listings > 90 days                        │  │
+│  │  - Prune price history > 90 days                   │  │
+│  │  - Prune notifications > 48 hours                  │  │
+│  │  - Rebuild market cache                            │  │
+│  │  - Sync user active status                         │  │
+│  │  - Vacuum DB                                       │  │
+│  └────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Key parameters:**
+- Default interval: 15 minutes
+- Default jitter: +/-5 minutes
+- Fetch timeout: 60 seconds per search
+- KM enrichment timeout: 25 minutes
+- Max concurrent fetches: 4
+- Market cache TTL: 30 minutes
+
+---
+
+### 3.3 Listing Pipeline
+
+Shared by both the scheduler and the API instant-search endpoint, ensuring consistent scoring regardless of entry point.
+
+```
+Raw Listings (from fetcher)
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│  Step 1: Prefill from DB                     │
+│  - LookupEnrichmentData(tokens)              │
+│  - Fill missing km, city, imageURL           │
+│  - Skip if ListingStore is nil               │
+└─────────────────────┬───────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────┐
+│  Step 2: Fitness Score (per listing)          │
+│  - Weighted dimensions:                      │
+│    price, km, hand, year, engine             │
+│  - Each dimension: how close to ideal?       │
+│  - Uses market median if available           │
+│  - Output: 0.0 - 1.0 score + breakdown      │
+└─────────────────────┬───────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────┐
+│  Step 3: Deal Score (if market cache avail)   │
+│  - Lookup: (manufacturer, model, year)       │
+│    → median price, median km, cohort size    │
+│  - Minimum cohort: 10 listings               │
+│  - Price floor: 5000 NIS (filter junk)       │
+│  - ScoreWithKm: price + km vs medians        │
+│  - Output: integer score + market context    │
+└─────────────────────┬───────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────┐
+│  Step 4: Suspicious Detection                │
+│  - Price outlier vs market median            │
+│  - Unusual spec combinations                 │
+│  - Output: []string reasons                  │
+└─────────────────────┬───────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────┐
+│  Step 5: Base Price Enrichment               │
+│  - Lookup via Pricelist service              │
+│  - Requires subModelID + year               │
+│  - Cache: 7 days, rate-limited (20/cycle)    │
+│  - Source: Yad2 pricing API                  │
+│  - Output: base (catalog) price             │
+└─────────────────────┬───────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────┐
+│  Step 6: Build ListingRecord                 │
+│  - Map Listing → storage.ListingRecord      │
+│  - Attach scores, timestamps, metadata      │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+### 3.4 Fetcher Chain
+
+Each marketplace source is wrapped in a composable middleware chain:
+
+```
+                    Fetcher Interface
+                    Fetch(ctx, SourceParams) → ([]RawListing, error)
+                           │
+              ┌────────────┴────────────┐
+              │                         │
+     ┌────────▼────────┐      ┌────────▼────────┐
+     │ CircuitBreaker   │      │ CircuitBreaker   │
+     │ (5 failures →    │      │ (5 failures →    │
+     │  10min cooldown) │      │  10min cooldown) │
+     └────────┬────────┘      └────────┬────────┘
+              │                         │
+     ┌────────▼────────┐      ┌────────▼────────┐
+     │ CachingFetcher   │      │ CachingFetcher   │
+     │ (5-min TTL,      │      │ (5-min TTL)      │
+     │  in-memory)      │      │                  │
+     └────────┬────────┘      └────────┬────────┘
+              │                         │
+     ┌────────▼────────┐               │
+     │ PaginatingFetcher│               │
+     │ (maxPages config,│               │
+     │  per-page timeout)│               │
+     └────────┬────────┘               │
+              │                         │
+     ┌────────▼────────┐      ┌────────▼────────┐
+     │   Yad2Fetcher    │      │  WinWinFetcher   │
+     │                  │      │                  │
+     │ Client:          │      │ Client:          │
+     │  - UA rotation   │      │  - HTTP client   │
+     │  - SOCKS5 proxy  │      │                  │
+     │  - Proxy pool    │      │ Parser:          │
+     │  - Cookie jar    │      │  - HTML scraping │
+     │                  │      │                  │
+     │ Parser:          │      └──────────────────┘
+     │  - __NEXT_DATA__ │
+     │  - JSON extract  │
+     │                  │
+     │ Enricher:        │
+     │  - Item page     │
+     │  - km/city fill  │
+     └──────────────────┘
+```
+
+**Error sentinels:**
+- `ErrChallenge`: Anti-bot challenge detected (triggers backoff)
+- `ErrRateLimited`: Too many requests (triggers backoff)
+
+---
+
+### 3.5 Storage Layer
+
+#### Interface Composition
+
+The `Store` interface composes 16 sub-interfaces, each representing a bounded persistence concern:
+
+```
+Store (composed interface)
+├── UserStore           — user CRUD, auth, tier management
+├── SearchStore         — search CRUD, activation, sharing
+├── ListingStore        — listing persistence, querying, stats
+├── SavedListingStore   — bookmarks
+├── HiddenListingStore  — user-hidden listings
+├── DedupStore          — atomic deduplication
+├── NotificationQueue   — pending notification queue
+├── PriceTracker        — price time-series (record, revert, prune)
+├── DigestStore         — digest mode config & buffering
+├── PriceListStore      — vehicle base price cache
+├── MarketStore         — market listings for cohort scoring
+├── DailyDigestStore    — daily digest scheduling
+├── LinkTokenStore      — web-to-Telegram linking tokens
+├── PushSubscriptionStore — WebPush subscriptions
+├── AdminStore          — admin reporting, purging, metrics
+├── NotificationStore   — per-user listing seen tracking
+├── Close() error       — lifecycle
+└── Migrate() error     — schema migration
+```
+
+#### Database Schema (PostgreSQL)
+
+```sql
+┌─────────────────────────────────────────────────────────┐
+│                    users                                 │
+│  chat_id (PK) | username | state | state_data           │
+│  created_at | active | language | tier | tier_expires    │
+│  trial_used | channel | channel_id | last_seen_at       │
+└────────┬────────────────────────────────────────────────┘
+         │ 1:N
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│                    searches                              │
+│  id (PK) | chat_id (FK→users) | user_seq | name        │
+│  source | manufacturer | model | year_min | year_max     │
+│  price_min | price_max | engine_min_cc | max_km | max_hand│
+│  keywords | exclude_keys | seller_filter | gearbox      │
+│  price_only | photo_only | active | created_at           │
+│  share_token                                             │
+└────────┬────────────────────────────────────────────────┘
+         │ 1:N
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│                  listing_history                         │
+│  token (PK) | chat_id (FK) | search_id (FK)             │
+│  search_name | manufacturer | model | sub_model          │
+│  sub_model_id | year | price | km | hand | city          │
+│  page_link | image_url | engine_volume | horse_power     │
+│  engine_type | gearbox | description | is_commercial     │
+│  fitness_score | median_price | cohort_size | deal_score  │
+│  base_price | first_seen_at | removed_at                 │
+└─────────────────────────────────────────────────────────┘
+
+┌──────────────────────────┐  ┌──────────────────────────┐
+│      seen_listings       │  │   listing_user_seen      │
+│  token | chat_id         │  │  chat_id | token          │
+│  search_id | first_seen  │  │  seen_at                 │
+│  (dedup: UNIQUE)         │  │  (per-user "new" feed)   │
+└──────────────────────────┘  └──────────────────────────┘
+
+┌──────────────────────────┐  ┌──────────────────────────┐
+│     price_history        │  │   pending_notifications  │
+│  id | token | price      │  │  id | recipient           │
+│  observed_at             │  │  search_name | payload    │
+│  (time-series)           │  │  created_at              │
+└──────────────────────────┘  └──────────────────────────┘
+
+┌──────────────────────────┐  ┌──────────────────────────┐
+│     price_list_cache     │  │   push_subscriptions     │
+│  sub_model_id | year     │  │  id | chat_id             │
+│  base_price | title      │  │  endpoint | p256dh | auth │
+│  fetched_at              │  │  created_at              │
+└──────────────────────────┘  └──────────────────────────┘
+```
+
+#### Dual-Driver Support
+
+Both SQLite and PostgreSQL implement the same `Store` interface:
+
+| Aspect | SQLite | PostgreSQL |
+|--------|--------|------------|
+| Use case | Development, single-instance | Production |
+| Driver | `mattn/go-sqlite3` (CGo) | `jackc/pgx/v5` |
+| Migrations | Embedded in Go code (10 steps) | File-based (`golang-migrate/migrate`) |
+| Concurrency | WAL mode, 5s busy timeout | Connection pool |
+| Dedup strategy | `INSERT OR IGNORE` + `RowsAffected` | `INSERT ... ON CONFLICT DO NOTHING` + `RowsAffected` |
+
+---
+
+### 3.6 Notification System
+
+```
+┌───────────────────────────────────────────────────────┐
+│                MultiNotifier                           │
+│  - Registers named channels                           │
+│  - Fan-out: sends to all channels where the user      │
+│    has an active subscription                          │
+│  - Connect/Disconnect lifecycle                       │
+│                                                       │
+│    ┌─────────────────┐    ┌─────────────────────┐     │
+│    │ Telegram         │    │ WebPush              │     │
+│    │ - Formats listing│    │ - VAPID key signing  │     │
+│    │   as rich message│    │ - Endpoint validation│     │
+│    │ - Rate limiting  │    │ - JSON payload       │     │
+│    │ - ErrRecipient-  │    │ - PushSubscription-  │     │
+│    │   Blocked detect │    │   Store integration  │     │
+│    │ - Markdown escape│    │                      │     │
+│    └─────────────────┘    └─────────────────────┘     │
+└───────────────────────────────────────────────────────┘
+```
+
+**Notification flow:**
+1. Scheduler finds new listings for a user's search
+2. Formats listing into notification payload
+3. MultiNotifier iterates registered channels
+4. Each channel sends via its transport (Telegram API / WebPush)
+5. On blocked user: marks user inactive, stops future notifications
+
+---
+
+### 3.7 API Server
+
+**Authentication:** Firebase ID tokens via `Authorization: Bearer <token>`.
+Web users are created/linked via `UpsertWebUser(firebaseUID, email)`.
+
+**Rate limiting (token bucket):**
+- Authenticated users: 10 req/s
+- Per-IP (unauthenticated): 50 req/s
+- Guest: 5 req/s
+
+**Endpoints (under `/api/v1/`):**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Status + metrics |
+| GET | `/listings` | Paginated, filtered, sorted listings |
+| GET | `/listings/:token` | Single listing detail |
+| GET | `/searches` | List user's searches |
+| POST | `/searches` | Create search |
+| PUT | `/searches/:id` | Update search |
+| DELETE | `/searches/:id` | Delete search |
+| GET | `/catalog/manufacturers` | Fuzzy search manufacturers |
+| GET | `/catalog/models` | Models for a manufacturer |
+| POST | `/instant-search` | Live preview (runs full pipeline) |
+| GET | `/bookmarks` | List saved listings |
+| POST | `/bookmarks` | Save a listing |
+| DELETE | `/bookmarks/:token` | Remove bookmark |
+| GET | `/notifications/center` | Notification history |
+| POST | `/notifications/seen` | Mark listing as seen |
+| POST | `/push/subscribe` | Register WebPush subscription |
+| DELETE | `/push/subscribe` | Unregister |
+| GET | `/logs/stream` | Real-time log stream (SSE) |
+| GET | `/admin/*` | Admin dashboard data |
+| GET | `/vitals` | Web vitals reporting |
+
+---
+
+### 3.8 Telegram Bot
+
+**Architecture:** Long-polling with exponential backoff on disconnect (1s → 30s cap).
+
+**Command set:**
+- `/start` — Welcome + language selection
+- `/watch` — Interactive search wizard (state machine)
+- `/list` — Show active searches
+- `/stop` — Deactivate/delete a search
+- `/saved` — View bookmarked listings
+- `/help` — Usage guide
+- `/settings` — User preferences (language, digest mode)
+- `/link` — Generate token to link Telegram-to-Web accounts
+
+**Wizard state machine:**
+```
+idle → ask_source → ask_manufacturer → ask_model → ask_year_min
+→ ask_year_max → ask_price_min → ask_price_max → ask_max_km
+→ ask_max_hand → ask_gearbox → ask_keywords → confirm
+```
+Each state supports inline keyboards for selection, free-text input for ranges, and "skip" to use defaults.
+
+---
+
+### 3.9 Web Frontend (React SPA)
+
+**Stack:** React 18 + TypeScript + Vite + Tailwind CSS
+
+**Pages:**
+| Page | Description |
+|------|-------------|
+| `LandingPage` | Marketing/onboarding |
+| `LoginPage` / `SignupPage` / `AuthPage` | Firebase authentication |
+| `SearchesPage` | List/manage active searches |
+| `NewSearchPage` / `EditSearchPage` | Search wizard form |
+| `TrySearchPage` | Instant preview without saving |
+| `ListingsPage` | Browse results for a search |
+| `ListingDetailPage` | Full listing with price chart |
+| `SavedPage` | Bookmarked listings |
+| `NotificationsPage` | Notification center |
+| `SettingsPage` | User preferences |
+| `HistoryPage` | Historical listings |
+| `AdminPage` | Admin dashboard (logs, metrics) |
+
+**Key hooks:**
+- `useListings` / `useInfiniteListings` — paginated listing fetches
+- `useSearches` — search CRUD
+- `useCatalog` — manufacturer/model lookup
+- `useBookmarks` — saved listings
+- `useNotifications` — notification center
+- `usePushSubscription` — WebPush registration
+- `useAdmin` — admin data
+- `useLogStream` — SSE log streaming
+- `useHealthCheck` — health polling
+
+**Contexts:**
+- `AuthContext` — Firebase auth state, token management
+- `ThemeContext` — Light/dark mode
+
+**Serving:** Go `embed.FS` via `spa.Handler()` with CSP headers and history-mode fallback routing.
+
+---
+
+## 4. Data Flow Diagrams
+
+### 4.1 New User Registration (Telegram)
+
+```
+User sends /start to Bot
+        │
+        ▼
+Bot.DefaultHandler()
+        │
+        ▼
+UpsertUser(chatID, username)  ── creates user in DB
+        │
+        ▼
+Send welcome message with language keyboard
+        │
+        ▼
+User selects language → SetUserLanguage(chatID, lang)
+```
+
+### 4.2 Search Creation (Web)
+
+```
+User fills search form → POST /api/v1/searches
+        │
+        ▼
+Firebase auth middleware → verify token → get chatID
+        │
+        ▼
+Validate fields → CreateSearch(ctx, Search{...})
+        │
+        ▼
+Search stored in DB → scheduler picks it up on next cycle
+```
+
+### 4.3 Listing Discovery Cycle
+
+```
+Scheduler tick (every 15m +/- 5m)
+        │
+        ▼
+ListAllActiveSearches() → iterate each
+        │
+        ▼
+FetcherFactory.Get(source) → CircuitBreaker → Cache → Source
+        │
+        ▼
+filter.Apply(rawListings, search.FilterCriteria)
+        │
+        ▼
+For each listing: ClaimNew(token, chatID, searchID)
+  │ new=true                          │ new=false
+  ▼                                   ▼
+Pipeline.Process()                  (skip, already seen)
+  │
+  ▼
+RecordPrice(token, price)
+  │ changed=true                      │ changed=false
+  │ (price drop detected)             │
+  ▼                                   ▼
+SaveListing(record)               SaveListing(record)
+  │
+  ▼
+EnqueueNotification(chatID, payload)
+  │
+  ▼
+DeliveryWorker → MultiNotifier.Notify(chatID, listings, lang)
+  │
+  ├──→ Telegram: formatted message with specs
+  └──→ WebPush: JSON push notification
+```
+
+### 4.4 Instant Search (Web)
+
+```
+User fills form → POST /api/v1/instant-search
+        │
+        ▼
+Validate → build SourceParams from form
+        │
+        ▼
+FetcherFactory.Get(source).Fetch(ctx, params)
+        │
+        ▼
+filter.Apply(rawListings, criteria)
+        │
+        ▼
+Pipeline.Process(ctx, filtered, ProcessParams{...})
+        │
+        ▼
+Return scored listings as JSON (not saved to DB)
+```
+
+---
+
+## 5. Configuration
+
+```yaml
+polling:
+  interval: 15m                    # base polling interval
+  jitter: 5m                       # random +/- jitter
+  timezone: Asia/Jerusalem
+  max_concurrent_fetches: 4
+  active_hours:
+    start: "08:00"
+    end: "22:00"
+
+telegram:
+  token: ${TELEGRAM_BOT_TOKEN}
+  admin_chat_id: 123456789
+  max_searches: 10
+  bot_username: carwatch_bot
+
+storage:
+  driver: postgres                 # sqlite | postgres
+  dsn: ${DATABASE_URL}
+  migrations_path: ./migrations
+  prune_after: 720h                # 30 days
+
+http:
+  bind: 0.0.0.0:8080
+  user_agents: [...]               # rotated per request
+  proxies: [socks5://...]          # SOCKS5 proxy pool
+  max_pages: 5
+
+api:
+  cors_origins: [https://carwatch.app]
+  trust_forwarded_for: true        # behind reverse proxy
+  admin_email: admin@example.com
+
+firebase:
+  project_id: carwatch-prod
+  credentials_json: ${FIREBASE_CREDS}
+
+push:
+  vapid_public_key: ${VAPID_PUBLIC}
+  vapid_private_key: ${VAPID_PRIVATE}
+  vapid_subject: mailto:admin@carwatch.app
+
+log_level: info                    # debug | info | warn | error
+log_format: auto                   # auto | json | pretty
+```
+
+---
+
+## 6. Deployment Architecture
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│                     Scheduler                        │
+│               Oracle Cloud VM                         │
 │                                                      │
-│  ┌─────────┐    ┌────────┐    ┌───────┐    ┌──────┐ │
-│  │ Fetcher │───>│ Filter │───>│ Dedup │───>│Notify│ │
-│  └────┬────┘    └────────┘    └───┬───┘    └──────┘ │
-│       │                          │                   │
-│  ┌────┴────┐               ┌─────┴─────┐            │
-│  │  Yad2   │               │  SQLite   │            │
-│  │ Adapter │               │  Store    │            │
-│  └─────────┘               └───────────┘            │
+│  ┌─────────────┐  ┌───────────────┐                  │
+│  │   Caddy      │  │  CarWatch     │                  │
+│  │ (HTTPS       │──│  (single      │                  │
+│  │  termination,│  │   binary,     │                  │
+│  │  reverse     │  │   port 8080)  │                  │
+│  │  proxy)      │  │               │                  │
+│  └─────────────┘  └───────┬───────┘                  │
+│                           │                          │
+│                  ┌────────▼────────┐                  │
+│                  │   PostgreSQL    │                  │
+│                  │   (local)       │                  │
+│                  └─────────────────┘                  │
+│                                                      │
+│  Managed via Makefile targets:                        │
+│  - make deploy    (build + scp + restart)             │
+│  - make ssh       (interactive shell)                 │
+│  - make logs      (journalctl follow)                 │
+│  - make backup    (pg_dump + download)                │
 └──────────────────────────────────────────────────────┘
 ```
 
-## Interfaces
+**Build pipeline:**
+- Docker multi-stage build (Go compile → minimal image)
+- Build flags inject version, commit, timestamp
+- CI runs: lint (`golangci-lint`), test, build, secret scanning
 
-### Fetcher
+---
 
-```go
-type Fetcher interface {
-    Fetch(ctx context.Context, params config.SourceParams) ([]model.RawListing, error)
-}
-```
+## 7. Scoring Algorithms
 
-Retrieves raw listings from a marketplace. The only implementation is `yad2.Yad2Fetcher`. Error sentinels `ErrChallenge` and `ErrRateLimited` live in the `fetcher` package so the scheduler can react without importing concrete adapters.
+### 7.1 Fitness Score
 
-### DedupStore
+Multi-dimensional weighted score (0.0 to 1.0) measuring how well a listing matches the user's search criteria:
 
-```go
-type DedupStore interface {
-    ClaimNew(ctx context.Context, token string, searchName string) (bool, error)
-    ReleaseClaim(ctx context.Context, token string) error
-    Prune(ctx context.Context, olderThan time.Duration) (int64, error)
-    Close() error
-}
-```
+| Dimension | Weight | What it measures |
+|-----------|--------|------------------|
+| Price | High | Distance from budget cap (or market median if available) |
+| Km | Medium | Mileage relative to max_km |
+| Hand | Medium | Ownership count relative to max_hand |
+| Year | Medium | Year within min-max range |
+| Engine | Low | Engine CC relative to minimum |
 
-`ClaimNew` uses `INSERT OR IGNORE` + `RowsAffected` for atomic deduplication -- no read-then-write race. If notification fails for all recipients, `ReleaseClaim` removes the token so it retries next cycle.
+### 7.2 Deal Score
 
-### Notifier
+Market-relative score combining price and mileage position vs. cohort:
 
-```go
-type Notifier interface {
-    Connect(ctx context.Context) error
-    Notify(ctx context.Context, recipient string, listings []model.Listing) error
-    Disconnect() error
-}
-```
+1. Build market cache: `(manufacturer, model, year)` → `(median_price, median_km, cohort_size)`
+2. Minimum cohort: 10 listings, price floor: 5,000 NIS
+3. `ScoreWithKm(price, km, medianPrice, medianKm)` → integer score
+4. Higher = better deal relative to comparable vehicles
 
-Currently a WhatsApp stub (logs to stdout). Planned: Telegram.
+### 7.3 Suspicious Detection
 
-## Data flow
+Flags listings with unusual characteristics:
+- Price significantly below market median
+- Unusual spec combinations vs. cohort norms
 
-A single poll cycle works like this:
+---
 
-```
-1. Scheduler wakes up
-   - Check active hours (skip if outside window)
-   - Apply adaptive backoff multiplier to delay
+## 8. Resilience Patterns
 
-2. For each search config:
-   a. Fetch
-      - HTTP GET to Yad2 with browser-like headers
-      - Rotate User-Agent, support SOCKS5 proxy
-      - Retry up to 3 times (2s/4s/8s exponential backoff)
-      - Detect anti-bot challenges (doubles backoff multiplier)
-      - Parse HTML, extract __NEXT_DATA__ JSON
-      - Return []RawListing (~40 per page)
+| Pattern | Implementation | Where |
+|---------|---------------|-------|
+| Circuit Breaker | 5 consecutive failures → 10-min cooldown | Per-source fetcher |
+| Adaptive Backoff | Multiplier 1x→4x on challenge, halves on success | Scheduler polling |
+| Response Cache | 5-minute TTL, in-memory | Per-source fetcher |
+| Proxy Pool | SOCKS5 rotation across requests | Yad2/WinWin clients |
+| User-Agent Rotation | Random selection per request | HTTP clients |
+| Cookie Isolation | Separate jar for item-page fetches | Yad2 client pool |
+| Price Revert | Undo RecordPrice on downstream failure | PriceTracker |
+| Telegram Reconnect | Exponential backoff (1s→30s) on poll disconnect | Bot goroutine |
+| Rate Limiting | Token bucket (per-user, per-IP, guest tiers) | API middleware |
+| Active Hours | Skip polling outside configured window | Scheduler |
+| Dedup Atomicity | `INSERT OR IGNORE` + `RowsAffected` check | DedupStore |
+| Singleflight | Prevents thundering herd on market cache rebuild | MarketCache |
 
-   b. Filter
-      - Engine volume range (cc)
-      - Max mileage, max ownership count
-      - Required/excluded keywords (case-insensitive)
-      - Zero values disable that filter
-      - Pure function, no I/O
+---
 
-   c. Dedup
-      - For each filtered listing: ClaimNew(token)
-      - Atomic: INSERT OR IGNORE + check RowsAffected
-      - If new -> add to notification batch
-      - If seen -> skip
+## 9. Observability
 
-   d. Notify
-      - Format listings with specs, emoji, link
-      - Send to each recipient
-      - If all recipients fail -> ReleaseClaim (retry next cycle)
-      - If at least one succeeds -> keep claims
+| Signal | Implementation |
+|--------|---------------|
+| Health endpoint | `/healthz` — status (ok/starting/degraded), uptime, cycle count, user/search counts, DB size |
+| Structured logging | `slog` with JSON (prod) or colored (dev) output |
+| Log streaming | SSE endpoint `/api/v1/logs/stream` — filtered by component (yad2, winwin, scheduler, enricher, bot, telegram, notifier, circuit_breaker, api-pricelist) |
+| Web Vitals | Client-side CLS/FID/LCP reporting to `/api/v1/vitals` |
+| Admin metrics | Table sizes, activity stats (new listings, price drops, new users per day), DB pool stats |
+| Access logging | HTTP request logging with method, path, status, duration |
 
-3. Housekeeping
-   - Prune listings older than 30 days (once per 24h)
-   - Adjust backoff: challenge -> 2x, success -> 0.5x
-```
+---
 
-## Scheduler timing
+## 10. Security
 
-```
-Base delay:   interval * backoffMultiplier
-Jitter:       +/- (jitter / 2), randomly distributed
-Minimum:      1 minute floor
-Active hours: if outside, sleep until window opens
+| Area | Implementation |
+|------|---------------|
+| Authentication (web) | Firebase ID token verification |
+| Authentication (bot) | Telegram chat_id (implicit, platform-enforced) |
+| Authorization | Per-user data isolation via `chatID` in all queries |
+| CORS | Configurable origins, scheme+host only (no path/query) |
+| CSP | Content-Security-Policy headers on SPA responses |
+| Secret management | Environment variable interpolation (`${VAR}`), hardcoded-secret warning at startup |
+| Rate limiting | Token bucket at API layer (per-user + per-IP + guest) |
+| Input validation | Config validation at startup, search filter bounds at API layer |
+| Proxy authentication | SOCKS5 for scraping traffic |
+| Account linking | One-time tokens with expiration for Telegram-to-Web linking |
+| Docker | Non-root user (UID 1000) |
+| Response limits | Body capped at 10 MB (prevents OOM) |
+| Timeouts | Per-search 60s fetch timeout, HTTP server read/write/idle timeouts |
 
-Backoff multiplier:
-  Challenge detected -> multiply by 2 (cap at 4x)
-  Successful fetch   -> divide by 2 (floor at 1x)
+---
 
-Example with defaults (15m interval, 5m jitter, 1x backoff):
-  Delay range: 12.5m to 17.5m
-  After challenge: 25m to 35m (2x)
-  After two challenges: 50m to 70m (4x, capped)
-  After recovery: back to 12.5m-17.5m
-```
+## 11. Key Design Decisions
 
-## Yad2 adapter internals
+| Decision | Rationale | Trade-off |
+|----------|-----------|-----------|
+| Hexagonal architecture (ports & adapters) | Decouples domain from infra; easy to add sources/notifiers | More interfaces and indirection |
+| Dual-database support (SQLite + PostgreSQL) | SQLite for dev simplicity, PostgreSQL for prod reliability | Maintaining two implementations (~40 files) |
+| Embedded SPA (`go:embed`) | Single binary deployment, no separate web server needed | Larger binary, requires rebuild on frontend changes |
+| Polling over WebSocket (for scraping) | Marketplaces don't offer real-time APIs | 15-minute latency on new listings |
+| Multi-notifier fan-out | Users can receive on multiple channels simultaneously | Complexity in delivery tracking |
+| Shared listing pipeline | Consistent scoring between scheduler and API instant-search | Pipeline changes affect both paths |
+| In-memory market cache | Fast scoring without DB queries per listing | Stale for up to 30 minutes |
+| Per-user dedup | Same listing can match multiple users' searches independently | Storage overhead for per-user seen set |
+| Singleflight for market lookups | Prevents thundering herd on cache rebuild | Serializes initial lookups |
+| Firebase Auth for web | Offloads auth complexity (email/password, OAuth) to managed service | Vendor dependency, requires Google Cloud project |
+| Single-process monolith | Simple deployment and operations for a personal project | All components share one failure domain |
+| Conventional commits for versioning | CI auto-bumps version on merge; no manual version management | Requires discipline in commit message format |
 
-### HTTP client (`client.go`)
+---
 
-- Clones `http.DefaultTransport`
-- 30-second overall timeout
-- Optional SOCKS5 proxy
-- Realistic browser headers on every request:
-  - User-Agent rotation from configured pool
-  - `Accept-Language: he-IL,he;q=0.9,en-US;q=0.8`
-  - `Sec-Fetch-*` metadata headers
-  - `Accept-Encoding: gzip, deflate` (no brotli)
+## 12. Dependency Map
 
-### Parser (`parser.go`)
+### External Dependencies (Go)
+| Dependency | Purpose |
+|-----------|---------|
+| `firebase.google.com/go/v4` | Firebase Auth token verification |
+| `github.com/go-telegram/bot` | Telegram Bot API client |
+| `github.com/jackc/pgx/v5` | PostgreSQL driver (pure Go) |
+| `github.com/mattn/go-sqlite3` | SQLite driver (CGo) |
+| `github.com/golang-migrate/migrate/v4` | Schema migration runner |
+| `github.com/SherClockHolmes/webpush-go` | Web Push (VAPID) |
+| `github.com/lmittmann/tint` | Colored log output |
+| `golang.org/x/net` | HTML parsing (goquery) |
+| `golang.org/x/sync` | errgroup, singleflight |
+| `gopkg.in/yaml.v3` | Config parsing |
 
-Yad2 is a Next.js app. Listing data lives in a `<script id="__NEXT_DATA__">` tag as JSON.
+### Frontend Dependencies
+| Dependency | Purpose |
+|-----------|---------|
+| React 18 | UI framework |
+| Vite | Build tool + dev server |
+| Tailwind CSS | Utility-first styling |
+| Firebase SDK | Authentication |
+| TypeScript | Type safety |
 
-```
-HTML page
-  -> goquery finds <script id="__NEXT_DATA__">
-  -> extract JSON text
-  -> unmarshal to nested structure
-  -> navigate: props.pageProps.dehydratedState.queries[].state.data.data.feed.feed_items[]
-  -> map each item to RawListing
-  -> skip items with empty token
-  -> prefer english_text over hebrew text for field values
-```
+---
 
-### URL builder (`yad2.go`)
+## 13. Areas for Reviewer Consideration
 
-Uses `net/url.Values` for query parameter construction. Maps `SourceParams` fields to Yad2's query format (ranges use `min-max` syntax).
+These are areas where the reviewer's feedback would be most valuable:
 
-## Config loading pipeline
+1. **Store interface granularity** — 16 sub-interfaces composed into one `Store`. Is this the right decomposition, or should some be merged/split differently?
 
-```
-1. Read YAML file
-2. os.ExpandEnv() on raw bytes (enables ${VAR} interpolation)
-3. yaml.Unmarshal into Config struct
-4. applyDefaults() -- interval, jitter, timezone, paths, log level
-5. validate() -- required fields, format checks, unit sanity
-```
+2. **Dual-database maintenance** — Maintaining both SQLite and PostgreSQL implementations (~40 files). Worth the ongoing cost, or should SQLite be dropped for production simplicity?
 
-Validation is strict and fails at startup:
-- At least one search required
-- Each search needs name, source, recipients
-- Engine values < 100 are rejected (likely liters, not cc)
-- Active hours must be `HH:MM` format
-- Log level must be debug/info/warn/error
+3. **Scraping resilience** — Circuit breaker + cache + proxy rotation + UA rotation + cookie isolation. Are there gaps in the anti-detection strategy?
 
-## SQLite schema
+4. **Single-binary monolith** — Everything in one process (scheduler, bot, API, SPA). At what scale or failure mode would this need to be split?
 
-```sql
-CREATE TABLE IF NOT EXISTS seen_listings (
-    token         TEXT PRIMARY KEY,
-    search_name   TEXT NOT NULL,
-    first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-```
+5. **Market cache staleness** — 30-minute TTL for the market cache used in deal scoring. What is the impact on scoring accuracy vs. database load?
 
-Opened with WAL mode and 5-second busy timeout. Parent directories are created automatically.
+6. **Notification delivery guarantees** — Current queue is DB-backed with ack/prune. Is this sufficient, or should a proper message broker be considered?
 
-## Security considerations
+7. **Frontend architecture** — Custom hooks + contexts vs. a state management library (e.g., Zustand, TanStack Query). Scaling implications as the app grows?
 
-- Non-root Docker user (UID 1000)
-- Phone numbers masked in logs (`+972***XXX`)
-- Secrets via env var interpolation (never hardcoded in config)
-- Response body capped at 10 MB (prevents OOM)
-- Per-search 60-second timeout (prevents hung connections)
-- No brotli advertised (only decompressors we ship)
+8. **Testing strategy** — Unit + integration tests exist. Missing: API contract tests, load/stress tests for the scheduler, end-to-end browser tests.
+
+9. **Monitoring gaps** — No metrics export to external systems (Prometheus/Grafana), no structured alerting beyond the health endpoint. Sufficient for current scale?
+
+10. **Data retention** — 90-day automatic prune for listings and price history. Is this the right retention period for users who want long-term market trend analysis?

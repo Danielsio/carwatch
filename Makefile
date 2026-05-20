@@ -1,6 +1,6 @@
 .PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
        vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
-       vm-backup vm-backup-list vm-pg-shell vm-migrate-sqlite-to-pg \
+       vm-backup vm-backup-list vm-pg-shell \
        vm-setup-backup vm-backup-status \
        web-install web-dev web-build \
        catalog-refresh
@@ -138,11 +138,6 @@ vm-backup-list: vm-check-env
 
 vm-pg-shell: vm-check-env
 	$(SSH) -t "docker exec -it carwatch-pg psql -U carwatch carwatch"
-
-vm-migrate-sqlite-to-pg: vm-check-env
-	$(SSH) 'docker exec carwatch /bot -migrate-sqlite-to-pg \
-		-sqlite /data/carwatch.db \
-		-pg "postgres://carwatch:$${POSTGRES_PASSWORD}@postgres:5432/carwatch?sslmode=disable"'
 
 vm-setup-backup: vm-check-env
 	$(SSH) "mkdir -p $(VM_DIR)/scripts"

@@ -7,15 +7,11 @@ import (
 
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/storage"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage/pgtest"
 )
 
 func TestPrefillFromDB(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 	ctx := context.Background()
 
 	if err := store.UpsertUser(ctx, 100, "test"); err != nil {
@@ -77,11 +73,7 @@ func TestPrefillFromDB_AllFieldsPresent(t *testing.T) {
 }
 
 func TestBackfillEnrichedListings(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 	ctx := context.Background()
 
 	if err := store.UpsertUser(ctx, 100, "test"); err != nil {

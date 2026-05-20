@@ -13,6 +13,8 @@ func TestLoad_ValidConfig(t *testing.T) {
 	yaml := `
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 `
 	cfg := loadFromString(t, yaml)
 
@@ -25,6 +27,8 @@ func TestLoad_Defaults(t *testing.T) {
 	yaml := `
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 `
 	cfg := loadFromString(t, yaml)
 
@@ -37,8 +41,8 @@ telegram:
 	if cfg.Polling.Timezone != "Asia/Jerusalem" {
 		t.Errorf("default timezone = %q", cfg.Polling.Timezone)
 	}
-	if cfg.Storage.DBPath != "./data/dedup.db" {
-		t.Errorf("default db_path = %q", cfg.Storage.DBPath)
+	if cfg.Storage.Driver != "postgres" {
+		t.Errorf("default driver = %q, want postgres", cfg.Storage.Driver)
 	}
 	if cfg.LogLevel != "info" {
 		t.Errorf("default log_level = %q", cfg.LogLevel)
@@ -56,6 +60,8 @@ func TestLoad_MaxSearchesExplicit(t *testing.T) {
 telegram:
   token: "test-token"
   max_searches: 5
+storage:
+  dsn: "postgres://localhost/test"
 `
 	cfg := loadFromString(t, yaml)
 
@@ -68,6 +74,8 @@ func TestLoad_MissingToken(t *testing.T) {
 	yaml := `
 polling:
   interval: 10m
+storage:
+  dsn: "postgres://localhost/test"
 `
 	expectLoadError(t, yaml, "telegram.token is required")
 }
@@ -76,6 +84,8 @@ func TestLoad_InvalidActiveHours(t *testing.T) {
 	yaml := `
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 polling:
   active_hours:
     start: "8am"
@@ -88,6 +98,8 @@ func TestLoad_InvalidLogLevel(t *testing.T) {
 	yaml := `
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 log_level: verbose
 `
 	expectLoadError(t, yaml, "log_level")
@@ -102,6 +114,8 @@ func TestLoad_WarnHardcodedToken(t *testing.T) {
 	yaml := `
 telegram:
   token: "123456:ABCdef"
+storage:
+  dsn: "postgres://localhost/test"
 `
 	_ = loadFromString(t, yaml)
 	if !strings.Contains(buf.String(), "telegram.token appears hardcoded") {
@@ -120,6 +134,8 @@ func TestLoad_EnvVarTokenNoWarning(t *testing.T) {
 	yaml := `
 telegram:
   token: "${TELEGRAM_BOT_TOKEN}"
+storage:
+  dsn: "postgres://localhost/test"
 `
 	cfg := loadFromString(t, yaml)
 	if cfg.Telegram.Token != "test-token" {
@@ -136,6 +152,8 @@ func TestLoad_EnvVarInterpolation(t *testing.T) {
 	yaml := `
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 http:
   proxy: "${TEST_PROXY_URL}"
 `
@@ -179,6 +197,8 @@ func TestLoad_InvalidLogFormat(t *testing.T) {
 	yaml := `
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 log_format: xml
 `
 	expectLoadError(t, yaml, "log_format")
@@ -188,6 +208,8 @@ func TestLoad_InvalidHTTPBind(t *testing.T) {
 	yaml := `
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 http:
   bind: "not-a-valid-address"
 `
@@ -198,6 +220,8 @@ func TestLoad_ValidActiveHours(t *testing.T) {
 	yaml := `
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 polling:
   active_hours:
     start: "08:00"
@@ -220,6 +244,8 @@ func TestLoad_NegativeInterval(t *testing.T) {
 	yaml := `
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 polling:
   interval: -5m
 `
@@ -230,6 +256,8 @@ func TestLoad_NegativeJitter(t *testing.T) {
 	yaml := `
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 polling:
   jitter: -1m
 `

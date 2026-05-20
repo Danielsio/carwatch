@@ -70,7 +70,6 @@ type TelegramConfig struct {
 
 type StorageConfig struct {
 	Driver         string        `yaml:"driver"`
-	DBPath         string        `yaml:"db_path"`
 	DSN            string        `yaml:"dsn"`
 	MigrationsPath string        `yaml:"migrations_path"`
 	PruneAfter     time.Duration `yaml:"prune_after"`
@@ -136,10 +135,7 @@ func applyDefaults(cfg *Config) {
 		cfg.Polling.Timezone = "Asia/Jerusalem"
 	}
 	if cfg.Storage.Driver == "" {
-		cfg.Storage.Driver = "sqlite"
-	}
-	if cfg.Storage.DBPath == "" {
-		cfg.Storage.DBPath = "./data/dedup.db"
+		cfg.Storage.Driver = "postgres"
 	}
 	if cfg.Storage.MigrationsPath == "" {
 		cfg.Storage.MigrationsPath = "./migrations"
@@ -204,12 +200,12 @@ func validate(cfg *Config) error {
 		}
 	}
 	switch cfg.Storage.Driver {
-	case "sqlite", "postgres":
+	case "postgres":
 	default:
-		return fmt.Errorf("storage.driver %q: must be sqlite or postgres", cfg.Storage.Driver)
+		return fmt.Errorf("storage.driver %q: must be postgres", cfg.Storage.Driver)
 	}
-	if cfg.Storage.Driver == "postgres" && cfg.Storage.DSN == "" {
-		return fmt.Errorf("storage.dsn is required when driver is postgres")
+	if cfg.Storage.DSN == "" {
+		return fmt.Errorf("storage.dsn is required")
 	}
 	if _, err := net.ResolveTCPAddr("tcp", cfg.HTTP.Bind); err != nil {
 		return fmt.Errorf("http.bind %q: must be a valid host:port", cfg.HTTP.Bind)
