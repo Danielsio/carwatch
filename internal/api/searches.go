@@ -90,7 +90,7 @@ func (s *Server) ensureUserActive(ctx context.Context, chatID int64) {
 
 func isValidSource(source string) bool {
 	switch source {
-	case "yad2", "winwin", "yad2,winwin", "winwin,yad2":
+	case "yad2":
 		return true
 	default:
 		return false
@@ -227,7 +227,7 @@ func (s *Server) validateCreateSearchInput(ctx context.Context, chatID int64, re
 		req.Source = "yad2"
 	}
 	if !isValidSource(req.Source) {
-		return "", http.StatusBadRequest, "invalid source: must be yad2, winwin, yad2,winwin, or winwin,yad2"
+		return "", http.StatusBadRequest, "invalid source: must be yad2"
 	}
 
 	if msg := validateSearchRanges(req.YearMin, req.YearMax, req.PriceMin, req.PriceMax, req.MaxKm, req.MaxHand, req.EngineMinCC); msg != "" {

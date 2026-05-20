@@ -11,7 +11,7 @@ const features: {
 }[] = [
   {
     label: "סריקה רציפה",
-    description: "Yad2 ו-WinWin נסרקים כל 30 דקות, אוטומטית",
+    description: "Yad2 נסרק כל 30 דקות, אוטומטית",
     icon: Search,
   },
   {

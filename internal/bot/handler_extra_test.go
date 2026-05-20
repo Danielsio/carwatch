@@ -241,9 +241,8 @@ func TestSourceDisplayName(t *testing.T) {
 		want   string
 	}{
 		{"yad2", "Yad2"},
-		{"winwin", "WinWin"},
-		{"", "Yad2, WinWin"},
-		{"unknown", "Yad2, WinWin"},
+		{"", "Yad2"},
+		{"unknown", "Yad2"},
 	}
 	for _, tt := range tests {
 		got := sourceDisplayName(tt.source)
@@ -281,6 +280,6 @@ func TestConfirmKeyboard_EmptySource(t *testing.T) {
 
 	_, summary := confirmKeyboard(wd, locale.English)
 	if !strings.Contains(summary, "Yad2") {
-		t.Errorf("empty source should default to Yad2, got %q", summary)
+		t.Errorf("empty source should show Yad2, got %q", summary)
 	}
 }

@@ -15,8 +15,8 @@ import { useInView } from "@/hooks/useInView";
 const features = [
   {
     icon: Layers,
-    title: "מעקב מקורות מרובים",
-    desc: "סריקה מקבילית של אתרי יד שנייה מובילים (למשל Yad2 ו-WinWin) — תמונה אחת משולבת של השוק, בלי לקפוץ בין כרטיסיות.",
+    title: "מעקב אוטומטי",
+    desc: "סריקה רציפה של Yad2 — תמונה מלאה של השוק, בלי ריענון ידני.",
     color: "text-chart-4",
     bg: "bg-chart-4/10",
     border: "border-chart-4/20",

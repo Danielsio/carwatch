@@ -2,7 +2,7 @@ package locale
 
 var heCommands = map[string]string{
 	// /start
-	"welcome": "ברוכים הבאים ל-*CarWatch*! אני עוקב אחרי מודעות רכב ביד2 ו-WinWin ושולח לך התראות כשמופיעים רכבים חדשים שמתאימים לחיפוש שלך.\n\n" +
+	"welcome": "ברוכים הבאים ל-*CarWatch*! אני עוקב אחרי מודעות רכב ביד2 ושולח לך התראות כשמופיעים רכבים חדשים שמתאימים לחיפוש שלך.\n\n" +
 		"השתמש ב /watch כדי להגדיר חיפוש חדש.\n" +
 		"השתמש ב /list כדי לראות את החיפושים הפעילים שלך.\n" +
 		"השתמש ב /help לרשימת כל הפקודות.",
@@ -238,7 +238,7 @@ var heCommands = map[string]string{
 
 	// onboarding
 	"onboarding_welcome": "ברוכים הבאים ל-*CarWatch*! 🚗\n\n" +
-		"אני עוקב אחרי מודעות רכב ביד2 ו-WinWin ושולח לך התראות כשמופיעים רכבים חדשים.\n\n" +
+		"אני עוקב אחרי מודעות רכב ביד2 ושולח לך התראות כשמופיעים רכבים חדשים.\n\n" +
 		"הנה דוגמה להתראה שתקבל:",
 	"onboarding_post_search": "הכל מוכן! אתחיל לבדוק מיד. ציפייה להתראה הראשונה תוך %s.",
 
@@ -284,7 +284,7 @@ var heCommands = map[string]string{
 
 var enCommands = map[string]string{
 	// /start
-	"welcome": "Welcome to *CarWatch*! I monitor car listings on Yad2 and WinWin and send you alerts when new matches appear.\n\n" +
+	"welcome": "Welcome to *CarWatch*! I monitor car listings on Yad2 and send you alerts when new matches appear.\n\n" +
 		"Use /watch to set up a new car search.\n" +
 		"Use /list to see your active searches.\n" +
 		"Use /help for all commands.",
@@ -520,7 +520,7 @@ var enCommands = map[string]string{
 
 	// onboarding
 	"onboarding_welcome": "Welcome to *CarWatch*! 🚗\n\n" +
-		"I monitor car listings on Yad2 and WinWin and send you alerts when new cars match your criteria.\n\n" +
+		"I monitor car listings on Yad2 and send you alerts when new cars match your criteria.\n\n" +
 		"Here's an example of the alerts you'll receive:",
 	"onboarding_post_search": "You're all set! I'll start checking right away. Expect your first alert within %s.",
 

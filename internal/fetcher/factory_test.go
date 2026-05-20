@@ -18,24 +18,14 @@ func (s *stubFetcher) Fetch(_ context.Context, _ model.SourceParams) ([]model.Ra
 func TestFactory_RegisterAndGet(t *testing.T) {
 	f := NewFactory()
 	yad2 := &stubFetcher{name: "yad2"}
-	winwin := &stubFetcher{name: "winwin"}
 
 	f.Register("yad2", yad2)
-	f.Register("winwin", winwin)
 
 	got, ok := f.Get("yad2")
 	if !ok {
 		t.Fatal("expected yad2 fetcher to exist")
 	}
 	if got.(*stubFetcher).name != "yad2" {
-		t.Errorf("got wrong fetcher: %s", got.(*stubFetcher).name)
-	}
-
-	got, ok = f.Get("winwin")
-	if !ok {
-		t.Fatal("expected winwin fetcher to exist")
-	}
-	if got.(*stubFetcher).name != "winwin" {
 		t.Errorf("got wrong fetcher: %s", got.(*stubFetcher).name)
 	}
 }

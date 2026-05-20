@@ -819,7 +819,7 @@ func TestHandleStats_Admin_CountErrors(t *testing.T) {
 
 // --- handleOnSourceSelected coverage (quick smoke) ---
 
-func TestOnSourceSelected_WinWin(t *testing.T) {
+func TestOnSourceSelected_Yad2(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 	const chatID int64 = 100
@@ -828,7 +828,7 @@ func TestOnSourceSelected_WinWin(t *testing.T) {
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.msg.reset()
 
-	tb.simulateCallback(ctx, chatID, cbSourceToggle+"winwin")
+	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
 
 	user, _ := tb.store.GetUser(ctx, chatID)
@@ -839,45 +839,6 @@ func TestOnSourceSelected_WinWin(t *testing.T) {
 	last := tb.msg.last()
 	if !last.HasKB {
 		t.Error("expected manufacturer keyboard")
-	}
-}
-
-// --- Wizard with WinWin source creates correct search ---
-
-func TestWizardFlow_WinWin(t *testing.T) {
-	tb := newTestBot(t)
-	ctx := context.Background()
-	const chatID int64 = 100
-
-	tb.createUser(ctx, t, chatID, "alice")
-	tb.simulateCommand(ctx, chatID, "/watch")
-	tb.simulateCallback(ctx, chatID, cbSourceToggle+"winwin")
-	tb.simulateCallback(ctx, chatID, cbSourceDone)
-	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
-	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
-	tb.simulateText(ctx, chatID, "2018")
-	tb.simulateText(ctx, chatID, "2024")
-	tb.simulateText(ctx, chatID, "150000")
-	tb.simulateCallback(ctx, chatID, cbSkipPriceMin)
-	tb.simulateCallback(ctx, chatID, cbPrefixGearBox+"any")
-	tb.simulateCallback(ctx, chatID, cbPrefixEngine+"2000")
-	tb.simulateCallback(ctx, chatID, cbPrefixMaxKm+"0")
-	tb.simulateCallback(ctx, chatID, cbPrefixMaxHand+"0")
-	tb.simulateCallback(ctx, chatID, cbSkipKeywords)
-	tb.simulateCallback(ctx, chatID, cbSkipExcludeKeys)
-	tb.simulateCallback(ctx, chatID, cbConfirm)
-
-	searches, _ := tb.store.ListSearches(ctx, chatID)
-	if len(searches) != 1 {
-		t.Fatalf("expected 1 search, got %d", len(searches))
-	}
-	if searches[0].Source != "winwin" {
-		t.Errorf("source = %q, want winwin", searches[0].Source)
-	}
-
-	last := tb.msg.last()
-	if !strings.Contains(last.Text, "WinWin") {
-		t.Errorf("confirm message should mention WinWin, got %q", last.Text)
 	}
 }
 
@@ -927,8 +888,8 @@ func TestOnConfirm_EmptySourceDefaultsToYad2(t *testing.T) {
 	if len(searches) != 1 {
 		t.Fatalf("expected 1 search, got %d", len(searches))
 	}
-	if searches[0].Source != "yad2,winwin" {
-		t.Errorf("empty source should default to yad2,winwin, got %q", searches[0].Source)
+	if searches[0].Source != "yad2" {
+		t.Errorf("empty source should default to yad2, got %q", searches[0].Source)
 	}
 }
 

@@ -26,11 +26,7 @@ func TestToggleSource(t *testing.T) {
 		current, toggle, want string
 	}{
 		{"", "yad2", "yad2"},
-		{"yad2", "winwin", "yad2,winwin"},
-		{"yad2,winwin", "yad2", "winwin"},
-		{"yad2,winwin", "winwin", "yad2"},
-		{"winwin", "winwin", ""},
-		{"yad2, winwin", "winwin", "yad2"},
+		{"yad2", "yad2", ""},
 		{" yad2 ", "yad2", ""},
 		{"", " ", ""},
 		{"yad2", "discord", "yad2"},

@@ -60,18 +60,13 @@ const (
 
 func sourceKeyboard(selected string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 	yad2Label := "Yad2"
-	winwinLabel := "WinWin"
 	if strings.Contains(selected, "yad2") {
 		yad2Label = "✅ Yad2"
-	}
-	if strings.Contains(selected, "winwin") {
-		winwinLabel = "✅ WinWin"
 	}
 
 	rows := [][]tgmodels.InlineKeyboardButton{
 		{
 			{Text: yad2Label, CallbackData: cbSourceToggle + "yad2"},
-			{Text: winwinLabel, CallbackData: cbSourceToggle + "winwin"},
 		},
 	}
 	if selected != "" {
@@ -335,20 +330,18 @@ func skipKeyboard(cbData string, lang locale.Lang) *tgmodels.InlineKeyboardMarku
 
 func sourceDisplayName(source string) string {
 	if strings.TrimSpace(source) == "" {
-		return "Yad2, WinWin"
+		return "Yad2"
 	}
 	parts := strings.Split(source, ",")
 	names := make([]string, 0, len(parts))
 	for _, p := range parts {
 		switch strings.TrimSpace(p) {
-		case "winwin":
-			names = append(names, "WinWin")
 		case "yad2":
 			names = append(names, "Yad2")
 		}
 	}
 	if len(names) == 0 {
-		return "Yad2, WinWin"
+		return "Yad2"
 	}
 	return strings.Join(names, ", ")
 }
@@ -371,7 +364,7 @@ func confirmKeyboard(data WizardData, lang locale.Lang) (*tgmodels.InlineKeyboar
 
 	source := data.Source
 	if source == "" {
-		source = "yad2,winwin"
+		source = "yad2"
 	}
 
 	modelDisplay := data.ModelName

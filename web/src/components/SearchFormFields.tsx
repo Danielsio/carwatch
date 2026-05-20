@@ -106,7 +106,6 @@ export function isFormValid(form: SearchFormData): boolean {
 
 const SOURCE_OPTIONS = [
   { value: "yad2", label: "יד2" },
-  { value: "winwin", label: "WinWin" },
 ];
 
 const HAND_OPTIONS = [0, 1, 2, 3, 4];
