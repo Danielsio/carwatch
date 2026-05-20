@@ -9,8 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -20,19 +18,12 @@ import (
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/spa"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage/pgtest"
 	"github.com/dsionov/carwatch/web"
 )
 
 func TestSmoke_FullStack(t *testing.T) {
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "smoke.db")
-
-	store, err := sqlite.New(dbPath)
-	if err != nil {
-		t.Fatalf("create store with file-backed DB: %v", err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -177,13 +168,4 @@ func TestSmoke_FullStack(t *testing.T) {
 		}
 	})
 
-	t.Run("file-backed DB persists", func(t *testing.T) {
-		info, err := os.Stat(dbPath)
-		if err != nil {
-			t.Fatalf("stat DB file: %v", err)
-		}
-		if info.Size() == 0 {
-			t.Error("DB file should not be empty after operations")
-		}
-	})
 }

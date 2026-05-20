@@ -103,8 +103,6 @@ jobs:
           cache: true
       - name: Stub web/dist for embed
         run: mkdir -p web/dist && echo '<!doctype html>' > web/dist/index.html
-      - name: Install C compiler (sqlite3)
-        run: sudo apt-get update && sudo apt-get install -y gcc
       - name: Run tests
         run: make test
         env:

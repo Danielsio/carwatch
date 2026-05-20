@@ -14,9 +14,9 @@ func (s *Store) DBFileSize() (int64, error) {
 	// Sum actual user-table sizes instead of pg_database_size(), which
 	// includes ~5-8 MB of system catalog overhead that VACUUM cannot reclaim.
 	err := s.db.QueryRowContext(context.Background(), `
-		SELECT COALESCE(SUM(pg_total_relation_size(quote_ident(table_name))), 0)
+		SELECT COALESCE(SUM(pg_total_relation_size(quote_ident(table_schema) || '.' || quote_ident(table_name))), 0)
 		FROM information_schema.tables
-		WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`).Scan(&size)
+		WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'`).Scan(&size)
 	if err != nil {
 		return 0, fmt.Errorf("pg user table size: %w", err)
 	}
@@ -33,7 +33,7 @@ func (s *Store) TableSizes(ctx context.Context) (map[string]int64, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT table_name
 		FROM information_schema.tables
-		WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+		WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'
 		ORDER BY table_name`)
 	if err != nil {
 		return nil, fmt.Errorf("list tables: %w", err)

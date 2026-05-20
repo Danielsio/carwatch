@@ -217,7 +217,7 @@ func (b *Bot) onQuickStart(ctx context.Context, chatID int64) {
 	id, err := b.searches.CreateSearch(ctx, storage.Search{
 		ChatID:       chatID,
 		Name:         "toyota-corolla",
-		Source:       "yad2,winwin",
+		Source:       "yad2",
 		Manufacturer: DefaultQuickStartManufacturer,
 		Model:        DefaultQuickStartModel,
 		YearMin:      2018,
@@ -231,7 +231,7 @@ func (b *Bot) onQuickStart(ctx context.Context, chatID int64) {
 	}
 
 	b.send(ctx, chatID, locale.Tf(lang, "wizard_search_saved",
-		id, "Yad2, WinWin"))
+		id, "Yad2"))
 
 	if b.pollTrigger != nil {
 		b.pollTrigger.TriggerPoll()

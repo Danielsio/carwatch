@@ -20,13 +20,10 @@ polling:
     end: "22:00"
   timezone: "Asia/Jerusalem"
 
-# Database (all user data, searches, dedup)
-# Supports sqlite (default) and postgres drivers.
+# Database (PostgreSQL)
 storage:
-  driver: sqlite                   # sqlite | postgres
-  db_path: "./data/carwatch.db"    # SQLite file path (driver=sqlite only)
-  # dsn: "postgres://carwatch:carwatch@postgres:5432/carwatch?sslmode=disable"  # PostgreSQL DSN (driver=postgres)
-  # migrations_path: "./migrations"  # SQL migration files (driver=postgres; default: ./migrations)
+  dsn: "${CARWATCH_DATABASE_DSN}"  # e.g. postgres://carwatch:password@localhost:5432/carwatch?sslmode=disable
+  migrations_path: "./migrations"
   prune_after: 720h  # 30 days
 
 # HTTP client settings for scraping

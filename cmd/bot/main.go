@@ -20,7 +20,6 @@ import (
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
-	"github.com/dsionov/carwatch/internal/fetcher/winwin"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/logstream"
@@ -32,7 +31,6 @@ import (
 	"github.com/dsionov/carwatch/internal/spa"
 	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/postgres"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
 	"github.com/dsionov/carwatch/web"
 )
 
@@ -75,7 +73,7 @@ func run(configPath string, logger *slog.Logger) error {
 	logHub := logstream.NewHub(2000)
 	baseHandler := newLogHandler(cfg.LogFormat, &logLevelVar)
 	teeHandler := logstream.NewTeeHandler(baseHandler, logHub,
-		"yad2", "winwin", "scheduler", "enricher",
+		"yad2", "scheduler", "enricher",
 		"api-pricelist", "bot", "telegram", "notifier",
 		"circuit_breaker",
 	)
@@ -224,34 +222,14 @@ func buildFetchers(cfg *config.Config, logger *slog.Logger) (*yad2.Yad2Fetcher, 
 	yad2CB := fetcher.NewCircuitBreaker(cachingFetcher, 5, 10*time.Minute,
 		fetcher.WithCBLogger(logger.With("component", "circuit_breaker", "source", "yad2")))
 
-	winwinLogger := logger.With("component", "winwin")
-	var winwinFetcher *winwin.WinWinFetcher
-	if proxyPool != nil {
-		winwinFetcher, err = winwin.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, winwinLogger)
-	} else {
-		winwinFetcher, err = winwin.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, winwinLogger)
-	}
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("create winwin fetcher: %w", err)
-	}
-	cachingWinwin := fetcher.NewCachingFetcher(winwinFetcher, 5*time.Minute)
-	winwinCB := fetcher.NewCircuitBreaker(cachingWinwin, 5, 10*time.Minute,
-		fetcher.WithCBLogger(logger.With("component", "circuit_breaker", "source", "winwin")))
-
 	fetcherFactory := fetcher.NewFactory()
 	fetcherFactory.Register("yad2", yad2CB)
-	fetcherFactory.Register("winwin", winwinCB)
 
 	return yad2Fetcher, cachingFetcher, fetcherFactory, proxyPool, nil
 }
 
 func openStore(cfg *config.Config) (storage.Store, error) {
-	switch cfg.Storage.Driver {
-	case "postgres":
-		return postgres.New(cfg.Storage.DSN, cfg.Storage.MigrationsPath)
-	default:
-		return sqlite.New(cfg.Storage.DBPath)
-	}
+	return postgres.New(cfg.Storage.DSN, cfg.Storage.MigrationsPath)
 }
 
 func buildBot(cfg *config.Config, store storage.Store, dynCatalog *catalog.DynamicCatalog, h *health.Status, logger *slog.Logger) (*cwbot.Bot, *telegram.Notifier, *notifier.MultiNotifier, error) {

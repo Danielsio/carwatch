@@ -18,11 +18,9 @@ import (
 func TestFetcherForSource_WithFactory(t *testing.T) {
 	factory := fetcher.NewFactory()
 	yad2Fetcher := &mockFetcher{listings: []model.RawListing{{Token: "yad2-listing"}}}
-	winwinFetcher := &mockFetcher{listings: []model.RawListing{{Token: "winwin-listing"}}}
 	defaultFetcher := &mockFetcher{listings: []model.RawListing{{Token: "default"}}}
 
 	factory.Register("yad2", yad2Fetcher)
-	factory.Register("winwin", winwinFetcher)
 
 	cfg := testConfig()
 	s, err := NewWithOptions(cfg, defaultFetcher, newMockDedup(), &mockNotifier{}, testLogger(), Options{
@@ -35,11 +33,6 @@ func TestFetcherForSource_WithFactory(t *testing.T) {
 	f := s.fetcherForSource("yad2")
 	if f != yad2Fetcher {
 		t.Error("expected yad2 fetcher from factory")
-	}
-
-	f = s.fetcherForSource("winwin")
-	if f != winwinFetcher {
-		t.Error("expected winwin fetcher from factory")
 	}
 
 	f = s.fetcherForSource("unknown")

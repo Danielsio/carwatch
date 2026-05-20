@@ -107,7 +107,7 @@ func GroupSearches(searches []storage.Search) []CanonicalGroup {
 
 func splitSources(source string) []string {
 	if source == "" {
-		return []string{"yad2", "winwin"}
+		return []string{"yad2"}
 	}
 	parts := strings.Split(source, ",")
 	result := make([]string, 0, len(parts))
@@ -117,7 +117,7 @@ func splitSources(source string) []string {
 		}
 	}
 	if len(result) == 0 {
-		return []string{"yad2", "winwin"}
+		return []string{"yad2"}
 	}
 	return result
 }

@@ -7,11 +7,10 @@ import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl } from "@/lib/scoringAlgorithm";
 import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 
-function listingSource(pageLink: string): "Yad2" | "WinWin" | null {
+function listingSource(pageLink: string): "Yad2" | null {
   if (!pageLink) return null;
   const lower = pageLink.toLowerCase();
   if (lower.includes("yad2")) return "Yad2";
-  if (lower.includes("winwin")) return "WinWin";
   return null;
 }
 

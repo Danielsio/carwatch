@@ -129,7 +129,7 @@ export function HeroSection() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
-                  Yad2 · WinWin
+                  Yad2
                 </span>
                 <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                   סנכרון: לפני רגע

@@ -25,7 +25,7 @@ const LEVEL_STYLES: Record<
 };
 
 const ALL_COMPONENTS = [
-  "scheduler", "yad2", "winwin", "enricher",
+  "scheduler", "yad2", "enricher",
   "bot", "telegram", "notifier",
   "api-pricelist", "circuit_breaker",
 ] as const;

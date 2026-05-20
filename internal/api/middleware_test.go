@@ -9,15 +9,11 @@ import (
 	"testing"
 
 	"github.com/dsionov/carwatch/internal/config"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage/pgtest"
 )
 
 func TestAuthMiddleware_FirebaseValid(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	srv := New(Config{
 		Searches:     store,
@@ -43,11 +39,7 @@ func TestAuthMiddleware_FirebaseValid(t *testing.T) {
 }
 
 func TestAuthMiddleware_FirebaseInvalidToken(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	srv := New(Config{
 		Searches:     store,
@@ -73,11 +65,7 @@ func TestAuthMiddleware_FirebaseInvalidToken(t *testing.T) {
 }
 
 func TestAuthMiddleware_FirebaseNoBearer(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	srv := New(Config{
 		Searches:     store,
@@ -103,11 +91,7 @@ func TestAuthMiddleware_FirebaseNoBearer(t *testing.T) {
 }
 
 func TestAuthMiddleware_DevChatID_ValidToken(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	if err := store.UpsertUser(context.Background(), 42, "testuser"); err != nil {
 		t.Fatal(err)
@@ -137,11 +121,7 @@ func TestAuthMiddleware_DevChatID_ValidToken(t *testing.T) {
 }
 
 func TestAuthMiddleware_DevChatID_NoToken(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	srv := New(Config{
 		Searches: store,
@@ -167,11 +147,7 @@ func TestAuthMiddleware_DevChatID_NoToken(t *testing.T) {
 }
 
 func TestSecurityHeaders(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	if err := store.UpsertUser(context.Background(), 999, "testuser"); err != nil {
 		t.Fatal(err)
@@ -205,11 +181,7 @@ func TestSecurityHeaders(t *testing.T) {
 }
 
 func TestRequestIDMiddleware(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	if err := store.UpsertUser(context.Background(), 999, "testuser"); err != nil {
 		t.Fatal(err)
@@ -241,11 +213,7 @@ func TestRequestIDMiddleware(t *testing.T) {
 }
 
 func TestCORSMiddleware_AllowedMethods(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	srv := New(Config{
 		Searches: store,

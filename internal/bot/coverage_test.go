@@ -9,7 +9,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/storage"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage/pgtest"
 )
 
 func mustNoErr(t *testing.T, err error) {
@@ -21,11 +21,7 @@ func mustNoErr(t *testing.T, err error) {
 
 func newTestBotFull(t *testing.T) *testBot {
 	t.Helper()
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatalf("create store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := pgtest.NewStore(t)
 
 	mm := &mockMessenger{}
 	logger := slog.New(slog.NewTextHandler(&discardWriter{}, &slog.HandlerOptions{Level: slog.LevelError}))

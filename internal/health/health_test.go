@@ -211,7 +211,6 @@ func TestStatus_RecordFetch(t *testing.T) {
 	s.RecordFetch("yad2", 200*time.Millisecond, nil)
 	s.RecordFetch("yad2", 300*time.Millisecond, errors.New("timeout"))
 	s.RecordFetch("yad2", 150*time.Millisecond, fmt.Errorf("yad2: %w", fetcher.ErrChallenge))
-	s.RecordFetch("winwin", 50*time.Millisecond, nil)
 
 	snap := s.Snapshot()
 	sources, ok := snap["sources"].(map[string]any)
@@ -237,17 +236,6 @@ func TestStatus_RecordFetch(t *testing.T) {
 	}
 	if _, hasLastErr := yad2["last_error"]; !hasLastErr {
 		t.Error("expected last_error in yad2 metrics")
-	}
-
-	winwin, ok := sources["winwin"].(map[string]any)
-	if !ok {
-		t.Fatal("expected winwin source metrics")
-	}
-	if winwin["fetches"].(int64) != 1 {
-		t.Errorf("winwin fetches = %v, want 1", winwin["fetches"])
-	}
-	if winwin["successes"].(int64) != 1 {
-		t.Errorf("winwin successes = %v, want 1", winwin["successes"])
 	}
 }
 

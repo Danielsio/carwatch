@@ -22,7 +22,9 @@ func TestRun_InvalidConfigPath(t *testing.T) {
 func TestRun_InvalidConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.yaml")
-	_ = os.WriteFile(path, []byte("invalid: {[broken yaml"), 0644)
+	if err := os.WriteFile(path, []byte("invalid: {[broken yaml"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := run(path, testLogger())
 	if err == nil {
@@ -39,9 +41,11 @@ polling:
   interval: 1m
   timezone: UTC
 storage:
-  db_path: ":memory:"
+  dsn: "postgres://localhost/test"
 `
-	_ = os.WriteFile(path, []byte(cfg), 0644)
+	if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := run(path, testLogger())
 	if err == nil {
@@ -52,7 +56,31 @@ storage:
 	}
 }
 
-func TestRun_InvalidDBPath(t *testing.T) {
+func TestRun_MissingDSN(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	cfg := `
+log_level: info
+polling:
+  interval: 1m
+  timezone: UTC
+telegram:
+  token: "test-token"
+`
+	if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := run(path, testLogger())
+	if err == nil {
+		t.Fatal("expected error for missing DSN")
+	}
+	if !strings.Contains(err.Error(), "storage.dsn is required") {
+		t.Errorf("expected DSN validation error, got: %v", err)
+	}
+}
+
+func TestRun_InvalidDSN(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	cfg := `
@@ -63,13 +91,15 @@ polling:
 telegram:
   token: "test-token"
 storage:
-  db_path: "/nonexistent/deep/path/db.sqlite"
+  dsn: "postgres://localhost:99999/nonexistent_db?sslmode=disable&connect_timeout=1"
 `
-	_ = os.WriteFile(path, []byte(cfg), 0644)
+	if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := run(path, testLogger())
 	if err == nil {
-		t.Fatal("expected error for invalid DB path")
+		t.Fatal("expected error for invalid DSN")
 	}
 	if !strings.Contains(err.Error(), "store") {
 		t.Errorf("expected store creation error, got: %v", err)
@@ -83,8 +113,12 @@ func TestRun_InvalidLogLevel(t *testing.T) {
 log_level: "invalid_level"
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 `
-	_ = os.WriteFile(path, []byte(cfg), 0644)
+	if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := run(path, testLogger())
 	if err == nil {
@@ -108,8 +142,12 @@ polling:
     end: "23:00"
 telegram:
   token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
 `
-	_ = os.WriteFile(path, []byte(cfg), 0644)
+	if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := run(path, testLogger())
 	if err == nil {
@@ -117,63 +155,6 @@ telegram:
 	}
 	if !strings.Contains(err.Error(), "active_hours") {
 		t.Errorf("expected active_hours validation error, got: %v", err)
-	}
-}
-
-func TestRun_EmptyProxies_UsesDefault(t *testing.T) {
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "test.db")
-	path := filepath.Join(dir, "config.yaml")
-	cfg := `
-log_level: info
-polling:
-  interval: 1m
-  timezone: UTC
-telegram:
-  token: "invalid-token-but-valid-format"
-storage:
-  db_path: "` + dbPath + `"
-http:
-  proxies: []
-`
-	_ = os.WriteFile(path, []byte(cfg), 0644)
-
-	err := run(path, testLogger())
-	// Will fail at telegram connection, but should get past SQLite and fetcher creation.
-	if err == nil {
-		t.Fatal("expected error (telegram connection)")
-	}
-	if strings.Contains(err.Error(), "create store") || strings.Contains(err.Error(), "create fetcher") {
-		t.Errorf("should not fail at store/fetcher creation, got: %v", err)
-	}
-}
-
-func TestRun_WithProxies(t *testing.T) {
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "test.db")
-	path := filepath.Join(dir, "config.yaml")
-	cfg := `
-log_level: info
-polling:
-  interval: 1m
-  timezone: UTC
-telegram:
-  token: "invalid-token-but-valid-format"
-storage:
-  db_path: "` + dbPath + `"
-http:
-  proxies:
-    - "http://proxy1:8080"
-    - "http://proxy2:8080"
-`
-	_ = os.WriteFile(path, []byte(cfg), 0644)
-
-	err := run(path, testLogger())
-	if err == nil {
-		t.Fatal("expected error (telegram connection)")
-	}
-	if strings.Contains(err.Error(), "create store") || strings.Contains(err.Error(), "create fetcher") {
-		t.Errorf("should not fail at store/fetcher creation with proxies, got: %v", err)
 	}
 }
 
@@ -187,15 +168,16 @@ log_level: ` + level + `
 telegram:
   token: "test-token"
 storage:
-  db_path: "/nonexistent/db.sqlite"
+  dsn: "postgres://localhost:99999/nonexistent?sslmode=disable&connect_timeout=1"
 `
-			_ = os.WriteFile(path, []byte(cfg), 0644)
+			if err := os.WriteFile(path, []byte(cfg), 0644); err != nil {
+				t.Fatal(err)
+			}
 
 			err := run(path, testLogger())
 			if err == nil {
-				t.Fatal("expected error (bad db path)")
+				t.Fatal("expected error (bad DSN)")
 			}
-			// Should fail at store creation, not config/log level.
 			if strings.Contains(err.Error(), "log_level") {
 				t.Errorf("log_level %q should be valid, got: %v", level, err)
 			}

@@ -15,7 +15,7 @@ import (
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/storage"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage/pgtest"
 )
 
 type mockFetcher struct {
@@ -309,11 +309,7 @@ func TestIsActiveHours_WithinWindow(t *testing.T) {
 }
 
 func TestRunMultiTenantCycle_ObserverSuccessPath(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatalf("sqlite: %v", err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	ctx := context.Background()
 	if err := store.UpsertUser(ctx, 1, "alice"); err != nil {
@@ -515,11 +511,7 @@ func TestMarketCacheInvalidatedOnNewListings(t *testing.T) {
 }
 
 func TestRunMultiTenantCycle_ObserverErrorOnFetchFailure(t *testing.T) {
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatalf("sqlite: %v", err)
-	}
-	defer func() { _ = store.Close() }()
+	store := pgtest.NewStore(t)
 
 	ctx := context.Background()
 	if err := store.UpsertUser(ctx, 2, "bob"); err != nil {

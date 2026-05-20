@@ -33,7 +33,7 @@ func ToggleSource(current, toggle string) string {
 		}
 	}
 	var result []string
-	for _, s := range []string{"yad2", "winwin"} {
+	for _, s := range []string{"yad2"} {
 		if sources[s] {
 			result = append(result, s)
 		}

@@ -39,7 +39,6 @@ function listingSource(pageLink: string): string | null {
   if (!pageLink) return null;
   const lower = pageLink.toLowerCase();
   if (lower.includes("yad2")) return "Yad2";
-  if (lower.includes("winwin")) return "WinWin";
   return null;
 }
 

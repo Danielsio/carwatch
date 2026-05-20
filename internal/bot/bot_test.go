@@ -13,7 +13,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/storage"
-	"github.com/dsionov/carwatch/internal/storage/sqlite"
+	"github.com/dsionov/carwatch/internal/storage/pgtest"
 )
 
 func TestIsRateLimited(t *testing.T) {
@@ -546,14 +546,9 @@ func searchString(s, substr string) bool {
 	return false
 }
 
-func newBotTestStore(t *testing.T) *sqlite.Store {
+func newBotTestStore(t *testing.T) storage.Store {
 	t.Helper()
-	store, err := sqlite.New(":memory:")
-	if err != nil {
-		t.Fatalf("create store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-	return store
+	return pgtest.NewStore(t)
 }
 
 func TestRateLimitEnforcement(t *testing.T) {
@@ -669,10 +664,7 @@ func TestToggleSource(t *testing.T) {
 		current, toggle, want string
 	}{
 		{"", "yad2", "yad2"},
-		{"yad2", "winwin", "yad2,winwin"},
-		{"yad2,winwin", "yad2", "winwin"},
-		{"yad2,winwin", "winwin", "yad2"},
-		{"winwin", "winwin", ""},
+		{"yad2", "yad2", ""},
 	}
 	for _, tt := range tests {
 		got := toggleSource(tt.current, tt.toggle)
@@ -687,9 +679,7 @@ func TestSourceDisplayName_Multi(t *testing.T) {
 		source, want string
 	}{
 		{"yad2", "Yad2"},
-		{"winwin", "WinWin"},
-		{"yad2,winwin", "Yad2, WinWin"},
-		{"", "Yad2, WinWin"},
+		{"", "Yad2"},
 	}
 	for _, tt := range tests {
 		got := sourceDisplayName(tt.source)
@@ -709,16 +699,13 @@ func TestSourceKeyboard_NoneSelected(t *testing.T) {
 	}
 }
 
-func TestSourceKeyboard_BothSelected(t *testing.T) {
-	kb := sourceKeyboard("yad2,winwin", locale.English)
+func TestSourceKeyboard_Yad2Selected(t *testing.T) {
+	kb := sourceKeyboard("yad2", locale.English)
 	if len(kb.InlineKeyboard) != 2 {
 		t.Fatalf("expected 2 rows (toggles + Done), got %d", len(kb.InlineKeyboard))
 	}
 	if kb.InlineKeyboard[0][0].Text != "✅ Yad2" {
 		t.Errorf("first button = %q, want '✅ Yad2'", kb.InlineKeyboard[0][0].Text)
-	}
-	if kb.InlineKeyboard[0][1].Text != "✅ WinWin" {
-		t.Errorf("second button = %q, want '✅ WinWin'", kb.InlineKeyboard[0][1].Text)
 	}
 	if kb.InlineKeyboard[1][0].Text != "Done ✓" {
 		t.Errorf("done button = %q, want 'Done ✓'", kb.InlineKeyboard[1][0].Text)
@@ -767,7 +754,7 @@ func TestSweepStaleMaps(t *testing.T) {
 	}
 }
 
-func TestWizardFlow_BothSources(t *testing.T) {
+func TestWizardFlow_Yad2Source(t *testing.T) {
 	tb := newTestBot(t)
 	ctx := context.Background()
 	const chatID int64 = 600
@@ -776,7 +763,6 @@ func TestWizardFlow_BothSources(t *testing.T) {
 
 	tb.simulateCommand(ctx, chatID, "/watch")
 	tb.simulateCallback(ctx, chatID, cbSourceToggle+"yad2")
-	tb.simulateCallback(ctx, chatID, cbSourceToggle+"winwin")
 	tb.simulateCallback(ctx, chatID, cbSourceDone)
 	tb.simulateCallback(ctx, chatID, cbPrefixMfr+"27")
 	tb.simulateCallback(ctx, chatID, cbPrefixModel+"10332")
@@ -796,7 +782,7 @@ func TestWizardFlow_BothSources(t *testing.T) {
 	if len(searches) != 1 {
 		t.Fatalf("expected 1 search, got %d", len(searches))
 	}
-	if searches[0].Source != "yad2,winwin" {
-		t.Errorf("source = %q, want yad2,winwin", searches[0].Source)
+	if searches[0].Source != "yad2" {
+		t.Errorf("source = %q, want yad2", searches[0].Source)
 	}
 }

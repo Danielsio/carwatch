@@ -12,7 +12,6 @@ import (
 )
 
 // countSearchListingsForChatSQL batches per-search listing counts using each search row's caps.
-// Keep in sync with sqlite ListSearchListings filter semantics.
 const countSearchListingsForChatSQL = `
 SELECT lh.search_id, COUNT(*)
 FROM listing_history lh

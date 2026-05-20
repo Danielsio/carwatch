@@ -309,7 +309,7 @@ func (b *Bot) onConfirm(ctx context.Context, chatID int64) {
 
 	source := wd.Source
 	if source == "" {
-		source = "yad2,winwin"
+		source = "yad2"
 	}
 
 	var name string

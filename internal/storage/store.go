@@ -2,8 +2,7 @@ package storage
 
 import "database/sql"
 
-// Store is the combined interface that both sqlite.Store and postgres.Store satisfy.
-// It embeds all individual store interfaces plus lifecycle methods.
+// Store is the combined interface that postgres.Store satisfies.
 type Store interface {
 	UserStore
 	LinkTokenStore
