@@ -45,6 +45,7 @@ func NewConsumer(addr, password string, db int, notify NotifyFunc, logger *slog.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
+		_ = client.Close()
 		return nil, err
 	}
 
@@ -54,7 +55,10 @@ func NewConsumer(addr, password string, db int, notify NotifyFunc, logger *slog.
 		return nil, err
 	}
 
-	hostname, _ := os.Hostname()
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = fmt.Sprintf("consumer-%d", time.Now().UnixNano())
+	}
 	return &Consumer{
 		client:   client,
 		notify:   notify,

@@ -249,6 +249,10 @@ func validate(cfg *Config) error {
 	default:
 		return fmt.Errorf("telemetry.traces_exporter %q: must be none, stdout, or otlp", cfg.Telemetry.TracesExporter)
 	}
+	if cfg.Redis.Addr != "" && cfg.Redis.DB < 0 {
+		return fmt.Errorf("redis.db must be >= 0, got %d", cfg.Redis.DB)
+	}
+
 	for _, origin := range cfg.API.CORSOrigins {
 		u, err := url.Parse(origin)
 		if err != nil {

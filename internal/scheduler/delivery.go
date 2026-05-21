@@ -22,10 +22,12 @@ type DeliveryStrategy interface {
 }
 
 type InstantDelivery struct {
-	notifier  notifier.Notifier
-	lang      locale.Lang
-	logger    *slog.Logger
-	publisher *broker.Publisher
+	notifier   notifier.Notifier
+	lang       locale.Lang
+	logger     *slog.Logger
+	publisher  *broker.Publisher
+	searchID   int64
+	searchName string
 }
 
 func NewInstantDelivery(n notifier.Notifier, lang locale.Lang, opts ...func(*InstantDelivery)) *InstantDelivery {
@@ -52,6 +54,15 @@ func WithPublisher(p *broker.Publisher) func(*InstantDelivery) {
 	}
 }
 
+// WithSearchContext sets the search ID and name so that published alerts
+// carry traceability metadata.
+func WithSearchContext(id int64, name string) func(*InstantDelivery) {
+	return func(d *InstantDelivery) {
+		d.searchID = id
+		d.searchName = name
+	}
+}
+
 func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error {
 	if d.publisher != nil {
 		msg := notifier.FormatBatch(listings, d.lang)
@@ -61,10 +72,12 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 			return errMalformedMessage
 		}
 		alert := broker.Alert{
-			ChatID:    chatID,
-			Message:   msg,
-			Language:  string(d.lang),
-			Timestamp: time.Now().UTC().Format(time.RFC3339),
+			ChatID:     chatID,
+			SearchID:   d.searchID,
+			SearchName: d.searchName,
+			Message:    msg,
+			Language:   string(d.lang),
+			Timestamp:  time.Now().UTC().Format(time.RFC3339),
 		}
 		if err := d.publisher.Publish(ctx, alert); err != nil {
 			d.logger.Error("publish alert failed", "chat_id", chatID, "error", err)
@@ -95,10 +108,12 @@ func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message 
 
 	if d.publisher != nil {
 		alert := broker.Alert{
-			ChatID:    chatID,
-			Message:   message,
-			Language:  string(d.lang),
-			Timestamp: time.Now().UTC().Format(time.RFC3339),
+			ChatID:     chatID,
+			SearchID:   d.searchID,
+			SearchName: d.searchName,
+			Message:    message,
+			Language:   string(d.lang),
+			Timestamp:  time.Now().UTC().Format(time.RFC3339),
 		}
 		if err := d.publisher.Publish(ctx, alert); err != nil {
 			d.logger.Error("publish raw alert failed", "chat_id", chatID, "error", err)

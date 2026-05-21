@@ -14,7 +14,7 @@ import (
 )
 
 func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, lang locale.Lang, sr searchResult, log *slog.Logger) bool {
-	delivery := s.deliveryFor(ctx, search.ChatID, lang, log)
+	delivery := s.deliveryFor(ctx, search.ChatID, lang, search.ID, search.Name, log)
 	sent := false
 
 	for _, msg := range sr.priceDropMessages {

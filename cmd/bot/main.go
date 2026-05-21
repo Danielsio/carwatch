@@ -171,8 +171,21 @@ func run(configPath string, logger *slog.Logger) error {
 		}
 		defer func() { _ = cons.Close() }()
 		go func() {
-			if err := cons.Run(ctx); err != nil && ctx.Err() == nil {
-				logger.Error("broker consumer exited", "error", err)
+			const maxBackoff = 30 * time.Second
+			backoff := time.Second
+			for {
+				if err := cons.Run(ctx); err != nil {
+					if ctx.Err() != nil {
+						return
+					}
+					logger.Error("redis consumer exited, restarting", "backoff", backoff.String(), "error", err)
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(backoff):
+					}
+					backoff = min(backoff*2, maxBackoff)
+				}
 			}
 		}()
 		logger.Info("redis broker enabled", "addr", cfg.Redis.Addr)

@@ -304,7 +304,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.Lang, log *slog.Logger) DeliveryStrategy {
+func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.Lang, searchID int64, searchName string, log *slog.Logger) DeliveryStrategy {
 	if s.stores.Digests != nil {
 		var mode string
 		needFetch := true
@@ -329,7 +329,7 @@ func (s *Scheduler) deliveryFor(ctx context.Context, chatID int64, lang locale.L
 			return NewDigestDelivery(s.stores.Digests, lang)
 		}
 	}
-	opts := []func(*InstantDelivery){WithLogger(log)}
+	opts := []func(*InstantDelivery){WithLogger(log), WithSearchContext(searchID, searchName)}
 	if s.publisher != nil {
 		opts = append(opts, WithPublisher(s.publisher))
 	}
