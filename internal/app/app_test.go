@@ -78,7 +78,7 @@ storage:
 	}
 }
 
-func TestSetupLogger_InvalidLevel(t *testing.T) {
+func TestLoadConfig_InvalidLogLevel(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	cfgYAML := `
