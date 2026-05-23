@@ -160,7 +160,7 @@ jobs:
     needs: [changes, lint, test, web]
     if: |
       always() &&
-      needs.changes.outputs.infra == 'true' &&
+      (needs.changes.outputs.go == 'true' || needs.changes.outputs.infra == 'true') &&
       (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
       (needs.test.result == 'success' || needs.test.result == 'skipped') &&
       (needs.web.result == 'success' || needs.web.result == 'skipped')
@@ -181,7 +181,7 @@ jobs:
           if [ ! -f web/dist/index.html ]; then
             mkdir -p web/dist && echo '<!doctype html>' > web/dist/index.html
           fi
-      - name: Build binary
-        run: make build
+      - name: Build all binaries
+        run: make build-all
       - name: Build Docker image
         run: docker build -t carwatch:ci .
