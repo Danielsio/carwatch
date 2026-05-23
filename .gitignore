@@ -2,6 +2,9 @@ data/
 config.yaml
 *.db
 /bot
+/api-server
+/scraper
+/notifier-worker
 coverage.out
 .idea/
 .coverage/

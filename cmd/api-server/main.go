@@ -1,3 +1,6 @@
+// Command api-server runs the REST API, SPA, and Telegram bot without the
+// scheduler or Redis consumer. Use this when the scraper and notifier run
+// as separate processes.
 package main
 
 import (
@@ -11,10 +14,7 @@ import (
 	"time"
 
 	"github.com/dsionov/carwatch/internal/app"
-	"github.com/dsionov/carwatch/internal/broker"
-	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
-	"github.com/dsionov/carwatch/internal/scheduler"
 )
 
 var (
@@ -29,7 +29,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("carwatch %s (commit: %s, built: %s)\n", version, gitCommit, buildTime)
+		fmt.Printf("api-server %s (commit: %s, built: %s)\n", version, gitCommit, buildTime)
 		return
 	}
 
@@ -56,7 +56,7 @@ func run(configPath string, logger *slog.Logger) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	telShutdown, err := app.InitTelemetry(ctx, "carwatch", version, cfg, logger)
+	telShutdown, err := app.InitTelemetry(ctx, "carwatch-api", version, cfg, logger)
 	if err != nil {
 		return err
 	}
@@ -112,74 +112,8 @@ func run(configPath string, logger *slog.Logger) error {
 		}
 	}()
 
-	// Redis broker (optional): publish alerts to a stream instead of
-	// delivering directly; a consumer goroutine processes them with
-	// rate limiting.
-	var pub *broker.Publisher
-	if cfg.Redis.Addr != "" {
-		p, err := broker.NewPublisher(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
-		if err != nil {
-			return fmt.Errorf("create redis publisher: %w", err)
-		}
-		pub = p
-		defer func() { _ = pub.Close() }()
-
-		cons, err := broker.NewConsumer(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB,
-			bb.Multi.NotifyRaw, logger.With("component", "broker-consumer"))
-		if err != nil {
-			return fmt.Errorf("create redis consumer: %w", err)
-		}
-		defer func() { _ = cons.Close() }()
-		go func() {
-			const maxBackoff = 30 * time.Second
-			backoff := time.Second
-			for {
-				if err := cons.Run(ctx); err != nil {
-					if ctx.Err() != nil {
-						return
-					}
-					logger.Error("redis consumer exited, restarting", "backoff", backoff.String(), "error", err)
-					select {
-					case <-ctx.Done():
-						return
-					case <-time.After(backoff):
-					}
-					backoff = min(backoff*2, maxBackoff)
-				}
-			}
-		}()
-		logger.Info("redis broker enabled", "addr", cfg.Redis.Addr)
-	}
-
-	kmEnricher := yad2.NewEnricher(fb.Yad2, logger.With("component", "enricher"), yad2.EnricherConfig{})
-
-	sched, err := scheduler.NewWithOptions(cfg, fb.Caching, store, bb.Multi, logger.With("component", "scheduler"), scheduler.Options{
-		Observer:         h,
-		Prices:           store,
-		ConfigPath:       configPath,
-		FetcherFactory:   fb.Factory,
-		ListingStore:     store,
-		SearchStore:      store,
-		UserStore:        store,
-		DigestStore:      store,
-		HiddenStore:      store,
-		CatalogIngester:  dynCatalog,
-		CarNames:         dynCatalog,
-		KmEnricher:       kmEnricher,
-		MarketStore:      store,
-		PriceListStore:   store,
-		PriceListSvc:     plSvc,
-		DailyDigestStore: store,
-		Publisher:        pub,
-	})
-	if err != nil {
-		return fmt.Errorf("create scheduler: %w", err)
-	}
-
-	bb.Handler.SetPollTrigger(sched)
-	apiServer.SetPollTrigger(sched)
+	// Start Telegram bot polling in a goroutine with restart-on-failure.
 	bb.Handler.StartCleanup(ctx)
-
 	go func() {
 		const maxBackoff = 30 * time.Second
 		backoff := time.Second
@@ -200,10 +134,13 @@ func run(configPath string, logger *slog.Logger) error {
 			backoff = min(backoff*2, maxBackoff)
 		}
 	}()
-	logger.Info("bot started",
+
+	logger.Info("api-server started",
 		"health", "http://"+cfg.HTTP.Bind+"/healthz",
 	)
 
-	h.MarkSchedulerStarted()
-	return sched.Run(ctx)
+	// Block until shutdown signal.
+	<-ctx.Done()
+	logger.Info("api-server shutting down")
+	return nil
 }
