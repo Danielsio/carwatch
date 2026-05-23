@@ -1,4 +1,5 @@
-.PHONY: all build run test test-cover test-e2e lint ci clean docker-build docker-run \
+.PHONY: all build build-api build-scraper build-notifier build-all \
+       run test test-cover test-e2e lint ci clean docker-build docker-run \
        dev dev-db dev-stop dev-reset dev-pg-shell \
        vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
        vm-backup vm-backup-list vm-pg-shell \
@@ -24,6 +25,17 @@ LDFLAGS := -ldflags "-s -w \
 
 build:
 	go build $(LDFLAGS) -o bot ./cmd/bot
+
+build-api:
+	go build $(LDFLAGS) -o api-server ./cmd/api-server
+
+build-scraper:
+	go build $(LDFLAGS) -o scraper ./cmd/scraper
+
+build-notifier:
+	go build $(LDFLAGS) -o notifier-worker ./cmd/notifier
+
+build-all: build build-api build-scraper build-notifier
 
 catalog-refresh:
 	go run ./cmd/catalog-gen -output internal/catalog/catalog_data.json
@@ -53,7 +65,7 @@ lint:
 ci: lint test
 
 clean:
-	rm -f bot
+	rm -f bot api-server scraper notifier-worker
 	rm -rf $(COVER_DIR)
 
 web-install:
