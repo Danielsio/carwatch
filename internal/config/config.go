@@ -249,8 +249,13 @@ func validate(cfg *Config) error {
 	default:
 		return fmt.Errorf("telemetry.traces_exporter %q: must be none, stdout, or otlp", cfg.Telemetry.TracesExporter)
 	}
-	if cfg.Redis.Addr != "" && cfg.Redis.DB < 0 {
-		return fmt.Errorf("redis.db must be >= 0, got %d", cfg.Redis.DB)
+	if cfg.Redis.Addr != "" {
+		if _, err := net.ResolveTCPAddr("tcp", cfg.Redis.Addr); err != nil {
+			return fmt.Errorf("redis.addr %q: must be a valid host:port", cfg.Redis.Addr)
+		}
+		if cfg.Redis.DB < 0 {
+			return fmt.Errorf("redis.db must be >= 0, got %d", cfg.Redis.DB)
+		}
 	}
 
 	for _, origin := range cfg.API.CORSOrigins {
