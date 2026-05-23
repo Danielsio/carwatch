@@ -140,5 +140,28 @@ func (c *Consumer) ack(ctx context.Context, id string) {
 	}
 }
 
+// Drain processes any pending (claimed but unacked) messages before shutdown.
+func (c *Consumer) Drain(ctx context.Context) {
+	pending, err := c.client.XPendingExt(ctx, &redis.XPendingExtArgs{
+		Stream:   StreamName,
+		Group:    GroupName,
+		Consumer: c.consumer,
+		Start:    "-",
+		End:      "+",
+		Count:    100,
+	}).Result()
+	if err != nil || len(pending) == 0 {
+		return
+	}
+	c.logger.Info("draining pending messages", "count", len(pending))
+	for _, p := range pending {
+		msgs, err := c.client.XRangeN(ctx, StreamName, p.ID, p.ID, 1).Result()
+		if err != nil || len(msgs) == 0 {
+			continue
+		}
+		c.processMessage(ctx, msgs[0])
+	}
+}
+
 // Close shuts down the Redis connection.
 func (c *Consumer) Close() error { return c.client.Close() }
