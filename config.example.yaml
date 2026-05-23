@@ -43,6 +43,12 @@ http:
 #   otlp_endpoint: ""      # e.g. localhost:4317
 #   metrics_path: /metrics
 
+# Redis (optional, enables stream-based notification delivery with rate limiting)
+# redis:
+#   addr: "localhost:6379"   # leave empty or omit to disable Redis broker
+#   password: ""
+#   db: 0
+
 # REST API settings (for web frontend)
 api:
   cors_origins:

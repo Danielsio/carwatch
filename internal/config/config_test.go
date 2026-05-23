@@ -317,6 +317,19 @@ telemetry:
 	expectLoadError(t, yaml, "telemetry.traces_exporter")
 }
 
+func TestLoad_NegativeRedisDB(t *testing.T) {
+	yaml := `
+telegram:
+  token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
+redis:
+  addr: "localhost:6379"
+  db: -1
+`
+	expectLoadError(t, yaml, "redis.db must be >= 0")
+}
+
 func loadFromString(t *testing.T, yaml string) *Config {
 	t.Helper()
 	dir := t.TempDir()

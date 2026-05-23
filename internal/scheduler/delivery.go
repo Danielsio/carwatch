@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
+	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
@@ -20,9 +22,12 @@ type DeliveryStrategy interface {
 }
 
 type InstantDelivery struct {
-	notifier notifier.Notifier
-	lang     locale.Lang
-	logger   *slog.Logger
+	notifier   notifier.Notifier
+	lang       locale.Lang
+	logger     *slog.Logger
+	publisher  *broker.Publisher
+	searchID   int64
+	searchName string
 }
 
 func NewInstantDelivery(n notifier.Notifier, lang locale.Lang, opts ...func(*InstantDelivery)) *InstantDelivery {
@@ -41,7 +46,46 @@ func WithLogger(l *slog.Logger) func(*InstantDelivery) {
 	}
 }
 
+// WithPublisher configures the delivery to publish alerts to Redis
+// instead of calling the notifier directly.
+func WithPublisher(p *broker.Publisher) func(*InstantDelivery) {
+	return func(d *InstantDelivery) {
+		d.publisher = p
+	}
+}
+
+// WithSearchContext sets the search ID and name so that published alerts
+// carry traceability metadata.
+func WithSearchContext(id int64, name string) func(*InstantDelivery) {
+	return func(d *InstantDelivery) {
+		d.searchID = id
+		d.searchName = name
+	}
+}
+
 func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error {
+	if d.publisher != nil {
+		msg := notifier.FormatBatch(listings, d.lang)
+		if notifier.IsMalformedMessage(msg) {
+			d.logger.Error("blocked malformed batch message",
+				"chat_id", chatID, "msg_len", len(msg))
+			return errMalformedMessage
+		}
+		alert := broker.Alert{
+			ChatID:     chatID,
+			SearchID:   d.searchID,
+			SearchName: d.searchName,
+			Message:    msg,
+			Language:   string(d.lang),
+			Timestamp:  time.Now().UTC().Format(time.RFC3339),
+		}
+		if err := d.publisher.Publish(ctx, alert); err != nil {
+			d.logger.Error("publish alert failed", "chat_id", chatID, "error", err)
+			return err
+		}
+		return nil
+	}
+
 	chatIDStr := fmt.Sprintf("%d", chatID)
 	err := d.notifier.Notify(ctx, chatIDStr, listings, d.lang)
 	if err == nil {
@@ -61,6 +105,23 @@ func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message 
 			"msg_preview", truncateStr(message, 200))
 		return errMalformedMessage
 	}
+
+	if d.publisher != nil {
+		alert := broker.Alert{
+			ChatID:     chatID,
+			SearchID:   d.searchID,
+			SearchName: d.searchName,
+			Message:    message,
+			Language:   string(d.lang),
+			Timestamp:  time.Now().UTC().Format(time.RFC3339),
+		}
+		if err := d.publisher.Publish(ctx, alert); err != nil {
+			d.logger.Error("publish raw alert failed", "chat_id", chatID, "error", err)
+			return err
+		}
+		return nil
+	}
+
 	chatIDStr := fmt.Sprintf("%d", chatID)
 	err := d.notifier.NotifyRaw(ctx, chatIDStr, message)
 	if err != nil && !errors.Is(err, notifier.ErrRecipientBlocked) {

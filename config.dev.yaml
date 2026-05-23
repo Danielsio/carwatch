@@ -26,6 +26,9 @@ storage:
 http:
   bind: "0.0.0.0:8080"
 
+redis:
+  addr: "localhost:6379"
+
 api:
   cors_origins:
     - "http://localhost:5173"
