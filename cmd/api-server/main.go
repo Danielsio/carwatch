@@ -112,6 +112,9 @@ func run(configPath string, logger *slog.Logger) error {
 		}
 	}()
 
+	// TODO: migrate to webhook-based Telegram integration for multi-replica
+	// deployments. Long-polling only works with a single api-server replica
+	// because getUpdates is exclusive to one consumer per bot token.
 	// Start Telegram bot polling in a goroutine with restart-on-failure.
 	bb.Handler.StartCleanup(ctx)
 	go func() {

@@ -106,6 +106,9 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		logger.Info("redis publisher enabled", "addr", cfg.Redis.Addr)
 	}
 
+	// TODO: remove direct delivery fallback once Redis is mandatory.
+	// When this fallback fires, Telegram rate limiting and dead-letter
+	// retry logic (which live in the notifier worker) are bypassed.
 	// Build a notifier for direct delivery fallback when Redis is not
 	// configured. When Redis IS configured, the scheduler still needs a
 	// notifier for non-alert messages (e.g., digest delivery).
