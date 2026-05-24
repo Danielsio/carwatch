@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
-import { Bookmark, AlertTriangle, ExternalLink, TrendingDown, TrendingUp, Minus } from "lucide-react";
-import { formatPrice, formatKm, relativeTime, cn, marketComparison, safeHref } from "@/lib/utils";
+import { Bookmark, AlertTriangle, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { formatPrice, formatKm, relativeTime, cn, marketComparison } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl } from "@/lib/scoringAlgorithm";
@@ -234,18 +234,6 @@ export function ListingCardBody({
             {relativeTime(listing.first_seen_at)}
           </span>
           {actions}
-          {safeHref(listing.page_link) ? (
-            <a
-              href={safeHref(listing.page_link)!}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
-              aria-label="צפה במודעה המקורית"
-            >
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          ) : null}
         </div>
       </div>
     </>
