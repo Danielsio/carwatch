@@ -787,8 +787,6 @@ type cycleStats struct {
 	notificationsSent int
 }
 
-// runFetchGroups runs processGroup for each canonical group with bounded concurrency.
-// It reports whether every group failed and aggregate stats.
 // prefillFromDB fills in km/city/image from listing_history for listings
 // that the enricher could not reach this cycle. Once a listing's km is
 // learned in any previous cycle, it is remembered here.
