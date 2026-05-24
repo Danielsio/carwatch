@@ -192,15 +192,19 @@ jobs:
             docker stop carwatch 2>/dev/null || true
             docker rm carwatch 2>/dev/null || true
 
+            # Only manage app + infra services; watchtower and caddy are
+            # long-lived infrastructure that must not be recreated on every deploy.
+            APP_SERVICES="postgres redis api bot-poller scraper notifier"
+
             echo "==> Pulling latest image..."
-            docker compose -f docker-compose.prod.yaml pull
+            docker compose -f docker-compose.prod.yaml pull $APP_SERVICES
 
             # NOTE: Migrations run automatically on app startup.
             # The postgres.New() constructor runs golang-migrate/migrate before
             # returning, so no explicit migration step is needed here.
 
             echo "==> Recreating containers..."
-            docker compose -f docker-compose.prod.yaml up -d
+            docker compose -f docker-compose.prod.yaml up -d $APP_SERVICES
 
             echo "==> Waiting for API health check..."
             for i in $(seq 1 15); do
@@ -234,7 +238,7 @@ jobs:
             if [ "$PREV" != 'none' ]; then
               echo "==> Rolling back to previous image: $PREV"
               docker tag "$PREV" ghcr.io/danielsio/carwatch:latest
-              docker compose -f docker-compose.prod.yaml up -d
+              docker compose -f docker-compose.prod.yaml up -d postgres redis api bot-poller scraper notifier
               echo "==> Rolled back to previous version"
             else
               echo "==> No previous image tag found, skipping rollback"
