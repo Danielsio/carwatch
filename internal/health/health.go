@@ -46,6 +46,7 @@ type Status struct {
 	lastSuccessUnixNs atomic.Int64
 	listingsFound     atomic.Int64
 	notificationsSent atomic.Int64
+	schedulerExpected atomic.Bool
 	schedulerStarted  atomic.Bool
 	botPollingAlive   atomic.Bool
 
@@ -96,6 +97,7 @@ func (s *Status) SetDBSizer(d DBSizer) {
 }
 
 func (s *Status) MarkSchedulerStarted() {
+	s.schedulerExpected.Store(true)
 	s.schedulerStarted.Store(true)
 }
 
@@ -178,19 +180,22 @@ func (s *Status) coreMetrics() map[string]any {
 
 	status := "ok"
 	uptime := time.Since(s.startTime)
+	expectsScheduler := s.schedulerExpected.Load()
 	schedulerUp := s.schedulerStarted.Load()
 
-	switch {
-	case uptime <= startupGracePeriod:
-		if schedulerUp && cycles > 0 && lastSuccessNs == 0 {
-			status = "starting"
+	if expectsScheduler {
+		switch {
+		case uptime <= startupGracePeriod:
+			if schedulerUp && cycles > 0 && lastSuccessNs == 0 {
+				status = "starting"
+			}
+		case !schedulerUp:
+			status = "degraded"
+		case cycles == 0:
+			status = "degraded"
+		case lastSuccessNs == 0 || time.Since(lastSuccess) > degradedThreshold:
+			status = "degraded"
 		}
-	case !schedulerUp:
-		status = "degraded"
-	case cycles == 0:
-		status = "degraded"
-	case lastSuccessNs == 0 || time.Since(lastSuccess) > degradedThreshold:
-		status = "degraded"
 	}
 
 	return map[string]any{
