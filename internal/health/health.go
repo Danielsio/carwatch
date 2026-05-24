@@ -293,8 +293,6 @@ func (s *Status) Snapshot() map[string]any {
 
 // PublicHandler returns a minimal health response suitable for unauthenticated
 // callers. It only exposes the status and version, not operational details.
-// NOTE: cmd/bot/main.go should be updated to use PublicHandler() at /healthz
-// and keep Handler() for admin-only access.
 func (s *Status) PublicHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Frame-Options", "DENY")
