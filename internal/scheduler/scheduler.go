@@ -604,11 +604,20 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 
 	fetchStart := time.Now()
 	raw, err := s.fetchWithRetryUsing(fetchCtx, activeFetcher, globalParams, s.logger)
-	s.observer.RecordFetch("yad2", time.Since(fetchStart), err)
+	fetchDuration := time.Since(fetchStart)
+	s.observer.RecordFetch("yad2", fetchDuration, err)
 	if err != nil {
 		return stats, fmt.Errorf("global feed fetch failed: %w", err)
 	}
 	stats.listingsFetched = len(raw)
+
+	s.logger.Info("global feed fetched",
+		"scan", s.cycleCount,
+		"source", "yad2",
+		"listings", len(raw),
+		"active_searches", len(searches),
+		"duration_ms", fetchDuration.Milliseconds(),
+	)
 
 	// 2. Catalog ingestion.
 	if s.catalogIngester != nil {

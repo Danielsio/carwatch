@@ -193,7 +193,7 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 
 	reqURL := buildURL(f.baseURL, params)
 	fetchStart := time.Now()
-	f.logger.Info("fetching listings",
+	f.logger.Debug("fetching listings",
 		"url", reqURL,
 		"manufacturer", params.Manufacturer,
 		"model", params.Model,
@@ -230,7 +230,7 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 		return nil, fmt.Errorf("parse page: %w", err)
 	}
 
-	f.logger.Info("fetched listings",
+	f.logger.Debug("fetched listings",
 		"count", len(listings),
 		"manufacturer", params.Manufacturer,
 		"model", params.Model,
