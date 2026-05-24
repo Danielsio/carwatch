@@ -113,12 +113,20 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		"health", "http://"+healthBind+"/healthz",
 	)
 
-	// Run consumer with restart-on-failure.
-	// On SIGTERM: stop reading new messages, let in-flight deliveries finish
-	// within a 10-second grace period.
+	consumerLoop(ctx, cons, logger)
+	return nil
+}
+
+type runner interface {
+	Run(ctx context.Context) error
+	Drain(ctx context.Context)
+}
+
+func consumerLoop(ctx context.Context, cons runner, logger *slog.Logger) {
 	const maxBackoff = 30 * time.Second
 	backoff := time.Second
 	for {
+		backoff = time.Second
 		if err := cons.Run(ctx); err != nil {
 			if ctx.Err() != nil {
 				logger.Info("notifier worker draining in-flight deliveries")
@@ -126,13 +134,13 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 				cons.Drain(drainCtx)
 				drainCancel()
 				logger.Info("notifier worker shut down")
-				return nil
+				return
 			}
 			logger.Error("redis consumer exited, restarting", "backoff", backoff.String(), "error", err)
 			select {
 			case <-ctx.Done():
 				logger.Info("notifier worker shut down")
-				return nil
+				return
 			case <-time.After(backoff):
 			}
 			backoff = min(backoff*2, maxBackoff)
