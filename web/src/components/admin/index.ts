@@ -7,4 +7,5 @@ export { SearchesTab } from "./SearchesTab";
 export { UsersTab } from "./UsersTab";
 export { ActivityChart } from "./ActivityChart";
 export { PriceHistoryTab } from "./PriceHistoryTab";
+export { CyclesTab } from "./CyclesTab";
 export { VitalsCard } from "./VitalsCard";

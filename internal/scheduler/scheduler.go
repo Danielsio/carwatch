@@ -112,6 +112,7 @@ type Stores struct {
 	Market       storage.MarketStore
 	PriceList    storage.PriceListStore
 	DailyDigests storage.DailyDigestStore
+	CycleLog     storage.CycleLogStore
 }
 
 type searchResult struct {
@@ -143,6 +144,7 @@ type Options struct {
 	PriceListHTTP    pricelist.HTTPDoer
 	PriceListSvc     *pricelist.Service
 	DailyDigestStore storage.DailyDigestStore
+	CycleLogStore    storage.CycleLogStore
 	MarketCacheTTL   time.Duration
 	Publisher        *broker.Publisher
 }
@@ -200,6 +202,7 @@ func NewWithOptions(
 			Market:       opts.MarketStore,
 			PriceList:    opts.PriceListStore,
 			DailyDigests: opts.DailyDigestStore,
+			CycleLog:     opts.CycleLogStore,
 		},
 		notifier:          n,
 		logger:            logger,
@@ -547,13 +550,40 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		telemetry.ListingsMatched.Add(ctx, int64(stats.newListings))
 	}
 
+	status := "ok"
+	errMsg := ""
 	if fetchErr != nil {
+		status = "error"
+		errMsg = fetchErr.Error()
 		s.observer.RecordError()
-		return fetchErr
+	} else {
+		s.observer.RecordSuccess()
 	}
 
-	s.observer.RecordSuccess()
+	s.writeCycleLog(ctx, storage.CycleLogEntry{
+		StartedAt:       cycleStart,
+		DurationMs:      int(time.Since(cycleStart).Milliseconds()),
+		Searches:        len(searches),
+		ListingsFetched: stats.listingsFetched,
+		ListingsMatched: stats.newListings,
+		Notifications:   stats.notificationsSent,
+		ErrorMessage:    errMsg,
+		Status:          status,
+	})
+
+	if fetchErr != nil {
+		return fetchErr
+	}
 	return nil
+}
+
+func (s *Scheduler) writeCycleLog(ctx context.Context, entry storage.CycleLogEntry) {
+	if s.stores.CycleLog == nil {
+		return
+	}
+	if err := s.stores.CycleLog.WriteCycleLog(ctx, entry); err != nil {
+		s.logger.Error("write cycle log failed", "error", err)
+	}
 }
 
 // fetchGlobalAndMatch fetches the global Yad2 feed once, enriches it, then

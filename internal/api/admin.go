@@ -583,3 +583,48 @@ func (s *Server) adminActivity(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": stats})
 }
+
+func (s *Server) adminCycles(w http.ResponseWriter, r *http.Request) {
+	limit, ok := parseIntParam(w, r, "limit", 50)
+	if !ok {
+		return
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	entries, err := s.cycleLog.ListCycleLogs(r.Context(), limit)
+	if err != nil {
+		s.logger.Error("admin: list cycle logs", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to list cycle logs")
+		return
+	}
+
+	type cycleResponse struct {
+		ID              int64  `json:"id"`
+		StartedAt       string `json:"started_at"`
+		DurationMs      int    `json:"duration_ms"`
+		Searches        int    `json:"searches"`
+		ListingsFetched int    `json:"listings_fetched"`
+		ListingsMatched int    `json:"listings_matched"`
+		Notifications   int    `json:"notifications"`
+		ErrorMessage    string `json:"error_message,omitempty"`
+		Status          string `json:"status"`
+	}
+
+	resp := make([]cycleResponse, 0, len(entries))
+	for _, e := range entries {
+		resp = append(resp, cycleResponse{
+			ID:              e.ID,
+			StartedAt:       e.StartedAt.UTC().Format("2006-01-02T15:04:05Z"),
+			DurationMs:      e.DurationMs,
+			Searches:        e.Searches,
+			ListingsFetched: e.ListingsFetched,
+			ListingsMatched: e.ListingsMatched,
+			Notifications:   e.Notifications,
+			ErrorMessage:    e.ErrorMessage,
+			Status:          e.Status,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": resp})
+}

@@ -66,7 +66,8 @@ type Server struct {
 	refreshMu        sync.Map
 	lastRefreshSweep atomic.Int64 // unix nano of last sweep
 
-	vitals *vitalsRing
+	cycleLog storage.CycleLogStore
+	vitals   *vitalsRing
 
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
 	httpReqTotal   atomic.Uint64
@@ -110,6 +111,7 @@ type Config struct {
 	FirebaseAuth TokenVerifier
 	BotUsername  string
 	Fetchers     *fetcher.Factory
+	CycleLog     storage.CycleLogStore
 	PriceListSvc *pricelist.Service
 	Bind         string
 }
@@ -147,6 +149,7 @@ func New(c Config) *Server {
 		fetchers:       c.Fetchers,
 		priceListSvc:   c.PriceListSvc,
 		pipeline:       scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger),
+		cycleLog:       c.CycleLog,
 		vitals:         newVitalsRing(),
 	}
 }
@@ -210,6 +213,9 @@ func (s *Server) Routes() http.Handler {
 		authMux.HandleFunc("GET /api/v1/admin/price-history", s.requireAdmin(s.adminListPriceHistory))
 		authMux.HandleFunc("GET /api/v1/admin/seen-listings", s.requireAdmin(s.adminListSeenListings))
 		authMux.HandleFunc("GET /api/v1/admin/activity", s.requireAdmin(s.adminActivity))
+		if s.cycleLog != nil {
+			authMux.HandleFunc("GET /api/v1/admin/cycles", s.requireAdmin(s.adminCycles))
+		}
 	}
 
 	if s.notifs != nil {
