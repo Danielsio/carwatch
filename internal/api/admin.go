@@ -45,6 +45,7 @@ type adminStatsResponse struct {
 	Runtime runtimeStats         `json:"runtime"`
 	HTTP    httpStats            `json:"http"`
 	Pool    *storage.DBPoolStats `json:"pool,omitempty"`
+	Vitals  []vitalsSummary      `json:"vitals,omitempty"`
 }
 
 type dbStats struct {
@@ -142,7 +143,8 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 			Status5xx:     n5xx,
 			AvgDurationMs: avgMs,
 		},
-		Pool: pool,
+		Pool:   pool,
+		Vitals: s.vitals.summarize(),
 	})
 }
 

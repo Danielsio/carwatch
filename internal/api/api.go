@@ -66,6 +66,8 @@ type Server struct {
 	refreshMu        sync.Map
 	lastRefreshSweep atomic.Int64 // unix nano of last sweep
 
+	vitals *vitalsRing
+
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
 	httpReqTotal   atomic.Uint64
 	http2xx        atomic.Uint64
@@ -145,6 +147,7 @@ func New(c Config) *Server {
 		fetchers:       c.Fetchers,
 		priceListSvc:   c.PriceListSvc,
 		pipeline:       scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger),
+		vitals:         newVitalsRing(),
 	}
 }
 

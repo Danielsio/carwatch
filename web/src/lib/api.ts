@@ -300,6 +300,18 @@ export interface AdminStats {
     wait_count: number;
     wait_duration: string;
   };
+  vitals?: VitalsSummary[];
+}
+
+export interface VitalsSummary {
+  name: string;
+  p50: number;
+  p75: number;
+  p95: number;
+  count: number;
+  good: number;
+  needs_improvement: number;
+  poor: number;
 }
 
 export interface AdminListing extends Listing {
