@@ -30,6 +30,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: carwatch-redis
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
     networks:
       - carwatch-net
     volumes:
