@@ -498,10 +498,12 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		s.priceListSvc.ResetCycleCounter()
 	}
 
+	dbStart := time.Now()
 	searches, err := s.stores.Searches.ListAllActiveSearches(ctx)
 	if err != nil {
 		return fmt.Errorf("load searches: %w", err)
 	}
+	searchLoadMs := time.Since(dbStart).Milliseconds()
 
 	s.pruneOldData(ctx)
 	s.processExpiredPremium(ctx)
@@ -520,6 +522,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.logger.Info("active searches loaded",
 		"scan", cycle,
 		"searches", len(searches),
+		"db_duration_ms", searchLoadMs,
 	)
 
 	// Fetch the global feed (empty SourceParams = no manufacturer/model filter).
@@ -794,6 +797,7 @@ func (s *Scheduler) getOrBuildMarketCache(ctx context.Context) *scoring.MarketCa
 }
 
 func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
+	refreshStart := time.Now()
 	if err := s.stores.Market.RefreshMarketMedians(ctx); err != nil {
 		s.logger.Error("refresh market medians failed", "error", err)
 	}
@@ -803,6 +807,7 @@ func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
 		s.logger.Error("load market medians failed, keeping previous cache", "error", err)
 		return nil
 	}
+	s.logger.Debug("market medians loaded", "rows", len(rows), "duration_ms", time.Since(refreshStart).Milliseconds())
 
 	entries := make([]scoring.MedianEntry, len(rows))
 	for i, r := range rows {
@@ -845,9 +850,10 @@ func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListi
 		return
 	}
 
+	prefillStart := time.Now()
 	data, err := s.stores.Listings.LookupEnrichmentData(ctx, tokens)
 	if err != nil {
-		s.logger.Error("prefill from DB failed", "error", err)
+		s.logger.Error("prefill from DB failed", "looked_up", len(tokens), "error", err)
 		return
 	}
 	if len(data) == 0 {
@@ -878,7 +884,7 @@ func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListi
 		}
 	}
 	if filled > 0 {
-		s.logger.Info("prefilled from DB", "filled", filled, "looked_up", len(tokens))
+		s.logger.Info("prefilled from DB", "filled", filled, "looked_up", len(tokens), "duration_ms", time.Since(prefillStart).Milliseconds())
 	}
 }
 

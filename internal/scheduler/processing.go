@@ -146,8 +146,9 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 }
 
 func (s *Scheduler) persistListings(ctx context.Context, records []storage.ListingRecord, log *slog.Logger) error {
+	saveStart := time.Now()
 	if err := s.stores.Listings.SaveListings(ctx, records); err != nil {
-		log.Error("batch save listings failed", "batch_size", len(records), "error", err)
+		log.Error("batch save listings failed", "batch_size", len(records), "duration_ms", time.Since(saveStart).Milliseconds(), "error", err)
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
 		for _, rec := range records {
