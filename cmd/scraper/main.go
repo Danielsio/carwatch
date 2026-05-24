@@ -58,6 +58,10 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 	}
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
+	if cfg.Redis.Addr == "" {
+		return fmt.Errorf("redis.addr is required for the scraper; alerts must go through the Redis-backed notifier worker for rate limiting")
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
@@ -93,25 +97,15 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		}
 	}()
 
-	// Redis publisher (optional): when configured, alerts go through Redis
-	// for the notifier worker to consume.
-	var pub *broker.Publisher
-	if cfg.Redis.Addr != "" {
-		p, err := broker.NewPublisher(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
-		if err != nil {
-			return fmt.Errorf("create redis publisher: %w", err)
-		}
-		pub = p
-		defer func() { _ = pub.Close() }()
-		logger.Info("redis publisher enabled", "addr", cfg.Redis.Addr)
+	pub, err := broker.NewPublisher(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+	if err != nil {
+		return fmt.Errorf("create redis publisher: %w", err)
 	}
+	defer func() { _ = pub.Close() }()
+	logger.Info("redis publisher enabled", "addr", cfg.Redis.Addr)
 
-	// TODO: remove direct delivery fallback once Redis is mandatory.
-	// When this fallback fires, Telegram rate limiting and dead-letter
-	// retry logic (which live in the notifier worker) are bypassed.
-	// Build a notifier for direct delivery fallback when Redis is not
-	// configured. When Redis IS configured, the scheduler still needs a
-	// notifier for non-alert messages (e.g., digest delivery).
+	// The scheduler needs a notifier for non-alert messages (e.g., digest
+	// delivery). Alerts go through the Redis publisher to the notifier worker.
 	multi, err := app.BuildMultiNotifier(cfg, store, store, logger)
 	if err != nil {
 		return err
