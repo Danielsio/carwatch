@@ -60,8 +60,7 @@ type Freshness = "hot" | "today" | "week" | "older";
 function listingFreshness(firstSeenAt: string): Freshness {
   if (!firstSeenAt) return "older";
   const posted = new Date(firstSeenAt).getTime();
-  const now = Date.now();
-  const hoursAgo = (now - posted) / (1000 * 60 * 60);
+  const hoursAgo = Math.max(0, Date.now() - posted) / (1000 * 60 * 60);
   if (hoursAgo < 1) return "hot";
   if (hoursAgo < 24) return "today";
   if (hoursAgo < 168) return "week";
