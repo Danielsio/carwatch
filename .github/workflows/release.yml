@@ -210,7 +210,7 @@ jobs:
             for i in $(seq 1 15); do
               if docker exec carwatch-api wget -q --spider http://localhost:8080/healthz 2>/dev/null; then
                 echo "==> Health check passed!"
-                docker exec carwatch-api /api-server -version
+                docker exec carwatch-api api-server -version
                 exit 0
               fi
               echo "    attempt $i/15 — waiting 5s..."
