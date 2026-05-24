@@ -12,9 +12,6 @@ ARG VITE_FIREBASE_APP_ID
 RUN npm run build
 
 FROM golang:1.25-alpine AS builder
-
-RUN apk add --no-cache gcc musl-dev
-
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -23,18 +20,19 @@ COPY --from=frontend /web/dist ./web/dist
 ARG VERSION=dev
 ARG GIT_COMMIT=unknown
 ARG BUILD_TIME=unknown
-RUN CGO_ENABLED=1 go build \
-    -ldflags="-s -w -X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /bot ./cmd/bot
+ENV LDFLAGS="-s -w -X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}"
+RUN CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/bot ./cmd/bot
+RUN CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/api-server ./cmd/api-server
+RUN CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/scraper ./cmd/scraper
+RUN CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/notifier ./cmd/notifier
 
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tzdata \
-    && adduser -D -u 1000 bot
-USER bot
-COPY --from=builder /bot /bot
+    && adduser -D -u 1000 carwatch
+USER carwatch
+COPY --from=builder /bin/bot /bin/api-server /bin/scraper /bin/notifier /usr/local/bin/
 COPY --from=builder /app/migrations /migrations
-VOLUME /data
 HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
   CMD wget -q --spider http://localhost:8080/healthz || exit 1
-ENTRYPOINT ["/bot"]
+ENTRYPOINT ["/usr/local/bin/bot"]
 CMD ["-config", "/config.yaml"]

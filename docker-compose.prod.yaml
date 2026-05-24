@@ -27,6 +27,31 @@ services:
         limits:
           memory: 512M
 
+  redis:
+    image: redis:7-alpine
+    container_name: carwatch-redis
+    networks:
+      - carwatch-net
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # All-in-one mode: runs API + scheduler + consumer in a single process.
+  # For split deployment, replace this with api/scraper/notifier services below.
   carwatch:
     image: ghcr.io/danielsio/carwatch:latest
     container_name: carwatch
@@ -35,10 +60,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     expose:
       - "8080"
     volumes:
-      - carwatch-data:/data
       - ./config.yaml:/config.yaml:ro
       - ./migrations:/migrations:ro
       - ./firebase-sa.json:/config/firebase-sa.json:ro
@@ -58,6 +84,59 @@ services:
       resources:
         limits:
           memory: 512M
+
+  # --- Split deployment (uncomment to use instead of all-in-one) ---
+  # api:
+  #   image: ghcr.io/danielsio/carwatch:latest
+  #   container_name: carwatch-api
+  #   entrypoint: ["/usr/local/bin/api-server"]
+  #   networks:
+  #     - carwatch-net
+  #   depends_on:
+  #     postgres: { condition: service_healthy }
+  #   expose:
+  #     - "8080"
+  #   volumes:
+  #     - ./config.yaml:/config.yaml:ro
+  #     - ./migrations:/migrations:ro
+  #     - ./firebase-sa.json:/config/firebase-sa.json:ro
+  #   environment:
+  #     - TZ=Asia/Jerusalem
+  #     - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
+  #     - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+  #   restart: unless-stopped
+  #
+  # scraper:
+  #   image: ghcr.io/danielsio/carwatch:latest
+  #   container_name: carwatch-scraper
+  #   entrypoint: ["/usr/local/bin/scraper"]
+  #   networks:
+  #     - carwatch-net
+  #   depends_on:
+  #     postgres: { condition: service_healthy }
+  #     redis: { condition: service_healthy }
+  #   volumes:
+  #     - ./config.yaml:/config.yaml:ro
+  #     - ./migrations:/migrations:ro
+  #   environment:
+  #     - TZ=Asia/Jerusalem
+  #     - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+  #   restart: unless-stopped
+  #
+  # notifier:
+  #   image: ghcr.io/danielsio/carwatch:latest
+  #   container_name: carwatch-notifier
+  #   entrypoint: ["/usr/local/bin/notifier"]
+  #   networks:
+  #     - carwatch-net
+  #   depends_on:
+  #     redis: { condition: service_healthy }
+  #   volumes:
+  #     - ./config.yaml:/config.yaml:ro
+  #   environment:
+  #     - TZ=Asia/Jerusalem
+  #     - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+  #   restart: unless-stopped
 
   caddy:
     image: caddy:2-alpine
@@ -81,12 +160,10 @@ services:
         max-file: "3"
 
   watchtower:
-    # Pin to specific version; :latest + Docker socket = supply chain risk
     image: containrrr/watchtower:1.7.1
     container_name: watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      # Requires: docker login ghcr.io (creates ~/.docker/config.json)
       - ${HOME}/.docker:/etc/watchtower-docker:ro
     environment:
       - DOCKER_CONFIG=/etc/watchtower-docker
@@ -107,9 +184,8 @@ networks:
     external: true
 
 volumes:
-  carwatch-data:
-    name: carwatch_carwatch-data
   pgdata:
     name: carwatch_pgdata
+  redis-data:
   caddy-data:
   caddy-config:
