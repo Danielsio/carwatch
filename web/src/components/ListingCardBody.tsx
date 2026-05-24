@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
-import { Bookmark, AlertTriangle, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { Bookmark, AlertTriangle, Clock, Flame, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, cn, marketComparison } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
@@ -55,6 +55,18 @@ function dealInfo(listing: Listing): {
   };
 }
 
+type Freshness = "hot" | "today" | "week" | "older";
+
+function listingFreshness(firstSeenAt: string): Freshness {
+  if (!firstSeenAt) return "older";
+  const posted = new Date(firstSeenAt).getTime();
+  const hoursAgo = Math.max(0, Date.now() - posted) / (1000 * 60 * 60);
+  if (hoursAgo < 1) return "hot";
+  if (hoursAgo < 24) return "today";
+  if (hoursAgo < 168) return "week";
+  return "older";
+}
+
 export function ListingCardBody({
   listing,
   actions,
@@ -79,6 +91,7 @@ export function ListingCardBody({
   const source = listingSource(listing.page_link);
   const deal = dealInfo(listing);
   const isNew = listing.seen === false;
+  const freshness = listingFreshness(listing.first_seen_at);
 
   return (
     <>
@@ -147,7 +160,17 @@ export function ListingCardBody({
                 <h3 className="text-sm font-bold text-white drop-shadow-sm truncate">
                   {listing.manufacturer} {listing.model}
                 </h3>
-                {isNew ? (
+                {freshness === "hot" ? (
+                  <span className="shrink-0 flex items-center gap-0.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2 py-0.5 text-[9px] font-bold text-white shadow-sm animate-pulse">
+                    <Flame className="h-2.5 w-2.5" />
+                    חם!
+                  </span>
+                ) : freshness === "today" ? (
+                  <span className="shrink-0 flex items-center gap-0.5 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-bold text-white shadow-sm">
+                    <Clock className="h-2.5 w-2.5" />
+                    חדש היום
+                  </span>
+                ) : isNew ? (
                   <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
                     NEW
                   </span>
@@ -163,48 +186,69 @@ export function ListingCardBody({
           </div>
         </div>
 
-        {/* New glow ring */}
-        {isNew ? (
+        {/* Freshness glow ring */}
+        {freshness === "hot" ? (
+          <div className="pointer-events-none absolute inset-0 rounded-t-[inherit] ring-2 ring-inset ring-orange-500/60 shadow-[inset_0_0_24px_rgba(249,115,22,0.25)] animate-pulse" aria-hidden />
+        ) : freshness === "today" ? (
+          <div className="pointer-events-none absolute inset-0 rounded-t-[inherit] ring-2 ring-inset ring-emerald-500/50 shadow-[inset_0_0_20px_rgba(16,185,129,0.15)]" aria-hidden />
+        ) : isNew ? (
           <div className="pointer-events-none absolute inset-0 rounded-t-[inherit] ring-2 ring-inset ring-primary/50 shadow-[inset_0_0_20px_rgba(59,130,246,0.15)]" aria-hidden />
         ) : null}
       </div>
 
       {/* Content */}
-      <div className={cn("px-4 py-3", listing.removed_at && "opacity-50")}>
-        {/* Score + meta row */}
-        <div className="flex items-center gap-3 mb-2.5">
+      <div className={cn("px-4 py-3 space-y-3", listing.removed_at && "opacity-50")}>
+        {/* Score row */}
+        <div className="flex items-center gap-2.5">
           {logoSrc ? (
             <img src={logoSrc} alt="" className="h-7 w-7 shrink-0 object-contain dark:invert dark:opacity-80" loading="lazy" decoding="async" />
           ) : null}
           {listing.fitness_score != null ? (
-            <MatchScoreBox score={listing.fitness_score} size="sm" />
+            <>
+              <MatchScoreBox score={listing.fitness_score} size="sm" />
+              <span className="text-xs font-semibold" style={{ color: scoreHsl(listing.fitness_score) }}>
+                {listing.fitness_score.toFixed(1)}
+              </span>
+            </>
           ) : null}
-          {listing.fitness_score != null ? (
-            <span className="text-xs font-semibold" style={{ color: scoreHsl(listing.fitness_score) }}>
-              {listing.fitness_score.toFixed(1)}
-            </span>
-          ) : null}
+          <span className={cn(
+            "ms-auto flex items-center gap-1 text-xs font-medium tabular-nums",
+            freshness === "hot" ? "text-orange-500" :
+            freshness === "today" ? "text-emerald-500" :
+            "text-muted-foreground",
+          )}>
+            {freshness === "hot" ? <Flame className="h-3 w-3" /> :
+             freshness === "today" ? <Clock className="h-3 w-3" /> :
+             <Clock className="h-3 w-3 opacity-50" />}
+            {relativeTime(listing.first_seen_at)}
+          </span>
+        </div>
 
-          <div className="flex flex-wrap gap-1 ms-auto">
-            {listing.km > 0 ? (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                {formatKm(listing.km)}
-              </span>
-            ) : null}
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-              יד {listing.hand > 0 ? listing.hand : "—"}
-            </span>
-            {listing.gear_box ? (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                {listing.gear_box}
-              </span>
-            ) : null}
+        {/* Specs grid */}
+        <div className="grid grid-cols-3 gap-1.5">
+          <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center">
+            <p className="text-[10px] text-muted-foreground/70">ק״מ</p>
+            <p className="text-xs font-semibold tabular-nums text-foreground">
+              {listing.km > 0 ? formatKm(listing.km) : "—"}
+            </p>
+          </div>
+          <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center">
+            <p className="text-[10px] text-muted-foreground/70">יד</p>
+            <p className="text-xs font-semibold text-foreground">
+              {listing.hand > 0 ? listing.hand : "—"}
+            </p>
+          </div>
+          <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center">
+            <p className="text-[10px] text-muted-foreground/70">תיבת הילוכים</p>
+            <p className="text-xs font-semibold text-foreground truncate">
+              {listing.gear_box || "—"}
+            </p>
           </div>
         </div>
 
         {/* Description */}
         {rawDesc ? (
-          <div className="mb-2.5 min-w-0">
+          <div className="min-w-0">
             <p
               className={cn(
                 "text-xs text-muted-foreground leading-relaxed break-words whitespace-pre-line",
@@ -230,9 +274,6 @@ export function ListingCardBody({
 
         {/* Footer */}
         <div className="flex items-center gap-1.5 pt-2 border-t border-border/30">
-          <span className="me-auto text-[10px] font-medium text-muted-foreground/70 tabular-nums">
-            {relativeTime(listing.first_seen_at)}
-          </span>
           {actions}
         </div>
       </div>
