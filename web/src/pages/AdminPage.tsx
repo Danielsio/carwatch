@@ -6,6 +6,7 @@ import {
   FileSearch,
   History,
   RefreshCw,
+  RotateCw,
   Shield,
   Users,
 } from "lucide-react";
@@ -20,12 +21,14 @@ import {
   SearchesTab,
   UsersTab,
   PriceHistoryTab,
+  CyclesTab,
 } from "@/components/admin";
 
-type TabKey = "overview" | "listings" | "searches" | "users" | "priceHistory";
+type TabKey = "overview" | "cycles" | "listings" | "searches" | "users" | "priceHistory";
 
 const TABS: { key: TabKey; label: string; icon: typeof Car }[] = [
   { key: "overview", label: "סקירה כללית", icon: Database },
+  { key: "cycles", label: "סריקות", icon: RotateCw },
   { key: "listings", label: "מודעות", icon: Car },
   { key: "searches", label: "חיפושים", icon: FileSearch },
   { key: "users", label: "משתמשים", icon: Users },
@@ -184,6 +187,7 @@ export function AdminPage() {
           {activeTab === "overview" && (
             <OverviewTab data={data} onRefresh={() => void refetch()} />
           )}
+          {activeTab === "cycles" && <CyclesTab />}
           {activeTab === "listings" && (
             <ListingsTab
               searchId={listingsSearchId}

@@ -141,6 +141,7 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		PriceListStore:   store,
 		PriceListSvc:     plSvc,
 		DailyDigestStore: store,
+		CycleLogStore:    store,
 		Publisher:        pub,
 	})
 	if err != nil {

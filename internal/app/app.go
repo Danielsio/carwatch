@@ -212,6 +212,7 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		Push:         cfg.Push,
 		FirebaseAuth: firebaseAuth,
 		BotUsername:  cfg.Telegram.BotUsername,
+		CycleLog:     store,
 		Fetchers:     fetcherFactory,
 		PriceListSvc: plSvc,
 		Bind:         cfg.HTTP.Bind,

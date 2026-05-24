@@ -318,6 +318,23 @@ type DailyDigestStore interface {
 	DailyStats(ctx context.Context, chatID int64) ([]DailySearchStats, error)
 }
 
+type CycleLogEntry struct {
+	ID              int64
+	StartedAt       time.Time
+	DurationMs      int
+	Searches        int
+	ListingsFetched int
+	ListingsMatched int
+	Notifications   int
+	ErrorMessage    string
+	Status          string
+}
+
+type CycleLogStore interface {
+	WriteCycleLog(ctx context.Context, entry CycleLogEntry) error
+	ListCycleLogs(ctx context.Context, limit int) ([]CycleLogEntry, error)
+}
+
 type AdminStore interface {
 	DBFileSize() (int64, error)
 	CountAllListings(ctx context.Context) (int64, error)

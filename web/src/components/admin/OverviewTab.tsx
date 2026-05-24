@@ -13,6 +13,7 @@ import { motion } from "motion/react";
 import type { useAdminStats } from "@/hooks/useAdmin";
 import { adminApi } from "@/lib/api";
 import { ActivityChart } from "./ActivityChart";
+import { VitalsCard } from "./VitalsCard";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 
@@ -124,6 +125,10 @@ export function OverviewTab({
         <h3 className="mb-4 text-sm font-semibold">פעילות יומית (30 ימים)</h3>
         <ActivityChart />
       </div>
+
+      {data.vitals && data.vitals.length > 0 && (
+        <VitalsCard vitals={data.vitals} />
+      )}
 
       {/* DB Storage + Runtime — two-column */}
       <div className="grid gap-6 lg:grid-cols-2">

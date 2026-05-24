@@ -300,6 +300,18 @@ export interface AdminStats {
     wait_count: number;
     wait_duration: string;
   };
+  vitals?: VitalsSummary[];
+}
+
+export interface VitalsSummary {
+  name: string;
+  p50: number;
+  p75: number;
+  p95: number;
+  count: number;
+  good: number;
+  needs_improvement: number;
+  poor: number;
 }
 
 export interface AdminListing extends Listing {
@@ -418,6 +430,22 @@ export interface AdminUsersResponse {
   total: number;
 }
 
+export interface AdminCycleEntry {
+  id: number;
+  started_at: string;
+  duration_ms: number;
+  searches: number;
+  listings_fetched: number;
+  listings_matched: number;
+  notifications: number;
+  error_message?: string;
+  status: string;
+}
+
+export interface AdminCyclesResponse {
+  items: AdminCycleEntry[];
+}
+
 export const adminApi = {
   stats: () => fetchAPI<AdminStats>("/admin/stats"),
   listings: (params?: ListingsParams & { search_id?: number }) => {
@@ -469,6 +497,8 @@ export const adminApi = {
   },
   activity: (days?: number) =>
     fetchAPI<AdminActivityResponse>(`/admin/activity${days ? `?days=${days}` : ""}`),
+  cycles: (limit?: number) =>
+    fetchAPI<AdminCyclesResponse>(`/admin/cycles${limit ? `?limit=${limit}` : ""}`),
   syncUserStatus: () =>
     fetchAPI<SyncUserStatusResult>("/admin/sync-user-status", { method: "POST" }),
 };
