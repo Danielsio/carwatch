@@ -685,13 +685,14 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 			}
 
 			// Per-user, per-search dedup.
-			isNew, ok := s.deduplicateListings(ctx, raw[i].Token, m.ChatID, m.SearchID, s.logger)
+			matchLog := s.logger.With("search_id", m.SearchID, "chat_id", m.ChatID, "search_name", m.SearchName)
+			isNew, ok := s.deduplicateListings(ctx, raw[i].Token, m.ChatID, m.SearchID, matchLog)
 			if !ok {
 				continue
 			}
 
 			// Price drop detection.
-			if s.tryPriceDropListing(ctx, m.Search, raw[i], acc.lang, marketCache, &acc.result, s.logger) {
+			if s.tryPriceDropListing(ctx, m.Search, raw[i], acc.lang, marketCache, &acc.result, matchLog) {
 				continue
 			}
 

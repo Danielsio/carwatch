@@ -17,25 +17,25 @@ func (s *Scheduler) pruneOldData(ctx context.Context) {
 	if pruneAfter > 0 {
 		pruned, err := s.stores.Dedup.Prune(ctx, pruneAfter)
 		if err != nil {
-			s.logger.Error("prune failed", "error", err)
+			s.logger.Error("prune dedup failed", "retention", pruneAfter.String(), "error", err)
 		} else if pruned > 0 {
-			s.logger.Info("pruned old listings", "count", pruned)
+			s.logger.Info("pruned old dedup entries", "count", pruned, "retention", pruneAfter.String())
 		}
 	}
 	if s.stores.Prices != nil {
 		pruned, err := s.stores.Prices.PrunePrices(ctx, priceHistoryRetention)
 		if err != nil {
-			s.logger.Error("prune prices failed", "error", err)
+			s.logger.Error("prune prices failed", "retention", priceHistoryRetention.String(), "error", err)
 		} else if pruned > 0 {
-			s.logger.Info("pruned old price history", "count", pruned)
+			s.logger.Info("pruned old price history", "count", pruned, "retention", priceHistoryRetention.String())
 		}
 	}
 	if s.stores.Listings != nil {
 		pruned, err := s.stores.Listings.PruneListings(ctx, listingHistoryRetention)
 		if err != nil {
-			s.logger.Error("prune listing history failed", "error", err)
+			s.logger.Error("prune listing history failed", "retention", listingHistoryRetention.String(), "error", err)
 		} else if pruned > 0 {
-			s.logger.Info("pruned old listing history", "count", pruned)
+			s.logger.Info("pruned old listing history", "count", pruned, "retention", listingHistoryRetention.String())
 		}
 	}
 	s.lastPruneTime = time.Now()

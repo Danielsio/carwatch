@@ -69,6 +69,7 @@ func (n *Notifier) Notify(ctx context.Context, recipient string, listings []mode
 	if err != nil {
 		return fmt.Errorf("webpush: invalid recipient %q: %w", recipient, err)
 	}
+	n.logger.Debug("delivering web push", "chat_id", chatID, "listings", len(listings))
 
 	subs, err := n.subs.ListPushSubscriptions(ctx, chatID)
 	if err != nil {
