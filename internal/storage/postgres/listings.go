@@ -558,7 +558,7 @@ func (s *Store) ListUnenrichedTokens(ctx context.Context, limit int) ([]string, 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT DISTINCT token FROM listing_history
 		WHERE km <= 0
-		ORDER BY token
+		ORDER BY RANDOM()
 		LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
