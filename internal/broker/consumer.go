@@ -27,11 +27,12 @@ type NotifyFunc func(ctx context.Context, recipient string, message string) erro
 
 // Consumer reads alerts from the Redis Stream and delivers them.
 type Consumer struct {
-	client   *redis.Client
-	notify   NotifyFunc
-	limiter  *rate.Limiter
-	logger   *slog.Logger
-	consumer string
+	client             *redis.Client
+	notify             NotifyFunc
+	limiter            *rate.Limiter
+	logger             *slog.Logger
+	consumer           string
+	orphanIdleThreshold time.Duration
 }
 
 // NewConsumer connects to Redis, creates the consumer group if needed,
@@ -60,11 +61,12 @@ func NewConsumer(addr, password string, db int, notify NotifyFunc, logger *slog.
 		hostname = fmt.Sprintf("consumer-%d", time.Now().UnixNano())
 	}
 	return &Consumer{
-		client:   client,
-		notify:   notify,
-		limiter:  rate.NewLimiter(rate.Limit(30), 30), // 30 msg/sec Telegram limit
-		logger:   logger,
-		consumer: hostname,
+		client:              client,
+		notify:              notify,
+		limiter:             rate.NewLimiter(rate.Limit(30), 30), // 30 msg/sec Telegram limit
+		logger:              logger,
+		consumer:            hostname,
+		orphanIdleThreshold: orphanIdleThreshold,
 	}, nil
 }
 
@@ -74,12 +76,17 @@ func (c *Consumer) Run(ctx context.Context) error {
 	reclaimTicker := time.NewTicker(30 * time.Second)
 	defer reclaimTicker.Stop()
 
+	orphanTicker := time.NewTicker(60 * time.Second)
+	defer orphanTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-reclaimTicker.C:
 			c.reclaimPending(ctx)
+		case <-orphanTicker.C:
+			c.reclaimOrphans(ctx)
 		default:
 		}
 
@@ -193,6 +200,59 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {
 func (c *Consumer) ack(ctx context.Context, id string) {
 	if err := c.client.XAck(ctx, StreamName, GroupName, id).Err(); err != nil {
 		c.logger.Error("ack failed", "id", id, "error", err)
+	}
+}
+
+const orphanIdleThreshold = 5 * time.Minute
+
+// reclaimOrphans claims messages pending under other (possibly dead) consumers
+// that have been idle for at least orphanIdleThreshold. This ensures messages
+// aren't lost when a consumer crashes and restarts with a different hostname.
+func (c *Consumer) reclaimOrphans(ctx context.Context) {
+	idle := c.orphanIdleThreshold
+	pending, err := c.client.XPendingExt(ctx, &redis.XPendingExtArgs{
+		Stream: StreamName,
+		Group:  GroupName,
+		Start:  "-",
+		End:    "+",
+		Count:  50,
+		Idle:   idle,
+	}).Result()
+	if err != nil || len(pending) == 0 {
+		return
+	}
+
+	var orphanIDs []string
+	for _, p := range pending {
+		if p.Consumer == c.consumer {
+			continue
+		}
+		if p.RetryCount >= int64(MaxRetries) {
+			c.deadLetter(ctx, p.ID)
+			continue
+		}
+		orphanIDs = append(orphanIDs, p.ID)
+	}
+	if len(orphanIDs) == 0 {
+		return
+	}
+
+	c.logger.Info("reclaiming orphaned messages", "count", len(orphanIDs))
+
+	claimed, err := c.client.XClaim(ctx, &redis.XClaimArgs{
+		Stream:   StreamName,
+		Group:    GroupName,
+		Consumer: c.consumer,
+		MinIdle:  idle,
+		Messages: orphanIDs,
+	}).Result()
+	if err != nil {
+		c.logger.Error("xclaim orphans failed", "error", err)
+		return
+	}
+
+	for _, msg := range claimed {
+		c.processMessage(ctx, msg)
 	}
 }
 
