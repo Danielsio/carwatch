@@ -8,12 +8,17 @@ import (
 	"time"
 )
 
+// LogSink receives captured log entries.
+type LogSink interface {
+	Publish(e LogEntry)
+}
+
 // TeeHandler wraps an slog.Handler, forwarding all records to it while also
 // capturing records whose "component" attribute matches the allow-list and
-// publishing them to a Hub.
+// publishing them to a sink (Hub or RedisPublisher).
 type TeeHandler struct {
 	inner      slog.Handler
-	hub        *Hub
+	hub        LogSink
 	components map[string]bool
 	// preAttrs are attributes added via WithAttrs
 	preAttrs []slog.Attr
@@ -21,17 +26,17 @@ type TeeHandler struct {
 	groups []string
 }
 
-// NewTeeHandler wraps inner and publishes matching records to hub.
+// NewTeeHandler wraps inner and publishes matching records to the sink.
 // Only records with a "component" attr matching one of the given components
 // are captured; all records are forwarded to inner regardless.
-func NewTeeHandler(inner slog.Handler, hub *Hub, components ...string) *TeeHandler {
+func NewTeeHandler(inner slog.Handler, sink LogSink, components ...string) *TeeHandler {
 	m := make(map[string]bool, len(components))
 	for _, c := range components {
 		m[c] = true
 	}
 	return &TeeHandler{
 		inner:      inner,
-		hub:        hub,
+		hub:        sink,
 		components: m,
 	}
 }
