@@ -46,6 +46,8 @@ type ProcessParams struct {
 	YearMin     int
 	YearMax     int
 	EngineMinCC int
+
+	SkipPrefill bool // set when the caller already prefilled km/city/image
 }
 
 // ProcessResult holds the output of a pipeline invocation.
@@ -66,7 +68,9 @@ type ProcessResult struct {
 func (p *ListingPipeline) Process(ctx context.Context, raw []model.RawListing, params ProcessParams) ProcessResult {
 	log := p.logger.With("op", "pipeline", "search_id", params.SearchID, "chat_id", params.ChatID)
 
-	p.prefillFromDB(ctx, raw, log)
+	if !params.SkipPrefill {
+		p.prefillFromDB(ctx, raw, log)
+	}
 
 	result := ProcessResult{
 		Records:  make([]storage.ListingRecord, 0, len(raw)),

@@ -678,6 +678,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				rawForPipeline[i] = l.RawListing
 			}
 			params := ProcessParamsFromSearch(acc.search, marketCache)
+			params.SkipPrefill = true
 			pr := s.pipeline.Process(ctx, rawForPipeline, params)
 			acc.result.newListings = pr.Listings
 			acc.result.listingRecords = pr.Records
