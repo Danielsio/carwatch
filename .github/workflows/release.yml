@@ -165,7 +165,7 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            PREV=$(docker inspect carwatch --format='{{.Config.Image}}' 2>/dev/null || echo 'none')
+            PREV=$(docker inspect carwatch-api --format='{{.Config.Image}}' 2>/dev/null || echo 'none')
             echo "$PREV" > ~/carwatch/prev_image_tag
             echo "Saved previous image tag: $PREV"
 
@@ -188,25 +188,25 @@ jobs:
             # Ensure the shared network exists
             docker network create carwatch-net 2>/dev/null || true
 
-            # Remove any manually-created container so compose can take over
+            # Remove any legacy all-in-one container
             docker stop carwatch 2>/dev/null || true
             docker rm carwatch 2>/dev/null || true
 
             echo "==> Pulling latest image..."
-            docker compose -f docker-compose.prod.yaml pull carwatch
+            docker compose -f docker-compose.prod.yaml pull
 
             # NOTE: Migrations run automatically on app startup.
             # The postgres.New() constructor runs golang-migrate/migrate before
             # returning, so no explicit migration step is needed here.
 
-            echo "==> Recreating container..."
-            docker compose -f docker-compose.prod.yaml up -d --no-deps carwatch
+            echo "==> Recreating containers..."
+            docker compose -f docker-compose.prod.yaml up -d
 
-            echo "==> Waiting for health check..."
+            echo "==> Waiting for API health check..."
             for i in $(seq 1 15); do
-              if docker exec carwatch wget -q --spider http://localhost:8080/healthz 2>/dev/null; then
+              if docker exec carwatch-api wget -q --spider http://localhost:8080/healthz 2>/dev/null; then
                 echo "==> Health check passed!"
-                docker exec carwatch /bot -version
+                docker exec carwatch-api /api-server -version
                 exit 0
               fi
               echo "    attempt $i/15 — waiting 5s..."
@@ -214,9 +214,11 @@ jobs:
             done
 
             echo "==> Health check failed after 75s"
-            docker inspect carwatch --format 'status={{.State.Status}} exit={{.State.ExitCode}} started={{.State.StartedAt}}' || true
-            echo "==> Container logs (last 80 lines):"
-            docker logs carwatch --tail 80 2>&1 || true
+            for svc in carwatch-api carwatch-bot-poller carwatch-scraper carwatch-notifier; do
+              echo "--- $svc ---"
+              docker inspect "$svc" --format 'status={{.State.Status}} exit={{.State.ExitCode}} started={{.State.StartedAt}}' 2>/dev/null || echo "(not found)"
+              docker logs "$svc" --tail 20 2>&1 || true
+            done
             exit 1
 
       - name: Rollback on failure
@@ -232,7 +234,7 @@ jobs:
             if [ "$PREV" != 'none' ]; then
               echo "==> Rolling back to previous image: $PREV"
               docker tag "$PREV" ghcr.io/danielsio/carwatch:latest
-              docker compose -f docker-compose.prod.yaml up -d --no-deps carwatch
+              docker compose -f docker-compose.prod.yaml up -d
               echo "==> Rolled back to previous version"
             else
               echo "==> No previous image tag found, skipping rollback"
