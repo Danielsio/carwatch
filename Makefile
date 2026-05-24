@@ -1,4 +1,4 @@
-.PHONY: all build build-api build-scraper build-notifier build-all \
+.PHONY: all build build-api build-bot-poller build-scraper build-notifier build-all \
        run test test-cover test-e2e lint ci clean docker-build docker-run \
        dev dev-db dev-stop dev-reset dev-pg-shell \
        vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
@@ -24,10 +24,12 @@ LDFLAGS := -ldflags "-s -w \
 	-X main.buildTime=$(BUILD_TIME)"
 
 build:
-	go build $(LDFLAGS) -o bot ./cmd/bot
-
-build-api:
 	go build $(LDFLAGS) -o api-server ./cmd/api-server
+
+build-api: build
+
+build-bot-poller:
+	go build $(LDFLAGS) -o bot-poller ./cmd/bot-poller
 
 build-scraper:
 	go build $(LDFLAGS) -o scraper ./cmd/scraper
@@ -35,13 +37,13 @@ build-scraper:
 build-notifier:
 	go build $(LDFLAGS) -o notifier-worker ./cmd/notifier
 
-build-all: build build-api build-scraper build-notifier
+build-all: build build-bot-poller build-scraper build-notifier
 
 catalog-refresh:
 	go run ./cmd/catalog-gen -output internal/catalog/catalog_data.json
 
 run: build
-	./bot -config config.yaml
+	./api-server -config config.yaml
 
 test:
 	@mkdir -p $(COVER_DIR)
@@ -65,7 +67,7 @@ lint:
 ci: lint test
 
 clean:
-	rm -f bot api-server scraper notifier-worker
+	rm -f api-server bot-poller scraper notifier-worker
 	rm -rf $(COVER_DIR)
 
 web-install:
@@ -92,7 +94,7 @@ dev-pg-shell:
 	docker exec -it carwatch-dev-pg psql -U carwatch carwatch
 
 dev: build dev-db
-	./bot -config config.dev.yaml
+	./api-server -config config.dev.yaml
 
 docker-build:
 	docker build -t carwatch .
@@ -131,7 +133,7 @@ else
 endif
 
 vm-status: vm-check-env
-	$(SSH) "docker ps --filter name=carwatch && echo '---' && docker exec carwatch /bot -version"
+	$(SSH) "docker ps --filter name=carwatch && echo '---' && docker exec carwatch /api-server -version"
 
 vm-stop: vm-check-env
 	$(SSH) "docker stop carwatch"
@@ -152,11 +154,11 @@ vm-sync: vm-check-env
 
 vm-deploy: vm-sync
 	$(SSH) "$(VM_COMPOSE) pull carwatch && $(VM_COMPOSE) up -d --force-recreate carwatch \
-		&& sleep 3 && docker exec carwatch /bot -version"
+		&& sleep 3 && docker exec carwatch /api-server -version"
 
 vm-deploy-all: vm-sync
 	$(SSH) "$(VM_COMPOSE) pull && $(VM_COMPOSE) up -d \
-		&& sleep 3 && docker exec carwatch /bot -version"
+		&& sleep 3 && docker exec carwatch /api-server -version"
 
 vm-backup: vm-check-env
 	$(SSH) "mkdir -p ~/carwatch/backups && set -o pipefail && \

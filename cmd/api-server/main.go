@@ -1,6 +1,5 @@
-// Command api-server runs the REST API, SPA, and Telegram bot without the
-// scheduler or Redis consumer. Use this when the scraper and notifier run
-// as separate processes.
+// Command api-server runs the REST API and SPA. It does not run the Telegram
+// bot poller, scheduler, or Redis consumer — those are separate binaries.
 package main
 
 import (
@@ -81,16 +80,6 @@ func run(configPath string, logger *slog.Logger) error {
 	h.SetSearchCounter(store)
 	h.SetDBSizer(store)
 
-	bb, err := app.BuildBot(cfg, store, dynCatalog, h, logger)
-	if err != nil {
-		return err
-	}
-
-	if err := bb.Multi.Connect(ctx); err != nil {
-		return fmt.Errorf("connect notifiers: %w", err)
-	}
-	defer func() { _ = bb.Multi.Disconnect() }()
-
 	plSvc, plCleanup, err := app.BuildPriceListService(cfg, store, logger)
 	if err != nil {
 		return err
@@ -109,32 +98,6 @@ func run(configPath string, logger *slog.Logger) error {
 		defer shutdownCancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			logger.Error("http server shutdown failed", "error", err)
-		}
-	}()
-
-	// TODO: migrate to webhook-based Telegram integration for multi-replica
-	// deployments. Long-polling only works with a single api-server replica
-	// because getUpdates is exclusive to one consumer per bot token.
-	// Start Telegram bot polling in a goroutine with restart-on-failure.
-	bb.Handler.StartCleanup(ctx)
-	go func() {
-		const maxBackoff = 30 * time.Second
-		backoff := time.Second
-		for {
-			h.MarkBotPollingAlive()
-			logger.Info("telegram bot polling loop starting")
-			bb.TgNotifier.Bot().Start(ctx)
-			if ctx.Err() != nil {
-				return
-			}
-			logger.Error("telegram bot polling loop exited unexpectedly, restarting", "backoff", backoff.String())
-			h.MarkBotPollingDead()
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(backoff):
-			}
-			backoff = min(backoff*2, maxBackoff)
 		}
 	}()
 
