@@ -530,6 +530,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 
 	s.processDigests(ctx)
 	s.processDailyDigests(ctx)
+	s.backfillUnenrichedListings(ctx)
 
 	s.logger.Info("scan complete",
 		"scan", cycle,
