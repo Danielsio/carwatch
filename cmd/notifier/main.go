@@ -17,6 +17,7 @@ import (
 	"github.com/dsionov/carwatch/internal/app"
 	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/health"
+	"github.com/dsionov/carwatch/internal/logstream"
 )
 
 var (
@@ -56,7 +57,24 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+
+	logPub, pubErr := logstream.NewRedisPublisher(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+	if pubErr != nil {
+		logger.Warn("redis log publisher failed", "error", pubErr)
+	} else {
+		defer func() { _ = logPub.Close() }()
+		teeHandler := logstream.NewTeeHandler(logger.Handler(), logPub,
+			"notifier", "telegram", "webpush", "broker-consumer",
+		)
+		logger = slog.New(teeHandler)
+		slog.SetDefault(logger)
+	}
+
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
+
+	if cfg.Redis.Addr == "" {
+		return fmt.Errorf("redis.addr is required for the notifier worker")
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -66,10 +84,6 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		return err
 	}
 	defer func() { _ = telShutdown(context.Background()) }()
-
-	if cfg.Redis.Addr == "" {
-		return fmt.Errorf("redis.addr is required for the notifier worker")
-	}
 
 	// The notifier worker needs a user store for channel resolution and a
 	// push subscription store for WebPush delivery. Both come from PostgreSQL.

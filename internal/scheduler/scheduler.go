@@ -741,6 +741,12 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 			"chat_id", acc.search.ChatID,
 			"search_name", acc.search.Name,
 		)
+		if len(acc.result.newListings) > 0 || len(acc.result.priceDropMessages) > 0 {
+			searchLog.Info("search matched listings",
+				"new", len(acc.result.newListings),
+				"price_drops", len(acc.result.priceDropMessages),
+			)
+		}
 		delivered := s.deliverResults(ctx, acc.search, acc.lang, acc.result, searchLog)
 		if delivered {
 			stats.notificationsSent++

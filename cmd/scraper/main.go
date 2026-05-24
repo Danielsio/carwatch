@@ -17,6 +17,7 @@ import (
 	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
+	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/scheduler"
 )
@@ -56,11 +57,25 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
 	if cfg.Redis.Addr == "" {
 		return fmt.Errorf("redis.addr is required for the scraper; alerts must go through the Redis-backed notifier worker for rate limiting")
 	}
+
+	logPub, err := logstream.NewRedisPublisher(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+	if err != nil {
+		logger.Warn("redis log publisher failed, logs won't stream to admin", "error", err)
+	} else {
+		defer func() { _ = logPub.Close() }()
+		teeHandler := logstream.NewTeeHandler(logger.Handler(), logPub,
+			"yad2", "scheduler", "enricher", "circuit_breaker",
+			"api-pricelist", "broker-consumer",
+		)
+		logger = slog.New(teeHandler)
+		slog.SetDefault(logger)
+	}
+
+	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

@@ -40,7 +40,11 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 
 	s.observer.RecordListingsFound(len(sr.newListings))
 
-	log.Info("notifying user of new listings", "count", len(sr.newListings))
+	log.Info("delivering new listings to user",
+		"count", len(sr.newListings),
+		"search", search.Name,
+		"user", search.ChatID,
+	)
 
 	if err := delivery.DeliverBatch(ctx, search.ChatID, sr.newListings); err != nil {
 		if errors.Is(err, notifier.ErrRecipientBlocked) {

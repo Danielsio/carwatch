@@ -62,6 +62,16 @@ func run(configPath string, logger *slog.Logger) error {
 	logger = slog.New(teeHandler)
 	slog.SetDefault(logger)
 
+	if cfg.Redis.Addr != "" {
+		logSub, subErr := logstream.NewRedisSubscriber(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB, logHub, logger)
+		if subErr != nil {
+			logger.Warn("redis log subscriber failed, only api-server logs will be visible", "error", subErr)
+		} else {
+			defer func() { _ = logSub.Close() }()
+			logger.Info("subscribed to cross-service log stream", "redis", cfg.Redis.Addr)
+		}
+	}
+
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
