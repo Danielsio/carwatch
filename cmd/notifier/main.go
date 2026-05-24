@@ -25,10 +25,12 @@ var (
 	buildTime = "unknown"
 )
 
+const defaultHealthBind = "0.0.0.0:8083"
+
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
 	showVersion := flag.Bool("version", false, "print version and exit")
-	healthBind := flag.String("health-bind", "0.0.0.0:8082", "health endpoint bind address")
+	healthBind := flag.String("health-bind", defaultHealthBind, "health endpoint bind address")
 	flag.Parse()
 
 	if *showVersion {
