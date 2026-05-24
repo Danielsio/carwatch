@@ -779,6 +779,37 @@ func TestRunMultiTenantCycle_HiddenStoreError(t *testing.T) {
 	}
 }
 
+func TestRunMultiTenantCycle_NilCommercialPassesThroughPercolator(t *testing.T) {
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "tokU", ManufacturerID: 27, ModelID: 10332, Price: 90000, Year: 2020,
+				EngineVolume: 2000, Commercial: nil},
+		},
+	}
+	d := newMockDedup()
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "private-only", Source: "yad2", Manufacturer: 27, Model: 10332,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, SellerFilter: "private", Active: true},
+		},
+	}
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{SearchStore: ss})
+
+	if err := s.runMultiTenantCycle(context.Background()); err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.messages) != 1 {
+		t.Errorf("expected 1 notification (unknown commercial should pass through percolator), got %d", len(n.messages))
+	}
+}
+
 // countingHiddenStore wraps mockHiddenStore and counts ListHiddenTokens calls.
 type countingHiddenStore struct {
 	*mockHiddenStore

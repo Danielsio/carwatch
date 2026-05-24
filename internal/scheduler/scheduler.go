@@ -649,11 +649,6 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				continue
 			}
 
-			// Seller filter (from storage package).
-			if !storage.RawListingMatchesSellerFilter(raw[i].Commercial, m.Search.SellerFilter) {
-				continue
-			}
-
 			// Per-user, per-search dedup.
 			isNew, ok := s.deduplicateListings(ctx, raw[i].Token, m.ChatID, m.SearchID, s.logger)
 			if !ok {
