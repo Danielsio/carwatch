@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
-import { Bookmark, AlertTriangle, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { Bookmark, AlertTriangle, Clock, Flame, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, cn, marketComparison } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
@@ -55,6 +55,19 @@ function dealInfo(listing: Listing): {
   };
 }
 
+type Freshness = "hot" | "today" | "week" | "older";
+
+function listingFreshness(firstSeenAt: string): Freshness {
+  if (!firstSeenAt) return "older";
+  const posted = new Date(firstSeenAt).getTime();
+  const now = Date.now();
+  const hoursAgo = (now - posted) / (1000 * 60 * 60);
+  if (hoursAgo < 1) return "hot";
+  if (hoursAgo < 24) return "today";
+  if (hoursAgo < 168) return "week";
+  return "older";
+}
+
 export function ListingCardBody({
   listing,
   actions,
@@ -79,6 +92,7 @@ export function ListingCardBody({
   const source = listingSource(listing.page_link);
   const deal = dealInfo(listing);
   const isNew = listing.seen === false;
+  const freshness = listingFreshness(listing.first_seen_at);
 
   return (
     <>
@@ -147,7 +161,17 @@ export function ListingCardBody({
                 <h3 className="text-sm font-bold text-white drop-shadow-sm truncate">
                   {listing.manufacturer} {listing.model}
                 </h3>
-                {isNew ? (
+                {freshness === "hot" ? (
+                  <span className="shrink-0 flex items-center gap-0.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2 py-0.5 text-[9px] font-bold text-white shadow-sm animate-pulse">
+                    <Flame className="h-2.5 w-2.5" />
+                    חם!
+                  </span>
+                ) : freshness === "today" ? (
+                  <span className="shrink-0 flex items-center gap-0.5 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-bold text-white shadow-sm">
+                    <Clock className="h-2.5 w-2.5" />
+                    חדש היום
+                  </span>
+                ) : isNew ? (
                   <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
                     NEW
                   </span>
@@ -163,8 +187,12 @@ export function ListingCardBody({
           </div>
         </div>
 
-        {/* New glow ring */}
-        {isNew ? (
+        {/* Freshness glow ring */}
+        {freshness === "hot" ? (
+          <div className="pointer-events-none absolute inset-0 rounded-t-[inherit] ring-2 ring-inset ring-orange-500/60 shadow-[inset_0_0_24px_rgba(249,115,22,0.25)] animate-pulse" aria-hidden />
+        ) : freshness === "today" ? (
+          <div className="pointer-events-none absolute inset-0 rounded-t-[inherit] ring-2 ring-inset ring-emerald-500/50 shadow-[inset_0_0_20px_rgba(16,185,129,0.15)]" aria-hidden />
+        ) : isNew ? (
           <div className="pointer-events-none absolute inset-0 rounded-t-[inherit] ring-2 ring-inset ring-primary/50 shadow-[inset_0_0_20px_rgba(59,130,246,0.15)]" aria-hidden />
         ) : null}
       </div>
@@ -230,7 +258,12 @@ export function ListingCardBody({
 
         {/* Footer */}
         <div className="flex items-center gap-1.5 pt-2 border-t border-border/30">
-          <span className="me-auto text-[10px] font-medium text-muted-foreground/70 tabular-nums">
+          <span className={cn(
+            "me-auto text-[10px] font-medium tabular-nums",
+            freshness === "hot" ? "text-orange-500" :
+            freshness === "today" ? "text-emerald-500" :
+            "text-muted-foreground/70",
+          )}>
             {relativeTime(listing.first_seen_at)}
           </span>
           {actions}
