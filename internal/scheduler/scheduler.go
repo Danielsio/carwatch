@@ -620,6 +620,8 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	accums := make(map[int64]*searchAccum, len(searches))
 
 	// 5. Percolator match: for each listing, find matching searches.
+	hiddenCache := make(map[int64]map[string]bool)
+
 	for i := range raw {
 		matches := s.percolator.Match(raw[i])
 		if len(matches) == 0 {
@@ -637,8 +639,12 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				accums[m.SearchID] = acc
 			}
 
-			// Per-user hidden listing check.
-			hidden := s.loadHiddenTokens(ctx, m.ChatID)
+			// Per-user hidden listing check (cached per chatID per cycle).
+			hidden, cached := hiddenCache[m.ChatID]
+			if !cached {
+				hidden = s.loadHiddenTokens(ctx, m.ChatID)
+				hiddenCache[m.ChatID] = hidden
+			}
 			if len(hidden) > 0 && hidden[raw[i].Token] {
 				continue
 			}
