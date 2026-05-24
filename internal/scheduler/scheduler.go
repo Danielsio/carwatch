@@ -622,8 +622,13 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		}
 	}
 
-	// 3. KM enrichment on the global feed.
+	// 3. Prefill from DB first so the enricher sees which listings still
+	// lack km data even after previous cycles. Then enrich the remainder.
 	prefilled := false
+	if s.stores.Listings != nil {
+		s.prefillFromDB(ctx, raw)
+		prefilled = true
+	}
 	if s.kmEnricher != nil {
 		enrichCtx, cancelEnrich := context.WithTimeout(ctx, kmEnrichTimeout)
 		enriched := s.kmEnricher.Enrich(enrichCtx, raw)
@@ -636,10 +641,6 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 			if s.stores.Listings != nil {
 				s.backfillEnrichedListings(ctx, raw)
 			}
-		}
-		if s.stores.Listings != nil {
-			s.prefillFromDB(ctx, raw)
-			prefilled = true
 		}
 	}
 
