@@ -161,13 +161,13 @@ func (p *ListingPipeline) enrichWithBasePrice(ctx context.Context, listing *mode
 
 	bp, ok := p.priceListSvc.Lookup(ctx, listing.SubModelID, listing.Year, listing.Token)
 	if !ok {
-		log.Warn("enrichWithBasePrice: lookup failed",
+		log.Debug("base price lookup miss",
 			"token", listing.Token, "sub_model_id", listing.SubModelID,
 			"year", listing.Year)
 		return
 	}
 	if bp <= 0 {
-		log.Warn("enrichWithBasePrice: zero/negative price",
+		log.Debug("base price zero/negative",
 			"token", listing.Token, "sub_model_id", listing.SubModelID,
 			"year", listing.Year, "base_price", bp)
 		return
