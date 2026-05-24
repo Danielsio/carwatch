@@ -108,12 +108,24 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 	return nil
 }
 
+type backoffConfig struct {
+	initial        time.Duration
+	max            time.Duration
+	resetThreshold time.Duration
+}
+
+var defaultBackoff = backoffConfig{
+	initial:        time.Second,
+	max:            30 * time.Second,
+	resetThreshold: 30 * time.Second,
+}
+
 func pollingLoop(ctx context.Context, h *health.Status, poll func(context.Context), logger *slog.Logger) {
-	const (
-		maxBackoff     = 30 * time.Second
-		resetThreshold = 30 * time.Second
-	)
-	backoff := time.Second
+	pollingLoopWithConfig(ctx, h, poll, logger, defaultBackoff)
+}
+
+func pollingLoopWithConfig(ctx context.Context, h *health.Status, poll func(context.Context), logger *slog.Logger, bo backoffConfig) {
+	backoff := bo.initial
 	for {
 		h.MarkBotPollingAlive()
 		logger.Info("telegram bot polling loop starting")
@@ -123,8 +135,8 @@ func pollingLoop(ctx context.Context, h *health.Status, poll func(context.Contex
 			logger.Info("bot-poller shutting down")
 			return
 		}
-		if time.Since(start) >= resetThreshold {
-			backoff = time.Second
+		if time.Since(start) >= bo.resetThreshold {
+			backoff = bo.initial
 		}
 		logger.Error("telegram bot polling loop exited unexpectedly, restarting", "backoff", backoff.String())
 		h.MarkBotPollingDead()
@@ -134,6 +146,6 @@ func pollingLoop(ctx context.Context, h *health.Status, poll func(context.Contex
 			return
 		case <-time.After(backoff):
 		}
-		backoff = min(backoff*2, maxBackoff)
+		backoff = min(backoff*2, bo.max)
 	}
 }

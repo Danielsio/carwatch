@@ -206,7 +206,9 @@ func TestConsumerReclaimsOrphanedMessages(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	// Create the consumer group (normally done by NewConsumer).
-	_ = client.XGroupCreateMkStream(ctx, StreamName, GroupName, "0")
+	if err := client.XGroupCreateMkStream(ctx, StreamName, GroupName, "0").Err(); err != nil && err.Error() != "BUSYGROUP Consumer Group name already exists" {
+		t.Fatalf("create consumer group: %v", err)
+	}
 
 	// Read the message as "dead-consumer" to create a PEL entry, then abandon it.
 	_, err = client.XReadGroup(ctx, &redis.XReadGroupArgs{

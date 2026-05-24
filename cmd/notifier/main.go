@@ -122,12 +122,24 @@ type runner interface {
 	Drain(ctx context.Context)
 }
 
+type consumerBackoff struct {
+	initial        time.Duration
+	max            time.Duration
+	resetThreshold time.Duration
+}
+
+var defaultConsumerBackoff = consumerBackoff{
+	initial:        time.Second,
+	max:            30 * time.Second,
+	resetThreshold: 30 * time.Second,
+}
+
 func consumerLoop(ctx context.Context, cons runner, logger *slog.Logger) {
-	const (
-		maxBackoff     = 30 * time.Second
-		resetThreshold = 30 * time.Second
-	)
-	backoff := time.Second
+	consumerLoopWithConfig(ctx, cons, logger, defaultConsumerBackoff)
+}
+
+func consumerLoopWithConfig(ctx context.Context, cons runner, logger *slog.Logger, bo consumerBackoff) {
+	backoff := bo.initial
 	for {
 		start := time.Now()
 		if err := cons.Run(ctx); err != nil {
@@ -139,8 +151,8 @@ func consumerLoop(ctx context.Context, cons runner, logger *slog.Logger) {
 				logger.Info("notifier worker shut down")
 				return
 			}
-			if time.Since(start) >= resetThreshold {
-				backoff = time.Second
+			if time.Since(start) >= bo.resetThreshold {
+				backoff = bo.initial
 			}
 			logger.Error("redis consumer exited, restarting", "backoff", backoff.String(), "error", err)
 			select {
@@ -149,7 +161,7 @@ func consumerLoop(ctx context.Context, cons runner, logger *slog.Logger) {
 				return
 			case <-time.After(backoff):
 			}
-			backoff = min(backoff*2, maxBackoff)
+			backoff = min(backoff*2, bo.max)
 		}
 	}
 }
