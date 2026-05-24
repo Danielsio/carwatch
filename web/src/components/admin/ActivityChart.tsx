@@ -8,13 +8,19 @@ export function ActivityChart() {
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     adminApi.activity(30).then((res) => {
-      setData(res.items);
-      setLoading(false);
+      if (!cancelled) {
+        setData(res.items);
+        setLoading(false);
+      }
     }).catch(() => {
-      setError(true);
-      setLoading(false);
+      if (!cancelled) {
+        setError(true);
+        setLoading(false);
+      }
     });
+    return () => { cancelled = true; };
   }, []);
 
   if (loading) {
