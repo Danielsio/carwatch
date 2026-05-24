@@ -593,6 +593,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	}
 
 	// 3. KM enrichment on the global feed.
+	prefilled := false
 	if s.kmEnricher != nil {
 		enrichCtx, cancelEnrich := context.WithTimeout(ctx, kmEnrichTimeout)
 		enriched := s.kmEnricher.Enrich(enrichCtx, raw)
@@ -608,6 +609,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		}
 		if s.stores.Listings != nil {
 			s.prefillFromDB(ctx, raw)
+			prefilled = true
 		}
 	}
 
@@ -678,7 +680,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				rawForPipeline[i] = l.RawListing
 			}
 			params := ProcessParamsFromSearch(acc.search, marketCache)
-			params.SkipPrefill = true
+			params.SkipPrefill = prefilled
 			pr := s.pipeline.Process(ctx, rawForPipeline, params)
 			acc.result.newListings = pr.Listings
 			acc.result.listingRecords = pr.Records

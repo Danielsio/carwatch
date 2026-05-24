@@ -22,19 +22,20 @@ describe("ActivityChart", () => {
     );
 
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { unmount } = render(<ActivityChart />);
+      unmount();
 
-    const { unmount } = render(<ActivityChart />);
-    unmount();
+      resolve!({ items: [{ date: "2024-01-01", new_listings: 5, price_drops: 1, new_users: 0 }] });
+      await new Promise((r) => setTimeout(r, 10));
 
-    resolve!({ items: [{ date: "2024-01-01", new_listings: 5, price_drops: 1, new_users: 0 }] });
-    await new Promise((r) => setTimeout(r, 10));
-
-    const reactWarnings = consoleSpy.mock.calls.filter(
-      (call) => String(call[0]).includes("unmounted") || String(call[0]).includes("Can't perform"),
-    );
-    expect(reactWarnings).toHaveLength(0);
-
-    consoleSpy.mockRestore();
+      const reactWarnings = consoleSpy.mock.calls.filter(
+        (call) => String(call[0]).includes("unmounted") || String(call[0]).includes("Can't perform"),
+      );
+      expect(reactWarnings).toHaveLength(0);
+    } finally {
+      consoleSpy.mockRestore();
+    }
   });
 
   it("renders loading state initially", () => {
