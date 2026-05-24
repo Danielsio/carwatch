@@ -51,17 +51,14 @@ services:
         limits:
           memory: 256M
 
-  # All-in-one mode: runs API + scheduler + consumer in a single process.
-  # For split deployment, replace this with api/scraper/notifier services below.
-  carwatch:
+  api:
     image: ghcr.io/danielsio/carwatch:latest
-    container_name: carwatch
+    container_name: carwatch-api
+    entrypoint: ["/usr/local/bin/api-server"]
     networks:
       - carwatch-net
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     expose:
       - "8080"
@@ -86,58 +83,107 @@ services:
         limits:
           memory: 512M
 
-  # --- Split deployment (uncomment to use instead of all-in-one) ---
-  # api:
-  #   image: ghcr.io/danielsio/carwatch:latest
-  #   container_name: carwatch-api
-  #   entrypoint: ["/usr/local/bin/api-server"]
-  #   networks:
-  #     - carwatch-net
-  #   depends_on:
-  #     postgres: { condition: service_healthy }
-  #   expose:
-  #     - "8080"
-  #   volumes:
-  #     - ./config.yaml:/config.yaml:ro
-  #     - ./migrations:/migrations:ro
-  #     - ./firebase-sa.json:/config/firebase-sa.json:ro
-  #   environment:
-  #     - TZ=Asia/Jerusalem
-  #     - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
-  #     - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-  #   restart: unless-stopped
-  #
-  # scraper:
-  #   image: ghcr.io/danielsio/carwatch:latest
-  #   container_name: carwatch-scraper
-  #   entrypoint: ["/usr/local/bin/scraper"]
-  #   networks:
-  #     - carwatch-net
-  #   depends_on:
-  #     postgres: { condition: service_healthy }
-  #     redis: { condition: service_healthy }
-  #   volumes:
-  #     - ./config.yaml:/config.yaml:ro
-  #     - ./migrations:/migrations:ro
-  #   environment:
-  #     - TZ=Asia/Jerusalem
-  #     - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-  #   restart: unless-stopped
-  #
-  # notifier:
-  #   image: ghcr.io/danielsio/carwatch:latest
-  #   container_name: carwatch-notifier
-  #   entrypoint: ["/usr/local/bin/notifier"]
-  #   networks:
-  #     - carwatch-net
-  #   depends_on:
-  #     redis: { condition: service_healthy }
-  #   volumes:
-  #     - ./config.yaml:/config.yaml:ro
-  #   environment:
-  #     - TZ=Asia/Jerusalem
-  #     - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-  #   restart: unless-stopped
+  bot-poller:
+    image: ghcr.io/danielsio/carwatch:latest
+    container_name: carwatch-bot-poller
+    entrypoint: ["/usr/local/bin/bot-poller"]
+    networks:
+      - carwatch-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+      - ./migrations:/migrations:ro
+    environment:
+      - TZ=Asia/Jerusalem
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/healthz"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  scraper:
+    image: ghcr.io/danielsio/carwatch:latest
+    container_name: carwatch-scraper
+    entrypoint: ["/usr/local/bin/scraper"]
+    networks:
+      - carwatch-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+      - ./migrations:/migrations:ro
+    environment:
+      - TZ=Asia/Jerusalem
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/healthz"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  notifier:
+    image: ghcr.io/danielsio/carwatch:latest
+    container_name: carwatch-notifier
+    entrypoint: ["/usr/local/bin/notifier"]
+    networks:
+      - carwatch-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+    environment:
+      - TZ=Asia/Jerusalem
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/healthz"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   caddy:
     image: caddy:2-alpine
