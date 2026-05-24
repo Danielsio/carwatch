@@ -24,6 +24,8 @@ func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 
 	chatID := update.Message.Chat.ID
 	username := update.Message.From.Username
+	log := b.commandLogger(chatID, username, "/start")
+	log.Info("command received")
 
 	b.ensureUser(ctx, chatID, username)
 
@@ -60,6 +62,7 @@ func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/share").Info("command received")
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
 
@@ -178,7 +181,8 @@ func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
-	b.logger.Debug("/watch command", "chat_id", chatID, "username", update.Message.From.Username)
+	log := b.commandLogger(chatID, update.Message.From.Username, "/watch")
+	log.Info("command received")
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
 
@@ -197,6 +201,7 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/list").Info("command received")
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
 
@@ -248,6 +253,7 @@ func (b *Bot) handleStop(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/stop").Info("command received")
 	lang := b.getUserLang(ctx, chatID)
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) < 2 {
@@ -274,6 +280,7 @@ func (b *Bot) handlePause(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/pause").Info("command received")
 	lang := b.getUserLang(ctx, chatID)
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) < 2 {
@@ -311,6 +318,7 @@ func (b *Bot) handleResume(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/resume").Info("command received")
 	lang := b.getUserLang(ctx, chatID)
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) < 2 {
@@ -348,6 +356,7 @@ func (b *Bot) handleCancel(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/cancel").Info("command received")
 	lang := b.getUserLang(ctx, chatID)
 	_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
 	b.send(ctx, chatID, locale.T(lang, "cancel"))
@@ -357,6 +366,7 @@ func (b *Bot) handleHelp(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	b.commandLogger(update.Message.Chat.ID, update.Message.From.Username, "/help").Info("command received")
 	lang := b.getUserLang(ctx, update.Message.Chat.ID)
 	b.sendMarkdown(ctx, update.Message.Chat.ID, locale.T(lang, "help"))
 }
@@ -366,6 +376,7 @@ func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/settings").Info("command received")
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
 
@@ -386,6 +397,7 @@ func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/stats").Info("command received")
 	if chatID != b.adminChatID {
 		lang := b.getUserLang(ctx, chatID)
 		b.send(ctx, chatID, locale.T(lang, "unknown_command"))
@@ -424,6 +436,7 @@ func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/digest").Info("command received")
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
 
@@ -488,6 +501,7 @@ func (b *Bot) handleLanguage(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/language").Info("command received")
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
 
@@ -507,6 +521,7 @@ func (b *Bot) handleEdit(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/edit").Info("command received")
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
 
@@ -563,6 +578,7 @@ func (b *Bot) handleUpgrade(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	defer cancel()
 
 	chatID := update.Message.Chat.ID
+	b.commandLogger(chatID, update.Message.From.Username, "/upgrade").Info("command received")
 	b.ensureUser(ctx, chatID, update.Message.From.Username)
 	lang := b.getUserLang(ctx, chatID)
 	b.sendMarkdown(ctx, chatID, locale.T(lang, "upgrade_disabled"))
