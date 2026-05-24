@@ -198,41 +198,58 @@ export function ListingCardBody({
       </div>
 
       {/* Content */}
-      <div className={cn("px-4 py-3", listing.removed_at && "opacity-50")}>
-        {/* Score + meta row */}
-        <div className="flex items-center gap-3 mb-2.5">
+      <div className={cn("px-4 py-3 space-y-3", listing.removed_at && "opacity-50")}>
+        {/* Score row */}
+        <div className="flex items-center gap-2.5">
           {logoSrc ? (
             <img src={logoSrc} alt="" className="h-7 w-7 shrink-0 object-contain dark:invert dark:opacity-80" loading="lazy" decoding="async" />
           ) : null}
           {listing.fitness_score != null ? (
-            <MatchScoreBox score={listing.fitness_score} size="sm" />
+            <>
+              <MatchScoreBox score={listing.fitness_score} size="sm" />
+              <span className="text-xs font-semibold" style={{ color: scoreHsl(listing.fitness_score) }}>
+                {listing.fitness_score.toFixed(1)}
+              </span>
+            </>
           ) : null}
-          {listing.fitness_score != null ? (
-            <span className="text-xs font-semibold" style={{ color: scoreHsl(listing.fitness_score) }}>
-              {listing.fitness_score.toFixed(1)}
-            </span>
-          ) : null}
+          <span className={cn(
+            "ms-auto flex items-center gap-1 text-xs font-medium tabular-nums",
+            freshness === "hot" ? "text-orange-500" :
+            freshness === "today" ? "text-emerald-500" :
+            "text-muted-foreground",
+          )}>
+            {freshness === "hot" ? <Flame className="h-3 w-3" /> :
+             freshness === "today" ? <Clock className="h-3 w-3" /> :
+             <Clock className="h-3 w-3 opacity-50" />}
+            {relativeTime(listing.first_seen_at)}
+          </span>
+        </div>
 
-          <div className="flex flex-wrap gap-1 ms-auto">
-            {listing.km > 0 ? (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                {formatKm(listing.km)}
-              </span>
-            ) : null}
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-              יד {listing.hand > 0 ? listing.hand : "—"}
-            </span>
-            {listing.gear_box ? (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                {listing.gear_box}
-              </span>
-            ) : null}
+        {/* Specs grid */}
+        <div className="grid grid-cols-3 gap-1.5">
+          <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center">
+            <p className="text-[10px] text-muted-foreground/70">ק״מ</p>
+            <p className="text-xs font-semibold tabular-nums text-foreground">
+              {listing.km > 0 ? formatKm(listing.km) : "—"}
+            </p>
+          </div>
+          <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center">
+            <p className="text-[10px] text-muted-foreground/70">יד</p>
+            <p className="text-xs font-semibold text-foreground">
+              {listing.hand > 0 ? listing.hand : "—"}
+            </p>
+          </div>
+          <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center">
+            <p className="text-[10px] text-muted-foreground/70">תיבת הילוכים</p>
+            <p className="text-xs font-semibold text-foreground truncate">
+              {listing.gear_box || "—"}
+            </p>
           </div>
         </div>
 
         {/* Description */}
         {rawDesc ? (
-          <div className="mb-2.5 min-w-0">
+          <div className="min-w-0">
             <p
               className={cn(
                 "text-xs text-muted-foreground leading-relaxed break-words whitespace-pre-line",
@@ -258,14 +275,6 @@ export function ListingCardBody({
 
         {/* Footer */}
         <div className="flex items-center gap-1.5 pt-2 border-t border-border/30">
-          <span className={cn(
-            "me-auto text-[10px] font-medium tabular-nums",
-            freshness === "hot" ? "text-orange-500" :
-            freshness === "today" ? "text-emerald-500" :
-            "text-muted-foreground/70",
-          )}>
-            {relativeTime(listing.first_seen_at)}
-          </span>
           {actions}
         </div>
       </div>
