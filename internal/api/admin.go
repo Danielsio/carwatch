@@ -589,6 +589,9 @@ func (s *Server) adminCycles(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if limit < 1 {
+		limit = 1
+	}
 	if limit > 100 {
 		limit = 100
 	}

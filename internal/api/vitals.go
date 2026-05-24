@@ -134,7 +134,9 @@ func (s *Server) receiveVitals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if v.Name == "" {
+	switch v.Name {
+	case "CLS", "FCP", "INP", "LCP", "TTFB":
+	default:
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}

@@ -14,6 +14,7 @@ export function CyclesTab() {
       adminApi.cycles(50).then((res) => {
         if (!cancelled) {
           setCycles(res.items ?? []);
+          setError(false);
           setLoading(false);
         }
       }).catch(() => {
