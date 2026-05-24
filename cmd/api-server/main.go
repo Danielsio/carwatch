@@ -14,6 +14,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/app"
 	"github.com/dsionov/carwatch/internal/health"
+	"github.com/dsionov/carwatch/internal/logstream"
 )
 
 var (
@@ -46,10 +47,21 @@ func run(configPath string, logger *slog.Logger) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	logger, _, err = app.SetupLogger(cfg)
+	logger, logLevelVar, err := app.SetupLogger(cfg)
 	if err != nil {
 		return err
 	}
+
+	logHub := logstream.NewHub(2000)
+	baseHandler := logger.Handler()
+	teeHandler := logstream.NewTeeHandler(baseHandler, logHub,
+		"yad2", "scheduler", "enricher",
+		"api-pricelist", "bot", "telegram", "notifier",
+		"circuit_breaker",
+	)
+	logger = slog.New(teeHandler)
+	slog.SetDefault(logger)
+
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -86,7 +98,7 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer plCleanup()
 
-	apiServer, err := app.BuildAPI(cfg, store, dynCatalog, logger, fb.Factory, plSvc)
+	apiServer, err := app.BuildAPI(cfg, store, dynCatalog, logger, fb.Factory, plSvc, logHub, logLevelVar)
 	if err != nil {
 		return err
 	}

@@ -121,7 +121,10 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 	}
 	defer plCleanup()
 
-	kmEnricher := yad2.NewEnricher(fb.Yad2, logger.With("component", "enricher"), yad2.EnricherConfig{})
+	kmEnricher := yad2.NewEnricher(fb.Yad2, logger.With("component", "enricher"), yad2.EnricherConfig{
+		Delay:       time.Second,
+		MaxPerCycle: 100,
+	})
 
 	var n notifier.Notifier = multi
 	sched, err := scheduler.NewWithOptions(cfg, fb.Caching, store, n, logger.With("component", "scheduler"), scheduler.Options{

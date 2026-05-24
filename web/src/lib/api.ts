@@ -430,6 +430,18 @@ export interface AdminUsersResponse {
   total: number;
 }
 
+export interface LogEntry {
+  time: string;
+  level: string;
+  message: string;
+  component: string;
+  attrs: Record<string, string>;
+}
+
+export interface LogsResponse {
+  items: LogEntry[];
+}
+
 export interface AdminCycleEntry {
   id: number;
   started_at: string;
@@ -499,6 +511,14 @@ export const adminApi = {
     fetchAPI<AdminActivityResponse>(`/admin/activity${days ? `?days=${days}` : ""}`),
   cycles: (limit?: number) =>
     fetchAPI<AdminCyclesResponse>(`/admin/cycles${limit ? `?limit=${limit}` : ""}`),
+  logs: (limit?: number) =>
+    fetchAPI<LogsResponse>(`/admin/logs${limit ? `?limit=${limit}` : ""}`),
+  setLogLevel: (level: string) =>
+    fetchAPI<{ level: string }>("/admin/logs/level", {
+      method: "PUT",
+      body: JSON.stringify({ level }),
+    }),
+  getLogLevel: () => fetchAPI<{ level: string }>("/admin/logs/level"),
   syncUserStatus: () =>
     fetchAPI<SyncUserStatusResult>("/admin/sync-user-status", { method: "POST" }),
 };

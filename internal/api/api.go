@@ -20,6 +20,7 @@ import (
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
+	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/pricelist"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -66,6 +67,8 @@ type Server struct {
 	refreshMu        sync.Map
 	lastRefreshSweep atomic.Int64 // unix nano of last sweep
 
+	logHub   *logstream.Hub
+	logLevel *slog.LevelVar
 	cycleLog storage.CycleLogStore
 	vitals   *vitalsRing
 
@@ -111,6 +114,8 @@ type Config struct {
 	FirebaseAuth TokenVerifier
 	BotUsername  string
 	Fetchers     *fetcher.Factory
+	LogHub       *logstream.Hub
+	LogLevel     *slog.LevelVar
 	CycleLog     storage.CycleLogStore
 	PriceListSvc *pricelist.Service
 	Bind         string
@@ -149,6 +154,8 @@ func New(c Config) *Server {
 		fetchers:       c.Fetchers,
 		priceListSvc:   c.PriceListSvc,
 		pipeline:       scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger),
+		logHub:         c.LogHub,
+		logLevel:       c.LogLevel,
 		cycleLog:       c.CycleLog,
 		vitals:         newVitalsRing(),
 	}
@@ -215,6 +222,14 @@ func (s *Server) Routes() http.Handler {
 		authMux.HandleFunc("GET /api/v1/admin/activity", s.requireAdmin(s.adminActivity))
 		if s.cycleLog != nil {
 			authMux.HandleFunc("GET /api/v1/admin/cycles", s.requireAdmin(s.adminCycles))
+		}
+		if s.logHub != nil {
+			authMux.HandleFunc("GET /api/v1/admin/logs", s.requireAdmin(s.adminLogs))
+			authMux.HandleFunc("GET /api/v1/admin/logs/stream", s.requireAdmin(s.adminLogStream))
+		}
+		if s.logLevel != nil {
+			authMux.HandleFunc("GET /api/v1/admin/logs/level", s.requireAdmin(s.adminGetLogLevel))
+			authMux.HandleFunc("PUT /api/v1/admin/logs/level", s.requireAdmin(s.adminSetLogLevel))
 		}
 	}
 
