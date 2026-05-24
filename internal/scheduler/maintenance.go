@@ -3,6 +3,8 @@ package scheduler
 import (
 	"context"
 	"time"
+
+	"github.com/dsionov/carwatch/internal/model"
 )
 
 func (s *Scheduler) pruneOldData(ctx context.Context) {
@@ -37,6 +39,42 @@ func (s *Scheduler) pruneOldData(ctx context.Context) {
 		}
 	}
 	s.lastPruneTime = time.Now()
+}
+
+func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
+	if s.kmEnricher == nil || s.stores.Listings == nil {
+		return
+	}
+
+	tokens, err := s.stores.Listings.ListUnenrichedTokens(ctx, 50)
+	if err != nil {
+		s.logger.Error("list unenriched tokens failed", "error", err)
+		return
+	}
+	if len(tokens) == 0 {
+		return
+	}
+
+	s.logger.Info("backfill enrichment: fetching km for DB listings missing data",
+		"candidates", len(tokens),
+	)
+
+	raw := make([]model.RawListing, len(tokens))
+	for i, t := range tokens {
+		raw[i] = model.RawListing{Token: t}
+	}
+
+	enrichCtx, cancel := context.WithTimeout(ctx, kmEnrichTimeout)
+	enriched := s.kmEnricher.Enrich(enrichCtx, raw)
+	cancel()
+
+	if enriched > 0 {
+		s.logger.Info("backfill enrichment complete",
+			"enriched", enriched,
+			"candidates", len(tokens),
+		)
+		s.backfillEnrichedListings(ctx, raw)
+	}
 }
 
 func (s *Scheduler) processExpiredPremium(ctx context.Context) {

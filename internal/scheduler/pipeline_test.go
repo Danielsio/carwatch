@@ -56,6 +56,9 @@ func (s *prefillTrackingStore) PruneListings(_ context.Context, _ time.Duration)
 func (s *prefillTrackingStore) DeleteStaleListings(_ context.Context, _ int64, _ int64, _ []string) (int64, error) {
 	return 0, nil
 }
+func (s *prefillTrackingStore) ListUnenrichedTokens(_ context.Context, _ int) ([]string, error) {
+	return nil, nil
+}
 
 func pipelineTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError + 1}))

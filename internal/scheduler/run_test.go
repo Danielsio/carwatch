@@ -252,8 +252,9 @@ func TestFlushAndSendDigest_WithHealth(t *testing.T) {
 }
 
 type mockListingStore struct {
-	saved      []storage.ListingRecord
-	pruneCalls int
+	saved            []storage.ListingRecord
+	pruneCalls       int
+	unenrichedTokens []string
 }
 
 func (m *mockListingStore) SaveListing(_ context.Context, r storage.ListingRecord) error {
@@ -309,4 +310,7 @@ func (m *mockListingStore) SearchStats(_ context.Context, _ int64, _ int64, _ st
 
 func (m *mockListingStore) DeleteStaleListings(_ context.Context, _ int64, _ int64, _ []string) (int64, error) {
 	return 0, nil
+}
+func (m *mockListingStore) ListUnenrichedTokens(_ context.Context, _ int) ([]string, error) {
+	return m.unenrichedTokens, nil
 }
