@@ -1,5 +1,5 @@
 // Package app provides shared initialization helpers used by all entry points
-// (cmd/bot, cmd/api-server, cmd/scraper, cmd/notifier). Each binary's main.go
+// (cmd/api-server, cmd/bot-poller, cmd/scraper, cmd/notifier). Each binary's main.go
 // is thin wiring that composes these building blocks.
 package app
 
@@ -83,7 +83,7 @@ func BuildFetchers(cfg *config.Config, logger *slog.Logger) (*FetcherBundle, err
 
 	return &FetcherBundle{
 		Yad2:    yad2Fetcher,
-		Caching: cachingFetcher,
+		Caching: yad2CB,
 		Factory: fetcherFactory,
 		Pool:    proxyPool,
 	}, nil

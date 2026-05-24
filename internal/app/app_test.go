@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/dsionov/carwatch/internal/fetcher"
 )
 
 func TestLoadConfig_MissingFile(t *testing.T) {
@@ -189,5 +191,32 @@ storage:
 	}
 	if fb.Pool != nil {
 		t.Error("expected nil Pool when no proxies configured")
+	}
+}
+
+func TestBuildFetchers_CachingIsCircuitBreakerWrapped(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	cfgYAML := `
+log_level: info
+telegram:
+  token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
+`
+	if err := os.WriteFile(path, []byte(cfgYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logger := slog.New(NewLogHandler("json", slog.LevelError))
+	fb, err := BuildFetchers(c, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := fb.Caching.(*fetcher.CircuitBreaker); !ok {
+		t.Errorf("FetcherBundle.Caching should be *fetcher.CircuitBreaker, got %T", fb.Caching)
 	}
 }
