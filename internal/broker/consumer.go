@@ -69,11 +69,17 @@ func NewConsumer(addr, password string, db int, notify NotifyFunc, logger *slog.
 }
 
 // Run reads and processes alerts in a loop until the context is cancelled.
+// It alternates between reclaiming failed pending messages and reading new ones.
 func (c *Consumer) Run(ctx context.Context) error {
+	reclaimTicker := time.NewTicker(30 * time.Second)
+	defer reclaimTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-reclaimTicker.C:
+			c.reclaimPending(ctx)
 		default:
 		}
 
@@ -102,6 +108,56 @@ func (c *Consumer) Run(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// reclaimPending reclaims messages that were delivered but not acked
+// (failed deliveries). Messages exceeding MaxRetries are dead-lettered.
+func (c *Consumer) reclaimPending(ctx context.Context) {
+	pending, err := c.client.XPendingExt(ctx, &redis.XPendingExtArgs{
+		Stream:   StreamName,
+		Group:    GroupName,
+		Consumer: c.consumer,
+		Start:    "-",
+		End:      "+",
+		Count:    50,
+		Idle:     30 * time.Second,
+	}).Result()
+	if err != nil || len(pending) == 0 {
+		return
+	}
+
+	c.logger.Info("reclaiming pending messages", "count", len(pending))
+	for _, p := range pending {
+		if p.RetryCount >= int64(MaxRetries) {
+			c.deadLetter(ctx, p.ID)
+			continue
+		}
+		msgs, err := c.client.XRangeN(ctx, StreamName, p.ID, p.ID, 1).Result()
+		if err != nil || len(msgs) == 0 {
+			continue
+		}
+		c.processMessage(ctx, msgs[0])
+	}
+}
+
+// deadLetter moves a message to the dead-letter stream and acks it from the main stream.
+func (c *Consumer) deadLetter(ctx context.Context, id string) {
+	msgs, err := c.client.XRangeN(ctx, StreamName, id, id, 1).Result()
+	if err != nil || len(msgs) == 0 {
+		c.ack(ctx, id)
+		return
+	}
+	if err := c.client.XAdd(ctx, &redis.XAddArgs{
+		Stream: DeadLetterStream,
+		MaxLen: 10000,
+		Approx: true,
+		Values: msgs[0].Values,
+	}).Err(); err != nil {
+		c.logger.Error("dead-letter failed", "id", id, "error", err)
+	} else {
+		c.logger.Warn("message dead-lettered after max retries", "id", id, "max_retries", MaxRetries)
+	}
+	c.ack(ctx, id)
 }
 
 func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {

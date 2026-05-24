@@ -872,25 +872,31 @@ func TestPostgres_MarketMedians(t *testing.T) {
 
 	// Seed enough listings for a cohort (>= 10 with price > 5000).
 	for i := range 12 {
-		_ = store.SaveListing(ctx, storage.ListingRecord{
+		if err := store.SaveListing(ctx, storage.ListingRecord{
 			Token: fmt.Sprintf("mkt-%d", i), ChatID: 100, SearchName: "toyota",
 			Manufacturer: "Toyota", Model: "Corolla", Year: 2020,
 			Price: 90000 + i*2000, Km: 40000 + i*1000,
 			FirstSeenAt: now,
-		})
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	// A few listings with empty manufacturer (should be excluded).
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "mkt-empty", ChatID: 100, SearchName: "test",
 		Manufacturer: "", Model: "X", Year: 2020,
 		Price: 50000, FirstSeenAt: now,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	// A few listings below the price floor (should be excluded).
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "mkt-cheap", ChatID: 100, SearchName: "test",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2020,
 		Price: 1000, FirstSeenAt: now,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Refresh the materialized view.
 	if err := store.RefreshMarketMedians(ctx); err != nil {
@@ -1003,14 +1009,18 @@ func TestPostgres_DeleteSearchCascade(t *testing.T) {
 	_, _ = store.ClaimNew(ctx, "tok1", 200, id2)
 
 	// Seed listing_history
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "tok1", ChatID: 100, SearchID: id1, SearchName: "mazda-3",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 95000,
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "tok1", ChatID: 200, SearchID: id2, SearchName: "mazda-3",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 95000,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Delete user 100's search
 	if err := store.DeleteSearch(ctx, id1, 100); err != nil {
@@ -1060,14 +1070,18 @@ func TestPostgres_PruneListings(t *testing.T) {
 	old := time.Now().Add(-100 * 24 * time.Hour)
 	recent := time.Now().Add(-10 * 24 * time.Hour)
 
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "old-1", ChatID: 100, SearchName: "test",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000, FirstSeenAt: old,
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "recent-1", ChatID: 100, SearchName: "test",
 		Manufacturer: "Honda", Model: "Civic", Year: 2022, Price: 95000, FirstSeenAt: recent,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	pruned, err := store.PruneListings(ctx, 90*24*time.Hour)
 	if err != nil {
@@ -1090,14 +1104,18 @@ func TestPostgres_PruneListingsPreservesSaved(t *testing.T) {
 
 	old := time.Now().Add(-100 * 24 * time.Hour)
 
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "old-saved", ChatID: 100, SearchName: "test",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000, FirstSeenAt: old,
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "old-unsaved", ChatID: 100, SearchName: "test",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 85000, FirstSeenAt: old,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	_ = store.SaveBookmark(ctx, 100, "old-saved")
 
 	pruned, _ := store.PruneListings(ctx, 90*24*time.Hour)
@@ -1121,10 +1139,12 @@ func TestPostgres_DeleteStaleListings(t *testing.T) {
 	})
 
 	for _, tok := range []string{"a", "b", "c", "d"} {
-		_ = store.SaveListing(ctx, storage.ListingRecord{
+		if err := store.SaveListing(ctx, storage.ListingRecord{
 			Token: tok, ChatID: 100, SearchID: searchID, SearchName: "test",
 			Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000,
-		})
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	removed, err := store.DeleteStaleListings(ctx, 100, searchID, []string{"a", "c"})
@@ -1218,16 +1238,20 @@ func TestPostgres_NotificationCenter(t *testing.T) {
 	cutoff := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	now := time.Now().UTC()
 
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "new-1", ChatID: 100, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000,
 		FirstSeenAt: now,
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "new-2", ChatID: 100, SearchID: searchID, SearchName: "s1",
 		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 90000,
 		FirstSeenAt: now,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	// NewListingsSince
 	listings, err := store.NewListingsSince(ctx, 100, cutoff, 20, 0)
@@ -1357,18 +1381,24 @@ func TestPostgres_CountSearchListingsForChat(t *testing.T) {
 		Manufacturer: 9, Model: 10062,
 	})
 
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "cfc-1", ChatID: 100, SearchID: idCapped, SearchName: "capped",
 		Manufacturer: "Mazda", Model: "3", Year: 2022, Price: 90000, Km: 30000, Hand: 1,
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "cfc-2", ChatID: 100, SearchID: idCapped, SearchName: "capped",
 		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 120000, Km: 50000, Hand: 2,
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "cfc-3", ChatID: 100, SearchID: idOpen, SearchName: "open",
 		Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 80000, Km: 70000, Hand: 3,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := store.CountSearchListingsForChat(ctx, 100)
 	if err != nil {
@@ -1409,16 +1439,20 @@ func TestPostgres_Admin(t *testing.T) {
 	}
 
 	// Insert listings
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "admin-1", ChatID: 100, SearchName: "s1",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 80000,
 		FirstSeenAt: time.Now(),
-	})
-	_ = store.SaveListing(ctx, storage.ListingRecord{
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "admin-2", ChatID: 100, SearchName: "s1",
 		Manufacturer: "Honda", Model: "Civic", Year: 2021, Price: 90000,
 		FirstSeenAt: time.Now(),
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	cnt, _ = store.CountAllListings(ctx)
 	if cnt != 2 {
