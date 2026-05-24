@@ -123,10 +123,13 @@ type runner interface {
 }
 
 func consumerLoop(ctx context.Context, cons runner, logger *slog.Logger) {
-	const maxBackoff = 30 * time.Second
+	const (
+		maxBackoff     = 30 * time.Second
+		resetThreshold = 30 * time.Second
+	)
 	backoff := time.Second
 	for {
-		backoff = time.Second
+		start := time.Now()
 		if err := cons.Run(ctx); err != nil {
 			if ctx.Err() != nil {
 				logger.Info("notifier worker draining in-flight deliveries")
@@ -135,6 +138,9 @@ func consumerLoop(ctx context.Context, cons runner, logger *slog.Logger) {
 				drainCancel()
 				logger.Info("notifier worker shut down")
 				return
+			}
+			if time.Since(start) >= resetThreshold {
+				backoff = time.Second
 			}
 			logger.Error("redis consumer exited, restarting", "backoff", backoff.String(), "error", err)
 			select {

@@ -20,8 +20,12 @@ func (s *prefillTrackingStore) LookupEnrichmentData(_ context.Context, _ []strin
 	return nil, nil
 }
 
-func (s *prefillTrackingStore) SaveListing(_ context.Context, _ storage.ListingRecord) error   { return nil }
-func (s *prefillTrackingStore) SaveListings(_ context.Context, _ []storage.ListingRecord) error { return nil }
+func (s *prefillTrackingStore) SaveListing(_ context.Context, _ storage.ListingRecord) error {
+	return nil
+}
+func (s *prefillTrackingStore) SaveListings(_ context.Context, _ []storage.ListingRecord) error {
+	return nil
+}
 func (s *prefillTrackingStore) BackfillListings(_ context.Context, _ []storage.ListingRecord) error {
 	return nil
 }

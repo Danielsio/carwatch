@@ -27,11 +27,11 @@ type NotifyFunc func(ctx context.Context, recipient string, message string) erro
 
 // Consumer reads alerts from the Redis Stream and delivers them.
 type Consumer struct {
-	client             *redis.Client
-	notify             NotifyFunc
-	limiter            *rate.Limiter
-	logger             *slog.Logger
-	consumer           string
+	client              *redis.Client
+	notify              NotifyFunc
+	limiter             *rate.Limiter
+	logger              *slog.Logger
+	consumer            string
 	orphanIdleThreshold time.Duration
 }
 
