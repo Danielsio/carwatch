@@ -206,6 +206,7 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 			f.clientPool.Evict(usedProxy)
 		}
 		f.logger.Error("fetch request failed",
+			"url", reqURL,
 			"manufacturer", params.Manufacturer, "model", params.Model,
 			"duration_ms", time.Since(fetchStart).Milliseconds(), "error", err)
 		return nil, fmt.Errorf("execute request: %w", err)

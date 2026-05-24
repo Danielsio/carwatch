@@ -174,7 +174,7 @@ func (p *ListingPipeline) enrichWithBasePrice(ctx context.Context, listing *mode
 	}
 
 	listing.BasePrice = &bp
-	log.Info("enrichWithBasePrice: set base_price",
+	log.Debug("enriched with base price",
 		"token", listing.Token, "sub_model_id", listing.SubModelID,
 		"year", listing.Year, "base_price", bp)
 }

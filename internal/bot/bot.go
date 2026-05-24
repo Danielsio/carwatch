@@ -168,6 +168,10 @@ func (b *Bot) SetBot(tg *tgbot.Bot) {
 	}
 }
 
+func (b *Bot) commandLogger(chatID int64, username, command string) *slog.Logger {
+	return b.logger.With("chat_id", chatID, "username", username, "command", command)
+}
+
 func (b *Bot) DefaultHandler() tgbot.HandlerFunc {
 	return b.handleDefault
 }

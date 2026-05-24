@@ -188,13 +188,12 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {
 
 	recipient := fmt.Sprintf("%d", alert.ChatID)
 	if err := c.notify(ctx, recipient, alert.Message); err != nil {
-		c.logger.Error("deliver alert failed", "id", msg.ID, "chat_id", alert.ChatID, "error", err)
-		// Don't ack -- will be retried on next read of pending.
+		c.logger.Error("deliver alert failed", "id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName, "error", err)
 		return
 	}
 
 	c.ack(ctx, msg.ID)
-	c.logger.Debug("alert delivered", "id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName)
+	c.logger.Info("alert delivered", "id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName)
 }
 
 func (c *Consumer) ack(ctx context.Context, id string) {
