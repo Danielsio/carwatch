@@ -24,6 +24,7 @@ import (
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
+	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/notifier/telegram"
 	"github.com/dsionov/carwatch/internal/notifier/webpush"
@@ -183,7 +184,7 @@ func BuildDynamicCatalog(ctx context.Context, yad2Fetcher *yad2.Yad2Fetcher, log
 }
 
 // BuildAPI creates the API server with all REST endpoints.
-func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, logger *slog.Logger, fetcherFactory *fetcher.Factory, plSvc *pricelist.Service) (*api.Server, error) {
+func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, logger *slog.Logger, fetcherFactory *fetcher.Factory, plSvc *pricelist.Service, logHub *logstream.Hub, logLevel *slog.LevelVar) (*api.Server, error) {
 	var firebaseAuth api.TokenVerifier
 	if cfg.Firebase.ProjectID != "" {
 		v, err := api.NewFirebaseVerifier(cfg.Firebase.CredentialsFile, cfg.Firebase.CredentialsJSON, cfg.Firebase.ProjectID)
@@ -212,6 +213,8 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		Push:         cfg.Push,
 		FirebaseAuth: firebaseAuth,
 		BotUsername:  cfg.Telegram.BotUsername,
+		LogHub:       logHub,
+		LogLevel:     logLevel,
 		CycleLog:     store,
 		Fetchers:     fetcherFactory,
 		PriceListSvc: plSvc,
