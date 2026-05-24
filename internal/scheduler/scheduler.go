@@ -593,6 +593,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	}
 
 	// 3. KM enrichment on the global feed.
+	prefilled := false
 	if s.kmEnricher != nil {
 		enrichCtx, cancelEnrich := context.WithTimeout(ctx, kmEnrichTimeout)
 		enriched := s.kmEnricher.Enrich(enrichCtx, raw)
@@ -608,6 +609,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		}
 		if s.stores.Listings != nil {
 			s.prefillFromDB(ctx, raw)
+			prefilled = true
 		}
 	}
 
@@ -620,6 +622,8 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	accums := make(map[int64]*searchAccum, len(searches))
 
 	// 5. Percolator match: for each listing, find matching searches.
+	hiddenCache := make(map[int64]map[string]bool)
+
 	for i := range raw {
 		matches := s.percolator.Match(raw[i])
 		if len(matches) == 0 {
@@ -637,14 +641,13 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				accums[m.SearchID] = acc
 			}
 
-			// Per-user hidden listing check.
-			hidden := s.loadHiddenTokens(ctx, m.ChatID)
-			if len(hidden) > 0 && hidden[raw[i].Token] {
-				continue
+			// Per-user hidden listing check (cached per chatID per cycle).
+			hidden, cached := hiddenCache[m.ChatID]
+			if !cached {
+				hidden = s.loadHiddenTokens(ctx, m.ChatID)
+				hiddenCache[m.ChatID] = hidden
 			}
-
-			// Seller filter (from storage package).
-			if !storage.RawListingMatchesSellerFilter(raw[i].Commercial, m.Search.SellerFilter) {
+			if len(hidden) > 0 && hidden[raw[i].Token] {
 				continue
 			}
 
@@ -677,6 +680,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				rawForPipeline[i] = l.RawListing
 			}
 			params := ProcessParamsFromSearch(acc.search, marketCache)
+			params.SkipPrefill = prefilled
 			pr := s.pipeline.Process(ctx, rawForPipeline, params)
 			acc.result.newListings = pr.Listings
 			acc.result.listingRecords = pr.Records
@@ -787,8 +791,6 @@ type cycleStats struct {
 	notificationsSent int
 }
 
-// runFetchGroups runs processGroup for each canonical group with bounded concurrency.
-// It reports whether every group failed and aggregate stats.
 // prefillFromDB fills in km/city/image from listing_history for listings
 // that the enricher could not reach this cycle. Once a listing's km is
 // learned in any previous cycle, it is remembered here.

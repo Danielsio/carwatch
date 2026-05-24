@@ -187,6 +187,72 @@ func TestConsumerDeliversAndAcks(t *testing.T) {
 	}
 }
 
+func TestConsumerReclaimsOrphanedMessages(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	pub, err := NewPublisher(mr.Addr(), "", 0)
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	defer func() { _ = pub.Close() }()
+
+	alert := Alert{ChatID: 42, Message: "orphan test message"}
+	if err := pub.Publish(context.Background(), alert); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	ctx := context.Background()
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+
+	// Create the consumer group (normally done by NewConsumer).
+	if err := client.XGroupCreateMkStream(ctx, StreamName, GroupName, "0").Err(); err != nil && err.Error() != "BUSYGROUP Consumer Group name already exists" {
+		t.Fatalf("create consumer group: %v", err)
+	}
+
+	// Read the message as "dead-consumer" to create a PEL entry, then abandon it.
+	_, err = client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    GroupName,
+		Consumer: "dead-consumer",
+		Streams:  []string{StreamName, ">"},
+		Count:    10,
+		Block:    time.Second,
+	}).Result()
+	if err != nil {
+		t.Fatalf("xreadgroup as dead-consumer: %v", err)
+	}
+
+	// Create the real consumer.
+	var mu sync.Mutex
+	var delivered []string
+	notify := func(_ context.Context, _ string, message string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		delivered = append(delivered, message)
+		return nil
+	}
+
+	cons, err := NewConsumer(mr.Addr(), "", 0, notify, slog.Default())
+	if err != nil {
+		t.Fatalf("new consumer: %v", err)
+	}
+	defer func() { _ = cons.Close() }()
+
+	// Use zero idle threshold so the test doesn't need real time to pass.
+	cons.orphanIdleThreshold = 0
+
+	cons.reclaimOrphans(ctx)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(delivered) != 1 {
+		t.Errorf("expected 1 orphaned message reclaimed, got %d", len(delivered))
+	}
+	if len(delivered) > 0 && delivered[0] != "orphan test message" {
+		t.Errorf("message = %q, want %q", delivered[0], "orphan test message")
+	}
+}
+
 func TestPublisherConnectionFailure(t *testing.T) {
 	_, err := NewPublisher("localhost:1", "", 0)
 	if err == nil {

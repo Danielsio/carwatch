@@ -25,10 +25,12 @@ var (
 	buildTime = "unknown"
 )
 
+const defaultHealthBind = "0.0.0.0:8083"
+
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
 	showVersion := flag.Bool("version", false, "print version and exit")
-	healthBind := flag.String("health-bind", "0.0.0.0:8082", "health endpoint bind address")
+	healthBind := flag.String("health-bind", defaultHealthBind, "health endpoint bind address")
 	flag.Parse()
 
 	if *showVersion {
@@ -111,12 +113,35 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		"health", "http://"+healthBind+"/healthz",
 	)
 
-	// Run consumer with restart-on-failure.
-	// On SIGTERM: stop reading new messages, let in-flight deliveries finish
-	// within a 10-second grace period.
-	const maxBackoff = 30 * time.Second
-	backoff := time.Second
+	consumerLoop(ctx, cons, logger)
+	return nil
+}
+
+type runner interface {
+	Run(ctx context.Context) error
+	Drain(ctx context.Context)
+}
+
+type consumerBackoff struct {
+	initial        time.Duration
+	max            time.Duration
+	resetThreshold time.Duration
+}
+
+var defaultConsumerBackoff = consumerBackoff{
+	initial:        time.Second,
+	max:            30 * time.Second,
+	resetThreshold: 30 * time.Second,
+}
+
+func consumerLoop(ctx context.Context, cons runner, logger *slog.Logger) {
+	consumerLoopWithConfig(ctx, cons, logger, defaultConsumerBackoff)
+}
+
+func consumerLoopWithConfig(ctx context.Context, cons runner, logger *slog.Logger, bo consumerBackoff) {
+	backoff := bo.initial
 	for {
+		start := time.Now()
 		if err := cons.Run(ctx); err != nil {
 			if ctx.Err() != nil {
 				logger.Info("notifier worker draining in-flight deliveries")
@@ -124,16 +149,19 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 				cons.Drain(drainCtx)
 				drainCancel()
 				logger.Info("notifier worker shut down")
-				return nil
+				return
+			}
+			if time.Since(start) >= bo.resetThreshold {
+				backoff = bo.initial
 			}
 			logger.Error("redis consumer exited, restarting", "backoff", backoff.String(), "error", err)
 			select {
 			case <-ctx.Done():
 				logger.Info("notifier worker shut down")
-				return nil
+				return
 			case <-time.After(backoff):
 			}
-			backoff = min(backoff*2, maxBackoff)
+			backoff = min(backoff*2, bo.max)
 		}
 	}
 }
