@@ -23,7 +23,6 @@ func (s *Store) UpsertUser(ctx context.Context, chatID int64, username string) e
 		INSERT INTO users (chat_id, username, channel_id) VALUES ($1, $2, $3)
 		ON CONFLICT (chat_id) DO UPDATE SET
 			username = excluded.username,
-			active = true,
 			channel_id = CASE WHEN users.channel_id = '' THEN excluded.channel_id ELSE users.channel_id END`,
 		chatID, username, channelID)
 	return err
