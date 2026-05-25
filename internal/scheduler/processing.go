@@ -7,9 +7,7 @@ import (
 	"time"
 
 	"github.com/dsionov/carwatch/internal/locale"
-	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/notifier"
-	"github.com/dsionov/carwatch/internal/scoring"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -89,85 +87,6 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 		sent = true
 	}
 	return sent
-}
-
-func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Search, l model.RawListing, lang locale.Lang, marketCache *scoring.MarketCache, out *searchResult, log *slog.Logger) bool {
-	if s.stores.Prices == nil || l.Price <= 0 {
-		return false
-	}
-	oldPrice, changed, err := s.stores.Prices.RecordPrice(ctx, l.Token, l.Price)
-	if err != nil {
-		log.ErrorContext(ctx, "failed to record listing price in price tracker",
-			"token", l.Token,
-			"error", err.Error(),
-			"impact", "price drop detection will not work for this listing this cycle",
-			"action_taken", "skipping price drop check, listing will be processed as normal")
-		return false
-	}
-	// Track tokens where RecordPrice inserted a row so that we can revert
-	// them if downstream persistence fails (prevents spurious price-drop
-	// notifications on the next scheduler cycle).
-	// A row is inserted when: (a) first observation (changed=false, oldPrice=0)
-	// or (b) price actually changed (changed=true).
-	if changed || oldPrice == 0 {
-		out.recordedTokens = append(out.recordedTokens, l.Token)
-	}
-	if !changed || l.Price >= oldPrice {
-		return false
-	}
-	log.InfoContext(ctx, "detected price drop for matched listing, preparing to notify user",
-		"token", l.Token,
-		"old_price", oldPrice,
-		"new_price", l.Price,
-		"price_change", l.Price-oldPrice,
-		"manufacturer", l.Manufacturer,
-		"model", l.Model,
-		"year", l.Year,
-	)
-	listing := model.Listing{RawListing: l, SearchName: search.Name}
-	fp := scoring.FitnessParams{
-		Price: l.Price, Km: l.Km, Hand: l.Hand, Year: l.Year,
-		EngineVolume: l.EngineVolume, PriceMax: search.PriceMax,
-		MaxKm: search.MaxKm, MaxHand: search.MaxHand,
-		YearMin: search.YearMin, YearMax: search.YearMax,
-		EngineMinCC: search.EngineMinCC,
-	}
-	if marketCache != nil {
-		if median, _, _, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
-			fp.MedianPrice = median
-		}
-	}
-	listing.FitnessScore = scoring.FitnessScore(fp)
-	out.priceDropMessages = append(out.priceDropMessages, notifier.FormatPriceDrop(listing, oldPrice, lang))
-	if s.stores.Listings != nil {
-		rec := storage.ListingRecord{
-			Token: l.Token, ChatID: search.ChatID, SearchID: search.ID, SearchName: search.Name,
-			Manufacturer: l.Manufacturer, Model: l.Model, SubModel: l.SubModel,
-			SubModelID: l.SubModelID,
-			Year:       l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
-			City: l.City, PageLink: l.PageLink, ImageURL: l.ImageURL,
-			EngineVolume: l.EngineVolume, HorsePower: l.HorsePower,
-			EngineType: l.EngineType, GearBox: l.GearBox, Description: l.Description,
-			IsCommercial: l.Commercial,
-			FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
-		}
-		if marketCache != nil {
-			if median, medKm, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
-				ds := scoring.ScoreWithKm(l.Price, l.Km, median, medKm)
-				rec.MedianPrice = &median
-				rec.CohortSize = &cohort
-				rec.DealScore = &ds
-			}
-		}
-		if err := s.stores.Listings.SaveListing(ctx, rec); err != nil {
-			log.ErrorContext(ctx, "failed to persist price-drop listing to history",
-				"token", l.Token,
-				"error", err.Error(),
-				"impact", "price drop record will be missing from listing history",
-				"action_taken", "notification will still be sent, but history is incomplete")
-		}
-	}
-	return true
 }
 
 func (s *Scheduler) persistListings(ctx context.Context, records []storage.ListingRecord, log *slog.Logger) error {

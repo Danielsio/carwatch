@@ -665,11 +665,13 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	}
 	accums := make(map[int64]*searchAccum, len(searches))
 
-	// Deferred price drop candidates: collected during matching, processed
-	// after enrichment so price-drop notifications use enriched km data.
+	// Deferred price drop candidates: we record prices during matching
+	// (to detect changes) but defer notification formatting until after
+	// enrichment so messages include enriched km/city data.
 	type priceDropCandidate struct {
 		rawIdx   int
 		searchID int64
+		oldPrice int
 	}
 	var priceDropCandidates []priceDropCandidate
 
@@ -713,11 +715,25 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				continue
 			}
 
-			// Defer price drop detection until after enrichment so
-			// notifications include enriched km/city data.
-			priceDropCandidates = append(priceDropCandidates, priceDropCandidate{
-				rawIdx: i, searchID: m.SearchID,
-			})
+			// Record price to detect changes. If a drop is detected,
+			// defer notification until after enrichment.
+			if s.stores.Prices != nil && raw[i].Price > 0 {
+				oldPrice, changed, err := s.stores.Prices.RecordPrice(ctx, raw[i].Token, raw[i].Price)
+				if err != nil {
+					matchLog.ErrorContext(ctx, "failed to record listing price in price tracker",
+						"token", raw[i].Token, "error", err.Error())
+				} else {
+					if changed || oldPrice == 0 {
+						acc.result.recordedTokens = append(acc.result.recordedTokens, raw[i].Token)
+					}
+					if changed && raw[i].Price < oldPrice {
+						priceDropCandidates = append(priceDropCandidates, priceDropCandidate{
+							rawIdx: i, searchID: m.SearchID, oldPrice: oldPrice,
+						})
+						continue
+					}
+				}
+			}
 
 			if !isNew {
 				continue
@@ -773,8 +789,52 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		if acc == nil {
 			continue
 		}
-		matchLog := s.logger.With("search_id", pd.searchID, "chat_id", acc.search.ChatID)
-		s.tryPriceDropListing(ctx, acc.search, raw[pd.rawIdx], acc.lang, marketCache, &acc.result, matchLog)
+		l := raw[pd.rawIdx]
+		s.logger.InfoContext(ctx, "detected price drop for matched listing, preparing to notify user",
+			"token", l.Token, "old_price", pd.oldPrice, "new_price", l.Price,
+			"price_change", l.Price-pd.oldPrice,
+			"manufacturer", l.Manufacturer, "model", l.Model, "year", l.Year,
+		)
+		listing := model.Listing{RawListing: l, SearchName: acc.search.Name}
+		fp := scoring.FitnessParams{
+			Price: l.Price, Km: l.Km, Hand: l.Hand, Year: l.Year,
+			EngineVolume: l.EngineVolume, PriceMax: acc.search.PriceMax,
+			MaxKm: acc.search.MaxKm, MaxHand: acc.search.MaxHand,
+			YearMin: acc.search.YearMin, YearMax: acc.search.YearMax,
+			EngineMinCC: acc.search.EngineMinCC,
+		}
+		if marketCache != nil {
+			if median, _, _, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
+				fp.MedianPrice = median
+			}
+		}
+		listing.FitnessScore = scoring.FitnessScore(fp)
+		acc.result.priceDropMessages = append(acc.result.priceDropMessages, notifier.FormatPriceDrop(listing, pd.oldPrice, acc.lang))
+		if s.stores.Listings != nil {
+			rec := storage.ListingRecord{
+				Token: l.Token, ChatID: acc.search.ChatID, SearchID: acc.search.ID, SearchName: acc.search.Name,
+				Manufacturer: l.Manufacturer, Model: l.Model, SubModel: l.SubModel,
+				SubModelID: l.SubModelID,
+				Year:       l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
+				City: l.City, PageLink: l.PageLink, ImageURL: l.ImageURL,
+				EngineVolume: l.EngineVolume, HorsePower: l.HorsePower,
+				EngineType: l.EngineType, GearBox: l.GearBox, Description: l.Description,
+				IsCommercial: l.Commercial,
+				FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
+			}
+			if marketCache != nil {
+				if median, medKm, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
+					ds := scoring.ScoreWithKm(l.Price, l.Km, median, medKm)
+					rec.MedianPrice = &median
+					rec.CohortSize = &cohort
+					rec.DealScore = &ds
+				}
+			}
+			if err := s.stores.Listings.SaveListing(ctx, rec); err != nil {
+				s.logger.ErrorContext(ctx, "failed to persist price-drop listing to history",
+					"token", l.Token, "error", err.Error())
+			}
+		}
 	}
 
 	// Build a token→index map so the pipeline reads enriched data from raw.
