@@ -46,7 +46,7 @@ func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 		return
 	}
 
-	tokens, err := s.stores.Listings.ListUnenrichedTokens(ctx, 50)
+	tokens, err := s.stores.Listings.ListUnenrichedTokens(ctx, 15)
 	if err != nil {
 		s.logger.Error("list unenriched tokens failed", "error", err)
 		return
@@ -58,6 +58,16 @@ func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 	s.logger.Info("backfill enrichment: fetching km for DB listings missing data",
 		"candidates", len(tokens),
 	)
+
+	// Cooldown before backfill to reduce rate-limit pressure after the
+	// main cycle's enrichment pass.
+	cooldown := time.NewTimer(s.backfillCooldown)
+	defer cooldown.Stop()
+	select {
+	case <-ctx.Done():
+		return
+	case <-cooldown.C:
+	}
 
 	raw := make([]model.RawListing, len(tokens))
 	for i, t := range tokens {
