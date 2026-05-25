@@ -20,15 +20,23 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 	for _, msg := range sr.priceDropMessages {
 		if err := delivery.DeliverRaw(ctx, search.ChatID, msg); err != nil {
 			if errors.Is(err, notifier.ErrRecipientBlocked) {
-				log.Warn("user blocked bot, deactivating")
+				log.WarnContext(ctx, "user has blocked the bot, deactivating user account",
+					"impact", "user will stop receiving all notifications",
+					"action_taken", "setting user inactive to prevent further delivery attempts")
 				if s.stores.Users != nil {
 					if err := s.stores.Users.SetUserActive(ctx, search.ChatID, false); err != nil {
-						log.Error("set user inactive after block (price drop)", "error", err)
+						log.ErrorContext(ctx, "failed to deactivate user after bot block",
+							"error", err.Error(),
+							"impact", "user remains active and delivery will fail again next cycle",
+							"action_taken", "no further action, will retry deactivation next cycle")
 					}
 				}
 				return false
 			}
-			log.Error("price drop delivery failed", "error", err)
+			log.ErrorContext(ctx, "failed to deliver price drop notification to user",
+				"error", err.Error(),
+				"impact", "user will not be notified about this price drop",
+				"action_taken", "continuing with remaining notifications")
 		} else {
 			sent = true
 		}
@@ -40,29 +48,40 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 
 	s.observer.RecordListingsFound(len(sr.newListings))
 
-	log.Info("delivering new listings to user",
+	log.InfoContext(ctx, "delivering batch of newly matched listings to user",
 		"count", len(sr.newListings),
-		"search", search.Name,
-		"user", search.ChatID,
+		"search_name", search.Name,
 	)
 
 	if err := delivery.DeliverBatch(ctx, search.ChatID, sr.newListings); err != nil {
 		if errors.Is(err, notifier.ErrRecipientBlocked) {
-			log.Warn("user blocked bot, deactivating")
+			log.WarnContext(ctx, "user has blocked the bot during batch delivery, deactivating user account",
+				"impact", "user will stop receiving all notifications",
+				"action_taken", "setting user inactive, releasing dedup claims for retry")
 			if s.stores.Users != nil {
 				if err := s.stores.Users.SetUserActive(ctx, search.ChatID, false); err != nil {
-					log.Error("set user inactive after block (batch)", "error", err)
+					log.ErrorContext(ctx, "failed to deactivate user after bot block during batch delivery",
+						"error", err.Error(),
+						"impact", "user remains active and delivery will fail again next cycle",
+						"action_taken", "no further action, will retry deactivation next cycle")
 				}
 			}
 		} else {
-			log.Error("batch delivery failed", "count", len(sr.newListings), "error", err)
+			log.ErrorContext(ctx, "failed to deliver listing batch to user, releasing dedup claims for retry",
+				"count", len(sr.newListings),
+				"error", err.Error(),
+				"impact", "user will not see these listings until next successful delivery",
+				"action_taken", "releasing dedup claims so listings are retried next cycle")
 		}
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
 		for _, l := range sr.newListings {
 			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, l.Token, search.ChatID); relErr != nil {
-				log.Error("release claim after delivery failure",
-					"token", l.Token, "error", relErr)
+				log.ErrorContext(ctx, "failed to release dedup claim after delivery failure",
+					"token", l.Token,
+					"error", relErr.Error(),
+					"impact", "this listing may not be re-delivered on subsequent cycles",
+					"action_taken", "manual intervention may be needed to clear stuck claim")
 			}
 		}
 	} else {
@@ -78,7 +97,11 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 	}
 	oldPrice, changed, err := s.stores.Prices.RecordPrice(ctx, l.Token, l.Price)
 	if err != nil {
-		log.Error("record price failed", "token", l.Token, "error", err)
+		log.ErrorContext(ctx, "failed to record listing price in price tracker",
+			"token", l.Token,
+			"error", err.Error(),
+			"impact", "price drop detection will not work for this listing this cycle",
+			"action_taken", "skipping price drop check, listing will be processed as normal")
 		return false
 	}
 	// Track tokens where RecordPrice inserted a row so that we can revert
@@ -92,10 +115,11 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 	if !changed || l.Price >= oldPrice {
 		return false
 	}
-	log.Info("price drop detected",
+	log.InfoContext(ctx, "detected price drop for matched listing, preparing to notify user",
 		"token", l.Token,
 		"old_price", oldPrice,
 		"new_price", l.Price,
+		"price_change", l.Price-oldPrice,
 		"manufacturer", l.Manufacturer,
 		"model", l.Model,
 		"year", l.Year,
@@ -136,10 +160,11 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 			}
 		}
 		if err := s.stores.Listings.SaveListing(ctx, rec); err != nil {
-			log.Error("save price-drop listing failed",
+			log.ErrorContext(ctx, "failed to persist price-drop listing to history",
 				"token", l.Token,
-				"error", err,
-			)
+				"error", err.Error(),
+				"impact", "price drop record will be missing from listing history",
+				"action_taken", "notification will still be sent, but history is incomplete")
 		}
 	}
 	return true
@@ -148,13 +173,21 @@ func (s *Scheduler) tryPriceDropListing(ctx context.Context, search storage.Sear
 func (s *Scheduler) persistListings(ctx context.Context, records []storage.ListingRecord, log *slog.Logger) error {
 	saveStart := time.Now()
 	if err := s.stores.Listings.SaveListings(ctx, records); err != nil {
-		log.Error("batch save listings failed", "batch_size", len(records), "duration_ms", time.Since(saveStart).Milliseconds(), "error", err)
+		log.ErrorContext(ctx, "failed to persist matched listings to database, releasing all dedup claims for retry",
+			"batch_size", len(records),
+			"duration_ms", time.Since(saveStart).Milliseconds(),
+			"error", err.Error(),
+			"impact", "listings will not appear in user history until next successful cycle",
+			"action_taken", "releasing dedup claims so listings are retried next cycle")
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
 		for _, rec := range records {
 			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, rec.Token, rec.ChatID); relErr != nil {
-				log.Error("release claim after batch save failure",
-					"token", rec.Token, "error", relErr)
+				log.ErrorContext(ctx, "failed to release dedup claim after batch save failure, listing may be permanently lost",
+					"token", rec.Token,
+					"error", relErr.Error(),
+					"impact", "this listing will not be re-delivered on subsequent cycles",
+					"action_taken", "manual intervention may be needed to clear stuck claim")
 			}
 		}
 		return err
@@ -165,7 +198,11 @@ func (s *Scheduler) persistListings(ctx context.Context, records []storage.Listi
 func (s *Scheduler) deduplicateListings(ctx context.Context, token string, chatID, searchID int64, log *slog.Logger) (isNew bool, ok bool) {
 	isNew, err := s.stores.Dedup.ClaimNew(ctx, token, chatID, searchID)
 	if err != nil {
-		log.Error("claim failed", "token", token, "error", err)
+		log.ErrorContext(ctx, "failed to claim listing for deduplication, listing will be skipped this cycle",
+			"token", token,
+			"error", err.Error(),
+			"impact", "listing may be re-delivered on next successful cycle if claim is not persisted",
+			"action_taken", "skipping this listing to avoid duplicate delivery")
 		return false, false
 	}
 	return isNew, true
@@ -182,8 +219,11 @@ func (s *Scheduler) revertPriceRecords(ctx context.Context, tokens []string, log
 	defer cancel()
 	for _, token := range tokens {
 		if err := s.stores.Prices.RevertPrice(cleanupCtx, token); err != nil {
-			log.Error("revert price after persist failure",
-				"token", token, "error", err)
+			log.ErrorContext(ctx, "failed to revert price record after persist failure, may cause spurious price-drop notification",
+				"token", token,
+				"error", err.Error(),
+				"impact", "stale price record may trigger a false price-drop notification on next cycle",
+				"action_taken", "continuing with remaining reverts")
 		}
 	}
 }
@@ -194,7 +234,11 @@ func (s *Scheduler) loadHiddenTokens(ctx context.Context, chatID int64) map[stri
 	}
 	tokens, err := s.stores.Hidden.ListHiddenTokens(ctx, chatID)
 	if err != nil {
-		s.logger.Error("load hidden tokens failed", "chat_id", chatID, "error", err)
+		s.logger.ErrorContext(ctx, "failed to load hidden tokens for user, hidden listings may be re-delivered",
+			"chat_id", chatID,
+			"error", err.Error(),
+			"impact", "previously hidden listings may appear in notifications",
+			"action_taken", "continuing without hidden token filter")
 		return nil
 	}
 	return tokens

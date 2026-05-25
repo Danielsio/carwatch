@@ -15,6 +15,7 @@ import (
 	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/cwlog"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
@@ -234,7 +235,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	logInterval := s.cfg.Polling.Interval
 	logJitter := s.cfg.Polling.Jitter
 	s.cfgMu.RUnlock()
-	s.logger.Info("scheduler started",
+	s.logger.Info("scheduler started, entering polling loop",
 		"check_interval", logInterval.String(),
 		"jitter", logJitter.String(),
 	)
@@ -250,7 +251,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			if errors.Is(err, context.Canceled) {
 				return err
 			}
-			s.logger.Error("initial cycle failed", "error", err)
+			s.logger.Error("initial scheduler cycle failed on startup", "error", err)
 		}
 	}
 
@@ -264,21 +265,21 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 		if !s.isActiveHours() {
 			if sleepUntil := s.durationUntilActiveStart(); sleepUntil > 0 {
-				s.logger.Info("outside active hours, sleeping until start",
+				s.logger.Info("outside configured active hours, sleeping until polling window opens",
 					"sleep", sleepUntil.Round(time.Minute).String(),
 				)
 				delay = sleepUntil
 			}
 		}
 
-		s.logger.Info("next scan", "in", delay.Round(time.Second).String())
+		s.logger.Info("scheduling next scan cycle", "in", delay.Round(time.Second).String())
 
 		timer.Reset(delay)
 
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			s.logger.Info("scheduler stopping")
+			s.logger.Info("scheduler received shutdown signal, stopping gracefully")
 			return ctx.Err()
 		case <-sighup:
 			if !timer.Stop() {
@@ -290,7 +291,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			if !timer.Stop() {
 				<-timer.C
 			}
-			s.logger.Info("scan triggered manually")
+			s.logger.Info("scheduler cycle triggered by manual API request")
 		case <-timer.C:
 		}
 
@@ -302,7 +303,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			if errors.Is(err, context.Canceled) {
 				return err
 			}
-			s.logger.Error("scan failed", "error", err)
+			s.logger.Error("scheduler cycle failed, will retry on next interval", "error", err)
 		}
 	}
 }
@@ -358,7 +359,7 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 		lastErr = err
 
 		if errors.Is(err, fetcher.ErrPartialResults) && len(listings) > 0 {
-			log.Warn("partial results (some pages failed)",
+			log.WarnContext(ctx, "received partial results from source, some pages failed to fetch",
 				"car", s.carName(params.Manufacturer, params.Model),
 				"listings_returned", len(listings),
 				"error", err,
@@ -372,7 +373,7 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 
 		if attempt < maxRetries-1 {
 			delay := retryBaseDelay * (1 << attempt)
-			log.Warn("fetch failed, retrying",
+			log.WarnContext(ctx, "global feed fetch attempt failed, retrying with exponential backoff",
 				"car", s.carName(params.Manufacturer, params.Model),
 				"attempt", fmt.Sprintf("%d/%d", attempt+1, maxRetries),
 				"retry_in", delay.String(),
@@ -467,30 +468,31 @@ func (s *Scheduler) reloadConfig() {
 		s.logger.Warn("SIGHUP received but no config path set, ignoring")
 		return
 	}
-	s.logger.Info("SIGHUP received, reloading config", "path", s.configPath)
+	s.logger.Info("received SIGHUP signal, reloading configuration from disk", "path", s.configPath)
 	newCfg, err := config.Load(s.configPath)
 	if err != nil {
-		s.logger.Error("config reload failed, keeping current config", "error", err)
+		s.logger.Error("failed to reload configuration, keeping current config", "error", err)
 		return
 	}
 	loc, err := time.LoadLocation(newCfg.Polling.Timezone)
 	if err != nil {
-		s.logger.Error("config reload: invalid timezone, keeping current", "timezone", newCfg.Polling.Timezone, "error", err)
+		s.logger.Error("failed to reload configuration, invalid timezone setting", "timezone", newCfg.Polling.Timezone, "error", err)
 		return
 	}
 	s.cfgMu.Lock()
 	s.cfg = newCfg
 	s.loc = loc
 	s.cfgMu.Unlock()
-	s.logger.Info("config reloaded")
+	s.logger.Info("configuration reloaded successfully")
 }
 
 func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.cycleCount++
 	cycle := s.cycleCount
 	cycleStart := time.Now()
+	ctx = cwlog.WithCycleID(ctx, cycle)
 
-	s.logger.Info("checking for new listings", "scan", cycle)
+	s.logger.InfoContext(ctx, "starting scheduler cycle, loading active searches", "scan", cycle)
 
 	s.langCache.Range(func(k, _ any) bool { s.langCache.Delete(k); return true })
 	s.digestCache.Range(func(k, _ any) bool { s.digestCache.Delete(k); return true })
@@ -510,7 +512,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 
 	if len(searches) == 0 {
 		s.backfillUnenrichedListings(ctx)
-		s.logger.Info("scan complete (no active searches)", "scan", cycle, "elapsed", time.Since(cycleStart).Round(time.Millisecond))
+		s.logger.InfoContext(ctx, "scheduler cycle completed with no active searches", "scan", cycle, "elapsed", time.Since(cycleStart).Round(time.Millisecond))
 		s.observer.RecordSuccess()
 		return nil
 	}
@@ -519,7 +521,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.percolator.Load(searches)
 
 	marketCache := s.getOrBuildMarketCache(ctx)
-	s.logger.Info("active searches loaded",
+	s.logger.InfoContext(ctx, "loaded active searches into percolator for reverse matching",
 		"scan", cycle,
 		"searches", len(searches),
 		"db_duration_ms", searchLoadMs,
@@ -536,7 +538,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.processDailyDigests(ctx)
 	s.backfillUnenrichedListings(ctx)
 
-	s.logger.Info("scan complete",
+	s.logger.InfoContext(ctx, "scheduler cycle completed",
 		"scan", cycle,
 		"elapsed", time.Since(cycleStart).Round(time.Millisecond),
 		"searches", len(searches),
@@ -587,7 +589,7 @@ func (s *Scheduler) writeCycleLog(ctx context.Context, entry storage.CycleLogEnt
 		return
 	}
 	if err := s.stores.CycleLog.WriteCycleLog(ctx, entry); err != nil {
-		s.logger.Error("write cycle log failed", "error", err)
+		s.logger.Error("failed to write scheduler cycle log entry", "error", err)
 	}
 }
 
@@ -648,7 +650,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		enriched := s.kmEnricher.Enrich(enrichCtx, raw)
 		cancelEnrich()
 		if enriched > 0 {
-			s.logger.Info("mileage data enriched",
+			s.logger.InfoContext(ctx, "enriched listings with mileage and location data from individual pages",
 				"enriched", enriched,
 				"total", len(raw),
 			)
@@ -719,6 +721,8 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 
 	// 6. Run pipeline and deliver results per search.
 	for _, acc := range accums {
+		searchCtx := cwlog.WithSearch(ctx, acc.search.ID, acc.search.ChatID)
+
 		// Convert collected raw listings through the pipeline.
 		if len(acc.result.newListings) > 0 {
 			rawForPipeline := make([]model.RawListing, len(acc.result.newListings))
@@ -727,7 +731,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 			}
 			params := ProcessParamsFromSearch(acc.search, marketCache)
 			params.SkipPrefill = prefilled
-			pr := s.pipeline.Process(ctx, rawForPipeline, params)
+			pr := s.pipeline.Process(searchCtx, rawForPipeline, params)
 			acc.result.newListings = pr.Listings
 			acc.result.listingRecords = pr.Records
 		}
@@ -735,35 +739,29 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		// Persist listings.
 		persistOK := true
 		if s.stores.Listings != nil && len(acc.result.listingRecords) > 0 {
-			searchLog := s.logger.With("search_id", acc.search.ID, "chat_id", acc.search.ChatID)
-			if err := s.persistListings(ctx, acc.result.listingRecords, searchLog); err != nil {
+			if err := s.persistListings(searchCtx, acc.result.listingRecords, s.logger); err != nil {
 				persistOK = false
 			} else {
 				s.invalidateMarketCache()
 			}
 		}
 		if !persistOK {
-			searchLog := s.logger.With("search_id", acc.search.ID, "chat_id", acc.search.ChatID)
 			acc.result.newListings = nil
 			acc.result.listingRecords = nil
-			s.revertPriceRecords(ctx, acc.result.recordedTokens, searchLog)
+			s.revertPriceRecords(searchCtx, acc.result.recordedTokens, s.logger)
 		}
 
 		stats.newListings += len(acc.result.newListings)
 
 		// Deliver notifications.
-		searchLog := s.logger.With(
-			"search_id", acc.search.ID,
-			"chat_id", acc.search.ChatID,
-			"search_name", acc.search.Name,
-		)
 		if len(acc.result.newListings) > 0 || len(acc.result.priceDropMessages) > 0 {
-			searchLog.Info("search matched listings",
+			s.logger.InfoContext(searchCtx, "search matched listings, preparing delivery",
+				"search_name", acc.search.Name,
 				"new", len(acc.result.newListings),
 				"price_drops", len(acc.result.priceDropMessages),
 			)
 		}
-		delivered := s.deliverResults(ctx, acc.search, acc.lang, acc.result, searchLog)
+		delivered := s.deliverResults(searchCtx, acc.search, acc.lang, acc.result, s.logger)
 		if delivered {
 			stats.notificationsSent++
 		}
@@ -808,12 +806,12 @@ func (s *Scheduler) getOrBuildMarketCache(ctx context.Context) *scoring.MarketCa
 func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
 	refreshStart := time.Now()
 	if err := s.stores.Market.RefreshMarketMedians(ctx); err != nil {
-		s.logger.Error("refresh market medians failed", "error", err)
+		s.logger.Error("failed to refresh market median materialized view", "error", err)
 	}
 
 	rows, err := s.stores.Market.LoadMarketMedians(ctx)
 	if err != nil {
-		s.logger.Error("load market medians failed, keeping previous cache", "error", err)
+		s.logger.Error("failed to load market medians from database, keeping previous cache", "error", err)
 		return nil
 	}
 	s.logger.Debug("market medians loaded", "rows", len(rows), "duration_ms", time.Since(refreshStart).Milliseconds())
@@ -862,7 +860,8 @@ func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListi
 	prefillStart := time.Now()
 	data, err := s.stores.Listings.LookupEnrichmentData(ctx, tokens)
 	if err != nil {
-		s.logger.Error("prefill from DB failed", "looked_up", len(tokens), "error", err)
+		s.logger.ErrorContext(ctx, "failed to look up enrichment data from database for prefill",
+			"error", err, "looked_up", len(tokens))
 		return
 	}
 	if len(data) == 0 {
@@ -893,7 +892,9 @@ func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListi
 		}
 	}
 	if filled > 0 {
-		s.logger.Info("prefilled from DB", "filled", filled, "looked_up", len(tokens), "duration_ms", time.Since(prefillStart).Milliseconds())
+		s.logger.InfoContext(ctx, "prefilled listing data from database to supplement missing fields",
+			"filled", filled, "looked_up", len(tokens),
+			"duration_ms", time.Since(prefillStart).Milliseconds())
 	}
 }
 
@@ -923,7 +924,7 @@ func (s *Scheduler) backfillEnrichedListings(ctx context.Context, listings []mod
 		return
 	}
 	if err := s.stores.Listings.BackfillListings(ctx, toUpdate); err != nil {
-		s.logger.Error("km backfill failed", "count", len(toUpdate), "error", err)
+		s.logger.ErrorContext(ctx, "failed to backfill enriched mileage data to listing history", "count", len(toUpdate), "error", err)
 	}
 }
 
@@ -933,7 +934,7 @@ func (s *Scheduler) deactivateExcessSearches(ctx context.Context, chatID int64, 
 	}
 	searches, err := s.stores.Searches.ListSearches(ctx, chatID)
 	if err != nil {
-		s.logger.Error("list searches for downgrade failed", "chat_id", chatID, "error", err)
+		s.logger.Error("failed to list searches for tier downgrade", "chat_id", chatID, "error", err)
 		return
 	}
 	var active []storage.Search
@@ -948,10 +949,10 @@ func (s *Scheduler) deactivateExcessSearches(ctx context.Context, chatID int64, 
 	// Keep the oldest (last in the slice since ListSearches orders by created_at DESC), pause the rest.
 	for i := 0; i < len(active)-maxActive; i++ {
 		if err := s.stores.Searches.SetSearchActive(ctx, active[i].ID, chatID, false); err != nil {
-			s.logger.Error("deactivate excess search failed", "chat_id", chatID, "search_id", active[i].ID, "error", err)
+			s.logger.Error("failed to deactivate excess search during tier downgrade", "chat_id", chatID, "search_id", active[i].ID, "error", err)
 		}
 	}
-	s.logger.Info("deactivated excess searches on downgrade",
+	s.logger.Info("deactivated excess searches after tier downgrade",
 		"chat_id", chatID, "paused", len(active)-maxActive, "kept", maxActive)
 }
 

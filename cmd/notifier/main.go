@@ -16,6 +16,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/app"
 	"github.com/dsionov/carwatch/internal/broker"
+	"github.com/dsionov/carwatch/internal/cwlog"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/logstream"
 )
@@ -58,17 +59,18 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		return err
 	}
 
+	baseHandler := logger.Handler()
 	logPub, pubErr := logstream.NewRedisPublisher(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
 	if pubErr != nil {
 		logger.Warn("redis log publisher failed", "error", pubErr)
 	} else {
 		defer func() { _ = logPub.Close() }()
-		teeHandler := logstream.NewTeeHandler(logger.Handler(), logPub,
+		baseHandler = logstream.NewTeeHandler(baseHandler, logPub,
 			"notifier", "telegram", "webpush", "broker-consumer",
 		)
-		logger = slog.New(teeHandler)
-		slog.SetDefault(logger)
 	}
+	logger = slog.New(cwlog.NewContextHandler(baseHandler))
+	slog.SetDefault(logger)
 
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 

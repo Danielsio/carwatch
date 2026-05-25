@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dsionov/carwatch/internal/app"
+	"github.com/dsionov/carwatch/internal/cwlog"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/logstream"
 )
@@ -59,7 +60,7 @@ func run(configPath string, logger *slog.Logger) error {
 		"api-pricelist", "bot", "telegram", "notifier",
 		"circuit_breaker",
 	)
-	logger = slog.New(teeHandler)
+	logger = slog.New(cwlog.NewContextHandler(teeHandler))
 	slog.SetDefault(logger)
 
 	if cfg.Redis.Addr != "" {
