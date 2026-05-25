@@ -665,6 +665,14 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	}
 	accums := make(map[int64]*searchAccum, len(searches))
 
+	// Deferred price drop candidates: collected during matching, processed
+	// after enrichment so price-drop notifications use enriched km data.
+	type priceDropCandidate struct {
+		rawIdx   int
+		searchID int64
+	}
+	var priceDropCandidates []priceDropCandidate
+
 	// 5. Percolator match: for each listing, find matching searches.
 	// Track which raw indices matched so we only enrich those.
 	hiddenCache := make(map[int64]map[string]bool)
@@ -705,10 +713,11 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				continue
 			}
 
-			// Price drop detection.
-			if s.tryPriceDropListing(ctx, m.Search, raw[i], acc.lang, marketCache, &acc.result, matchLog) {
-				continue
-			}
+			// Defer price drop detection until after enrichment so
+			// notifications include enriched km/city data.
+			priceDropCandidates = append(priceDropCandidates, priceDropCandidate{
+				rawIdx: i, searchID: m.SearchID,
+			})
 
 			if !isNew {
 				continue
@@ -758,6 +767,16 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		}
 	}
 
+	// 5c. Process deferred price drops now that enrichment is complete.
+	for _, pd := range priceDropCandidates {
+		acc := accums[pd.searchID]
+		if acc == nil {
+			continue
+		}
+		matchLog := s.logger.With("search_id", pd.searchID, "chat_id", acc.search.ChatID)
+		s.tryPriceDropListing(ctx, acc.search, raw[pd.rawIdx], acc.lang, marketCache, &acc.result, matchLog)
+	}
+
 	// Build a token→index map so the pipeline reads enriched data from raw.
 	rawByToken := make(map[string]int, len(raw))
 	for i := range raw {
@@ -782,10 +801,17 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 
 			// Post-enrichment MaxKm filter: drop listings whose km
 			// (now known after enrichment) exceeds this search's cap.
+			// Release dedup claims for dropped listings so they can be
+			// re-evaluated in future cycles.
 			if acc.search.MaxKm > 0 {
-				filtered := rawForPipeline[:0]
+				filtered := make([]model.RawListing, 0, len(rawForPipeline))
 				for _, r := range rawForPipeline {
 					if r.Km > 0 && r.Km > acc.search.MaxKm {
+						if relErr := s.stores.Dedup.ReleaseClaim(ctx, r.Token, acc.search.ChatID); relErr != nil {
+							s.logger.ErrorContext(searchCtx,
+								"failed to release dedup claim for km-filtered listing",
+								"token", r.Token, "error", relErr.Error())
+						}
 						continue
 					}
 					filtered = append(filtered, r)

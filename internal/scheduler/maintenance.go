@@ -61,10 +61,12 @@ func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 
 	// Cooldown before backfill to reduce rate-limit pressure after the
 	// main cycle's enrichment pass.
+	cooldown := time.NewTimer(s.backfillCooldown)
+	defer cooldown.Stop()
 	select {
 	case <-ctx.Done():
 		return
-	case <-time.After(s.backfillCooldown):
+	case <-cooldown.C:
 	}
 
 	raw := make([]model.RawListing, len(tokens))

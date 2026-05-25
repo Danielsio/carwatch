@@ -138,6 +138,14 @@ func TestMatchFirstEnrichment_PostEnrichmentKmFilter(t *testing.T) {
 	if len(n.messages) != 0 {
 		t.Errorf("expected 0 notifications (km exceeded MaxKm after enrichment), got %d", len(n.messages))
 	}
+
+	// Verify the dedup claim was released so the listing can be re-evaluated.
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	key := dedupKey{token: "high-km", chatID: 100}
+	if d.seen[key] {
+		t.Error("dedup claim should be released for km-filtered listing")
+	}
 }
 
 func TestMatchFirstEnrichment_KmWithinLimit(t *testing.T) {
