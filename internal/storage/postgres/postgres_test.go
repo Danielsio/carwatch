@@ -115,13 +115,13 @@ func TestPostgres_UserCRUD(t *testing.T) {
 		t.Errorf("count = %d, want 1", count)
 	}
 
-	// UpsertUser reactivates inactive user
+	// UpsertUser preserves admin-set active status (does not force reactivate)
 	if err := store.UpsertUser(ctx, 200, "reactivated"); err != nil {
 		t.Fatalf("upsert reactivate: %v", err)
 	}
 	u, _ = store.GetUser(ctx, 200)
-	if !u.Active {
-		t.Error("UpsertUser should reactivate an inactive user")
+	if u.Active {
+		t.Error("UpsertUser should not override admin deactivation")
 	}
 
 	// SetUserLanguage
