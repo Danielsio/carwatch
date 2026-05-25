@@ -272,7 +272,9 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			}
 		}
 
-		s.logger.Info("scheduling next scan cycle", "in", delay.Round(time.Second).String())
+		s.logger.Info("scheduling next scan cycle",
+			"in", delay.Round(time.Second).String(),
+			"at", time.Now().Add(delay).In(s.loc).Format("15:04:05"))
 
 		timer.Reset(delay)
 
