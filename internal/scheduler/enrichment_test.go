@@ -243,12 +243,15 @@ func TestBackfillBatchSize(t *testing.T) {
 	enricher := &countingEnricher{calls: &enrichCalls}
 
 	cfg := testConfig()
-	s, _ := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{
+	s, err := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{
 		SearchStore:      &mockSearchStore{},
 		ListingStore:     ls,
 		KmEnricher:       enricher,
 		BackfillCooldown: time.Millisecond,
 	})
+	if err != nil {
+		t.Fatalf("create scheduler: %v", err)
+	}
 
 	s.backfillUnenrichedListings(context.Background())
 
