@@ -16,6 +16,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/app"
 	"github.com/dsionov/carwatch/internal/broker"
+	"github.com/dsionov/carwatch/internal/cwlog"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/logstream"
 )
@@ -66,7 +67,7 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		teeHandler := logstream.NewTeeHandler(logger.Handler(), logPub,
 			"notifier", "telegram", "webpush", "broker-consumer",
 		)
-		logger = slog.New(teeHandler)
+		logger = slog.New(cwlog.NewContextHandler(teeHandler))
 		slog.SetDefault(logger)
 	}
 

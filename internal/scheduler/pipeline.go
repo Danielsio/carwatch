@@ -148,35 +148,37 @@ func (p *ListingPipeline) enrichWithBasePrice(ctx context.Context, listing *mode
 		return
 	}
 	if listing.SubModelID <= 0 {
-		log.Debug("enrichWithBasePrice: skipped, no sub_model_id",
+		log.DebugContext(ctx, "skipping base price enrichment, listing has no sub-model ID",
 			"token", listing.Token, "sub_model_id", listing.SubModelID,
 			"sub_model", listing.SubModel, "model", listing.Model)
 		return
 	}
 	if listing.Year <= 0 {
-		log.Debug("enrichWithBasePrice: skipped, no year",
+		log.DebugContext(ctx, "skipping base price enrichment, listing has no year",
 			"token", listing.Token, "year", listing.Year)
 		return
 	}
 
 	bp, ok := p.priceListSvc.Lookup(ctx, listing.SubModelID, listing.Year, listing.Token)
 	if !ok {
-		log.Debug("base price lookup miss",
-			"token", listing.Token, "sub_model_id", listing.SubModelID,
-			"year", listing.Year)
+		log.WarnContext(ctx, "base price lookup returned no result for listing",
+			"token", listing.Token, "manufacturer", listing.Manufacturer,
+			"model", listing.Model, "year", listing.Year,
+			"sub_model_id", listing.SubModelID)
 		return
 	}
 	if bp <= 0 {
-		log.Debug("base price zero/negative",
+		log.WarnContext(ctx, "base price lookup returned invalid value, skipping enrichment",
 			"token", listing.Token, "sub_model_id", listing.SubModelID,
 			"year", listing.Year, "base_price", bp)
 		return
 	}
 
 	listing.BasePrice = &bp
-	log.Debug("enriched with base price",
-		"token", listing.Token, "sub_model_id", listing.SubModelID,
-		"year", listing.Year, "base_price", bp)
+	log.InfoContext(ctx, "enriched listing with catalog base price for market comparison",
+		"token", listing.Token, "manufacturer", listing.Manufacturer,
+		"model", listing.Model, "year", listing.Year,
+		"base_price", bp, "listing_price", listing.Price)
 }
 
 // prefillFromDB fills in km/city/image from the DB for listings that are
@@ -198,7 +200,11 @@ func (p *ListingPipeline) prefillFromDB(ctx context.Context, listings []model.Ra
 
 	data, err := p.listings.LookupEnrichmentData(ctx, tokens)
 	if err != nil {
-		log.Error("pipeline prefill from DB failed", "error", err)
+		log.ErrorContext(ctx, "failed to look up enrichment data from database for pipeline prefill",
+			"error", err.Error(),
+			"impact", "listings missing km/city/image will remain incomplete until enricher runs",
+			"action_taken", "continuing pipeline without prefilled data",
+			"tokens_requested", len(tokens))
 		return
 	}
 	if len(data) == 0 {
@@ -229,7 +235,8 @@ func (p *ListingPipeline) prefillFromDB(ctx context.Context, listings []model.Ra
 		}
 	}
 	if filled > 0 {
-		log.Info("pipeline prefilled from DB", "filled", filled, "looked_up", len(tokens))
+		log.InfoContext(ctx, "prefilled listing data from database to supplement missing fields",
+			"filled", filled, "looked_up", len(tokens))
 	}
 }
 

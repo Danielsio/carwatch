@@ -67,7 +67,7 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 	if d.publisher != nil {
 		msg := notifier.FormatBatch(listings, d.lang)
 		if notifier.IsMalformedMessage(msg) {
-			d.logger.Error("blocked malformed batch message",
+			d.logger.ErrorContext(ctx, "blocked delivery of malformed batch message, skipping to prevent Telegram API errors",
 				"chat_id", chatID, "msg_len", len(msg))
 			return errMalformedMessage
 		}
@@ -80,7 +80,8 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 			Timestamp:  time.Now().UTC().Format(time.RFC3339),
 		}
 		if err := d.publisher.Publish(ctx, alert); err != nil {
-			d.logger.Error("publish alert failed", "chat_id", chatID, "error", err)
+			d.logger.ErrorContext(ctx, "failed to publish alert to Redis queue for notification delivery",
+				"chat_id", chatID, "error", err)
 			return err
 		}
 		return nil
@@ -94,13 +95,14 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 	if errors.Is(err, notifier.ErrRecipientBlocked) {
 		return err
 	}
-	d.logger.Error("batch notification failed", "chat_id", chatID, "error", err)
+	d.logger.ErrorContext(ctx, "direct notification delivery failed for user",
+		"chat_id", chatID, "error", err)
 	return err
 }
 
 func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message string) error {
 	if notifier.IsMalformedMessage(message) {
-		d.logger.Error("blocked malformed raw message",
+		d.logger.ErrorContext(ctx, "blocked delivery of malformed raw message, skipping to prevent Telegram API errors",
 			"chat_id", chatID, "msg_len", len(message),
 			"msg_preview", truncateStr(message, 200))
 		return errMalformedMessage
@@ -116,7 +118,8 @@ func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message 
 			Timestamp:  time.Now().UTC().Format(time.RFC3339),
 		}
 		if err := d.publisher.Publish(ctx, alert); err != nil {
-			d.logger.Error("publish raw alert failed", "chat_id", chatID, "error", err)
+			d.logger.ErrorContext(ctx, "failed to publish raw alert to Redis queue for notification delivery",
+				"chat_id", chatID, "error", err)
 			return err
 		}
 		return nil
@@ -125,7 +128,8 @@ func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message 
 	chatIDStr := fmt.Sprintf("%d", chatID)
 	err := d.notifier.NotifyRaw(ctx, chatIDStr, message)
 	if err != nil && !errors.Is(err, notifier.ErrRecipientBlocked) {
-		d.logger.Error("raw notification failed", "chat_id", chatID, "error", err)
+		d.logger.ErrorContext(ctx, "direct raw notification delivery failed for user",
+			"chat_id", chatID, "error", err)
 	}
 	return err
 }

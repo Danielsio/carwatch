@@ -3,6 +3,7 @@ package yad2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"time"
@@ -87,7 +88,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 
 	for _, i := range candidates {
 		if e.cfg.MaxPerCycle > 0 && enriched >= e.cfg.MaxPerCycle {
-			e.logger.Debug("enrichment limit reached",
+			e.logger.DebugContext(ctx, "reached per-cycle enrichment limit, deferring remaining listings",
 				"enriched", enriched,
 				"attempts", attempts,
 				"remaining", len(candidates)-attempts,
@@ -116,16 +117,17 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			if errors.Is(err, fetcher.ErrChallenge) {
 				challengeRetries++
 				if challengeRetries >= maxChallengeRetries {
-					e.logger.Warn("enrichment aborted after repeated challenges",
+					e.logger.WarnContext(ctx, "halting enrichment pass, source is rate-limiting with bot challenges",
 						"token", listings[i].Token,
 						"challenges", challengeRetries,
+						"impact", fmt.Sprintf("%d remaining listings will not be enriched this cycle", len(candidates)-attempts),
+						"action_taken", "aborting enrichment, will retry unenriched listings next cycle",
+						"enriched_so_far", enriched,
 						"attempts", attempts,
-						"enriched", enriched,
-						"remaining", len(candidates)-attempts,
 					)
 					return enriched
 				}
-				e.logger.Warn("challenge detected, backing off before retry",
+				e.logger.WarnContext(ctx, "bot challenge detected during enrichment, backing off before retry",
 					"token", listings[i].Token,
 					"challenge_count", challengeRetries,
 					"backoff", e.cfg.ChallengeBackoff,
@@ -138,16 +140,20 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 				continue
 			}
 			consecutiveFailures++
-			e.logger.Warn("enrichment failed",
+			e.logger.WarnContext(ctx, "failed to fetch detailed listing data for mileage enrichment",
 				"token", listings[i].Token,
-				"error", err,
+				"error", err.Error(),
+				"impact", "listing will appear without km/city data until next cycle",
+				"action_taken", "continuing with remaining candidates",
+				"consecutive_failures", consecutiveFailures,
 			)
 			if consecutiveFailures >= maxConsecutiveFailures {
-				e.logger.Warn("enrichment aborted after consecutive failures",
+				e.logger.WarnContext(ctx, "halting enrichment pass after consecutive fetch failures",
 					"token", listings[i].Token,
 					"consecutive_failures", consecutiveFailures,
-					"attempts", attempts,
-					"remaining", len(candidates)-attempts,
+					"impact", fmt.Sprintf("%d remaining listings will not be enriched this cycle", len(candidates)-attempts),
+					"action_taken", "aborting enrichment, unenriched listings will be retried next cycle",
+					"enriched_so_far", enriched,
 				)
 				return enriched
 			}
@@ -174,11 +180,11 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 		}
 		if changed {
 			enriched++
-			e.logger.Debug("enriched listing",
+			e.logger.DebugContext(ctx, "successfully enriched listing with mileage and location data",
 				"token", listings[i].Token,
 				"km", details.Km,
 				"city", details.City,
-				"image", details.ImageURL != "",
+				"has_image", details.ImageURL != "",
 			)
 		}
 	}

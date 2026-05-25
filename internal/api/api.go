@@ -19,6 +19,7 @@ import (
 	"github.com/dsionov/carwatch/internal/botcore"
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/cwlog"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/pricelist"
@@ -173,6 +174,7 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 
 		w.Header().Set("X-Request-ID", id)
 		ctx := context.WithValue(r.Context(), requestIDKey, id)
+		ctx = cwlog.WithRequestID(ctx, id)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
