@@ -63,18 +63,19 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		return fmt.Errorf("redis.addr is required for the scraper; alerts must go through the Redis-backed notifier worker for rate limiting")
 	}
 
+	baseHandler := logger.Handler()
 	logPub, err := logstream.NewRedisPublisher(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
 	if err != nil {
 		logger.Warn("redis log publisher failed, logs won't stream to admin", "error", err)
 	} else {
 		defer func() { _ = logPub.Close() }()
-		teeHandler := logstream.NewTeeHandler(logger.Handler(), logPub,
+		baseHandler = logstream.NewTeeHandler(baseHandler, logPub,
 			"yad2", "scheduler", "enricher", "circuit_breaker",
 			"api-pricelist", "broker-consumer",
 		)
-		logger = slog.New(cwlog.NewContextHandler(teeHandler))
-		slog.SetDefault(logger)
 	}
+	logger = slog.New(cwlog.NewContextHandler(baseHandler))
+	slog.SetDefault(logger)
 
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 

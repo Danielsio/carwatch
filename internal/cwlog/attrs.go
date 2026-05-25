@@ -43,8 +43,12 @@ func SearchAttrs(s storage.Search) []slog.Attr {
 // triple for error logging. Every error log should include these fields
 // to make debugging actionable.
 func ErrorEvent(err error, impact, actionTaken string) []slog.Attr {
+	errMsg := "<nil>"
+	if err != nil {
+		errMsg = err.Error()
+	}
 	return []slog.Attr{
-		slog.String("error", err.Error()),
+		slog.String("error", errMsg),
 		slog.String("impact", impact),
 		slog.String("action_taken", actionTaken),
 	}

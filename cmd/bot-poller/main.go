@@ -55,17 +55,18 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		return err
 	}
 
+	baseHandler := logger.Handler()
 	if cfg.Redis.Addr != "" {
 		logPub, pubErr := logstream.NewRedisPublisher(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
 		if pubErr != nil {
 			logger.Warn("redis log publisher failed", "error", pubErr)
 		} else {
 			defer func() { _ = logPub.Close() }()
-			teeHandler := logstream.NewTeeHandler(logger.Handler(), logPub, "bot", "telegram")
-			logger = slog.New(cwlog.NewContextHandler(teeHandler))
-			slog.SetDefault(logger)
+			baseHandler = logstream.NewTeeHandler(baseHandler, logPub, "bot", "telegram")
 		}
 	}
+	logger = slog.New(cwlog.NewContextHandler(baseHandler))
+	slog.SetDefault(logger)
 
 	logger.Info("config loaded", "log_level", cfg.LogLevel, "log_format", cfg.LogFormat, "version", version)
 
