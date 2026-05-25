@@ -40,6 +40,7 @@ const (
 	priceHistoryRetention   = 90 * 24 * time.Hour
 	listingHistoryRetention = 90 * 24 * time.Hour
 	defaultMarketCacheTTL   = 30 * time.Minute
+	defaultBackfillCooldown = 30 * time.Second
 )
 
 type CatalogIngester interface {
@@ -91,6 +92,7 @@ type Scheduler struct {
 	marketCache        *scoring.MarketCache
 	marketCacheBuiltAt time.Time
 	marketCacheTTL     time.Duration
+	backfillCooldown   time.Duration
 }
 
 type digestMeta struct {
@@ -147,6 +149,7 @@ type Options struct {
 	DailyDigestStore storage.DailyDigestStore
 	CycleLogStore    storage.CycleLogStore
 	MarketCacheTTL   time.Duration
+	BackfillCooldown time.Duration
 	Publisher        *broker.Publisher
 }
 
@@ -188,6 +191,11 @@ func NewWithOptions(
 		mcTTL = defaultMarketCacheTTL
 	}
 
+	bfCooldown := opts.BackfillCooldown
+	if bfCooldown <= 0 {
+		bfCooldown = defaultBackfillCooldown
+	}
+
 	return &Scheduler{
 		cfg:        cfg,
 		configPath: opts.ConfigPath,
@@ -220,6 +228,7 @@ func NewWithOptions(
 		percolator:        percolator.New(),
 		triggerCh:         make(chan struct{}, 1),
 		marketCacheTTL:    mcTTL,
+		backfillCooldown:  bfCooldown,
 	}, nil
 }
 
@@ -595,10 +604,10 @@ func (s *Scheduler) writeCycleLog(ctx context.Context, entry storage.CycleLogEnt
 	}
 }
 
-// fetchGlobalAndMatch fetches the global Yad2 feed once, enriches it, then
-// uses the percolator to match each listing against all active searches.
-// Per-user dedup, pipeline processing, and notification delivery happen
-// per match.
+// fetchGlobalAndMatch fetches the global Yad2 feed once, matches each listing
+// against all active searches via the percolator, then enriches only the
+// matched listings to minimize API calls. Per-user dedup, pipeline processing,
+// and notification delivery happen per match.
 func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.Search, marketCache *scoring.MarketCache) (cycleStats, error) {
 	var stats cycleStats
 
@@ -640,26 +649,12 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		}
 	}
 
-	// 3. Prefill from DB first so the enricher sees which listings still
-	// lack km data even after previous cycles. Then enrich the remainder.
+	// 3. Prefill from DB so listings with known km/city/image from prior
+	// cycles get that data before matching.
 	prefilled := false
 	if s.stores.Listings != nil {
 		s.prefillFromDB(ctx, raw)
 		prefilled = true
-	}
-	if s.kmEnricher != nil {
-		enrichCtx, cancelEnrich := context.WithTimeout(ctx, kmEnrichTimeout)
-		enriched := s.kmEnricher.Enrich(enrichCtx, raw)
-		cancelEnrich()
-		if enriched > 0 {
-			s.logger.InfoContext(ctx, "enriched listings with mileage and location data from individual pages",
-				"enriched", enriched,
-				"total", len(raw),
-			)
-			if s.stores.Listings != nil {
-				s.backfillEnrichedListings(ctx, raw)
-			}
-		}
 	}
 
 	// 4. Build a per-search accumulator to collect results across listings.
@@ -671,13 +666,16 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	accums := make(map[int64]*searchAccum, len(searches))
 
 	// 5. Percolator match: for each listing, find matching searches.
+	// Track which raw indices matched so we only enrich those.
 	hiddenCache := make(map[int64]map[string]bool)
+	matchedIndices := make(map[int]struct{})
 
 	for i := range raw {
 		matches := s.percolator.Match(raw[i])
 		if len(matches) == 0 {
 			continue
 		}
+		matchedIndices[i] = struct{}{}
 
 		for _, m := range matches {
 			acc, ok := accums[m.SearchID]
@@ -721,21 +719,97 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		}
 	}
 
+	// 5b. Enrich only matched listings that still need data.
+	if s.kmEnricher != nil && len(matchedIndices) > 0 {
+		var enrichIndices []int
+		for idx := range matchedIndices {
+			if raw[idx].Km <= 0 || raw[idx].City == "" || raw[idx].ImageURL == "" {
+				enrichIndices = append(enrichIndices, idx)
+			}
+		}
+
+		if len(enrichIndices) > 0 {
+			toEnrich := make([]model.RawListing, len(enrichIndices))
+			for i, idx := range enrichIndices {
+				toEnrich[i] = raw[idx]
+			}
+
+			enrichCtx, cancelEnrich := context.WithTimeout(ctx, kmEnrichTimeout)
+			enriched := s.kmEnricher.Enrich(enrichCtx, toEnrich)
+			cancelEnrich()
+
+			if enriched > 0 {
+				for i, idx := range enrichIndices {
+					raw[idx] = toEnrich[i]
+				}
+				s.logger.InfoContext(ctx, "enriched matched listings with mileage and location data",
+					"enriched", enriched,
+					"matched_needing_enrichment", len(enrichIndices),
+					"total_matched", len(matchedIndices),
+				)
+				if s.stores.Listings != nil {
+					s.backfillEnrichedListings(ctx, toEnrich)
+				}
+			}
+		} else {
+			s.logger.InfoContext(ctx, "all matched listings already have enrichment data, skipping API calls",
+				"matched", len(matchedIndices),
+			)
+		}
+	}
+
+	// Build a token→index map so the pipeline reads enriched data from raw.
+	rawByToken := make(map[string]int, len(raw))
+	for i := range raw {
+		rawByToken[raw[i].Token] = i
+	}
+
 	// 6. Run pipeline and deliver results per search.
 	for _, acc := range accums {
 		searchCtx := cwlog.WithSearch(ctx, acc.search.ID, acc.search.ChatID)
 
-		// Convert collected raw listings through the pipeline.
+		// Convert collected raw listings through the pipeline, using the
+		// enriched version from raw (not the stale copy in newListings).
 		if len(acc.result.newListings) > 0 {
 			rawForPipeline := make([]model.RawListing, len(acc.result.newListings))
 			for i, l := range acc.result.newListings {
-				rawForPipeline[i] = l.RawListing
+				if idx, ok := rawByToken[l.Token]; ok {
+					rawForPipeline[i] = raw[idx]
+				} else {
+					rawForPipeline[i] = l.RawListing
+				}
 			}
-			params := ProcessParamsFromSearch(acc.search, marketCache)
-			params.SkipPrefill = prefilled
-			pr := s.pipeline.Process(searchCtx, rawForPipeline, params)
-			acc.result.newListings = pr.Listings
-			acc.result.listingRecords = pr.Records
+
+			// Post-enrichment MaxKm filter: drop listings whose km
+			// (now known after enrichment) exceeds this search's cap.
+			if acc.search.MaxKm > 0 {
+				filtered := rawForPipeline[:0]
+				for _, r := range rawForPipeline {
+					if r.Km > 0 && r.Km > acc.search.MaxKm {
+						continue
+					}
+					filtered = append(filtered, r)
+				}
+				if len(filtered) < len(rawForPipeline) {
+					s.logger.InfoContext(searchCtx,
+						"filtered listings exceeding km limit after enrichment",
+						"before", len(rawForPipeline),
+						"after", len(filtered),
+						"max_km", acc.search.MaxKm,
+					)
+					rawForPipeline = filtered
+				}
+			}
+
+			if len(rawForPipeline) == 0 {
+				acc.result.newListings = nil
+			} else {
+				params := ProcessParamsFromSearch(acc.search, marketCache)
+				params.SkipPrefill = prefilled
+				pr := s.pipeline.Process(searchCtx, rawForPipeline, params)
+				acc.result.newListings = pr.Listings
+				acc.result.listingRecords = pr.Records
+			}
 		}
 
 		// Persist listings.

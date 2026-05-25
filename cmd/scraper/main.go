@@ -140,7 +140,7 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 
 	kmEnricher := yad2.NewEnricher(fb.Yad2, logger.With("component", "enricher"), yad2.EnricherConfig{
 		Delay:       time.Second,
-		MaxPerCycle: 100,
+		MaxPerCycle: 25,
 	})
 
 	var n notifier.Notifier = multi
