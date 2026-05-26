@@ -59,6 +59,8 @@ func (s *prefillTrackingStore) DeleteStaleListings(_ context.Context, _ int64, _
 func (s *prefillTrackingStore) ListUnenrichedTokens(_ context.Context, _ int) ([]string, error) {
 	return nil, nil
 }
+func (s *prefillTrackingStore) CountUnenrichedTokens(_ context.Context) (int64, error)   { return 0, nil }
+func (s *prefillTrackingStore) IncrementEnrichAttempt(_ context.Context, _ string) error { return nil }
 
 func pipelineTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError + 1}))

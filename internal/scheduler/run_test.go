@@ -314,3 +314,5 @@ func (m *mockListingStore) DeleteStaleListings(_ context.Context, _ int64, _ int
 func (m *mockListingStore) ListUnenrichedTokens(_ context.Context, _ int) ([]string, error) {
 	return m.unenrichedTokens, nil
 }
+func (m *mockListingStore) CountUnenrichedTokens(_ context.Context) (int64, error)   { return 0, nil }
+func (m *mockListingStore) IncrementEnrichAttempt(_ context.Context, _ string) error { return nil }

@@ -22,8 +22,18 @@ type Config struct {
 	Push      PushConfig      `yaml:"push"`
 	Redis     RedisConfig     `yaml:"redis"`
 	Telemetry TelemetryConfig `yaml:"telemetry"`
+	Enricher  EnricherConfig  `yaml:"enricher"`
 	LogLevel  string          `yaml:"log_level"`
 	LogFormat string          `yaml:"log_format"`
+}
+
+type EnricherConfig struct {
+	BaseDelay           time.Duration `yaml:"base_delay"`
+	MaxDelay            time.Duration `yaml:"max_delay"`
+	CooldownDuration    time.Duration `yaml:"cooldown_duration"`
+	MaxPerMinute        int           `yaml:"max_per_minute"`
+	MaxAttemptsPerToken int           `yaml:"max_attempts_per_token"`
+	BackfillInterval    time.Duration `yaml:"backfill_interval"`
 }
 
 type RedisConfig struct {
@@ -181,6 +191,24 @@ func applyDefaults(cfg *Config) {
 	if cfg.Telemetry.MetricsPath == "" {
 		cfg.Telemetry.MetricsPath = "/metrics"
 	}
+	if cfg.Enricher.BaseDelay == 0 {
+		cfg.Enricher.BaseDelay = 3 * time.Second
+	}
+	if cfg.Enricher.MaxDelay == 0 {
+		cfg.Enricher.MaxDelay = 60 * time.Second
+	}
+	if cfg.Enricher.CooldownDuration == 0 {
+		cfg.Enricher.CooldownDuration = 5 * time.Minute
+	}
+	if cfg.Enricher.MaxPerMinute == 0 {
+		cfg.Enricher.MaxPerMinute = 20
+	}
+	if cfg.Enricher.MaxAttemptsPerToken == 0 {
+		cfg.Enricher.MaxAttemptsPerToken = 10
+	}
+	if cfg.Enricher.BackfillInterval == 0 {
+		cfg.Enricher.BackfillInterval = 10 * time.Minute
+	}
 	var filtered []string
 	for _, o := range cfg.API.CORSOrigins {
 		o = strings.TrimSpace(o)
@@ -256,6 +284,10 @@ func validate(cfg *Config) error {
 		if cfg.Redis.DB < 0 {
 			return fmt.Errorf("redis.db must be >= 0, got %d", cfg.Redis.DB)
 		}
+	}
+
+	if cfg.Enricher.MaxDelay < cfg.Enricher.BaseDelay {
+		return fmt.Errorf("enricher.max_delay (%s) must be >= enricher.base_delay (%s)", cfg.Enricher.MaxDelay, cfg.Enricher.BaseDelay)
 	}
 
 	for _, origin := range cfg.API.CORSOrigins {

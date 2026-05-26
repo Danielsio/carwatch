@@ -240,6 +240,8 @@ type ListingStore interface {
 	CountSearchListingsForChat(ctx context.Context, chatID int64) (map[int64]int64, error)
 	SearchStats(ctx context.Context, chatID int64, searchID int64, f ListingFilter) (*SearchStats, error)
 	ListUnenrichedTokens(ctx context.Context, limit int) ([]string, error)
+	CountUnenrichedTokens(ctx context.Context) (int64, error)
+	IncrementEnrichAttempt(ctx context.Context, token string) error
 	PruneListings(ctx context.Context, olderThan time.Duration) (int64, error)
 	DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error)
 }
