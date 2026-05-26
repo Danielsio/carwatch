@@ -68,7 +68,7 @@ When creating issues with sub-tasks, use GitHub's native sub-issues feature (`ad
 
 Every PR must be reviewed by the `ce:review` skill agents before merging. Include the agent pass rate in the PR description header:
 
-```
+```md
 ## Review
 
 ✅ N/M agents passed (correctness, testing, maintainability, reliability, adversarial, ...)

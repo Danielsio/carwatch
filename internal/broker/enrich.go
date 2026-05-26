@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -39,6 +40,9 @@ func NewEnrichPublisher(client *redis.Client) *EnrichPublisher {
 
 // PublishEnrich adds an enrichment request to the stream.
 func (p *EnrichPublisher) PublishEnrich(ctx context.Context, req EnrichRequest) error {
+	if p == nil || p.client == nil {
+		return errors.New("enrich publisher not initialized")
+	}
 	data, err := json.Marshal(req)
 	if err != nil {
 		return err
@@ -53,5 +57,8 @@ func (p *EnrichPublisher) PublishEnrich(ctx context.Context, req EnrichRequest) 
 
 // EnrichQueueLen returns the current length of the enrichment stream.
 func (p *EnrichPublisher) EnrichQueueLen(ctx context.Context) (int64, error) {
+	if p == nil || p.client == nil {
+		return 0, errors.New("enrich publisher not initialized")
+	}
 	return p.client.XLen(ctx, EnrichStreamName).Result()
 }

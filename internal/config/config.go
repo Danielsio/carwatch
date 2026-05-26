@@ -286,6 +286,10 @@ func validate(cfg *Config) error {
 		}
 	}
 
+	if cfg.Enricher.MaxDelay < cfg.Enricher.BaseDelay {
+		return fmt.Errorf("enricher.max_delay (%s) must be >= enricher.base_delay (%s)", cfg.Enricher.MaxDelay, cfg.Enricher.BaseDelay)
+	}
+
 	for _, origin := range cfg.API.CORSOrigins {
 		u, err := url.Parse(origin)
 		if err != nil {
