@@ -557,10 +557,11 @@ func (s *Store) ListUnenrichedTokens(ctx context.Context, limit int) ([]string, 
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT token FROM (
-			SELECT DISTINCT token FROM listing_history
-			WHERE km <= 0
+			SELECT DISTINCT ON (token) token, first_seen_at FROM listing_history
+			WHERE km <= 0 AND enrich_attempts < 10
+			  AND (last_enrich_at IS NULL OR last_enrich_at < NOW() - INTERVAL '1 hour')
 		) t
-		ORDER BY RANDOM()
+		ORDER BY first_seen_at DESC
 		LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
@@ -576,6 +577,20 @@ func (s *Store) ListUnenrichedTokens(ctx context.Context, limit int) ([]string, 
 		tokens = append(tokens, t)
 	}
 	return tokens, rows.Err()
+}
+
+func (s *Store) CountUnenrichedTokens(ctx context.Context) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(DISTINCT token) FROM listing_history WHERE km <= 0`).Scan(&count)
+	return count, err
+}
+
+func (s *Store) IncrementEnrichAttempt(ctx context.Context, token string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE listing_history SET enrich_attempts = enrich_attempts + 1, last_enrich_at = NOW() WHERE token = $1`,
+		token)
+	return err
 }
 
 func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int64, error) {

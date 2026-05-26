@@ -60,6 +60,22 @@ Follow this workflow for every change:
 
 Use `closes #N` (lowercase, one per line) in PR body to auto-close issues on merge.
 
+## GitHub Issues
+
+When creating issues with sub-tasks, use GitHub's native sub-issues feature (`addSubIssue` GraphQL mutation) to link child issues to a parent. If the API returns a permissions error (personal repo limitation), fall back to a checkbox list in the parent issue body with `- [ ] #N description` format.
+
+## PR Review Process
+
+Every PR must be reviewed by the `ce:review` skill agents before merging. Include the agent pass rate in the PR description header:
+
+```
+## Review
+
+✅ N/M agents passed (correctness, testing, maintainability, reliability, adversarial, ...)
+```
+
+List the agents that ran and their verdict. If any agent flagged P0/P1 issues, they must be fixed before merging.
+
 ## Pre-Push Checks
 
 Always run the linter before pushing:
