@@ -560,6 +560,7 @@ func (s *Store) ListUnenrichedTokens(ctx context.Context, limit int) ([]string, 
 			SELECT DISTINCT ON (token) token, first_seen_at FROM listing_history
 			WHERE km <= 0 AND enrich_attempts < 10
 			  AND (last_enrich_at IS NULL OR last_enrich_at < NOW() - INTERVAL '1 hour')
+			ORDER BY token, first_seen_at DESC
 		) t
 		ORDER BY first_seen_at DESC
 		LIMIT $1`, limit)

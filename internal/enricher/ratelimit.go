@@ -64,11 +64,11 @@ func (r *AdaptiveRateLimiter) RecordSuccess() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	windowReset := r.resetWindowIfExpired()
 	r.windowTotal++
 	r.windowSuccesses++
-	r.resetWindowIfExpired()
 
-	if r.currentDelay > r.baseDelay {
+	if !windowReset && r.currentDelay > r.baseDelay {
 		r.currentDelay = r.currentDelay / 2
 		if r.currentDelay < r.baseDelay {
 			r.currentDelay = r.baseDelay
@@ -78,13 +78,13 @@ func (r *AdaptiveRateLimiter) RecordSuccess() {
 
 // RecordChallenge records a bot challenge and increases the delay.
 // If the success rate over the sliding window drops below 50%,
-// enters a cooldown period.
+// enters a cooldown period (preserving the current backoff level).
 func (r *AdaptiveRateLimiter) RecordChallenge() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.windowTotal++
 	r.resetWindowIfExpired()
+	r.windowTotal++
 
 	r.currentDelay = r.currentDelay * 2
 	if r.currentDelay > r.maxDelay {
@@ -93,7 +93,6 @@ func (r *AdaptiveRateLimiter) RecordChallenge() {
 
 	if r.windowTotal >= 3 && r.successRate() < 0.5 {
 		r.cooldownUntil = time.Now().Add(r.cooldownDur)
-		r.currentDelay = r.baseDelay
 	}
 }
 
@@ -118,10 +117,12 @@ func (r *AdaptiveRateLimiter) successRate() float64 {
 	return float64(r.windowSuccesses) / float64(r.windowTotal)
 }
 
-func (r *AdaptiveRateLimiter) resetWindowIfExpired() {
+func (r *AdaptiveRateLimiter) resetWindowIfExpired() bool {
 	if time.Since(r.windowStart) > r.windowDuration {
 		r.windowStart = time.Now()
 		r.windowSuccesses = 0
 		r.windowTotal = 0
+		return true
 	}
+	return false
 }
