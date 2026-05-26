@@ -676,9 +676,12 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	var priceDropCandidates []priceDropCandidate
 
 	// 5. Percolator match: for each listing, find matching searches.
-	// Track which raw indices matched so we only enrich those.
+	// Track which raw indices matched. needsKmEnrich marks indices where
+	// at least one matching search has a MaxKm filter, meaning we need to
+	// fetch the listing's actual km via the enricher API.
 	hiddenCache := make(map[int64]map[string]bool)
 	matchedIndices := make(map[int]struct{})
+	needsKmEnrich := make(map[int]struct{})
 
 	for i := range raw {
 		matches := s.percolator.Match(raw[i])
@@ -686,6 +689,12 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 			continue
 		}
 		matchedIndices[i] = struct{}{}
+		for _, m := range matches {
+			if m.Search.MaxKm > 0 {
+				needsKmEnrich[i] = struct{}{}
+				break
+			}
+		}
 
 		for _, m := range matches {
 			acc, ok := accums[m.SearchID]
@@ -744,10 +753,11 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		}
 	}
 
-	// 5b. Enrich only matched listings that still need data.
-	if s.kmEnricher != nil && len(matchedIndices) > 0 {
+	// 5b. Enrich only matched listings that need km data for filtering.
+	// Skip enrichment for listings where no matching search has a MaxKm cap.
+	if s.kmEnricher != nil && len(needsKmEnrich) > 0 {
 		var enrichIndices []int
-		for idx := range matchedIndices {
+		for idx := range needsKmEnrich {
 			if raw[idx].Km <= 0 || raw[idx].City == "" || raw[idx].ImageURL == "" {
 				enrichIndices = append(enrichIndices, idx)
 			}
@@ -777,8 +787,9 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				}
 			}
 		} else {
-			s.logger.InfoContext(ctx, "all matched listings already have enrichment data, skipping API calls",
+			s.logger.InfoContext(ctx, "all km-filtered matched listings already have enrichment data, skipping API calls",
 				"matched", len(matchedIndices),
+				"needing_km", len(needsKmEnrich),
 			)
 		}
 	}
