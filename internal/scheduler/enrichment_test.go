@@ -56,7 +56,7 @@ func TestMatchFirstEnrichment_OnlyEnrichesMatchedListings(t *testing.T) {
 	ss := &mockSearchStore{
 		searches: []storage.Search{
 			{ID: 1, ChatID: 100, Name: "mazda3", Source: "yad2",
-				Manufacturer: 27, Model: 10332, Active: true},
+				Manufacturer: 27, Model: 10332, MaxKm: 200000, Active: true},
 		},
 	}
 
@@ -193,12 +193,12 @@ func TestMatchFirstEnrichment_KmWithinLimit(t *testing.T) {
 	}
 }
 
-func TestMatchFirstEnrichment_SkipsEnrichmentWhenAllHaveData(t *testing.T) {
+func TestMatchFirstEnrichment_SkipsEnrichmentWhenNoKmFilter(t *testing.T) {
 	enricher := &trackingEnricher{}
 
 	f := &mockFetcher{listings: []model.RawListing{
-		{Token: "full-data", ManufacturerID: 27, Manufacturer: "Mazda", ModelID: 10332, Model: "3",
-			Price: 90000, Year: 2020, Km: 50000, City: "Haifa", ImageURL: "https://img.yad2.co.il/test.jpg"},
+		{Token: "no-km", ManufacturerID: 27, Manufacturer: "Mazda", ModelID: 10332, Model: "3",
+			Price: 90000, Year: 2020},
 	}}
 	d := newMockDedup()
 	n := &mockNotifier{}
@@ -206,8 +206,8 @@ func TestMatchFirstEnrichment_SkipsEnrichmentWhenAllHaveData(t *testing.T) {
 
 	ss := &mockSearchStore{
 		searches: []storage.Search{
-			{ID: 1, ChatID: 100, Name: "mazda3", Source: "yad2",
-				Manufacturer: 27, Model: 10332, Active: true},
+			{ID: 1, ChatID: 100, Name: "all-mazda", Source: "yad2",
+				Manufacturer: 27, Model: 10332, MaxKm: 0, Active: true},
 		},
 	}
 
@@ -226,7 +226,13 @@ func TestMatchFirstEnrichment_SkipsEnrichmentWhenAllHaveData(t *testing.T) {
 	enricher.mu.Lock()
 	defer enricher.mu.Unlock()
 	if enricher.calls != 0 {
-		t.Errorf("expected 0 enricher calls when all data present, got %d", enricher.calls)
+		t.Errorf("expected 0 enricher calls when no search has MaxKm filter, got %d", enricher.calls)
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.messages) != 1 {
+		t.Errorf("expected 1 notification (listing should still be delivered without enrichment), got %d", len(n.messages))
 	}
 }
 
