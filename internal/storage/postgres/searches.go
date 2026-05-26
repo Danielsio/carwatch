@@ -228,8 +228,7 @@ func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, er
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT s.id, s.chat_id, s.user_seq, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max, COALESCE(s.price_min, 0), s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.keywords, s.exclude_keys, COALESCE(s.seller_filter, 'any'), COALESCE(s.gear_box, ''), s.price_only, s.photo_only, s.active, s.created_at, COALESCE(s.share_token, '')
 		FROM searches s
-		JOIN users u ON s.chat_id = u.chat_id
-		WHERE s.active = true AND u.active = true
+		WHERE s.active = true
 		ORDER BY s.source, s.manufacturer, s.model`)
 	if err != nil {
 		return nil, fmt.Errorf("list active searches: %w", err)
