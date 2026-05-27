@@ -157,7 +157,9 @@ type mockDedupStore struct {
 	releaseErr error
 }
 
-func (m *mockDedupStore) ClaimNew(context.Context, string, int64, int64) (bool, error) { return false, nil }
+func (m *mockDedupStore) ClaimNew(context.Context, string, int64, int64) (bool, error) {
+	return false, nil
+}
 func (m *mockDedupStore) ReleaseClaim(_ context.Context, token string, chatID int64) error {
 	m.released = append(m.released, struct {
 		token  string
