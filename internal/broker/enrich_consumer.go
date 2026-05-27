@@ -132,6 +132,7 @@ func (c *EnrichConsumer) processBatch(ctx context.Context, msgs []redis.XMessage
 		items = append(items, parsed{msg: msg, req: req})
 	}
 
+	// Lower numeric priority = higher urgency (1=match > 2=recent > 3=backfill).
 	slices.SortFunc(items, func(a, b parsed) int {
 		return a.req.Priority - b.req.Priority
 	})
@@ -143,7 +144,7 @@ func (c *EnrichConsumer) processBatch(ctx context.Context, msgs []redis.XMessage
 		if err := c.enrich(ctx, item.req); err != nil {
 			c.logger.Warn("enrich request failed, will retry",
 				"token", item.req.Token, "priority", item.req.Priority, "error", err)
-			return
+			continue
 		}
 		c.ack(ctx, item.msg.ID)
 	}
