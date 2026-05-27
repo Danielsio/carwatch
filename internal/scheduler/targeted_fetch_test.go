@@ -37,7 +37,10 @@ func (f *paramAwareFetcher) Fetch(_ context.Context, p model.SourceParams) ([]mo
 
 func newTestSchedulerWithFetcher(f fetcher.Fetcher) *Scheduler {
 	cfg := testConfig()
-	s, _ := NewWithOptions(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), Options{})
+	s, err := NewWithOptions(cfg, f, newMockDedup(), &mockNotifier{}, testLogger(), Options{})
+	if err != nil {
+		panic(err)
+	}
 	return s
 }
 
@@ -241,14 +244,22 @@ func TestFetchTargetedListings_ContextCanceled(t *testing.T) {
 	result := s.fetchTargetedListings(ctx, searches, global, f)
 
 	// With context already cancelled, the method should return early.
-	// Global listings must always be preserved.
-	hasGlobal := false
+	// Only global listings should be present — no targeted tokens.
+	if len(result) != len(global) {
+		t.Errorf("expected %d listings (global only), got %d", len(global), len(result))
+	}
 	for _, l := range result {
-		if l.Token == "g1" {
-			hasGlobal = true
+		if l.Token == "t1" || l.Token == "t2" {
+			t.Errorf("targeted token %q should not appear after context cancellation", l.Token)
 		}
 	}
-	if !hasGlobal {
+	if result[0].Token != "g1" {
 		t.Error("global listing 'g1' missing from result after context cancellation")
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.calls) != 0 {
+		t.Errorf("expected 0 fetch calls after context cancellation, got %d", len(f.calls))
 	}
 }

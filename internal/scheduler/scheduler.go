@@ -624,6 +624,12 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 
 	var fetched, added int
 	for pair := range pairs {
+		select {
+		case <-ctx.Done():
+			return raw
+		default:
+		}
+
 		if coverage[pair] >= targetedFetchCoverageThreshold {
 			continue
 		}
@@ -634,6 +640,9 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 		cancel()
 
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return raw
+			}
 			s.logger.WarnContext(ctx, "targeted fetch failed, skipping pair",
 				"manufacturer", pair.Manufacturer, "model", pair.Model,
 				"car", s.carName(pair.Manufacturer, pair.Model),
