@@ -42,6 +42,7 @@ http:
 #   traces_exporter: none  # none | stdout | otlp
 #   otlp_endpoint: ""      # e.g. localhost:4317
 #   metrics_path: /metrics
+#   auth_token: "${TELEMETRY_AUTH_TOKEN}"  # required when binding non-localhost
 
 # Redis (optional; enabled in production compose for stream-based workers)
 # For local dev, use localhost and empty password:

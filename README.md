@@ -34,6 +34,15 @@ redis:
   db: 0
 ```
 
+Also set `TELEMETRY_AUTH_TOKEN` in `.env` and configure:
+
+```yaml
+telemetry:
+  auth_token: "${TELEMETRY_AUTH_TOKEN}"
+```
+
+This is required when binding the API on a non-localhost address.
+
 ## Configuration
 
 See [`config.example.yaml`](config.example.yaml) for all options.

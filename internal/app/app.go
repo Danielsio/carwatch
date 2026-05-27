@@ -185,6 +185,10 @@ func BuildDynamicCatalog(ctx context.Context, yad2Fetcher *yad2.Yad2Fetcher, log
 
 // BuildAPI creates the API server with all REST endpoints.
 func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, logger *slog.Logger, fetcherFactory *fetcher.Factory, plSvc *pricelist.Service, logHub *logstream.Hub, logLevel *slog.LevelVar) (*api.Server, error) {
+	if api.IsNonLocalBind(cfg.HTTP.Bind) && cfg.Telemetry.AuthToken == "" {
+		return nil, fmt.Errorf("telemetry.auth_token must be configured for non-local bind address %q", cfg.HTTP.Bind)
+	}
+
 	var firebaseAuth api.TokenVerifier
 	if cfg.Firebase.ProjectID != "" {
 		v, err := api.NewFirebaseVerifier(cfg.Firebase.CredentialsFile, cfg.Firebase.CredentialsJSON, cfg.Firebase.ProjectID)
@@ -251,7 +255,7 @@ func BuildHTTPServer(cfg *config.Config, h *health.Status, apiServer *api.Server
 	if err != nil {
 		logger.Error("metrics handler setup failed", "error", err)
 	} else {
-		mux.Handle(cfg.Telemetry.MetricsPath, metricsHandler)
+		mux.Handle(cfg.Telemetry.MetricsPath, metricsAuthMiddleware(cfg.HTTP.Bind, cfg.Telemetry.AuthToken, metricsHandler))
 	}
 
 	srv := &http.Server{

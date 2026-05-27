@@ -46,6 +46,7 @@ type TelemetryConfig struct {
 	TracesExporter string `yaml:"traces_exporter"` // "none" (default), "stdout", "otlp"
 	OTLPEndpoint   string `yaml:"otlp_endpoint"`   // e.g. "localhost:4317"
 	MetricsPath    string `yaml:"metrics_path"`    // default "/metrics"
+	AuthToken      string `yaml:"auth_token"`      // required for non-local metrics exposure
 }
 
 type PushConfig struct {
