@@ -759,6 +759,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	// 5a. Dual-write: publish enrichment requests to the Redis stream for
 	// each matched listing that still needs enrichment data. The enricher
 	// worker will process these idempotently (skip if already enriched).
+	// TODO(phase-4-cleanup): Remove this block when inline enrichment is removed.
 	if s.enrichPublisher != nil && len(matchedIndices) > 0 {
 		published := 0
 		for idx := range matchedIndices {

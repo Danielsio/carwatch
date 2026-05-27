@@ -62,6 +62,7 @@ func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 
 	// Dual-write: publish backfill enrichment requests to the Redis stream
 	// at low priority so the enricher worker can process them.
+	// TODO(phase-4-cleanup): Remove this block when inline enrichment is removed.
 	if s.enrichPublisher != nil {
 		published := 0
 		for _, t := range tokens {
