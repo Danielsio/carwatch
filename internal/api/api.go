@@ -225,6 +225,7 @@ func (s *Server) Routes() http.Handler {
 		if s.cycleLog != nil {
 			authMux.HandleFunc("GET /api/v1/admin/cycles", s.requireAdmin(s.adminCycles))
 		}
+		authMux.HandleFunc("GET /api/v1/admin/enrichment-status", s.requireAdmin(s.adminEnrichmentStatus))
 		if s.logHub != nil {
 			authMux.HandleFunc("GET /api/v1/admin/logs", s.requireAdmin(s.adminLogs))
 			authMux.HandleFunc("GET /api/v1/admin/logs/stream", s.requireAdmin(s.adminLogStream))

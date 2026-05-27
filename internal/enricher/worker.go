@@ -8,6 +8,7 @@ import (
 	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/dsionov/carwatch/internal/telemetry"
 )
 
 // ItemDetails holds enrichment data fetched from an individual listing page.
@@ -58,6 +59,9 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 	if rec, ok := existing[req.Token]; ok && (rec.Km > 0 || rec.City != "" || rec.ImageURL != "") {
 		w.logger.DebugContext(ctx, "listing already enriched, skipping",
 			"token", req.Token, "km", rec.Km, "city", rec.City)
+		if telemetry.EnrichSkipped != nil {
+			telemetry.EnrichSkipped.Add(ctx, 1)
+		}
 		return nil
 	}
 
@@ -76,6 +80,9 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 
 		if errors.Is(fetchErr, fetcher.ErrChallenge) {
 			w.limiter.RecordChallenge()
+			if telemetry.EnrichChallenges != nil {
+				telemetry.EnrichChallenges.Add(ctx, 1)
+			}
 			w.logger.WarnContext(ctx, "bot challenge during enrichment, backing off",
 				"token", req.Token, "cooldown", w.limiter.InCooldown(),
 				"current_delay", w.limiter.CurrentDelay())
@@ -100,6 +107,10 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 		w.logger.ErrorContext(ctx, "failed to backfill enriched data to database",
 			"token", req.Token, "error", err.Error())
 		return err
+	}
+
+	if telemetry.EnrichSuccesses != nil {
+		telemetry.EnrichSuccesses.Add(ctx, 1)
 	}
 
 	w.logger.InfoContext(ctx, "enriched listing",
