@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -274,6 +276,62 @@ func TestConsumerConnectionFailure(t *testing.T) {
 	_, err := NewConsumer("localhost:1", "", 0, notify, slog.Default())
 	if err == nil {
 		t.Fatal("expected error for unreachable Redis")
+	}
+}
+
+func TestConsumerAcksUnsupportedChannelWithoutRetry(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	pub, err := NewPublisher(mr.Addr(), "", 0)
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	defer func() { _ = pub.Close() }()
+
+	alert := Alert{ChatID: 777, Message: "unsupported channel"}
+	if err := pub.Publish(context.Background(), alert); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	var calls atomic.Int32
+	var hookCalls atomic.Int32
+	notify := func(_ context.Context, _ string, _ string) error {
+		calls.Add(1)
+		return notifier.ErrNoChannelNotifier
+	}
+	cons, err := NewConsumer(mr.Addr(), "", 0, notify, slog.Default(), WithDeadLetterHook(func(_ context.Context, a Alert) error {
+		hookCalls.Add(1)
+		if a.ChatID != 777 {
+			t.Fatalf("dead-letter hook alert chat_id=%d, want 777", a.ChatID)
+		}
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("new consumer: %v", err)
+	}
+	defer func() { _ = cons.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
+	defer cancel()
+	_ = cons.Run(ctx)
+
+	cons.reclaimPending(context.Background())
+
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("notify calls = %d, want 1", got)
+	}
+	if got := hookCalls.Load(); got != 1 {
+		t.Fatalf("dead-letter hook calls = %d, want 1", got)
+	}
+
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+	pending, err := client.XPending(context.Background(), StreamName, GroupName).Result()
+	if err != nil {
+		t.Fatalf("xpending: %v", err)
+	}
+	if pending.Count != 0 {
+		t.Fatalf("expected 0 pending entries, got %d", pending.Count)
 	}
 }
 

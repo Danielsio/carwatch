@@ -324,6 +324,47 @@ func TestPostgres_SearchShareToken(t *testing.T) {
 	}
 }
 
+func TestPostgres_ListAllActiveSearchesExcludesInactiveUsers(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 100)
+	seedPgUser(t, store, 200)
+
+	if _, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "active-user-search", Manufacturer: 1, Model: 1,
+	}); err != nil {
+		t.Fatalf("create active user search: %v", err)
+	}
+	if _, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 200, Name: "inactive-user-search", Manufacturer: 1, Model: 1,
+	}); err != nil {
+		t.Fatalf("create inactive user search: %v", err)
+	}
+
+	if err := store.SetUserActive(ctx, 200, false); err != nil {
+		t.Fatalf("deactivate user: %v", err)
+	}
+
+	searches, err := store.ListAllActiveSearches(ctx)
+	if err != nil {
+		t.Fatalf("ListAllActiveSearches: %v", err)
+	}
+	if len(searches) != 1 {
+		t.Fatalf("expected 1 active search from active users, got %d", len(searches))
+	}
+	if searches[0].ChatID != 100 {
+		t.Fatalf("expected active user's search only, got chat_id=%d", searches[0].ChatID)
+	}
+
+	total, err := store.CountAllSearches(ctx)
+	if err != nil {
+		t.Fatalf("CountAllSearches: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("expected count=1 for active users with active searches, got %d", total)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Listing save, query, pagination
 // ---------------------------------------------------------------------------

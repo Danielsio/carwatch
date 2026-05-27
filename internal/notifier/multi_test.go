@@ -265,6 +265,49 @@ func TestMultiNotifier_NotifyRaw_UserLookupErrorFallsBack(t *testing.T) {
 	}
 }
 
+func TestMultiNotifier_WebChannelAliasRoutesToWebpush(t *testing.T) {
+	tg := &fakeNotifier{name: "telegram"}
+	webpush := &fakeNotifier{name: "webpush"}
+	users := &fakeUserStore{users: map[int64]*storage.User{
+		777: {ChatID: 777, Channel: "web"},
+	}}
+
+	mn := NewMultiNotifier(users, slog.Default())
+	_ = mn.Register("telegram", tg)
+	_ = mn.Register("webpush", webpush)
+
+	if err := mn.NotifyRaw(context.Background(), "777", "hello web user"); err != nil {
+		t.Fatalf("notify web user: %v", err)
+	}
+	if len(webpush.rawCalls) != 1 || webpush.rawCalls[0] != "777" {
+		t.Fatalf("webpush got %v, want [777]", webpush.rawCalls)
+	}
+	if len(tg.rawCalls) != 0 {
+		t.Fatalf("telegram should not be used for web channel alias, got %v", tg.rawCalls)
+	}
+}
+
+func TestMultiNotifier_KnownChannelWithoutNotifierReturnsError(t *testing.T) {
+	tg := &fakeNotifier{name: "telegram"}
+	users := &fakeUserStore{users: map[int64]*storage.User{
+		888: {ChatID: 888, Channel: "web"},
+	}}
+
+	mn := NewMultiNotifier(users, slog.Default())
+	_ = mn.Register("telegram", tg)
+
+	err := mn.NotifyRaw(context.Background(), "888", "hello")
+	if err == nil {
+		t.Fatal("expected channel resolution error")
+	}
+	if !errors.Is(err, ErrNoChannelNotifier) {
+		t.Fatalf("expected ErrNoChannelNotifier, got %v", err)
+	}
+	if len(tg.rawCalls) != 0 {
+		t.Fatalf("telegram fallback must not be used for known unsupported channels, got %v", tg.rawCalls)
+	}
+}
+
 type fakeUserGetErrStore struct {
 	*fakeUserStore
 	err error

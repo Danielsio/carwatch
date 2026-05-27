@@ -57,8 +57,13 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 		return err
 	}
 	if rec, ok := existing[req.Token]; ok && (rec.Km > 0 || rec.City != "" || rec.ImageURL != "") {
+		hasKm := rec.Km > 0
+		hasCity := rec.City != ""
+		hasImage := rec.ImageURL != ""
 		w.logger.DebugContext(ctx, "listing already enriched, skipping",
-			"token", req.Token, "km", rec.Km, "city", rec.City)
+			"token", req.Token, "km", rec.Km, "city", rec.City,
+			"has_km", hasKm, "has_city", hasCity, "has_image", hasImage,
+			"skip_reason", "already_has_enrichment_field")
 		if telemetry.EnrichSkipped != nil {
 			telemetry.EnrichSkipped.Add(ctx, 1)
 		}

@@ -228,7 +228,9 @@ func (s *Store) ListAllActiveSearches(ctx context.Context) ([]storage.Search, er
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT s.id, s.chat_id, s.user_seq, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max, COALESCE(s.price_min, 0), s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.keywords, s.exclude_keys, COALESCE(s.seller_filter, 'any'), COALESCE(s.gear_box, ''), s.price_only, s.photo_only, s.active, s.created_at, COALESCE(s.share_token, '')
 		FROM searches s
+		INNER JOIN users u ON u.chat_id = s.chat_id
 		WHERE s.active = true
+		  AND u.active = true
 		ORDER BY s.source, s.manufacturer, s.model`)
 	if err != nil {
 		return nil, fmt.Errorf("list active searches: %w", err)
@@ -251,7 +253,11 @@ func (s *Store) CountSearches(ctx context.Context, chatID int64) (int64, error) 
 func (s *Store) CountAllSearches(ctx context.Context) (int64, error) {
 	var count int64
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM searches WHERE active = true`).Scan(&count)
+		`SELECT COUNT(*)
+		 FROM searches s
+		 INNER JOIN users u ON u.chat_id = s.chat_id
+		 WHERE s.active = true
+		   AND u.active = true`).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count all searches: %w", err)
 	}

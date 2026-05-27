@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/time/rate"
 )
@@ -205,6 +206,18 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {
 
 	recipient := fmt.Sprintf("%d", alert.ChatID)
 	if err := c.notify(ctx, recipient, alert.Message); err != nil {
+		if errors.Is(err, notifier.ErrNoChannelNotifier) {
+			if c.deadLetterHook != nil {
+				if hookErr := c.deadLetterHook(ctx, alert); hookErr != nil {
+					c.logger.Error("drop alert cleanup failed", "id", msg.ID, "chat_id", alert.ChatID, "error", hookErr)
+					return
+				}
+			}
+			c.logger.Warn("dropping alert due to unsupported user channel",
+				"id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName, "error", err)
+			c.ack(ctx, msg.ID)
+			return
+		}
 		c.logger.Error("deliver alert failed", "id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName, "error", err)
 		return
 	}
