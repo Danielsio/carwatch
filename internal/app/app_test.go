@@ -1,12 +1,14 @@
 package app
 
 import (
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
 )
 
@@ -218,5 +220,59 @@ storage:
 	}
 	if _, ok := fb.Caching.(*fetcher.CircuitBreaker); !ok {
 		t.Errorf("FetcherBundle.Caching should be *fetcher.CircuitBreaker, got %T", fb.Caching)
+	}
+}
+
+func TestBuildAPIRejectsMissingFirebaseOnNonLocalBind(t *testing.T) {
+	cfg := &config.Config{
+		HTTP: config.HTTPConfig{
+			Bind: "0.0.0.0:8080",
+		},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	apiServer, err := BuildAPI(cfg, nil, nil, logger, nil, nil, nil, nil)
+	if err == nil {
+		t.Fatalf("expected error, got nil (server=%v)", apiServer)
+	}
+}
+
+func TestBuildAPIAllowsMissingFirebaseOnLocalBind(t *testing.T) {
+	cfg := &config.Config{
+		HTTP: config.HTTPConfig{
+			Bind: "127.0.0.1:8080",
+		},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	apiServer, err := BuildAPI(cfg, nil, nil, logger, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if apiServer == nil {
+		t.Fatalf("expected api server, got nil")
+	}
+}
+
+func TestIsNonLocalBind(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		bind string
+		want bool
+	}{
+		{name: "localhost", bind: "localhost:8080", want: false},
+		{name: "loopback", bind: "127.0.0.1:8080", want: false},
+		{name: "ipv6 loopback", bind: "[::1]:8080", want: false},
+		{name: "all interfaces short", bind: ":8080", want: true},
+		{name: "all interfaces v4", bind: "0.0.0.0:8080", want: true},
+		{name: "public host", bind: "192.168.1.10:8080", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isNonLocalBind(tt.bind); got != tt.want {
+				t.Fatalf("isNonLocalBind(%q) = %v, want %v", tt.bind, got, tt.want)
+			}
+		})
 	}
 }
