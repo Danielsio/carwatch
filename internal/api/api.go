@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -123,11 +124,10 @@ type Config struct {
 }
 
 func New(c Config) *Server {
-	if c.FirebaseAuth == nil {
-		bind := c.Bind
-		if bind != "" && !strings.HasPrefix(bind, "127.0.0.1") && !strings.HasPrefix(bind, "localhost") {
+	if c.FirebaseAuth == nil && IsNonLocalBind(c.Bind) {
+		if c.Logger != nil {
 			c.Logger.Warn("firebase auth not configured — using dev auth mode on non-localhost bind address",
-				"bind", bind)
+				"bind", c.Bind)
 		}
 	}
 
@@ -160,6 +160,19 @@ func New(c Config) *Server {
 		cycleLog:       c.CycleLog,
 		vitals:         newVitalsRing(),
 	}
+}
+
+func IsNonLocalBind(bind string) bool {
+	b := strings.TrimSpace(bind)
+	if b == "" {
+		return false
+	}
+	host := b
+	if h, _, err := net.SplitHostPort(b); err == nil {
+		host = h
+	}
+	host = strings.Trim(strings.ToLower(host), "[]")
+	return host != "127.0.0.1" && host != "localhost" && host != "::1"
 }
 
 func requestIDMiddleware(next http.Handler) http.Handler {

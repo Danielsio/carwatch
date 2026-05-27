@@ -193,6 +193,9 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		}
 		firebaseAuth = v
 	}
+	if firebaseAuth == nil && api.IsNonLocalBind(cfg.HTTP.Bind) {
+		return nil, fmt.Errorf("firebase auth must be configured for non-local bind address %q", cfg.HTTP.Bind)
+	}
 
 	cfg.API.AdminChatID = cfg.Telegram.AdminChatID
 	cfg.API.MaxSearches = cfg.Telegram.MaxSearches
