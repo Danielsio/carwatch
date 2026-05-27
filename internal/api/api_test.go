@@ -1236,6 +1236,59 @@ func TestAdminStats_FirebaseNonAdmin(t *testing.T) {
 	}
 }
 
+func TestAdminEnrichmentStatusCountsOnlyActionableBacklog(t *testing.T) {
+	srv, store := setupTestServer(t)
+	ctx := context.Background()
+
+	save := func(token string, km int, city, image string) {
+		t.Helper()
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token:        token,
+			ChatID:       999,
+			SearchName:   "enrich-test",
+			Manufacturer: "Mazda",
+			Model:        "3",
+			Year:         2021,
+			Price:        90000,
+			Km:           km,
+			City:         city,
+			ImageURL:     image,
+			FirstSeenAt:  time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("save %s: %v", token, err)
+		}
+	}
+
+	save("unenriched-ok", 0, "", "")
+	save("has-city", 0, "Tel Aviv", "")
+	save("has-image", 0, "", "https://img.example/1.jpg")
+	save("maxed-attempts", 0, "", "")
+	save("cooldown", 0, "", "")
+
+	if _, err := store.DB().ExecContext(ctx,
+		`UPDATE listing_history SET enrich_attempts = 10 WHERE token = 'maxed-attempts' AND chat_id = 999`); err != nil {
+		t.Fatalf("mark maxed attempts: %v", err)
+	}
+	if _, err := store.DB().ExecContext(ctx,
+		`UPDATE listing_history SET enrich_attempts = 1, last_enrich_at = NOW() WHERE token = 'cooldown' AND chat_id = 999`); err != nil {
+		t.Fatalf("mark cooldown: %v", err)
+	}
+
+	w := doRequest(t, srv, "GET", "/api/v1/admin/enrichment-status", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	mustUnmarshal(t, w.Body.Bytes(), &resp)
+	got, ok := resp["unenriched_count"].(float64)
+	if !ok {
+		t.Fatalf("unenriched_count missing or invalid: %v", resp)
+	}
+	if int64(got) != 1 {
+		t.Fatalf("unenriched_count = %v, want 1", got)
+	}
+}
+
 func setLastSeenAt(t *testing.T, store *postgres.Store, chatID int64, when time.Time) {
 	t.Helper()
 	db := store.DB()

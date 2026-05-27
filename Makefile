@@ -130,7 +130,7 @@ vm-logs: vm-check-env
 LOGS_FILTER ?=
 logs: vm-check-env
 ifdef LOGS_FILTER
-	$(SSH) "for c in carwatch-api carwatch-bot-poller carwatch-scraper carwatch-notifier carwatch-enricher; do docker logs --tail 500 -f $$c 2>&1 | sed \"s/^/[$$c] /\" & done; wait" | rg -i --line-buffered -- "$(LOGS_FILTER)"
+	$(SSH) "for c in carwatch-api carwatch-bot-poller carwatch-scraper carwatch-notifier carwatch-enricher; do docker logs --tail 500 -f $$c 2>&1 | sed \"s/^/[$$c] /\" & done; wait" | grep -iF --line-buffered -- "$(LOGS_FILTER)"
 else
 	$(SSH) "for c in carwatch-api carwatch-bot-poller carwatch-scraper carwatch-notifier carwatch-enricher; do docker logs --tail 200 -f $$c 2>&1 | sed \"s/^/[$$c] /\" & done; wait"
 endif
