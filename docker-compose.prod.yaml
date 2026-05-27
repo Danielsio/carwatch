@@ -80,6 +80,7 @@ services:
       - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      - TELEMETRY_AUTH_TOKEN=${TELEMETRY_AUTH_TOKEN:?TELEMETRY_AUTH_TOKEN must be set}
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"

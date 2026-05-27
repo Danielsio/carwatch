@@ -207,6 +207,7 @@ func (s *Server) Routes() http.Handler {
 
 	authMux.HandleFunc("GET /api/v1/catalog/manufacturers", s.listManufacturers)
 	authMux.HandleFunc("GET /api/v1/catalog/manufacturers/{id}/models", s.listModels)
+	authMux.HandleFunc("POST /api/v1/vitals", s.receiveVitals)
 
 	authMux.HandleFunc("POST /api/v1/searches", s.createSearch)
 	authMux.HandleFunc("GET /api/v1/searches/{id}", s.getSearch)
@@ -312,7 +313,6 @@ func (s *Server) Routes() http.Handler {
 	// --- Top-level router ---
 	// More-specific prefixes are matched first by net/http.ServeMux.
 	top := http.NewServeMux()
-	top.HandleFunc("POST /api/v1/vitals", s.receiveVitals)
 	top.Handle("/api/v1/guest/", guestChain)
 	top.Handle("/api/v1/catalog/", catalogChain)
 	top.Handle("GET /api/v1/me", optAuthChain)

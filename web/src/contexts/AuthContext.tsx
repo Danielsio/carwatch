@@ -13,6 +13,7 @@ import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { auth } from "@/lib/firebase";
 import { setAuthTokenGetter } from "@/lib/auth-token";
+import { reportWebVitals } from "@/lib/webVitals";
 
 type AuthContextValue = {
   user: User | null;
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
   const prevUidRef = useRef<string | null>(null);
+  const vitalsStartedRef = useRef(false);
 
   useEffect(() => {
     setAuthTokenGetter(async (forceRefresh?: boolean) => {
@@ -35,6 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!u) return null;
       return u.getIdToken(forceRefresh);
     });
+    if (!vitalsStartedRef.current) {
+      vitalsStartedRef.current = true;
+      void reportWebVitals();
+    }
     return () => {
       setAuthTokenGetter(async () => null);
     };

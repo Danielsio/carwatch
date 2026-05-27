@@ -34,6 +34,16 @@ redis:
   db: 0
 ```
 
+Also set `TELEMETRY_AUTH_TOKEN` in `.env` and configure:
+
+```yaml
+telemetry:
+  auth_token: "${TELEMETRY_AUTH_TOKEN}"
+```
+
+This token protects `/metrics` when binding the API on a non-localhost address.
+`POST /api/v1/vitals` uses normal API authentication (Firebase in production, `api.auth_token` in local dev mode).
+
 ## Configuration
 
 See [`config.example.yaml`](config.example.yaml) for all options.

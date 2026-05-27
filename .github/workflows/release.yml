@@ -199,6 +199,15 @@ jobs:
               echo "config.yaml must include redis.password: \"\${REDIS_PASSWORD}\" before deploy"
               exit 1
             fi
+            if ! awk '
+              /^[[:space:]]*telemetry:[[:space:]]*$/ { in_telemetry=1; next }
+              in_telemetry && /^[^[:space:]]/ { in_telemetry=0 }
+              in_telemetry && /^[[:space:]]*auth_token:[[:space:]]*"\$\{TELEMETRY_AUTH_TOKEN\}"[[:space:]]*$/ { found=1 }
+              END { exit found ? 0 : 1 }
+            ' config.yaml; then
+              echo "config.yaml must include telemetry.auth_token: \"\${TELEMETRY_AUTH_TOKEN}\" before deploy"
+              exit 1
+            fi
 
             # Ensure the shared network exists
             docker network create carwatch-net 2>/dev/null || true
