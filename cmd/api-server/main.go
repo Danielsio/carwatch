@@ -53,7 +53,7 @@ func run(configPath string, logger *slog.Logger) error {
 		return err
 	}
 
-	logHub := logstream.NewHub(2000)
+	logHub := logstream.NewHub(10000)
 	baseHandler := logger.Handler()
 	teeHandler := logstream.NewTeeHandler(baseHandler, logHub,
 		"yad2", "scheduler", "enricher",

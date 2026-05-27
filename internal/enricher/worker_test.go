@@ -154,7 +154,7 @@ func TestWorker_EnrichesSuccessfully(t *testing.T) {
 func TestWorker_SkipsAlreadyEnriched(t *testing.T) {
 	f := &mockItemFetcher{details: ItemDetails{Km: 99999}}
 	ls := newMockListingStore()
-	ls.enrichmentData["tok-1"] = storage.EnrichmentRecord{Km: 50000}
+	ls.enrichmentData["tok-1"] = storage.EnrichmentRecord{Km: 50000, City: "Tel Aviv", ImageURL: "https://img.example/1.jpg"}
 	rl := NewAdaptiveRateLimiter(time.Millisecond, time.Second, time.Second)
 	w := NewWorker(f, ls, rl, testWorkerLogger())
 
@@ -171,10 +171,10 @@ func TestWorker_SkipsAlreadyEnriched(t *testing.T) {
 	}
 }
 
-func TestWorker_SkipsWhenCityAlreadyEnriched(t *testing.T) {
-	f := &mockItemFetcher{details: ItemDetails{Km: 0, City: "Tel Aviv"}}
+func TestWorker_ContinuesWhenOnlyPartiallyEnriched(t *testing.T) {
+	f := &mockItemFetcher{details: ItemDetails{Km: 70000, City: "Tel Aviv", ImageURL: "https://img.example/next.jpg"}}
 	ls := newMockListingStore()
-	ls.enrichmentData["tok-1"] = storage.EnrichmentRecord{Km: 0, City: "Tel Aviv"}
+	ls.enrichmentData["tok-1"] = storage.EnrichmentRecord{Km: 0, City: "", ImageURL: "https://img.example/existing.jpg"}
 	rl := NewAdaptiveRateLimiter(time.Millisecond, time.Second, time.Second)
 	w := NewWorker(f, ls, rl, testWorkerLogger())
 
@@ -186,8 +186,8 @@ func TestWorker_SkipsWhenCityAlreadyEnriched(t *testing.T) {
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.calls != 0 {
-		t.Errorf("expected 0 fetch calls when city is already enriched (even with Km=0), got %d", f.calls)
+	if f.calls != 1 {
+		t.Errorf("expected 1 fetch call for partially enriched listing, got %d", f.calls)
 	}
 }
 
