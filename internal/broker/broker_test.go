@@ -294,11 +294,18 @@ func TestConsumerAcksUnsupportedChannelWithoutRetry(t *testing.T) {
 	}
 
 	var calls atomic.Int32
+	var hookCalls atomic.Int32
 	notify := func(_ context.Context, _ string, _ string) error {
 		calls.Add(1)
 		return notifier.ErrNoChannelNotifier
 	}
-	cons, err := NewConsumer(mr.Addr(), "", 0, notify, slog.Default())
+	cons, err := NewConsumer(mr.Addr(), "", 0, notify, slog.Default(), WithDeadLetterHook(func(_ context.Context, a Alert) error {
+		hookCalls.Add(1)
+		if a.ChatID != 777 {
+			t.Fatalf("dead-letter hook alert chat_id=%d, want 777", a.ChatID)
+		}
+		return nil
+	}))
 	if err != nil {
 		t.Fatalf("new consumer: %v", err)
 	}
@@ -312,6 +319,9 @@ func TestConsumerAcksUnsupportedChannelWithoutRetry(t *testing.T) {
 
 	if got := calls.Load(); got != 1 {
 		t.Fatalf("notify calls = %d, want 1", got)
+	}
+	if got := hookCalls.Load(); got != 1 {
+		t.Fatalf("dead-letter hook calls = %d, want 1", got)
 	}
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
