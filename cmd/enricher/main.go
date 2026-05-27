@@ -180,6 +180,10 @@ func consumerLoop(ctx context.Context, cons runner, logger *slog.Logger) {
 			logger.Error("enrich consumer exited, restarting", "backoff", backoff.String(), "error", err)
 			select {
 			case <-ctx.Done():
+				logger.Info("enricher worker draining in-flight requests")
+				drainCtx2, drainCancel2 := context.WithTimeout(context.Background(), 10*time.Second)
+				cons.Drain(drainCtx2)
+				drainCancel2()
 				logger.Info("enricher worker shut down")
 				return
 			case <-time.After(backoff):
