@@ -24,11 +24,13 @@ const (
 
 // NotifyFunc delivers a single notification to a recipient.
 type NotifyFunc func(ctx context.Context, recipient string, message string) error
+type DeadLetterHook func(ctx context.Context, alert Alert) error
 
 // Consumer reads alerts from the Redis Stream and delivers them.
 type Consumer struct {
 	client              *redis.Client
 	notify              NotifyFunc
+	deadLetterHook      DeadLetterHook
 	limiter             *rate.Limiter
 	logger              *slog.Logger
 	consumer            string
@@ -37,7 +39,7 @@ type Consumer struct {
 
 // NewConsumer connects to Redis, creates the consumer group if needed,
 // and returns a Consumer ready to process alerts.
-func NewConsumer(addr, password string, db int, notify NotifyFunc, logger *slog.Logger) (*Consumer, error) {
+func NewConsumer(addr, password string, db int, notify NotifyFunc, logger *slog.Logger, opts ...func(*Consumer)) (*Consumer, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     addr,
 		Password: password,
@@ -60,14 +62,24 @@ func NewConsumer(addr, password string, db int, notify NotifyFunc, logger *slog.
 	if err != nil {
 		hostname = fmt.Sprintf("consumer-%d", time.Now().UnixNano())
 	}
-	return &Consumer{
+	c := &Consumer{
 		client:              client,
 		notify:              notify,
 		limiter:             rate.NewLimiter(rate.Limit(30), 30), // 30 msg/sec Telegram limit
 		logger:              logger,
 		consumer:            hostname,
 		orphanIdleThreshold: orphanIdleThreshold,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c, nil
+}
+
+func WithDeadLetterHook(h DeadLetterHook) func(*Consumer) {
+	return func(c *Consumer) {
+		c.deadLetterHook = h
+	}
 }
 
 // Run reads and processes alerts in a loop until the context is cancelled.
@@ -154,6 +166,16 @@ func (c *Consumer) deadLetter(ctx context.Context, id string) {
 		c.ack(ctx, id)
 		return
 	}
+	alert, alertErr := parseAlert(msgs[0])
+	if alertErr != nil {
+		c.logger.Error("dead-letter alert parse failed", "id", id, "error", alertErr)
+	}
+	if c.deadLetterHook != nil && alertErr == nil {
+		if err := c.deadLetterHook(ctx, alert); err != nil {
+			c.logger.Error("dead-letter hook failed", "id", id, "error", err)
+			return
+		}
+	}
 	if err := c.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: DeadLetterStream,
 		MaxLen: 10000,
@@ -161,6 +183,7 @@ func (c *Consumer) deadLetter(ctx context.Context, id string) {
 		Values: msgs[0].Values,
 	}).Err(); err != nil {
 		c.logger.Error("dead-letter failed", "id", id, "error", err)
+		return
 	} else {
 		c.logger.Warn("message dead-lettered after max retries", "id", id, "max_retries", MaxRetries)
 	}
@@ -168,14 +191,8 @@ func (c *Consumer) deadLetter(ctx context.Context, id string) {
 }
 
 func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {
-	data, ok := msg.Values["data"].(string)
-	if !ok {
-		c.ack(ctx, msg.ID)
-		return
-	}
-
-	var alert Alert
-	if err := json.Unmarshal([]byte(data), &alert); err != nil {
+	alert, err := parseAlert(msg)
+	if err != nil {
 		c.logger.Error("unmarshal alert", "id", msg.ID, "error", err)
 		c.ack(ctx, msg.ID)
 		return
@@ -194,6 +211,18 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {
 
 	c.ack(ctx, msg.ID)
 	c.logger.Info("alert delivered", "id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName)
+}
+
+func parseAlert(msg redis.XMessage) (Alert, error) {
+	data, ok := msg.Values["data"].(string)
+	if !ok {
+		return Alert{}, fmt.Errorf("missing data field")
+	}
+	var alert Alert
+	if err := json.Unmarshal([]byte(data), &alert); err != nil {
+		return Alert{}, err
+	}
+	return alert, nil
 }
 
 func (c *Consumer) ack(ctx context.Context, id string) {

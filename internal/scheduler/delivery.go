@@ -71,10 +71,15 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 				"chat_id", chatID, "msg_len", len(msg))
 			return errMalformedMessage
 		}
+		tokens := make([]string, 0, len(listings))
+		for _, l := range listings {
+			tokens = append(tokens, l.Token)
+		}
 		alert := broker.Alert{
 			ChatID:     chatID,
 			SearchID:   d.searchID,
 			SearchName: d.searchName,
+			Tokens:     tokens,
 			Message:    msg,
 			Language:   string(d.lang),
 			Timestamp:  time.Now().UTC().Format(time.RFC3339),

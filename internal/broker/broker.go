@@ -13,6 +13,7 @@ type Alert struct {
 	ChatID     int64  `json:"chat_id"`
 	SearchID   int64  `json:"search_id"`
 	SearchName string `json:"search_name"`
+	Tokens     []string `json:"tokens,omitempty"`
 	Message    string `json:"message"`
 	Language   string `json:"language"`
 	Timestamp  string `json:"timestamp"`
