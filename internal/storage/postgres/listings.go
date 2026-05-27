@@ -66,6 +66,13 @@ const upsertListingSQL = `
 		base_price = COALESCE(EXCLUDED.base_price, listing_history.base_price),
 		removed_at = NULL`
 
+const unenrichedBacklogWhereSQL = `
+km <= 0
+AND COALESCE(city, '') = ''
+AND COALESCE(image_url, '') = ''
+AND enrich_attempts < 10
+AND (last_enrich_at IS NULL OR last_enrich_at < NOW() - INTERVAL '1 hour')`
+
 type listingScanner interface {
 	Scan(dest ...any) error
 }
@@ -558,8 +565,7 @@ func (s *Store) ListUnenrichedTokens(ctx context.Context, limit int) ([]string, 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT token FROM (
 			SELECT DISTINCT ON (token) token, first_seen_at FROM listing_history
-			WHERE km <= 0 AND enrich_attempts < 10
-			  AND (last_enrich_at IS NULL OR last_enrich_at < NOW() - INTERVAL '1 hour')
+			WHERE `+unenrichedBacklogWhereSQL+`
 			ORDER BY token, first_seen_at DESC
 		) t
 		ORDER BY first_seen_at DESC
@@ -583,7 +589,13 @@ func (s *Store) ListUnenrichedTokens(ctx context.Context, limit int) ([]string, 
 func (s *Store) CountUnenrichedTokens(ctx context.Context) (int64, error) {
 	var count int64
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(DISTINCT token) FROM listing_history WHERE km <= 0`).Scan(&count)
+		`SELECT COUNT(*)
+		 FROM (
+		   SELECT DISTINCT ON (token) token
+		   FROM listing_history
+		   WHERE `+unenrichedBacklogWhereSQL+`
+		   ORDER BY token, first_seen_at DESC
+		 ) t`).Scan(&count)
 	return count, err
 }
 

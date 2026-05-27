@@ -1414,6 +1414,63 @@ func TestPostgres_CountSearchListingsForChat(t *testing.T) {
 	}
 }
 
+func TestPostgres_UnenrichedBacklogFilters(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 100)
+
+	save := func(token string, km int, city, image string) {
+		t.Helper()
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token:        token,
+			ChatID:       100,
+			SearchName:   "enrich-test",
+			Manufacturer: "Mazda",
+			Model:        "3",
+			Year:         2021,
+			Price:        90000,
+			Km:           km,
+			City:         city,
+			ImageURL:     image,
+			FirstSeenAt:  time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("save %s: %v", token, err)
+		}
+	}
+
+	save("unenriched-ok", 0, "", "")
+	save("has-city", 0, "Tel Aviv", "")
+	save("has-image", 0, "", "https://img.example/1.jpg")
+	save("has-km", 120000, "", "")
+	save("maxed-attempts", 0, "", "")
+	save("cooldown", 0, "", "")
+
+	if _, err := store.DB().ExecContext(ctx,
+		`UPDATE listing_history SET enrich_attempts = 10 WHERE token = $1 AND chat_id = $2`, "maxed-attempts", int64(100)); err != nil {
+		t.Fatalf("mark maxed attempts: %v", err)
+	}
+	if _, err := store.DB().ExecContext(ctx,
+		`UPDATE listing_history SET enrich_attempts = 1, last_enrich_at = NOW() WHERE token = $1 AND chat_id = $2`, "cooldown", int64(100)); err != nil {
+		t.Fatalf("mark cooldown: %v", err)
+	}
+
+	tokens, err := store.ListUnenrichedTokens(ctx, 50)
+	if err != nil {
+		t.Fatalf("ListUnenrichedTokens: %v", err)
+	}
+	if len(tokens) != 1 || tokens[0] != "unenriched-ok" {
+		t.Fatalf("unexpected unenriched tokens: %v", tokens)
+	}
+
+	count, err := store.CountUnenrichedTokens(ctx)
+	if err != nil {
+		t.Fatalf("CountUnenrichedTokens: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("unenriched count = %d, want 1", count)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Admin
 // ---------------------------------------------------------------------------
