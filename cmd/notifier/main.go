@@ -19,6 +19,7 @@ import (
 	"github.com/dsionov/carwatch/internal/cwlog"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/logstream"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 var (
@@ -120,21 +121,7 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 	cons, err := broker.NewConsumer(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB,
 		multi.NotifyRaw,
 		logger.With("component", "broker-consumer"),
-		broker.WithDeadLetterHook(func(ctx context.Context, alert broker.Alert) error {
-			if len(alert.Tokens) == 0 {
-				return nil
-			}
-			for _, token := range alert.Tokens {
-				if err := store.ReleaseClaim(ctx, token, alert.ChatID); err != nil {
-					return err
-				}
-			}
-			logger.Warn("released dedup claims for dead-lettered alert",
-				"chat_id", alert.ChatID,
-				"tokens", len(alert.Tokens),
-				"search_id", alert.SearchID)
-			return nil
-		}),
+		broker.WithDeadLetterHook(releaseDedupClaimsOnDeadLetter(store, logger)),
 	)
 	if err != nil {
 		return fmt.Errorf("create redis consumer: %w", err)
@@ -196,5 +183,26 @@ func consumerLoopWithConfig(ctx context.Context, cons runner, logger *slog.Logge
 			}
 			backoff = min(backoff*2, bo.max)
 		}
+	}
+}
+
+func releaseDedupClaimsOnDeadLetter(dedup storage.DedupStore, logger *slog.Logger) broker.DeadLetterHook {
+	return func(ctx context.Context, alert broker.Alert) error {
+		if dedup == nil || len(alert.Tokens) == 0 {
+			return nil
+		}
+		for _, token := range alert.Tokens {
+			cleanupCtx, cleanupCancel := context.WithTimeout(ctx, 5*time.Second)
+			err := dedup.ReleaseClaim(cleanupCtx, token, alert.ChatID)
+			cleanupCancel()
+			if err != nil {
+				return err
+			}
+		}
+		logger.Warn("released dedup claims for dead-lettered alert",
+			"chat_id", alert.ChatID,
+			"tokens", len(alert.Tokens),
+			"search_id", alert.SearchID)
+		return nil
 	}
 }

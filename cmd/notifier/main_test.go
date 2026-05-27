@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/dsionov/carwatch/internal/broker"
 )
 
 func TestDefaultHealthBind(t *testing.T) {
@@ -144,5 +146,74 @@ func TestConsumerLoop_ShutdownOnContextCancel(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("consumerLoop did not exit after context cancel")
+	}
+}
+
+type mockDedupStore struct {
+	released []struct {
+		token  string
+		chatID int64
+	}
+	releaseErr error
+}
+
+func (m *mockDedupStore) ClaimNew(context.Context, string, int64, int64) (bool, error) { return false, nil }
+func (m *mockDedupStore) ReleaseClaim(_ context.Context, token string, chatID int64) error {
+	m.released = append(m.released, struct {
+		token  string
+		chatID int64
+	}{token: token, chatID: chatID})
+	return m.releaseErr
+}
+func (m *mockDedupStore) Prune(context.Context, time.Duration) (int64, error) { return 0, nil }
+
+func TestReleaseDedupClaimsOnDeadLetter_ReleasesAllTokens(t *testing.T) {
+	dedup := &mockDedupStore{}
+	hook := releaseDedupClaimsOnDeadLetter(dedup, testLogger())
+
+	err := hook(context.Background(), broker.Alert{
+		ChatID:   101,
+		SearchID: 7,
+		Tokens:   []string{"a", "b", "c"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(dedup.released) != 3 {
+		t.Fatalf("expected 3 release calls, got %d", len(dedup.released))
+	}
+	for i, tok := range []string{"a", "b", "c"} {
+		if dedup.released[i].token != tok || dedup.released[i].chatID != 101 {
+			t.Fatalf("unexpected release call at %d: %+v", i, dedup.released[i])
+		}
+	}
+}
+
+func TestReleaseDedupClaimsOnDeadLetter_SkipsWhenNoTokens(t *testing.T) {
+	dedup := &mockDedupStore{}
+	hook := releaseDedupClaimsOnDeadLetter(dedup, testLogger())
+
+	err := hook(context.Background(), broker.Alert{ChatID: 77})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(dedup.released) != 0 {
+		t.Fatalf("expected no release calls, got %d", len(dedup.released))
+	}
+}
+
+func TestReleaseDedupClaimsOnDeadLetter_ReturnsReleaseError(t *testing.T) {
+	dedup := &mockDedupStore{releaseErr: errors.New("db down")}
+	hook := releaseDedupClaimsOnDeadLetter(dedup, testLogger())
+
+	err := hook(context.Background(), broker.Alert{
+		ChatID: 22,
+		Tokens: []string{"x", "y"},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if len(dedup.released) != 1 {
+		t.Fatalf("expected hook to stop after first failure, got %d calls", len(dedup.released))
 	}
 }
