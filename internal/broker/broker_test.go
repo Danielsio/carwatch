@@ -277,6 +277,29 @@ func TestConsumerConnectionFailure(t *testing.T) {
 	}
 }
 
+func TestPublisherWithRedisAuth(t *testing.T) {
+	mr := miniredis.RunT(t)
+	mr.RequireAuth("secret")
+
+	pub, err := NewPublisher(mr.Addr(), "secret", 0)
+	if err != nil {
+		t.Fatalf("new publisher with auth: %v", err)
+	}
+	defer func() { _ = pub.Close() }()
+}
+
+func TestConsumerWithRedisAuth(t *testing.T) {
+	mr := miniredis.RunT(t)
+	mr.RequireAuth("secret")
+
+	notify := func(_ context.Context, _ string, _ string) error { return nil }
+	cons, err := NewConsumer(mr.Addr(), "secret", 0, notify, slog.Default())
+	if err != nil {
+		t.Fatalf("new consumer with auth: %v", err)
+	}
+	defer func() { _ = cons.Close() }()
+}
+
 func TestDeadLetterCallsHookAndAcks(t *testing.T) {
 	mr := miniredis.RunT(t)
 	pub, err := NewPublisher(mr.Addr(), "", 0)

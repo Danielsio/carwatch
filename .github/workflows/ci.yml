@@ -77,6 +77,13 @@ jobs:
         with:
           version: v2.4
           args: --timeout=5m
+      - name: Validate production compose env contract
+        run: |
+          POSTGRES_PASSWORD=test-postgres \
+          REDIS_PASSWORD=test-redis \
+          CARWATCH_DOMAIN=example.com \
+          TELEGRAM_BOT_TOKEN=test-token \
+          docker compose -f docker-compose.prod.yaml config >/dev/null
 
   test:
     name: Test

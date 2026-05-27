@@ -164,6 +164,25 @@ http:
 	}
 }
 
+func TestLoad_EnvVarInterpolationRedisPassword(t *testing.T) {
+	t.Setenv("REDIS_PASSWORD", "redis-secret")
+
+	yaml := `
+telegram:
+  token: "test-token"
+storage:
+  dsn: "postgres://localhost/test"
+redis:
+  addr: "localhost:6379"
+  password: "${REDIS_PASSWORD}"
+`
+	cfg := loadFromString(t, yaml)
+
+	if cfg.Redis.Password != "redis-secret" {
+		t.Errorf("redis.password = %q, want redis-secret", cfg.Redis.Password)
+	}
+}
+
 func TestParseLogLevel(t *testing.T) {
 	tests := []struct {
 		input string
