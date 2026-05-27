@@ -25,6 +25,15 @@ make build
 docker compose -f docker-compose.prod.yaml up -d
 ```
 
+For production compose, set `REDIS_PASSWORD` in `.env` and configure Redis in `config.yaml`:
+
+```yaml
+redis:
+  addr: "redis:6379"
+  password: "${REDIS_PASSWORD}"
+  db: 0
+```
+
 ## Configuration
 
 See [`config.example.yaml`](config.example.yaml) for all options.

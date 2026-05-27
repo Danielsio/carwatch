@@ -288,6 +288,16 @@ func TestPublisherWithRedisAuth(t *testing.T) {
 	defer func() { _ = pub.Close() }()
 }
 
+func TestPublisherWithRedisAuthWrongPassword(t *testing.T) {
+	mr := miniredis.RunT(t)
+	mr.RequireAuth("secret")
+
+	_, err := NewPublisher(mr.Addr(), "wrong", 0)
+	if err == nil {
+		t.Fatal("expected auth error for wrong Redis password")
+	}
+}
+
 func TestConsumerWithRedisAuth(t *testing.T) {
 	mr := miniredis.RunT(t)
 	mr.RequireAuth("secret")
@@ -298,6 +308,83 @@ func TestConsumerWithRedisAuth(t *testing.T) {
 		t.Fatalf("new consumer with auth: %v", err)
 	}
 	defer func() { _ = cons.Close() }()
+}
+
+func TestConsumerWithRedisAuthWrongPassword(t *testing.T) {
+	mr := miniredis.RunT(t)
+	mr.RequireAuth("secret")
+
+	notify := func(_ context.Context, _ string, _ string) error { return nil }
+	_, err := NewConsumer(mr.Addr(), "wrong", 0, notify, slog.Default())
+	if err == nil {
+		t.Fatal("expected auth error for wrong Redis password")
+	}
+}
+
+func TestPublishAndConsumeWithRedisAuth(t *testing.T) {
+	mr := miniredis.RunT(t)
+	mr.RequireAuth("secret")
+
+	pub, err := NewPublisher(mr.Addr(), "secret", 0)
+	if err != nil {
+		t.Fatalf("new publisher with auth: %v", err)
+	}
+	defer func() { _ = pub.Close() }()
+
+	alert := Alert{
+		ChatID:   123,
+		Message:  "auth-protected message",
+		Language: "en",
+	}
+	if err := pub.Publish(context.Background(), alert); err != nil {
+		t.Fatalf("publish with auth: %v", err)
+	}
+
+	var mu sync.Mutex
+	var delivered []string
+	notify := func(_ context.Context, _ string, message string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		delivered = append(delivered, message)
+		return nil
+	}
+	cons, err := NewConsumer(mr.Addr(), "secret", 0, notify, slog.Default())
+	if err != nil {
+		t.Fatalf("new consumer with auth: %v", err)
+	}
+	defer func() { _ = cons.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- cons.Run(ctx) }()
+
+	deadline := time.After(2 * time.Second)
+	for {
+		mu.Lock()
+		n := len(delivered)
+		mu.Unlock()
+		if n > 0 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for authenticated delivery")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+
+	cancel()
+	<-done
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(delivered) != 1 {
+		t.Fatalf("expected 1 delivery, got %d", len(delivered))
+	}
+	if delivered[0] != "auth-protected message" {
+		t.Fatalf("message = %q, want %q", delivered[0], "auth-protected message")
+	}
 }
 
 func TestDeadLetterCallsHookAndAcks(t *testing.T) {
