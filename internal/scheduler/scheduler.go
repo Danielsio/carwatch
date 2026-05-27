@@ -1042,33 +1042,6 @@ func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListi
 // backfillEnrichedListings upserts listing_history for listings that gained
 // km/city/image data during enrichment, ensuring the DB is updated even for
 // previously-seen tokens.
-func (s *Scheduler) backfillEnrichedListings(ctx context.Context, listings []model.RawListing) {
-	var toUpdate []storage.ListingRecord
-	for _, l := range listings {
-		if l.Km <= 0 {
-			continue
-		}
-		toUpdate = append(toUpdate, storage.ListingRecord{
-			Token:        l.Token,
-			Manufacturer: l.Manufacturer,
-			Model:        l.Model,
-			Year:         l.Year,
-			Price:        l.Price,
-			Km:           l.Km,
-			Hand:         l.Hand,
-			City:         l.City,
-			PageLink:     l.PageLink,
-			ImageURL:     l.ImageURL,
-		})
-	}
-	if len(toUpdate) == 0 {
-		return
-	}
-	if err := s.stores.Listings.BackfillListings(ctx, toUpdate); err != nil {
-		s.logger.ErrorContext(ctx, "failed to backfill enriched mileage data to listing history", "count", len(toUpdate), "error", err)
-	}
-}
-
 func (s *Scheduler) deactivateExcessSearches(ctx context.Context, chatID int64, maxActive int) {
 	if s.stores.Searches == nil {
 		return
