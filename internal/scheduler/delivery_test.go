@@ -2,12 +2,16 @@ package scheduler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/redis/go-redis/v9"
 )
 
 func TestInstantDelivery_DeliverBatch_Success(t *testing.T) {
@@ -41,6 +45,55 @@ func TestInstantDelivery_DeliverBatch_NotifyFails(t *testing.T) {
 	err := d.DeliverBatch(context.Background(), 100, listings)
 	if err == nil {
 		t.Fatal("expected error when notifier fails")
+	}
+}
+
+func TestInstantDelivery_DeliverBatch_WithPublisherIncludesTokens(t *testing.T) {
+	mr := miniredis.RunT(t)
+	pub, err := broker.NewPublisher(mr.Addr(), "", 0)
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	defer func() { _ = pub.Close() }()
+
+	n := &mockNotifier{}
+	d := NewInstantDelivery(
+		n,
+		locale.English,
+		WithPublisher(pub),
+		WithSearchContext(55, "Search 55"),
+	)
+
+	listings := []model.Listing{
+		{RawListing: model.RawListing{Token: "tok-a", Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000}},
+		{RawListing: model.RawListing{Token: "tok-b", Manufacturer: "Honda", Model: "Civic", Year: 2020, Price: 90000}},
+	}
+	if err := d.DeliverBatch(context.Background(), 100, listings); err != nil {
+		t.Fatalf("deliver batch: %v", err)
+	}
+
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+	msgs, err := client.XRange(context.Background(), broker.StreamName, "-", "+").Result()
+	if err != nil {
+		t.Fatalf("xrange: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 queued message, got %d", len(msgs))
+	}
+	data, ok := msgs[0].Values["data"].(string)
+	if !ok {
+		t.Fatal("missing data field in queued message")
+	}
+	var queued broker.Alert
+	if err := json.Unmarshal([]byte(data), &queued); err != nil {
+		t.Fatalf("unmarshal queued alert: %v", err)
+	}
+	if queued.ChatID != 100 || queued.SearchID != 55 || queued.SearchName != "Search 55" {
+		t.Fatalf("unexpected queued metadata: %+v", queued)
+	}
+	if len(queued.Tokens) != 2 || queued.Tokens[0] != "tok-a" || queued.Tokens[1] != "tok-b" {
+		t.Fatalf("unexpected queued tokens: %+v", queued.Tokens)
 	}
 }
 

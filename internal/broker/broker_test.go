@@ -17,6 +17,7 @@ func TestAlertSerializationRoundtrip(t *testing.T) {
 		ChatID:     12345,
 		SearchID:   42,
 		SearchName: "Toyota Corolla 2021",
+		Tokens:     []string{"tok-1", "tok-2"},
 		Message:    "New listing found!",
 		Language:   "he",
 		Timestamp:  time.Now().UTC().Format(time.RFC3339),
@@ -40,6 +41,14 @@ func TestAlertSerializationRoundtrip(t *testing.T) {
 	}
 	if decoded.SearchName != original.SearchName {
 		t.Errorf("SearchName = %q, want %q", decoded.SearchName, original.SearchName)
+	}
+	if len(decoded.Tokens) != len(original.Tokens) {
+		t.Fatalf("Tokens len = %d, want %d", len(decoded.Tokens), len(original.Tokens))
+	}
+	for i := range original.Tokens {
+		if decoded.Tokens[i] != original.Tokens[i] {
+			t.Fatalf("Tokens[%d] = %q, want %q", i, decoded.Tokens[i], original.Tokens[i])
+		}
 	}
 	if decoded.Message != original.Message {
 		t.Errorf("Message = %q, want %q", decoded.Message, original.Message)
@@ -265,5 +274,117 @@ func TestConsumerConnectionFailure(t *testing.T) {
 	_, err := NewConsumer("localhost:1", "", 0, notify, slog.Default())
 	if err == nil {
 		t.Fatal("expected error for unreachable Redis")
+	}
+}
+
+func TestDeadLetterCallsHookAndAcks(t *testing.T) {
+	mr := miniredis.RunT(t)
+	pub, err := NewPublisher(mr.Addr(), "", 0)
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	defer func() { _ = pub.Close() }()
+
+	alert := Alert{
+		ChatID:   42,
+		SearchID: 7,
+		Tokens:   []string{"abc", "def"},
+		Message:  "msg",
+	}
+	if err := pub.Publish(context.Background(), alert); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	var got Alert
+	notify := func(_ context.Context, _ string, _ string) error { return nil }
+	cons, err := NewConsumer(mr.Addr(), "", 0, notify, slog.Default(), WithDeadLetterHook(func(_ context.Context, a Alert) error {
+		got = a
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("new consumer: %v", err)
+	}
+	defer func() { _ = cons.Close() }()
+
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+	msgs, err := client.XRange(context.Background(), StreamName, "-", "+").Result()
+	if err != nil || len(msgs) != 1 {
+		t.Fatalf("xrange: %v len=%d", err, len(msgs))
+	}
+	cons.deadLetter(context.Background(), msgs[0].ID)
+
+	if got.ChatID != 42 || len(got.Tokens) != 2 {
+		t.Fatalf("unexpected hook alert: %+v", got)
+	}
+	deadMsgs, err := client.XRange(context.Background(), DeadLetterStream, "-", "+").Result()
+	if err != nil {
+		t.Fatalf("dead xrange: %v", err)
+	}
+	if len(deadMsgs) != 1 {
+		t.Fatalf("expected 1 dead-letter message, got %d", len(deadMsgs))
+	}
+	pending, err := client.XPending(context.Background(), StreamName, GroupName).Result()
+	if err != nil {
+		t.Fatalf("xpending: %v", err)
+	}
+	if pending.Count != 0 {
+		t.Fatalf("expected 0 pending after dead-letter ack, got %d", pending.Count)
+	}
+}
+
+func TestDeadLetterHookFailureDoesNotAckOrMoveMessage(t *testing.T) {
+	mr := miniredis.RunT(t)
+	pub, err := NewPublisher(mr.Addr(), "", 0)
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	defer func() { _ = pub.Close() }()
+	if err := pub.Publish(context.Background(), Alert{ChatID: 7, Tokens: []string{"x"}, Message: "msg"}); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	notify := func(_ context.Context, _ string, _ string) error { return nil }
+	cons, err := NewConsumer(mr.Addr(), "", 0, notify, slog.Default(), WithDeadLetterHook(func(_ context.Context, _ Alert) error {
+		return context.DeadlineExceeded
+	}))
+	if err != nil {
+		t.Fatalf("new consumer: %v", err)
+	}
+	defer func() { _ = cons.Close() }()
+
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+	msgs, err := client.XRange(context.Background(), StreamName, "-", "+").Result()
+	if err != nil || len(msgs) != 1 {
+		t.Fatalf("xrange: %v len=%d", err, len(msgs))
+	}
+	// Create a pending entry so XPending can observe it.
+	_, err = client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group:    GroupName,
+		Consumer: "hook-fail-consumer",
+		Streams:  []string{StreamName, ">"},
+		Count:    1,
+		Block:    time.Second,
+	}).Result()
+	if err != nil {
+		t.Fatalf("xreadgroup: %v", err)
+	}
+
+	cons.deadLetter(context.Background(), msgs[0].ID)
+
+	deadMsgs, err := client.XRange(context.Background(), DeadLetterStream, "-", "+").Result()
+	if err != nil {
+		t.Fatalf("dead xrange: %v", err)
+	}
+	if len(deadMsgs) != 0 {
+		t.Fatalf("expected 0 dead-letter messages on hook failure, got %d", len(deadMsgs))
+	}
+	pending, err := client.XPending(context.Background(), StreamName, GroupName).Result()
+	if err != nil {
+		t.Fatalf("xpending: %v", err)
+	}
+	if pending.Count == 0 {
+		t.Fatalf("expected pending message to remain after hook failure")
 	}
 }
