@@ -179,6 +179,7 @@ jobs:
           script: |
             set -euo pipefail
             cd "$HOME/carwatch"
+            rm -f .deploy_recreate_started
 
             # Source .env if present (CARWATCH_DOMAIN, TELEGRAM_BOT_TOKEN, REDIS_PASSWORD, etc.)
             if [ -f .env ]; then
@@ -218,6 +219,7 @@ jobs:
             # returning, so no explicit migration step is needed here.
 
             echo "==> Recreating containers..."
+            touch .deploy_recreate_started
             docker compose -f docker-compose.prod.yaml up -d $APP_SERVICES
 
             echo "==> Waiting for API health check..."
@@ -268,13 +270,19 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd "$HOME/carwatch"
+            if [ ! -f .deploy_recreate_started ]; then
+              echo "==> Skipping rollback (deploy failed before container recreation)"
+              exit 0
+            fi
             PREV=$(cat prev_image_tag 2>/dev/null || echo 'none')
             if [ "$PREV" != 'none' ]; then
               echo "==> Rolling back to previous image: $PREV"
               docker tag "$PREV" ghcr.io/danielsio/carwatch:latest
               docker compose -f docker-compose.prod.yaml up -d postgres redis api bot-poller scraper notifier enricher
               echo "==> Rolled back to previous version"
+              rm -f .deploy_recreate_started
             else
               echo "==> No previous image tag found, skipping rollback"
             fi
