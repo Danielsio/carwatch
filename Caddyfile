@@ -6,5 +6,5 @@
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 	}
-	reverse_proxy carwatch:8080
+	reverse_proxy api:8080
 }

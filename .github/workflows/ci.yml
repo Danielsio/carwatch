@@ -9,6 +9,7 @@ on:
       - 'go.sum'
       - 'Makefile'
       - 'Dockerfile'
+      - 'Caddyfile'
       - '.github/workflows/**'
       - 'docker-compose*.yaml'
       - 'web/**'
@@ -44,6 +45,7 @@ jobs:
               - 'web/**'
             infra:
               - 'Dockerfile'
+              - 'Caddyfile'
               - '.github/workflows/**'
               - 'docker-compose*.yaml'
 
