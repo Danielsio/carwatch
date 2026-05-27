@@ -7,10 +7,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	tgbot "github.com/go-telegram/bot"
@@ -195,7 +193,7 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		}
 		firebaseAuth = v
 	}
-	if firebaseAuth == nil && isNonLocalBind(cfg.HTTP.Bind) {
+	if firebaseAuth == nil && api.IsNonLocalBind(cfg.HTTP.Bind) {
 		return nil, fmt.Errorf("firebase auth must be configured for non-local bind address %q", cfg.HTTP.Bind)
 	}
 
@@ -227,19 +225,6 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 	})
 
 	return apiServer, nil
-}
-
-func isNonLocalBind(bind string) bool {
-	b := strings.TrimSpace(bind)
-	if b == "" {
-		return false
-	}
-	host := b
-	if h, _, err := net.SplitHostPort(b); err == nil {
-		host = h
-	}
-	host = strings.Trim(strings.ToLower(host), "[]")
-	return host != "127.0.0.1" && host != "localhost" && host != "::1"
 }
 
 // BuildPriceListService creates the pricelist HTTP client and service.

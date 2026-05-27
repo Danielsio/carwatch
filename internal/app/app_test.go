@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	apiinternal "github.com/dsionov/carwatch/internal/api"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
 )
@@ -235,22 +236,49 @@ func TestBuildAPIRejectsMissingFirebaseOnNonLocalBind(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error, got nil (server=%v)", apiServer)
 	}
+	if !strings.Contains(err.Error(), "firebase auth must be configured") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "0.0.0.0:8080") {
+		t.Fatalf("error should include bind address, got: %v", err)
+	}
 }
 
-func TestBuildAPIAllowsMissingFirebaseOnLocalBind(t *testing.T) {
-	cfg := &config.Config{
-		HTTP: config.HTTPConfig{
-			Bind: "127.0.0.1:8080",
-		},
-	}
+func TestBuildAPIFirebaseRequirementByBind(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	apiServer, err := BuildAPI(cfg, nil, nil, logger, nil, nil, nil, nil)
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
+	tests := []struct {
+		name    string
+		bind    string
+		wantErr bool
+	}{
+		{name: "loopback v4", bind: "127.0.0.1:8080", wantErr: false},
+		{name: "localhost", bind: "localhost:8080", wantErr: false},
+		{name: "loopback v6", bind: "[::1]:8080", wantErr: false},
+		{name: "all interfaces short", bind: ":8080", wantErr: true},
+		{name: "all interfaces v4", bind: "0.0.0.0:8080", wantErr: true},
 	}
-	if apiServer == nil {
-		t.Fatalf("expected api server, got nil")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				HTTP: config.HTTPConfig{
+					Bind: tt.bind,
+				},
+			}
+			apiServer, err := BuildAPI(cfg, nil, nil, logger, nil, nil, nil, nil)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil (server=%v)", apiServer)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+			if apiServer == nil {
+				t.Fatalf("expected api server, got nil")
+			}
+		})
 	}
 }
 
@@ -264,14 +292,16 @@ func TestIsNonLocalBind(t *testing.T) {
 		{name: "localhost", bind: "localhost:8080", want: false},
 		{name: "loopback", bind: "127.0.0.1:8080", want: false},
 		{name: "ipv6 loopback", bind: "[::1]:8080", want: false},
+		{name: "empty", bind: "", want: false},
+		{name: "whitespace", bind: "   ", want: false},
 		{name: "all interfaces short", bind: ":8080", want: true},
 		{name: "all interfaces v4", bind: "0.0.0.0:8080", want: true},
 		{name: "public host", bind: "192.168.1.10:8080", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isNonLocalBind(tt.bind); got != tt.want {
-				t.Fatalf("isNonLocalBind(%q) = %v, want %v", tt.bind, got, tt.want)
+			if got := apiinternal.IsNonLocalBind(tt.bind); got != tt.want {
+				t.Fatalf("IsNonLocalBind(%q) = %v, want %v", tt.bind, got, tt.want)
 			}
 		})
 	}
