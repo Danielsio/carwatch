@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -58,6 +59,30 @@ func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 	s.logger.Info("backfill enrichment: fetching km for DB listings missing data",
 		"candidates", len(tokens),
 	)
+
+	// Dual-write: publish backfill enrichment requests to the Redis stream
+	// at low priority so the enricher worker can process them.
+	if s.enrichPublisher != nil {
+		published := 0
+		for _, t := range tokens {
+			req := broker.EnrichRequest{
+				Token:      t,
+				Priority:   3,
+				Source:     "backfill",
+				EnqueuedAt: time.Now().UTC().Format(time.RFC3339),
+			}
+			if err := s.enrichPublisher.PublishEnrich(ctx, req); err != nil {
+				s.logger.Warn("failed to publish backfill enrichment request to stream",
+					"token", t, "error", err)
+			} else {
+				published++
+			}
+		}
+		if published > 0 {
+			s.logger.Info("published backfill enrichment requests to stream",
+				"published", published, "candidates", len(tokens))
+		}
+	}
 
 	// Cooldown before backfill to reduce rate-limit pressure after the
 	// main cycle's enrichment pass.

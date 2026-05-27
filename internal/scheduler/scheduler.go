@@ -79,6 +79,7 @@ type Scheduler struct {
 	kmEnricher        KmEnricher
 	priceListSvc      *pricelist.Service
 	publisher         *broker.Publisher
+	enrichPublisher   *broker.EnrichPublisher
 	pipeline          *ListingPipeline
 	percolator        *percolator.Percolator
 	triggerCh         chan struct{}
@@ -151,6 +152,7 @@ type Options struct {
 	MarketCacheTTL   time.Duration
 	BackfillCooldown time.Duration
 	Publisher        *broker.Publisher
+	EnrichPublisher  *broker.EnrichPublisher
 }
 
 func New(
@@ -224,6 +226,7 @@ func NewWithOptions(
 		kmEnricher:        opts.KmEnricher,
 		priceListSvc:      plSvc,
 		publisher:         opts.Publisher,
+		enrichPublisher:   opts.EnrichPublisher,
 		pipeline:          NewListingPipeline(opts.ListingStore, plSvc, logger),
 		percolator:        percolator.New(),
 		triggerCh:         make(chan struct{}, 1),
@@ -750,6 +753,41 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 
 			// Collect the raw listing for pipeline processing.
 			acc.result.newListings = append(acc.result.newListings, model.Listing{RawListing: raw[i]})
+		}
+	}
+
+	// 5a. Dual-write: publish enrichment requests to the Redis stream for
+	// each matched listing that still needs enrichment data. The enricher
+	// worker will process these idempotently (skip if already enriched).
+	if s.enrichPublisher != nil && len(matchedIndices) > 0 {
+		published := 0
+		for idx := range matchedIndices {
+			l := raw[idx]
+			if l.Km <= 0 || l.City == "" || l.ImageURL == "" {
+				// Collect search IDs that matched this listing.
+				matches := s.percolator.Match(l)
+				searchIDs := make([]int64, 0, len(matches))
+				for _, m := range matches {
+					searchIDs = append(searchIDs, m.SearchID)
+				}
+				req := broker.EnrichRequest{
+					Token:      l.Token,
+					Priority:   1,
+					SearchIDs:  searchIDs,
+					Source:     "scheduler",
+					EnqueuedAt: time.Now().UTC().Format(time.RFC3339),
+				}
+				if err := s.enrichPublisher.PublishEnrich(ctx, req); err != nil {
+					s.logger.WarnContext(ctx, "failed to publish enrichment request to stream",
+						"token", l.Token, "error", err)
+				} else {
+					published++
+				}
+			}
+		}
+		if published > 0 {
+			s.logger.InfoContext(ctx, "published enrichment requests for matched listings",
+				"published", published, "total_matched", len(matchedIndices))
 		}
 	}
 

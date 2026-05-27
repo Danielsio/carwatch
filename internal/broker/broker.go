@@ -56,5 +56,9 @@ func (p *Publisher) Publish(ctx context.Context, alert Alert) error {
 	}).Err()
 }
 
+// Client returns the underlying Redis client so it can be shared with other
+// publishers (e.g. EnrichPublisher) without opening a second connection.
+func (p *Publisher) Client() *redis.Client { return p.client }
+
 // Close shuts down the Redis connection.
 func (p *Publisher) Close() error { return p.client.Close() }
