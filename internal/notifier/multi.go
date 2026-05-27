@@ -64,6 +64,15 @@ var errNoNotifier = fmt.Errorf("no notifiers registered")
 
 var ErrNoChannelNotifier = fmt.Errorf("no notifier for user channel")
 
+func normalizeChannel(channel string) string {
+	switch channel {
+	case "web":
+		return "webpush"
+	default:
+		return channel
+	}
+}
+
 func (m *MultiNotifier) Notify(ctx context.Context, recipient string, listings []model.Listing, lang locale.Lang) error {
 	n, err := m.resolve(ctx, recipient)
 	if err != nil {
@@ -87,10 +96,21 @@ func (m *MultiNotifier) resolve(ctx context.Context, recipient string) (Notifier
 		if uErr != nil {
 			m.logger.Warn("resolve user failed, using fallback", "recipient", recipient, "error", uErr)
 		} else if user != nil && user.Channel != "" {
-			if n, ok := m.notifiers[user.Channel]; ok {
+			resolvedChannel := normalizeChannel(user.Channel)
+			if n, ok := m.notifiers[resolvedChannel]; ok {
+				if resolvedChannel != user.Channel {
+					m.logger.Debug("resolved user channel alias",
+						"recipient", recipient,
+						"channel", user.Channel,
+						"resolved_channel", resolvedChannel)
+				}
 				return n, nil
 			}
-			m.logger.Warn("unknown channel, falling back to default", "recipient", recipient, "channel", user.Channel, "fallback", m.fallback)
+			m.logger.Warn("no notifier configured for user channel",
+				"recipient", recipient,
+				"channel", user.Channel,
+				"resolved_channel", resolvedChannel)
+			return nil, fmt.Errorf("%w: %s", ErrNoChannelNotifier, user.Channel)
 		}
 	}
 	if n := m.notifiers[m.fallback]; n != nil {
