@@ -185,6 +185,40 @@ services:
         limits:
           memory: 256M
 
+  enricher:
+    image: ghcr.io/danielsio/carwatch:latest
+    container_name: carwatch-enricher
+    entrypoint: ["/usr/local/bin/enricher"]
+    networks:
+      - carwatch-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+      - ./migrations:/migrations:ro
+    environment:
+      - TZ=Asia/Jerusalem
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8084/healthz"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
   caddy:
     image: caddy:2-alpine
     container_name: caddy

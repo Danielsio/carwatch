@@ -194,7 +194,7 @@ jobs:
 
             # Only manage app + infra services; watchtower and caddy are
             # long-lived infrastructure that must not be recreated on every deploy.
-            APP_SERVICES="postgres redis api bot-poller scraper notifier"
+            APP_SERVICES="postgres redis api bot-poller scraper notifier enricher"
 
             echo "==> Pulling latest image..."
             docker compose -f docker-compose.prod.yaml pull $APP_SERVICES
