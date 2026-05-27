@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/dsionov/carwatch/internal/broker"
-	"github.com/dsionov/carwatch/internal/model"
 )
 
 func (s *Scheduler) pruneOldData(ctx context.Context) {
@@ -43,7 +42,7 @@ func (s *Scheduler) pruneOldData(ctx context.Context) {
 }
 
 func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
-	if s.kmEnricher == nil || s.stores.Listings == nil {
+	if s.enrichPublisher == nil || s.stores.Listings == nil {
 		return
 	}
 
@@ -56,60 +55,28 @@ func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 		return
 	}
 
-	s.logger.Info("backfill enrichment: fetching km for DB listings missing data",
+	s.logger.Info("backfill enrichment: publishing unenriched tokens to stream",
 		"candidates", len(tokens),
 	)
 
-	// Dual-write: publish backfill enrichment requests to the Redis stream
-	// at low priority so the enricher worker can process them.
-	// TODO(phase-4-cleanup): Remove this block when inline enrichment is removed.
-	if s.enrichPublisher != nil {
-		published := 0
-		for _, t := range tokens {
-			req := broker.EnrichRequest{
-				Token:      t,
-				Priority:   3,
-				Source:     "backfill",
-				EnqueuedAt: time.Now().UTC().Format(time.RFC3339),
-			}
-			if err := s.enrichPublisher.PublishEnrich(ctx, req); err != nil {
-				s.logger.Warn("failed to publish backfill enrichment request to stream",
-					"token", t, "error", err)
-			} else {
-				published++
-			}
+	published := 0
+	for _, t := range tokens {
+		req := broker.EnrichRequest{
+			Token:      t,
+			Priority:   3,
+			Source:     "backfill",
+			EnqueuedAt: time.Now().UTC().Format(time.RFC3339),
 		}
-		if published > 0 {
-			s.logger.Info("published backfill enrichment requests to stream",
-				"published", published, "candidates", len(tokens))
+		if err := s.enrichPublisher.PublishEnrich(ctx, req); err != nil {
+			s.logger.Warn("failed to publish backfill enrichment request to stream",
+				"token", t, "error", err)
+		} else {
+			published++
 		}
 	}
-
-	// Cooldown before backfill to reduce rate-limit pressure after the
-	// main cycle's enrichment pass.
-	cooldown := time.NewTimer(s.backfillCooldown)
-	defer cooldown.Stop()
-	select {
-	case <-ctx.Done():
-		return
-	case <-cooldown.C:
-	}
-
-	raw := make([]model.RawListing, len(tokens))
-	for i, t := range tokens {
-		raw[i] = model.RawListing{Token: t}
-	}
-
-	enrichCtx, cancel := context.WithTimeout(ctx, kmEnrichTimeout)
-	enriched := s.kmEnricher.Enrich(enrichCtx, raw)
-	cancel()
-
-	if enriched > 0 {
-		s.logger.Info("backfill enrichment complete",
-			"enriched", enriched,
-			"candidates", len(tokens),
-		)
-		s.backfillEnrichedListings(ctx, raw)
+	if published > 0 {
+		s.logger.Info("published backfill enrichment requests to stream",
+			"published", published, "candidates", len(tokens))
 	}
 }
 

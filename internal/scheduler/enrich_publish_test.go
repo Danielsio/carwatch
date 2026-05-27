@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/dsionov/carwatch/internal/broker"
@@ -182,11 +181,8 @@ func TestDualWrite_NilPublisherNoOp(t *testing.T) {
 	}
 }
 
-func TestDualWrite_BackfillPublishesAtPriority3(t *testing.T) {
+func TestBackfillPublishesAtPriority3(t *testing.T) {
 	enrichPub, redisSrv := newTestEnrichPublisher(t)
-
-	enrichCalls := 0
-	kmEnricher := &countingEnricher{calls: &enrichCalls}
 
 	ls := &mockListingStore{
 		unenrichedTokens: []string{"old-1", "old-2", "old-3"},
@@ -194,11 +190,9 @@ func TestDualWrite_BackfillPublishesAtPriority3(t *testing.T) {
 
 	cfg := testConfig()
 	s, err := NewWithOptions(cfg, nil, nil, nil, testLogger(), Options{
-		SearchStore:      &mockSearchStore{},
-		ListingStore:     ls,
-		KmEnricher:       kmEnricher,
-		EnrichPublisher:  enrichPub,
-		BackfillCooldown: time.Millisecond,
+		SearchStore:     &mockSearchStore{},
+		ListingStore:    ls,
+		EnrichPublisher: enrichPub,
 	})
 	if err != nil {
 		t.Fatalf("create scheduler: %v", err)
@@ -219,11 +213,6 @@ func TestDualWrite_BackfillPublishesAtPriority3(t *testing.T) {
 		if req.Source != "backfill" {
 			t.Errorf("source = %q, want backfill", req.Source)
 		}
-	}
-
-	// Verify inline enrichment still ran (dual-write).
-	if enrichCalls != 1 {
-		t.Errorf("expected 1 inline enrich call (dual-write), got %d", enrichCalls)
 	}
 }
 

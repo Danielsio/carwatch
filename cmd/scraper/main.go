@@ -16,7 +16,6 @@ import (
 	"github.com/dsionov/carwatch/internal/app"
 	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/cwlog"
-	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/notifier"
@@ -122,7 +121,7 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 	logger.Info("redis publisher enabled", "addr", cfg.Redis.Addr)
 
 	enrichPub := broker.NewEnrichPublisher(pub.Client())
-	logger.Info("enrich publisher enabled (dual-write)", "stream", broker.EnrichStreamName)
+	logger.Info("enrich publisher enabled", "stream", broker.EnrichStreamName)
 
 	// The scheduler needs a notifier for non-alert messages (e.g., digest
 	// delivery). Alerts go through the Redis publisher to the notifier worker.
@@ -141,11 +140,6 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 	}
 	defer plCleanup()
 
-	kmEnricher := yad2.NewEnricher(fb.Yad2, logger.With("component", "enricher"), yad2.EnricherConfig{
-		Delay:       time.Second,
-		MaxPerCycle: 25,
-	})
-
 	var n notifier.Notifier = multi
 	sched, err := scheduler.NewWithOptions(cfg, fb.Caching, store, n, logger.With("component", "scheduler"), scheduler.Options{
 		Observer:         h,
@@ -159,7 +153,6 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		HiddenStore:      store,
 		CatalogIngester:  dynCatalog,
 		CarNames:         dynCatalog,
-		KmEnricher:       kmEnricher,
 		MarketStore:      store,
 		PriceListStore:   store,
 		PriceListSvc:     plSvc,
