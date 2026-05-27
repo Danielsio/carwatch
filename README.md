@@ -44,6 +44,46 @@ telemetry:
 This token protects `/metrics` when binding the API on a non-localhost address.
 `POST /api/v1/vitals` uses normal API authentication (Firebase in production, `api.auth_token` in local dev mode).
 
+Set an immutable application image tag in `.env` and use release tags for deploys:
+
+```dotenv
+CARWATCH_IMAGE_TAG=9.16.11
+```
+
+### Production deploy verification
+
+After deployment, verify every runtime service is healthy:
+
+```bash
+docker exec carwatch-api wget -q --spider http://localhost:8080/healthz
+docker exec carwatch-bot-poller wget -q --spider http://localhost:8082/healthz
+docker exec carwatch-scraper wget -q --spider http://localhost:8081/healthz
+docker exec carwatch-notifier wget -q --spider http://localhost:8083/healthz
+docker exec carwatch-enricher wget -q --spider http://localhost:8084/healthz
+```
+
+If any check fails, rollback deterministically to the last known-good image tag:
+
+```bash
+cd ~/carwatch
+set -a; source .env; set +a
+PREV_TAG=$(cat prev_image_tag)
+if grep -q '^CARWATCH_IMAGE_TAG=' .env; then
+  sed -i "s/^CARWATCH_IMAGE_TAG=.*/CARWATCH_IMAGE_TAG=${PREV_TAG}/" .env
+else
+  echo "CARWATCH_IMAGE_TAG=${PREV_TAG}" >> .env
+fi
+CARWATCH_IMAGE_TAG="${PREV_TAG}" docker compose -f docker-compose.prod.yaml pull postgres redis api bot-poller scraper notifier enricher
+CARWATCH_IMAGE_TAG="${PREV_TAG}" docker compose -f docker-compose.prod.yaml up -d postgres redis api bot-poller scraper notifier enricher
+
+# verify rollback health
+docker exec carwatch-api wget -q --spider http://localhost:8080/healthz
+docker exec carwatch-bot-poller wget -q --spider http://localhost:8082/healthz
+docker exec carwatch-scraper wget -q --spider http://localhost:8081/healthz
+docker exec carwatch-notifier wget -q --spider http://localhost:8083/healthz
+docker exec carwatch-enricher wget -q --spider http://localhost:8084/healthz
+```
+
 ## Configuration
 
 See [`config.example.yaml`](config.example.yaml) for all options.
