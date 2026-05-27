@@ -146,8 +146,8 @@ func TestWorker_EnrichesSuccessfully(t *testing.T) {
 	if ls.backfilled[0].City != "Tel Aviv" {
 		t.Errorf("backfilled city = %q, want Tel Aviv", ls.backfilled[0].City)
 	}
-	if ls.enrichAttempts["tok-1"] != 1 {
-		t.Errorf("enrich attempts = %d, want 1", ls.enrichAttempts["tok-1"])
+	if ls.enrichAttempts["tok-1"] != 0 {
+		t.Errorf("enrich attempts = %d, want 0 (not incremented on success)", ls.enrichAttempts["tok-1"])
 	}
 }
 
@@ -168,6 +168,26 @@ func TestWorker_SkipsAlreadyEnriched(t *testing.T) {
 	defer f.mu.Unlock()
 	if f.calls != 0 {
 		t.Errorf("expected 0 fetch calls for already-enriched token, got %d", f.calls)
+	}
+}
+
+func TestWorker_SkipsWhenCityAlreadyEnriched(t *testing.T) {
+	f := &mockItemFetcher{details: ItemDetails{Km: 0, City: "Tel Aviv"}}
+	ls := newMockListingStore()
+	ls.enrichmentData["tok-1"] = storage.EnrichmentRecord{Km: 0, City: "Tel Aviv"}
+	rl := NewAdaptiveRateLimiter(time.Millisecond, time.Second, time.Second)
+	w := NewWorker(f, ls, rl, testWorkerLogger())
+
+	req := broker.EnrichRequest{Token: "tok-1", Priority: 1, Source: "match"}
+	err := w.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("HandleRequest: %v", err)
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.calls != 0 {
+		t.Errorf("expected 0 fetch calls when city is already enriched (even with Km=0), got %d", f.calls)
 	}
 }
 

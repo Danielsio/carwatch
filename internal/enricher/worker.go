@@ -47,15 +47,17 @@ func NewWorker(f ItemFetcher, ls storage.ListingStore, rl *AdaptiveRateLimiter, 
 // fetches the item page, and updates the database.
 func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) error {
 	// Check if already enriched (idempotent skip).
+	// A listing is considered enriched if any field has been successfully
+	// fetched (Km > 0, or City/ImageURL populated).
 	existing, err := w.listings.LookupEnrichmentData(ctx, []string{req.Token})
 	if err != nil {
 		w.logger.ErrorContext(ctx, "failed to check enrichment status",
 			"token", req.Token, "error", err.Error())
 		return err
 	}
-	if rec, ok := existing[req.Token]; ok && rec.Km > 0 {
+	if rec, ok := existing[req.Token]; ok && (rec.Km > 0 || rec.City != "" || rec.ImageURL != "") {
 		w.logger.DebugContext(ctx, "listing already enriched, skipping",
-			"token", req.Token, "km", rec.Km)
+			"token", req.Token, "km", rec.Km, "city", rec.City)
 		return nil
 	}
 
@@ -98,11 +100,6 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 		w.logger.ErrorContext(ctx, "failed to backfill enriched data to database",
 			"token", req.Token, "error", err.Error())
 		return err
-	}
-
-	if err := w.listings.IncrementEnrichAttempt(ctx, req.Token); err != nil {
-		w.logger.ErrorContext(ctx, "failed to increment enrich attempt after success",
-			"token", req.Token, "error", err.Error())
 	}
 
 	w.logger.InfoContext(ctx, "enriched listing",
