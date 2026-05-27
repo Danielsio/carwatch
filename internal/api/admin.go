@@ -725,3 +725,16 @@ func (s *Server) adminSetLogLevel(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("log level changed", "level", body.Level)
 	writeJSON(w, http.StatusOK, map[string]string{"level": s.logLevel.Level().String()})
 }
+
+func (s *Server) adminEnrichmentStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	unenriched, err := s.listings.CountUnenrichedTokens(ctx)
+	if err != nil {
+		s.logger.Error("admin: count unenriched tokens", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to count unenriched tokens")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"unenriched_count": unenriched,
+	})
+}
