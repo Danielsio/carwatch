@@ -558,7 +558,10 @@ func (s *Store) ListUnenrichedTokens(ctx context.Context, limit int) ([]string, 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT token FROM (
 			SELECT DISTINCT ON (token) token, first_seen_at FROM listing_history
-			WHERE km <= 0 AND enrich_attempts < 10
+			WHERE km <= 0
+			  AND COALESCE(city, '') = ''
+			  AND COALESCE(image_url, '') = ''
+			  AND enrich_attempts < 10
 			  AND (last_enrich_at IS NULL OR last_enrich_at < NOW() - INTERVAL '1 hour')
 			ORDER BY token, first_seen_at DESC
 		) t
@@ -583,7 +586,12 @@ func (s *Store) ListUnenrichedTokens(ctx context.Context, limit int) ([]string, 
 func (s *Store) CountUnenrichedTokens(ctx context.Context) (int64, error) {
 	var count int64
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(DISTINCT token) FROM listing_history WHERE km <= 0`).Scan(&count)
+		`SELECT COUNT(DISTINCT token)
+		 FROM listing_history
+		 WHERE km <= 0
+		   AND COALESCE(city, '') = ''
+		   AND COALESCE(image_url, '') = ''
+		   AND enrich_attempts < 10`).Scan(&count)
 	return count, err
 }
 
