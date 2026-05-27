@@ -180,7 +180,11 @@ func (c *EnrichConsumer) reclaimPending(ctx context.Context) {
 
 func (c *EnrichConsumer) deadLetter(ctx context.Context, id string) {
 	msgs, err := c.client.XRangeN(ctx, EnrichStreamName, id, id, 1).Result()
-	if err != nil || len(msgs) == 0 {
+	if err != nil {
+		c.logger.Error("read enrich message for dead-letter failed", "id", id, "error", err)
+		return
+	}
+	if len(msgs) == 0 {
 		c.ack(ctx, id)
 		return
 	}
@@ -190,11 +194,11 @@ func (c *EnrichConsumer) deadLetter(ctx context.Context, id string) {
 		Approx: true,
 		Values: msgs[0].Values,
 	}).Err(); err != nil {
-		c.logger.Error("enrich dead-letter failed", "id", id, "error", err)
-	} else {
-		c.logger.Warn("enrich message dead-lettered after max retries",
-			"id", id, "max_retries", enrichMaxRetries)
+		c.logger.Error("enrich dead-letter failed, leaving message pending", "id", id, "error", err)
+		return
 	}
+	c.logger.Warn("enrich message dead-lettered after max retries",
+		"id", id, "max_retries", enrichMaxRetries)
 	c.ack(ctx, id)
 }
 
