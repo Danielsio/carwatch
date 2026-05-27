@@ -229,7 +229,12 @@ export function ListingCardBody({
           <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center">
             <p className="text-[10px] text-muted-foreground/70">ק״מ</p>
             <p className="text-xs font-semibold tabular-nums text-foreground">
-              {listing.km > 0 ? formatKm(listing.km) : "—"}
+              {listing.km > 0 ? formatKm(listing.km) : (
+                <span className="inline-flex items-center gap-0.5 text-muted-foreground/50">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-[9px]">מעשיר</span>
+                </span>
+              )}
             </p>
           </div>
           <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center">
