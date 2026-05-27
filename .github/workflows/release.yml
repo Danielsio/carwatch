@@ -179,10 +179,25 @@ jobs:
           script: |
             set -euo pipefail
             cd "$HOME/carwatch"
+            rm -f .deploy_recreate_started
 
-            # Source .env if present (CARWATCH_DOMAIN, TELEGRAM_BOT_TOKEN, etc.)
+            # Source .env if present (CARWATCH_DOMAIN, TELEGRAM_BOT_TOKEN, REDIS_PASSWORD, etc.)
             if [ -f .env ]; then
               set -a; source .env; set +a
+            fi
+            : "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in ~/carwatch/.env}"
+            if [ ! -f config.yaml ]; then
+              echo "config.yaml is missing in ~/carwatch"
+              exit 1
+            fi
+            if ! awk '
+              /^[[:space:]]*redis:[[:space:]]*$/ { in_redis=1; next }
+              in_redis && /^[^[:space:]]/ { in_redis=0 }
+              in_redis && /^[[:space:]]*password:[[:space:]]*"\$\{REDIS_PASSWORD\}"[[:space:]]*$/ { found=1 }
+              END { exit found ? 0 : 1 }
+            ' config.yaml; then
+              echo "config.yaml must include redis.password: \"\${REDIS_PASSWORD}\" before deploy"
+              exit 1
             fi
 
             # Ensure the shared network exists
@@ -204,6 +219,7 @@ jobs:
             # returning, so no explicit migration step is needed here.
 
             echo "==> Recreating containers..."
+            touch .deploy_recreate_started
             docker compose -f docker-compose.prod.yaml up -d $APP_SERVICES
 
             echo "==> Waiting for API health check..."
@@ -211,19 +227,40 @@ jobs:
               if docker exec carwatch-api wget -q --spider http://localhost:8080/healthz 2>/dev/null; then
                 echo "==> Health check passed!"
                 docker exec carwatch-api api-server -version
-                exit 0
+                break
               fi
               echo "    attempt $i/15 — waiting 5s..."
               sleep 5
             done
+            if ! docker exec carwatch-api wget -q --spider http://localhost:8080/healthz 2>/dev/null; then
+              echo "==> API health check failed after 75s"
+              exit 1
+            fi
 
-            echo "==> Health check failed after 75s"
-            for svc in carwatch-api carwatch-bot-poller carwatch-scraper carwatch-notifier; do
-              echo "--- $svc ---"
-              docker inspect "$svc" --format 'status={{.State.Status}} exit={{.State.ExitCode}} started={{.State.StartedAt}}' 2>/dev/null || echo "(not found)"
-              docker logs "$svc" --tail 20 2>&1 || true
+            echo "==> Waiting for worker health checks..."
+            for svc in bot-poller scraper notifier enricher; do
+              container="carwatch-$svc"
+              port=$(case "$svc" in
+                bot-poller) echo 8082 ;;
+                scraper) echo 8081 ;;
+                notifier) echo 8083 ;;
+                enricher) echo 8084 ;;
+              esac)
+              ok=0
+              for i in $(seq 1 15); do
+                if docker exec "$container" wget -q --spider "http://localhost:${port}/healthz" 2>/dev/null; then
+                  ok=1
+                  break
+                fi
+                echo "    $container attempt $i/15 — waiting 5s..."
+                sleep 5
+              done
+              if [ "$ok" -ne 1 ]; then
+                echo "==> Worker health check failed: $container"
+                exit 1
+              fi
             done
-            exit 1
+            echo "==> Worker health checks passed!"
 
       - name: Rollback on failure
         if: failure()
@@ -233,13 +270,19 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd "$HOME/carwatch"
+            if [ ! -f .deploy_recreate_started ]; then
+              echo "==> Skipping rollback (deploy failed before container recreation)"
+              exit 0
+            fi
             PREV=$(cat prev_image_tag 2>/dev/null || echo 'none')
             if [ "$PREV" != 'none' ]; then
               echo "==> Rolling back to previous image: $PREV"
               docker tag "$PREV" ghcr.io/danielsio/carwatch:latest
-              docker compose -f docker-compose.prod.yaml up -d postgres redis api bot-poller scraper notifier
+              docker compose -f docker-compose.prod.yaml up -d postgres redis api bot-poller scraper notifier enricher
               echo "==> Rolled back to previous version"
+              rm -f .deploy_recreate_started
             else
               echo "==> No previous image tag found, skipping rollback"
             fi

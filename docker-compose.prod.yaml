@@ -30,13 +30,22 @@ services:
   redis:
     image: redis:7-alpine
     container_name: carwatch-redis
-    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     networks:
       - carwatch-net
     volumes:
       - redis-data:/data
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$REDIS_PASSWORD\" ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -70,6 +79,7 @@ services:
       - TZ=Asia/Jerusalem
       - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
@@ -98,6 +108,7 @@ services:
     environment:
       - TZ=Asia/Jerusalem
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/healthz"]
       interval: 60s
@@ -133,6 +144,7 @@ services:
     environment:
       - TZ=Asia/Jerusalem
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/healthz"]
       interval: 60s
@@ -167,6 +179,7 @@ services:
     environment:
       - TZ=Asia/Jerusalem
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/healthz"]
       interval: 60s
@@ -201,6 +214,7 @@ services:
       - ./migrations:/migrations:ro
     environment:
       - TZ=Asia/Jerusalem
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8084/healthz"]
       interval: 60s

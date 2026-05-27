@@ -77,6 +77,26 @@ jobs:
         with:
           version: v2.4
           args: --timeout=5m
+      - name: Validate production compose env contract
+        run: |
+          POSTGRES_PASSWORD=test-postgres \
+          REDIS_PASSWORD=test-redis \
+          CARWATCH_DOMAIN=example.com \
+          TELEGRAM_BOT_TOKEN=test-token \
+          docker compose -f docker-compose.prod.yaml config >/dev/null
+      - name: Verify REDIS_PASSWORD is required in production compose
+        run: |
+          set +e
+          POSTGRES_PASSWORD=test-postgres \
+          CARWATCH_DOMAIN=example.com \
+          TELEGRAM_BOT_TOKEN=test-token \
+          docker compose -f docker-compose.prod.yaml config >/dev/null 2>&1
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "Expected docker compose config to fail without REDIS_PASSWORD"
+            exit 1
+          fi
 
   test:
     name: Test

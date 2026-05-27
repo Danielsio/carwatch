@@ -43,9 +43,10 @@ http:
 #   otlp_endpoint: ""      # e.g. localhost:4317
 #   metrics_path: /metrics
 
-# Redis (optional, enables stream-based notification delivery with rate limiting)
+# Redis (optional; enabled in production compose for stream-based workers)
+# For local dev, use localhost and empty password:
 # redis:
-#   addr: "localhost:6379"   # leave empty or omit to disable Redis broker
+#   addr: "localhost:6379"
 #   password: ""
 #   db: 0
 
