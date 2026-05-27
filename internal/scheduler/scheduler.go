@@ -588,6 +588,87 @@ func (s *Scheduler) writeCycleLog(ctx context.Context, entry storage.CycleLogEnt
 	}
 }
 
+// targetedFetchCoverageThreshold is the minimum number of listings for a
+// manufacturer/model pair in the global feed before targeted fetch is skipped.
+const targetedFetchCoverageThreshold = 5
+
+// fetchTargetedListings supplements the global feed with targeted fetches for
+// specific manufacturer/model pairs from active searches. Models that rarely
+// appear in the top-200 global feed would otherwise never match.
+func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storage.Search, raw []model.RawListing, f fetcher.Fetcher) []model.RawListing {
+	type mfrModel struct{ Manufacturer, Model int }
+	pairs := make(map[mfrModel]struct{})
+	for _, sr := range searches {
+		if sr.Manufacturer > 0 {
+			pairs[mfrModel{sr.Manufacturer, sr.Model}] = struct{}{}
+		}
+	}
+	if len(pairs) == 0 {
+		return raw
+	}
+
+	// Count how many global-feed listings already cover each pair.
+	coverage := make(map[mfrModel]int, len(pairs))
+	for _, l := range raw {
+		key := mfrModel{l.ManufacturerID, l.ModelID}
+		if _, needed := pairs[key]; needed {
+			coverage[key]++
+		}
+	}
+
+	// Build the dedup set from existing tokens.
+	seen := make(map[string]struct{}, len(raw))
+	for _, l := range raw {
+		seen[l.Token] = struct{}{}
+	}
+
+	var fetched, added int
+	for pair := range pairs {
+		if coverage[pair] >= targetedFetchCoverageThreshold {
+			continue
+		}
+
+		targetCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
+		params := model.SourceParams{Manufacturer: pair.Manufacturer, Model: pair.Model}
+		targeted, err := s.fetchWithRetryUsing(targetCtx, f, params, s.logger)
+		cancel()
+
+		if err != nil {
+			s.logger.WarnContext(ctx, "targeted fetch failed, skipping pair",
+				"manufacturer", pair.Manufacturer, "model", pair.Model,
+				"car", s.carName(pair.Manufacturer, pair.Model),
+				"error", err)
+			continue
+		}
+		fetched++
+
+		for _, l := range targeted {
+			if _, dup := seen[l.Token]; dup {
+				continue
+			}
+			seen[l.Token] = struct{}{}
+			raw = append(raw, l)
+			added++
+		}
+
+		// Brief pause between fetches to reduce rate-limit risk.
+		select {
+		case <-ctx.Done():
+			return raw
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+
+	if fetched > 0 {
+		s.logger.InfoContext(ctx, "fetched targeted listings for search-specific models",
+			"pairs_fetched", fetched,
+			"pairs_skipped", len(pairs)-fetched,
+			"new_listings_added", added,
+		)
+	}
+	return raw
+}
+
 // fetchGlobalAndMatch fetches the global Yad2 feed once, matches each listing
 // against all active searches via the percolator, then enriches only the
 // matched listings to minimize API calls. Per-user dedup, pipeline processing,
@@ -618,6 +699,11 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		"active_searches", len(searches),
 		"duration_ms", fetchDuration.Milliseconds(),
 	)
+
+	// 1b. Targeted fetches for specific manufacturer/model pairs that
+	// are unlikely to appear in the global feed's 200 most recent listings.
+	raw = s.fetchTargetedListings(ctx, searches, raw, activeFetcher)
+	stats.listingsFetched = len(raw)
 
 	// 2. Catalog ingestion.
 	if s.catalogIngester != nil {

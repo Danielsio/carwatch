@@ -159,8 +159,9 @@ func TestRunMultiTenantCycle_SharedScraping(t *testing.T) {
 	fetchCalls := f.calls
 	f.mu.Unlock()
 
-	if fetchCalls != 1 {
-		t.Errorf("fetcher called %d times, want 1 (shared scraping)", fetchCalls)
+	// 1 global feed + 1 targeted fetch for the shared (27, 10332) pair.
+	if fetchCalls != 2 {
+		t.Errorf("fetcher called %d times, want 2 (global + targeted)", fetchCalls)
 	}
 
 	n.mu.Lock()
