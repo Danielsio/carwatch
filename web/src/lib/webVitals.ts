@@ -10,7 +10,7 @@ import { getAuthToken } from "./auth-token";
 
 const VITALS_ENDPOINT = "/api/v1/vitals";
 
-async function sendToServer(metric: Metric) {
+export async function sendVitalsToServer(metric: Metric) {
   const body = JSON.stringify({
     name: metric.name,
     value: metric.value,
@@ -50,7 +50,7 @@ function logToConsole(metric: Metric) {
 export async function reportWebVitals() {
   const { onCLS, onFCP, onINP, onLCP, onTTFB } = await import("web-vitals");
 
-  const report = import.meta.env.DEV ? logToConsole : sendToServer;
+  const report = import.meta.env.DEV ? logToConsole : sendVitalsToServer;
 
   onCLS(report);
   onFCP(report);

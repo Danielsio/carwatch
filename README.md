@@ -41,7 +41,8 @@ telemetry:
   auth_token: "${TELEMETRY_AUTH_TOKEN}"
 ```
 
-This is required when binding the API on a non-localhost address.
+This token protects `/metrics` when binding the API on a non-localhost address.
+`POST /api/v1/vitals` uses normal API authentication (Firebase in production, `api.auth_token` in local dev mode).
 
 ## Configuration
 
