@@ -1446,11 +1446,11 @@ func TestPostgres_UnenrichedBacklogFilters(t *testing.T) {
 	save("cooldown", 0, "", "")
 
 	if _, err := store.DB().ExecContext(ctx,
-		`UPDATE listing_history SET enrich_attempts = 10 WHERE token = 'maxed-attempts' AND chat_id = 100`); err != nil {
+		`UPDATE listing_history SET enrich_attempts = 10 WHERE token = $1 AND chat_id = $2`, "maxed-attempts", int64(100)); err != nil {
 		t.Fatalf("mark maxed attempts: %v", err)
 	}
 	if _, err := store.DB().ExecContext(ctx,
-		`UPDATE listing_history SET enrich_attempts = 1, last_enrich_at = NOW() WHERE token = 'cooldown' AND chat_id = 100`); err != nil {
+		`UPDATE listing_history SET enrich_attempts = 1, last_enrich_at = NOW() WHERE token = $1 AND chat_id = $2`, "cooldown", int64(100)); err != nil {
 		t.Fatalf("mark cooldown: %v", err)
 	}
 
