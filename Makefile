@@ -1,4 +1,4 @@
-.PHONY: all build build-api build-bot-poller build-scraper build-notifier build-all \
+.PHONY: all build build-api build-bot-poller build-scraper build-notifier build-enricher build-all \
        run test test-cover test-e2e lint ci clean docker-build docker-run \
        dev dev-db dev-stop dev-reset dev-pg-shell \
        vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
@@ -37,7 +37,10 @@ build-scraper:
 build-notifier:
 	go build $(LDFLAGS) -o notifier-worker ./cmd/notifier
 
-build-all: build build-bot-poller build-scraper build-notifier
+build-enricher:
+	go build $(LDFLAGS) -o enricher ./cmd/enricher
+
+build-all: build build-bot-poller build-scraper build-notifier build-enricher
 
 catalog-refresh:
 	go run ./cmd/catalog-gen -output internal/catalog/catalog_data.json
