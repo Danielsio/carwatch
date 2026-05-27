@@ -121,6 +121,9 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 	defer func() { _ = pub.Close() }()
 	logger.Info("redis publisher enabled", "addr", cfg.Redis.Addr)
 
+	enrichPub := broker.NewEnrichPublisher(pub.Client())
+	logger.Info("enrich publisher enabled (dual-write)", "stream", broker.EnrichStreamName)
+
 	// The scheduler needs a notifier for non-alert messages (e.g., digest
 	// delivery). Alerts go through the Redis publisher to the notifier worker.
 	multi, err := app.BuildMultiNotifier(cfg, store, store, logger)
@@ -163,6 +166,7 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 		DailyDigestStore: store,
 		CycleLogStore:    store,
 		Publisher:        pub,
+		EnrichPublisher:  enrichPub,
 	})
 	if err != nil {
 		return fmt.Errorf("create scheduler: %w", err)
