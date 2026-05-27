@@ -28,9 +28,7 @@ import (
 )
 
 const (
-	fetchTimeout = 60 * time.Second
-	// kmEnrichTimeout bounds per-item mileage/city fetches after the list crawl.
-	kmEnrichTimeout         = 25 * time.Minute
+	fetchTimeout            = 60 * time.Second
 	maxBackoff              = 4.0
 	minBackoff              = 1.0
 	pruneInterval           = 24 * time.Hour
@@ -40,7 +38,6 @@ const (
 	priceHistoryRetention   = 90 * 24 * time.Hour
 	listingHistoryRetention = 90 * 24 * time.Hour
 	defaultMarketCacheTTL   = 30 * time.Minute
-	defaultBackfillCooldown = 30 * time.Second
 )
 
 type CatalogIngester interface {
@@ -53,11 +50,6 @@ type CatalogIngester interface {
 type CarNameResolver interface {
 	ManufacturerName(id int) string
 	ModelName(manufacturerID, modelID int) string
-}
-
-// KmEnricher fills in missing km data by fetching individual listing pages.
-type KmEnricher interface {
-	Enrich(ctx context.Context, listings []model.RawListing) int
 }
 
 type Scheduler struct {
@@ -76,7 +68,6 @@ type Scheduler struct {
 	fetcherFactory    *fetcher.Factory
 	catalogIngester   CatalogIngester
 	carNames          CarNameResolver
-	kmEnricher        KmEnricher
 	priceListSvc      *pricelist.Service
 	publisher         *broker.Publisher
 	enrichPublisher   *broker.EnrichPublisher
@@ -93,7 +84,6 @@ type Scheduler struct {
 	marketCache        *scoring.MarketCache
 	marketCacheBuiltAt time.Time
 	marketCacheTTL     time.Duration
-	backfillCooldown   time.Duration
 }
 
 type digestMeta struct {
@@ -142,7 +132,6 @@ type Options struct {
 	HiddenStore      storage.HiddenListingStore
 	CatalogIngester  CatalogIngester
 	CarNames         CarNameResolver
-	KmEnricher       KmEnricher
 	MarketStore      storage.MarketStore
 	PriceListStore   storage.PriceListStore
 	PriceListHTTP    pricelist.HTTPDoer
@@ -150,7 +139,6 @@ type Options struct {
 	DailyDigestStore storage.DailyDigestStore
 	CycleLogStore    storage.CycleLogStore
 	MarketCacheTTL   time.Duration
-	BackfillCooldown time.Duration
 	Publisher        *broker.Publisher
 	EnrichPublisher  *broker.EnrichPublisher
 }
@@ -193,11 +181,6 @@ func NewWithOptions(
 		mcTTL = defaultMarketCacheTTL
 	}
 
-	bfCooldown := opts.BackfillCooldown
-	if bfCooldown <= 0 {
-		bfCooldown = defaultBackfillCooldown
-	}
-
 	return &Scheduler{
 		cfg:        cfg,
 		configPath: opts.ConfigPath,
@@ -223,7 +206,6 @@ func NewWithOptions(
 		fetcherFactory:    opts.FetcherFactory,
 		catalogIngester:   opts.CatalogIngester,
 		carNames:          opts.CarNames,
-		kmEnricher:        opts.KmEnricher,
 		priceListSvc:      plSvc,
 		publisher:         opts.Publisher,
 		enrichPublisher:   opts.EnrichPublisher,
@@ -231,7 +213,6 @@ func NewWithOptions(
 		percolator:        percolator.New(),
 		triggerCh:         make(chan struct{}, 1),
 		marketCacheTTL:    mcTTL,
-		backfillCooldown:  bfCooldown,
 	}, nil
 }
 
@@ -679,12 +660,8 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	var priceDropCandidates []priceDropCandidate
 
 	// 5. Percolator match: for each listing, find matching searches.
-	// Track which raw indices matched. needsKmEnrich marks indices where
-	// at least one matching search has a MaxKm filter, meaning we need to
-	// fetch the listing's actual km via the enricher API.
 	hiddenCache := make(map[int64]map[string]bool)
 	matchedIndices := make(map[int]struct{})
-	needsKmEnrich := make(map[int]struct{})
 
 	for i := range raw {
 		matches := s.percolator.Match(raw[i])
@@ -692,12 +669,6 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 			continue
 		}
 		matchedIndices[i] = struct{}{}
-		for _, m := range matches {
-			if m.Search.MaxKm > 0 {
-				needsKmEnrich[i] = struct{}{}
-				break
-			}
-		}
 
 		for _, m := range matches {
 			acc, ok := accums[m.SearchID]
@@ -756,10 +727,9 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		}
 	}
 
-	// 5a. Dual-write: publish enrichment requests to the Redis stream for
-	// each matched listing that still needs enrichment data. The enricher
-	// worker will process these idempotently (skip if already enriched).
-	// TODO(phase-4-cleanup): Remove this block when inline enrichment is removed.
+	// 5a. Publish enrichment requests to the Redis stream for each matched
+	// listing that still needs enrichment data. The enricher worker
+	// processes these idempotently (skip if already enriched).
 	if s.enrichPublisher != nil && len(matchedIndices) > 0 {
 		published := 0
 		for idx := range matchedIndices {
@@ -792,48 +762,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		}
 	}
 
-	// 5b. Enrich only matched listings that need km data for filtering.
-	// Skip enrichment for listings where no matching search has a MaxKm cap.
-	if s.kmEnricher != nil && len(needsKmEnrich) > 0 {
-		var enrichIndices []int
-		for idx := range needsKmEnrich {
-			if raw[idx].Km <= 0 || raw[idx].City == "" || raw[idx].ImageURL == "" {
-				enrichIndices = append(enrichIndices, idx)
-			}
-		}
-
-		if len(enrichIndices) > 0 {
-			toEnrich := make([]model.RawListing, len(enrichIndices))
-			for i, idx := range enrichIndices {
-				toEnrich[i] = raw[idx]
-			}
-
-			enrichCtx, cancelEnrich := context.WithTimeout(ctx, kmEnrichTimeout)
-			enriched := s.kmEnricher.Enrich(enrichCtx, toEnrich)
-			cancelEnrich()
-
-			if enriched > 0 {
-				for i, idx := range enrichIndices {
-					raw[idx] = toEnrich[i]
-				}
-				s.logger.InfoContext(ctx, "enriched matched listings with mileage and location data",
-					"enriched", enriched,
-					"matched_needing_enrichment", len(enrichIndices),
-					"total_matched", len(matchedIndices),
-				)
-				if s.stores.Listings != nil {
-					s.backfillEnrichedListings(ctx, toEnrich)
-				}
-			}
-		} else {
-			s.logger.InfoContext(ctx, "all km-filtered matched listings already have enrichment data, skipping API calls",
-				"matched", len(matchedIndices),
-				"needing_km", len(needsKmEnrich),
-			)
-		}
-	}
-
-	// 5c. Process deferred price drops now that enrichment is complete.
+	// 5b. Process deferred price drops.
 	for _, pd := range priceDropCandidates {
 		acc := accums[pd.searchID]
 		if acc == nil {
