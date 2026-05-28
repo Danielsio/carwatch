@@ -1,7 +1,7 @@
 .PHONY: all build build-api build-bot-poller build-scraper build-notifier build-enricher build-all \
        run test test-cover test-e2e lint ci clean docker-build docker-run \
        dev dev-db dev-stop dev-reset dev-pg-shell \
-       vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-deploy vm-deploy-all vm-sync \
+       vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-smoke vm-deploy vm-deploy-all vm-sync \
        vm-backup vm-backup-list vm-pg-shell \
        vm-setup-backup vm-backup-status \
        web-install web-dev web-build \
@@ -154,6 +154,10 @@ VM_COMPOSE := cd $(VM_DIR) && docker compose -f docker-compose.prod.yaml
 vm-sync: vm-check-env
 	$(SSH) "mkdir -p $(VM_DIR)"
 	$(SCP) docker-compose.prod.yaml $(VM_USER)@$(VM_IP):$(VM_DIR)/docker-compose.prod.yaml
+
+vm-smoke: vm-check-env
+	$(SCP) scripts/smoke-test.sh $(VM_USER)@$(VM_IP):$(VM_DIR)/scripts/smoke-test.sh
+	$(SSH) "chmod +x $(VM_DIR)/scripts/smoke-test.sh && $(VM_DIR)/scripts/smoke-test.sh $(VM_DIR)"
 
 vm-deploy: vm-sync
 	$(SSH) "$(VM_COMPOSE) pull carwatch && $(VM_COMPOSE) up -d --force-recreate carwatch \
