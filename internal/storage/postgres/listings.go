@@ -570,9 +570,15 @@ func (s *Store) ListUnenrichedTokens(ctx context.Context, limit int) ([]string, 
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT token FROM (
-			SELECT DISTINCT ON (token) token, first_seen_at FROM listing_history
+			SELECT DISTINCT ON (lh.token) lh.token, lh.first_seen_at
+			FROM listing_history lh
+			JOIN searches s ON s.id = lh.search_id AND s.chat_id = lh.chat_id AND s.active = true
 			WHERE `+unenrichedBacklogWhereSQL+`
-			ORDER BY token, first_seen_at DESC
+			  AND (s.price_max = 0 OR lh.price <= s.price_max)
+			  AND (s.price_min = 0 OR lh.price >= s.price_min)
+			  AND (s.year_min = 0 OR lh.year >= s.year_min)
+			  AND (s.year_max = 0 OR lh.year <= s.year_max)
+			ORDER BY lh.token, lh.first_seen_at DESC
 		) t
 		ORDER BY first_seen_at DESC
 		LIMIT $1`, limit)
@@ -597,10 +603,15 @@ func (s *Store) CountUnenrichedTokens(ctx context.Context) (int64, error) {
 	err := s.db.QueryRowContext(ctx,
 		`SELECT COUNT(*)
 		 FROM (
-		   SELECT DISTINCT ON (token) token
-		   FROM listing_history
+		   SELECT DISTINCT ON (lh.token) lh.token
+		   FROM listing_history lh
+		   JOIN searches s ON s.id = lh.search_id AND s.chat_id = lh.chat_id AND s.active = true
 		   WHERE `+unenrichedBacklogWhereSQL+`
-		   ORDER BY token, first_seen_at DESC
+		     AND (s.price_max = 0 OR lh.price <= s.price_max)
+		     AND (s.price_min = 0 OR lh.price >= s.price_min)
+		     AND (s.year_min = 0 OR lh.year >= s.year_min)
+		     AND (s.year_max = 0 OR lh.year <= s.year_max)
+		   ORDER BY lh.token, lh.first_seen_at DESC
 		 ) t`).Scan(&count)
 	return count, err
 }
