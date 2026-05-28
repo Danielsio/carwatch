@@ -9,7 +9,7 @@ import {
   type Manufacturer,
   type Model,
 } from "@/lib/api";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, safeHref } from "@/lib/utils";
 import { ChipButton } from "@/components/ui/ChipButton";
 import { Input } from "@/components/ui/Input";
 import { RangeSlider } from "@/components/ui/RangeSlider";
@@ -384,17 +384,27 @@ export default function TrySearchPage() {
           </h2>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {results.map((listing) => (
-              <a
-                key={listing.token}
-                href={listing.page_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group rounded-2xl border border-border/50 bg-card overflow-hidden transition-all hover:border-primary/30 hover:shadow-lg"
-              >
-                <ListingCardBody listing={listing} hoverScale />
-              </a>
-            ))}
+            {results.map((listing) => {
+              const href = safeHref(listing.page_link);
+              return href ? (
+                <a
+                  key={listing.token}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group rounded-2xl border border-border/50 bg-card overflow-hidden transition-all hover:border-primary/30 hover:shadow-lg"
+                >
+                  <ListingCardBody listing={listing} hoverScale />
+                </a>
+              ) : (
+                <div
+                  key={listing.token}
+                  className="group rounded-2xl border border-border/50 bg-card overflow-hidden"
+                >
+                  <ListingCardBody listing={listing} />
+                </div>
+              );
+            })}
           </div>
 
           {/* CTA banner */}
