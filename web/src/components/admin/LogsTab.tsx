@@ -24,11 +24,6 @@ const LEVEL_STYLES: Record<
   ERROR: { bg: "bg-destructive/10", text: "text-destructive", label: "ERR" },
 };
 
-const ALL_COMPONENTS = [
-  "scheduler", "yad2", "enricher",
-  "bot", "telegram", "notifier",
-  "api-pricelist", "circuit_breaker",
-] as const;
 const ALL_LEVELS = ["DEBUG", "INFO", "WARN", "ERROR"] as const;
 
 function LogLine({
@@ -71,7 +66,7 @@ function LogLine({
         >
           {style.label}
         </span>
-        <span className="text-primary/70 flex-shrink-0 w-[70px] truncate">
+        <span className="text-primary/70 flex-shrink-0 w-[140px] break-all">
           {entry.component}
         </span>
         <span className="text-foreground break-all flex-1">{entry.message}</span>
@@ -100,8 +95,8 @@ function LogLine({
 
 export function LogsTab({ active }: { active: boolean }) {
   const { logs, connected, clear } = useLogStream(active);
-  const [componentFilter, setComponentFilter] = useState<Set<string>>(
-    new Set(ALL_COMPONENTS),
+  const [excludedComponents, setExcludedComponents] = useState<Set<string>>(
+    new Set(),
   );
   const [levelFilter, setLevelFilter] = useState<Set<string>>(
     new Set(ALL_LEVELS),
@@ -110,6 +105,11 @@ export function LogsTab({ active }: { active: boolean }) {
   const [autoScroll, setAutoScroll] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [backendLevel, setBackendLevel] = useState("INFO");
+
+  const availableComponents = useMemo(
+    () => Array.from(new Set(logs.map((e) => e.component))).sort(),
+    [logs],
+  );
 
   useEffect(() => {
     if (!active) return;
@@ -128,9 +128,10 @@ export function LogsTab({ active }: { active: boolean }) {
   const filtered = useMemo(
     () =>
       logs.filter(
-        (e) => componentFilter.has(e.component) && levelFilter.has(e.level),
+        (e) =>
+          !excludedComponents.has(e.component) && levelFilter.has(e.level),
       ),
-    [logs, componentFilter, levelFilter],
+    [logs, excludedComponents, levelFilter],
   );
 
   useEffect(() => {
@@ -146,7 +147,7 @@ export function LogsTab({ active }: { active: boolean }) {
   ) {
     const next = new Set(set);
     if (next.has(value)) {
-      if (next.size > 1) next.delete(value);
+      next.delete(value);
     } else {
       next.add(value);
     }
@@ -185,16 +186,16 @@ export function LogsTab({ active }: { active: boolean }) {
 
           {/* Component filters */}
           <div className="flex gap-1">
-            {ALL_COMPONENTS.map((c) => (
+            {availableComponents.map((c) => (
               <button
                 key={c}
                 type="button"
                 onClick={() =>
-                  toggleFilter(componentFilter, setComponentFilter, c)
+                  toggleFilter(excludedComponents, setExcludedComponents, c)
                 }
                 className={cn(
                   "px-2 py-1 rounded-md text-[11px] font-medium transition-colors",
-                  componentFilter.has(c)
+                  !excludedComponents.has(c)
                     ? "bg-primary/10 text-primary"
                     : "bg-secondary text-muted-foreground/50",
                 )}

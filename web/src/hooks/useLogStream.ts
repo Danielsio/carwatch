@@ -3,7 +3,7 @@ import { getAuthToken } from "@/lib/auth-token";
 import { adminApi, BASE_URL, type LogEntry } from "@/lib/api";
 import { feedSSE } from "@/lib/sse-parse";
 
-const MAX_ENTRIES = 2000;
+const MAX_ENTRIES = 10000;
 const STREAM_URL = `${BASE_URL}/admin/logs/stream`;
 const RECONNECT_MS = 2000;
 
@@ -58,7 +58,7 @@ export function useLogStream(enabled: boolean) {
 
     async function run() {
       try {
-        const { items } = await adminApi.logs(500);
+        const { items } = await adminApi.logs(MAX_ENTRIES);
         if (!cancelled) {
           setLogs(items);
         }

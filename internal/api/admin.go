@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -635,12 +636,12 @@ func (s *Server) adminCycles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) adminLogs(w http.ResponseWriter, r *http.Request) {
-	n, ok := parseIntParam(w, r, "limit", 500)
+	n, ok := parseIntParam(w, r, "limit", 2000)
 	if !ok {
 		return
 	}
-	if n > 2000 {
-		n = 2000
+	if n > 10000 {
+		n = 10000
 	}
 	entries := s.logHub.Recent(n)
 	if entries == nil {
@@ -734,7 +735,26 @@ func (s *Server) adminEnrichmentStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to count unenriched tokens")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"unenriched_count": unenriched,
-	})
+	resp := map[string]any{
+		"unenriched_count": unenriched, // actionable now
+	}
+
+	type enrichmentDiagnosticsCounter interface {
+		CountUnenrichedCooldownTokens(context.Context) (int64, error)
+		CountUnenrichedExhaustedTokens(context.Context) (int64, error)
+	}
+	if diagStore, ok := s.listings.(enrichmentDiagnosticsCounter); ok {
+		if cooldown, diagErr := diagStore.CountUnenrichedCooldownTokens(ctx); diagErr != nil {
+			s.logger.Warn("admin: count unenriched cooldown tokens", "error", diagErr)
+		} else {
+			resp["cooldown_count"] = cooldown
+		}
+		if exhausted, diagErr := diagStore.CountUnenrichedExhaustedTokens(ctx); diagErr != nil {
+			s.logger.Warn("admin: count unenriched exhausted tokens", "error", diagErr)
+		} else {
+			resp["exhausted_count"] = exhausted
+		}
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }

@@ -1510,6 +1510,22 @@ func TestPostgres_UnenrichedBacklogFilters(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("unenriched count = %d, want 1", count)
 	}
+
+	cooldown, err := store.CountUnenrichedCooldownTokens(ctx)
+	if err != nil {
+		t.Fatalf("CountUnenrichedCooldownTokens: %v", err)
+	}
+	if cooldown != 1 {
+		t.Fatalf("cooldown count = %d, want 1", cooldown)
+	}
+
+	exhausted, err := store.CountUnenrichedExhaustedTokens(ctx)
+	if err != nil {
+		t.Fatalf("CountUnenrichedExhaustedTokens: %v", err)
+	}
+	if exhausted != 1 {
+		t.Fatalf("exhausted count = %d, want 1", exhausted)
+	}
 }
 
 // ---------------------------------------------------------------------------
