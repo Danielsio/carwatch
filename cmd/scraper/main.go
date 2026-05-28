@@ -32,6 +32,7 @@ func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	healthBind := flag.String("health-bind", "0.0.0.0:8081", "health endpoint bind address")
+	skipMigrate := flag.Bool("skip-migrate", false, "skip auto-migration on startup")
 	flag.Parse()
 
 	if *showVersion {
@@ -41,13 +42,13 @@ func main() {
 
 	logger := slog.New(app.NewLogHandler("auto", slog.LevelInfo))
 
-	if err := run(*configPath, *healthBind, logger); err != nil {
+	if err := run(*configPath, *healthBind, *skipMigrate, logger); err != nil {
 		logger.Error("fatal", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(configPath, healthBind string, logger *slog.Logger) error {
+func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) error {
 	cfg, err := app.LoadConfig(configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -87,7 +88,7 @@ func run(configPath, healthBind string, logger *slog.Logger) error {
 	}
 	defer func() { _ = telShutdown(context.Background()) }()
 
-	store, err := app.OpenStore(cfg)
+	store, err := app.OpenStore(cfg, skipMigrate)
 	if err != nil {
 		return fmt.Errorf("create store: %w", err)
 	}
