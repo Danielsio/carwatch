@@ -184,6 +184,14 @@ jobs:
             fi
           done
           echo "All app services have healthchecks ✓"
+      - name: Verify all timestamp columns use TIMESTAMPTZ
+        run: |
+          # Exclude migration 000009 (corrected by migration 000016)
+          if grep -Pn '\bTIMESTAMP\b' migrations/*.up.sql | grep -v 'TIMESTAMPTZ' | grep -v '000009_'; then
+            echo "::error::Found TIMESTAMP columns that should be TIMESTAMPTZ"
+            exit 1
+          fi
+          echo "All temporal columns use TIMESTAMPTZ ✓"
 
   test:
     name: Test
