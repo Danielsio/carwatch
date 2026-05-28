@@ -2,6 +2,7 @@ package enricher
 
 import (
 	"context"
+	"math/rand/v2"
 	"sync"
 	"time"
 )
@@ -48,6 +49,9 @@ func (r *AdaptiveRateLimiter) Wait(ctx context.Context) bool {
 	if delay <= 0 {
 		return true
 	}
+
+	jitter := time.Duration(rand.Int64N(int64(delay / 4)))
+	delay += jitter
 
 	timer := time.NewTimer(delay)
 	defer timer.Stop()

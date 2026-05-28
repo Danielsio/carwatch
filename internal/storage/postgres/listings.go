@@ -71,7 +71,8 @@ km <= 0
 AND COALESCE(city, '') = ''
 AND COALESCE(image_url, '') = ''
 AND enrich_attempts < 10
-AND (last_enrich_at IS NULL OR last_enrich_at < NOW() - INTERVAL '1 hour')`
+AND (last_enrich_at IS NULL OR last_enrich_at < NOW() - INTERVAL '1 hour')
+AND first_seen_at > NOW() - INTERVAL '7 days'`
 
 const unenrichedMissingFieldsWhereSQL = `
 km <= 0

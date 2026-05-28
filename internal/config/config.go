@@ -194,7 +194,7 @@ func applyDefaults(cfg *Config) {
 		cfg.Telemetry.MetricsPath = "/metrics"
 	}
 	if cfg.Enricher.BaseDelay == 0 {
-		cfg.Enricher.BaseDelay = 3 * time.Second
+		cfg.Enricher.BaseDelay = 1500 * time.Millisecond
 	}
 	if cfg.Enricher.MaxDelay == 0 {
 		cfg.Enricher.MaxDelay = 60 * time.Second
@@ -209,7 +209,7 @@ func applyDefaults(cfg *Config) {
 		cfg.Enricher.MaxAttemptsPerToken = 10
 	}
 	if cfg.Enricher.BackfillInterval == 0 {
-		cfg.Enricher.BackfillInterval = 10 * time.Minute
+		cfg.Enricher.BackfillInterval = 5 * time.Minute
 	}
 	if cfg.API.MaxConcurrentFetches <= 0 {
 		cfg.API.MaxConcurrentFetches = 10
