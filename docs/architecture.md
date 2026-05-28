@@ -1,7 +1,7 @@
 # CarWatch Architecture Document
 
-**Date:** 2026-05-20
-**Status:** Living document for reviewer feedback
+**Date:** 2026-05-28
+**Status:** Living document — updated for multi-service production topology
 
 ---
 
@@ -11,10 +11,12 @@ CarWatch is a **multi-tenant vehicle listing aggregator** for the Israeli used-c
 
 ### Key Stats
 - **Language:** Go 1.25 (backend), TypeScript/React (frontend)
-- **Entry points:** 2 binaries (`bot`, `catalog-gen`)
-- **Internal packages:** 16
-- **Database:** PostgreSQL
-- **Schema migrations:** 10 (versioned, up/down)
+- **Entry points:** 6 binaries (`api-server`, `bot-poller`, `scraper`, `notifier`, `enricher`, `catalog-gen`)
+- **Internal packages:** 26
+- **Database:** PostgreSQL 17 + Redis 7 (stream-based message broker)
+- **Schema migrations:** 15 (versioned, up/down)
+- **Reverse proxy:** Caddy 2 (automatic TLS)
+- **Orchestration:** Docker Compose (9 containers in production)
 
 ---
 
