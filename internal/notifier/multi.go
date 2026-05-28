@@ -74,47 +74,93 @@ func normalizeChannel(channel string) string {
 }
 
 func (m *MultiNotifier) Notify(ctx context.Context, recipient string, listings []model.Listing, lang locale.Lang) error {
-	n, err := m.resolve(ctx, recipient)
-	if err != nil {
-		return err
+	targets := m.resolveAll(ctx, recipient)
+	if len(targets) == 0 {
+		return errNoNotifier
 	}
-	return n.Notify(ctx, recipient, listings, lang)
+
+	var errs []error
+	var ok int
+	for ch, n := range targets {
+		if err := n.Notify(ctx, recipient, listings, lang); err != nil {
+			m.logger.Warn("fan-out delivery failed", "recipient", recipient, "channel", ch, "error", err)
+			errs = append(errs, fmt.Errorf("%s: %w", ch, err))
+		} else {
+			ok++
+		}
+	}
+	if ok > 0 {
+		return nil
+	}
+	return errors.Join(errs...)
 }
 
 func (m *MultiNotifier) NotifyRaw(ctx context.Context, recipient string, message string) error {
-	n, err := m.resolve(ctx, recipient)
-	if err != nil {
-		return err
+	targets := m.resolveAll(ctx, recipient)
+	if len(targets) == 0 {
+		return errNoNotifier
 	}
-	return n.NotifyRaw(ctx, recipient, message)
-}
 
-func (m *MultiNotifier) resolve(ctx context.Context, recipient string) (Notifier, error) {
-	chatID, err := strconv.ParseInt(recipient, 10, 64)
-	if err == nil {
-		user, uErr := m.userStore.GetUser(ctx, chatID)
-		if uErr != nil {
-			m.logger.Warn("resolve user failed, using fallback", "recipient", recipient, "error", uErr)
-		} else if user != nil && user.Channel != "" {
-			resolvedChannel := normalizeChannel(user.Channel)
-			if n, ok := m.notifiers[resolvedChannel]; ok {
-				if resolvedChannel != user.Channel {
-					m.logger.Debug("resolved user channel alias",
-						"recipient", recipient,
-						"channel", user.Channel,
-						"resolved_channel", resolvedChannel)
-				}
-				return n, nil
-			}
-			m.logger.Warn("no notifier configured for user channel",
-				"recipient", recipient,
-				"channel", user.Channel,
-				"resolved_channel", resolvedChannel)
-			return nil, fmt.Errorf("%w: %s", ErrNoChannelNotifier, user.Channel)
+	var errs []error
+	var ok int
+	for ch, n := range targets {
+		if err := n.NotifyRaw(ctx, recipient, message); err != nil {
+			m.logger.Warn("fan-out raw delivery failed", "recipient", recipient, "channel", ch, "error", err)
+			errs = append(errs, fmt.Errorf("%s: %w", ch, err))
+		} else {
+			ok++
 		}
 	}
-	if n := m.notifiers[m.fallback]; n != nil {
-		return n, nil
+	if ok > 0 {
+		return nil
 	}
-	return nil, errNoNotifier
+	return errors.Join(errs...)
+}
+
+func (m *MultiNotifier) resolveAll(ctx context.Context, recipient string) map[string]Notifier {
+	result := make(map[string]Notifier)
+
+	chatID, err := strconv.ParseInt(recipient, 10, 64)
+	if err != nil {
+		if n := m.notifiers[m.fallback]; n != nil {
+			result[m.fallback] = n
+		}
+		return result
+	}
+
+	user, uErr := m.userStore.GetUser(ctx, chatID)
+	if uErr != nil {
+		m.logger.Warn("resolve user failed, using fallback", "recipient", recipient, "error", uErr)
+		if n := m.notifiers[m.fallback]; n != nil {
+			result[m.fallback] = n
+		}
+		return result
+	}
+
+	if user != nil && user.Channel != "" {
+		resolvedChannel := normalizeChannel(user.Channel)
+		if n, ok := m.notifiers[resolvedChannel]; ok {
+			result[resolvedChannel] = n
+		}
+	}
+
+	if _, ok := result["telegram"]; !ok {
+		if n, ok := m.notifiers["telegram"]; ok {
+			result["telegram"] = n
+		}
+	}
+
+	if n, ok := m.notifiers["webpush"]; ok {
+		if _, alreadyAdded := result["webpush"]; !alreadyAdded {
+			result["webpush"] = n
+		}
+	}
+
+	if len(result) == 0 {
+		if n := m.notifiers[m.fallback]; n != nil {
+			result[m.fallback] = n
+		}
+	}
+
+	return result
 }
