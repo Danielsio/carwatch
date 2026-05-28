@@ -27,6 +27,8 @@ var (
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
 	showVersion := flag.Bool("version", false, "print version and exit")
+	migrateOnly := flag.Bool("migrate-only", false, "run database migrations and exit")
+	skipMigrate := flag.Bool("skip-migrate", false, "skip auto-migration on startup")
 	flag.Parse()
 
 	if *showVersion {
@@ -34,15 +36,31 @@ func main() {
 		return
 	}
 
+	if *migrateOnly {
+		cfg, err := app.LoadConfig(*configPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "load config: %v\n", err)
+			os.Exit(1)
+		}
+		store, err := app.OpenStore(cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "migrate: %v\n", err)
+			os.Exit(1)
+		}
+		_ = store.Close()
+		fmt.Println("migrations complete")
+		return
+	}
+
 	logger := slog.New(app.NewLogHandler("auto", slog.LevelInfo))
 
-	if err := run(*configPath, logger); err != nil {
+	if err := run(*configPath, *skipMigrate, logger); err != nil {
 		logger.Error("fatal", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(configPath string, logger *slog.Logger) error {
+func run(configPath string, skipMigrate bool, logger *slog.Logger) error {
 	cfg, err := app.LoadConfig(configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -53,7 +71,7 @@ func run(configPath string, logger *slog.Logger) error {
 		return err
 	}
 
-	logHub := logstream.NewHub(2000)
+	logHub := logstream.NewHub(10000)
 	baseHandler := logger.Handler()
 	teeHandler := logstream.NewTeeHandler(baseHandler, logHub,
 		"yad2", "scheduler", "enricher",
@@ -84,7 +102,7 @@ func run(configPath string, logger *slog.Logger) error {
 	}
 	defer func() { _ = telShutdown(context.Background()) }()
 
-	store, err := app.OpenStore(cfg)
+	store, err := app.OpenStore(cfg, skipMigrate)
 	if err != nil {
 		return fmt.Errorf("create store: %w", err)
 	}

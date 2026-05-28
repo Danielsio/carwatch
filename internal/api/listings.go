@@ -288,6 +288,47 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (s *Server) listingPriceHistory(w http.ResponseWriter, r *http.Request) {
+	chatID, ok := requireChatID(w, r)
+	if !ok {
+		return
+	}
+	token := r.PathValue("token")
+	if token == "" {
+		writeError(w, http.StatusBadRequest, "missing token")
+		return
+	}
+
+	l, err := s.listings.GetListing(r.Context(), chatID, token)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to verify listing ownership")
+		return
+	}
+	if l == nil {
+		writeError(w, http.StatusNotFound, "listing not found")
+		return
+	}
+
+	points, err := s.prices.GetPriceHistory(r.Context(), token)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get price history")
+		return
+	}
+
+	type priceRecord struct {
+		Price      int    `json:"price"`
+		ObservedAt string `json:"observed_at"`
+	}
+	items := make([]priceRecord, 0, len(points))
+	for _, p := range points {
+		items = append(items, priceRecord{
+			Price:      p.Price,
+			ObservedAt: p.ObservedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
 func listingFilterFromSearch(sr *storage.Search) storage.ListingFilter {
 	f := storage.ListingFilter{
 		PriceMin:  sr.PriceMin,

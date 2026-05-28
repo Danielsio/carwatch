@@ -9,7 +9,7 @@ import (
 func (s *Store) ClaimNew(ctx context.Context, token string, chatID int64, searchID int64) (bool, error) {
 	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO seen_listings (token, chat_id, search_id) VALUES ($1, $2, $3)
-		ON CONFLICT (token, chat_id) DO NOTHING`,
+		ON CONFLICT (token, chat_id, search_id) DO NOTHING`,
 		token, chatID, searchID)
 	if err != nil {
 		return false, fmt.Errorf("claim new: %w", err)
@@ -21,10 +21,10 @@ func (s *Store) ClaimNew(ctx context.Context, token string, chatID int64, search
 	return rows > 0, nil
 }
 
-func (s *Store) ReleaseClaim(ctx context.Context, token string, chatID int64) error {
+func (s *Store) ReleaseClaim(ctx context.Context, token string, chatID int64, searchID int64) error {
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM seen_listings WHERE token = $1 AND chat_id = $2`,
-		token, chatID)
+		`DELETE FROM seen_listings WHERE token = $1 AND chat_id = $2 AND search_id = $3`,
+		token, chatID, searchID)
 	if err != nil {
 		return fmt.Errorf("release claim: %w", err)
 	}

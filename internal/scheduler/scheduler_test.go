@@ -68,7 +68,7 @@ func (m *mockDedup) ClaimNew(_ context.Context, token string, chatID int64, _ in
 	return true, nil
 }
 
-func (m *mockDedup) ReleaseClaim(_ context.Context, token string, chatID int64) error {
+func (m *mockDedup) ReleaseClaim(_ context.Context, token string, chatID int64, _ int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.seen, dedupKey{token, chatID})
