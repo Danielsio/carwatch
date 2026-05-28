@@ -160,7 +160,7 @@ func New(c Config) *Server {
 		logLevel:       c.LogLevel,
 		cycleLog:       c.CycleLog,
 		vitals:         newVitalsRing(),
-		fetchSem:       make(chan struct{}, 10),
+		fetchSem:       make(chan struct{}, c.API.MaxConcurrentFetches),
 	}
 }
 

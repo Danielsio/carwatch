@@ -81,7 +81,6 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "server too busy, try again later")
 		return
 	}
-	defer func() { <-s.fetchSem }()
 
 	sources := strings.Split(req.Source, ",")
 	var allRaw []model.RawListing
@@ -126,6 +125,7 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		allRaw = append(allRaw, raw...)
 	}
+	<-s.fetchSem
 
 	criteria := model.FilterCriteria{
 		ModelID:     req.Model,
