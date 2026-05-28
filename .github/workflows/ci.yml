@@ -150,9 +150,43 @@ jobs:
             echo "Expected api/bot-poller/scraper/notifier/enricher to use CARWATCH_IMAGE_TAG (found $count)"
             exit 1
           fi
+      - name: Verify compose topology has expected app services
+        run: |
+          EXPECTED_SERVICES="api bot-poller scraper notifier enricher"
+          CARWATCH_IMAGE_TAG=test \
+          POSTGRES_PASSWORD=test \
+          REDIS_PASSWORD=test \
+          TELEMETRY_AUTH_TOKEN=test \
+          CARWATCH_DOMAIN=example.com \
+          TELEGRAM_BOT_TOKEN=test \
+          docker compose -f docker-compose.prod.yaml config --services > /tmp/compose-services.txt
+          for svc in $EXPECTED_SERVICES; do
+            if ! grep -q "^${svc}$" /tmp/compose-services.txt; then
+              echo "::error::Missing expected app service: ${svc}"
+              exit 1
+            fi
+          done
+          echo "All expected app services present ✓"
+      - name: Verify all app services define healthchecks
+        run: |
+          APP_SERVICES="bot-poller scraper notifier enricher"
+          CARWATCH_IMAGE_TAG=test \
+          POSTGRES_PASSWORD=test \
+          REDIS_PASSWORD=test \
+          TELEMETRY_AUTH_TOKEN=test \
+          CARWATCH_DOMAIN=example.com \
+          TELEGRAM_BOT_TOKEN=test \
+          docker compose -f docker-compose.prod.yaml config > /tmp/compose-full.yaml
+          for svc in $APP_SERVICES; do
+            if ! grep -A20 "^  ${svc}:" /tmp/compose-full.yaml | grep -q "healthcheck:"; then
+              echo "::error::Service ${svc} is missing a healthcheck"
+              exit 1
+            fi
+          done
+          echo "All app services have healthchecks ✓"
       - name: Verify all timestamp columns use TIMESTAMPTZ
         run: |
-          # Exclude migration 000009 (corrected by migration 000015)
+          # Exclude migration 000009 (corrected by migration 000016)
           if grep -Pn '\bTIMESTAMP\b' migrations/*.up.sql | grep -v 'TIMESTAMPTZ' | grep -v '000009_'; then
             echo "::error::Found TIMESTAMP columns that should be TIMESTAMPTZ"
             exit 1
