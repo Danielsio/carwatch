@@ -57,14 +57,15 @@ interface MobileNavItem {
   icon: typeof LayoutDashboard;
   badge?: boolean;
   fab?: boolean;
+  authOnly?: boolean;
 }
 
 const mobileNav: MobileNavItem[] = [
-  { path: "/dashboard", label: "ראשי", icon: LayoutDashboard },
-  { path: "/saved", label: "מועדפים", icon: Bookmark },
-  { path: "/searches/new", label: "חדש", icon: Plus, fab: true },
-  { path: "/notifications", label: "התראות", icon: Bell, badge: true },
-  { path: "/settings", label: "הגדרות", icon: Settings },
+  { path: "/dashboard", label: "ראשי", icon: LayoutDashboard, authOnly: true },
+  { path: "/saved", label: "מועדפים", icon: Bookmark, authOnly: true },
+  { path: "/searches/new", label: "חדש", icon: Plus, fab: true, authOnly: true },
+  { path: "/notifications", label: "התראות", icon: Bell, badge: true, authOnly: true },
+  { path: "/settings", label: "הגדרות", icon: Settings, authOnly: true },
 ];
 
 function isNavActive(pathname: string, path: string): boolean {
@@ -309,7 +310,7 @@ export function Shell() {
         className="fixed inset-x-0 bottom-0 z-50 border-t border-border/50 bg-card/90 shadow-[0_-2px_16px_-6px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.4)] backdrop-blur-xl backdrop-saturate-150 pb-[env(safe-area-inset-bottom,0px)] md:hidden"
       >
         <div className="flex items-end justify-around px-2 py-1.5 landscape:py-1">
-          {mobileNav.map((item) => {
+          {mobileNav.filter((item) => !item.authOnly || !!user).map((item) => {
             const Icon = item.icon;
             const isActive = isNavActive(location.pathname, item.path);
             const showBadge = item.badge && unread > 0;
