@@ -194,7 +194,7 @@ func releaseDedupClaimsOnDeadLetter(dedup storage.DedupStore, logger *slog.Logge
 		}
 		for _, token := range alert.Tokens {
 			cleanupCtx, cleanupCancel := context.WithTimeout(ctx, 5*time.Second)
-			err := dedup.ReleaseClaim(cleanupCtx, token, alert.ChatID)
+			err := dedup.ReleaseClaim(cleanupCtx, token, alert.ChatID, alert.SearchID)
 			cleanupCancel()
 			if err != nil {
 				return err
