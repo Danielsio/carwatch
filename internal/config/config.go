@@ -65,9 +65,9 @@ type APIConfig struct {
 	CORSOrigins []string `yaml:"cors_origins"`
 	// TrustForwardedFor, when true, uses X-Forwarded-For (leftmost hop) for IP rate limiting.
 	// Enable only behind a trusted reverse proxy that overwrites client-controlled forwarded headers.
-	TrustForwardedFor bool   `yaml:"trust_forwarded_for"`
-	DevChatID         int64  `yaml:"dev_chat_id"`
-	AuthToken         string `yaml:"auth_token"`
+	TrustForwardedFor    bool   `yaml:"trust_forwarded_for"`
+	DevChatID            int64  `yaml:"dev_chat_id"`
+	AuthToken            string `yaml:"auth_token"`
 	AdminChatID          int64  `yaml:"-"`
 	AdminEmail           string `yaml:"admin_email"`
 	MaxSearches          int    `yaml:"-"`
