@@ -31,6 +31,13 @@ var (
 	EnrichChallenges metric.Int64Counter
 	// EnrichSkipped counts enrichment requests skipped (already enriched).
 	EnrichSkipped metric.Int64Counter
+
+	// QueueDepth reports the current number of messages in the alerts stream.
+	QueueDepth metric.Int64Gauge
+	// QueuePending reports the number of messages claimed but not yet acked.
+	QueuePending metric.Int64Gauge
+	// QueueLag records the time between message publish and delivery.
+	QueueLag metric.Float64Histogram
 )
 
 // InitMetrics creates all application-level OTel metric instruments.
@@ -101,6 +108,25 @@ func InitMetrics() error {
 
 	EnrichSkipped, err = meter.Int64Counter("carwatch.enrich.skipped",
 		metric.WithDescription("Enrichment requests skipped (already enriched)"))
+	if err != nil {
+		return err
+	}
+
+	QueueDepth, err = meter.Int64Gauge("carwatch.queue.depth",
+		metric.WithDescription("Messages in alerts stream"))
+	if err != nil {
+		return err
+	}
+
+	QueuePending, err = meter.Int64Gauge("carwatch.queue.pending",
+		metric.WithDescription("Messages claimed but not yet acked"))
+	if err != nil {
+		return err
+	}
+
+	QueueLag, err = meter.Float64Histogram("carwatch.queue.lag",
+		metric.WithDescription("Time from message publish to delivery"),
+		metric.WithUnit("s"))
 	if err != nil {
 		return err
 	}
