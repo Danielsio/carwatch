@@ -172,22 +172,60 @@ func TestWorker_SkipsAlreadyEnriched(t *testing.T) {
 }
 
 func TestWorker_ContinuesWhenOnlyPartiallyEnriched(t *testing.T) {
-	f := &mockItemFetcher{details: ItemDetails{Km: 70000, City: "Tel Aviv", ImageURL: "https://img.example/next.jpg"}}
-	ls := newMockListingStore()
-	ls.enrichmentData["tok-1"] = storage.EnrichmentRecord{Km: 0, City: "", ImageURL: "https://img.example/existing.jpg"}
-	rl := NewAdaptiveRateLimiter(time.Millisecond, time.Second, time.Second)
-	w := NewWorker(f, ls, rl, testWorkerLogger())
-
-	req := broker.EnrichRequest{Token: "tok-1", Priority: 1, Source: "match"}
-	err := w.HandleRequest(context.Background(), req)
-	if err != nil {
-		t.Fatalf("HandleRequest: %v", err)
+	cases := []struct {
+		name   string
+		record storage.EnrichmentRecord
+	}{
+		{
+			name:   "missing km",
+			record: storage.EnrichmentRecord{Km: 0, City: "Tel Aviv", ImageURL: "https://img.example/1.jpg"},
+		},
+		{
+			name:   "missing city",
+			record: storage.EnrichmentRecord{Km: 50000, City: "", ImageURL: "https://img.example/1.jpg"},
+		},
+		{
+			name:   "missing image",
+			record: storage.EnrichmentRecord{Km: 50000, City: "Tel Aviv", ImageURL: ""},
+		},
+		{
+			name:   "missing km and city",
+			record: storage.EnrichmentRecord{Km: 0, City: "", ImageURL: "https://img.example/1.jpg"},
+		},
+		{
+			name:   "missing km and image",
+			record: storage.EnrichmentRecord{Km: 0, City: "Tel Aviv", ImageURL: ""},
+		},
+		{
+			name:   "missing city and image",
+			record: storage.EnrichmentRecord{Km: 50000, City: "", ImageURL: ""},
+		},
+		{
+			name:   "all missing",
+			record: storage.EnrichmentRecord{Km: 0, City: "", ImageURL: ""},
+		},
 	}
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.calls != 1 {
-		t.Errorf("expected 1 fetch call for partially enriched listing, got %d", f.calls)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &mockItemFetcher{details: ItemDetails{Km: 70000, City: "Tel Aviv", ImageURL: "https://img.example/next.jpg"}}
+			ls := newMockListingStore()
+			ls.enrichmentData["tok-1"] = tc.record
+			rl := NewAdaptiveRateLimiter(time.Millisecond, time.Second, time.Second)
+			w := NewWorker(f, ls, rl, testWorkerLogger())
+
+			req := broker.EnrichRequest{Token: "tok-1", Priority: 1, Source: "match"}
+			err := w.HandleRequest(context.Background(), req)
+			if err != nil {
+				t.Fatalf("HandleRequest: %v", err)
+			}
+
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			if f.calls != 1 {
+				t.Errorf("expected 1 fetch call for partially enriched listing, got %d", f.calls)
+			}
+		})
 	}
 }
 

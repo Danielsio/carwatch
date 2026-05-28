@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LogsTab } from "./LogsTab";
 
 let mockedLogs = [
@@ -35,6 +35,12 @@ vi.mock("@/lib/api", () => ({
 }));
 
 describe("LogsTab", () => {
+  const originalScrollIntoView = Element.prototype.scrollIntoView;
+
+  afterEach(() => {
+    Element.prototype.scrollIntoView = originalScrollIntoView;
+  });
+
   beforeEach(() => {
     mockedLogs = [
       {
