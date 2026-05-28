@@ -65,12 +65,13 @@ type APIConfig struct {
 	CORSOrigins []string `yaml:"cors_origins"`
 	// TrustForwardedFor, when true, uses X-Forwarded-For (leftmost hop) for IP rate limiting.
 	// Enable only behind a trusted reverse proxy that overwrites client-controlled forwarded headers.
-	TrustForwardedFor bool   `yaml:"trust_forwarded_for"`
-	DevChatID         int64  `yaml:"dev_chat_id"`
-	AuthToken         string `yaml:"auth_token"`
-	AdminChatID       int64  `yaml:"-"` // derived from telegram.admin_chat_id at startup
-	AdminEmail        string `yaml:"admin_email"`
-	MaxSearches       int    `yaml:"-"` // derived from telegram.max_searches at startup
+	TrustForwardedFor    bool   `yaml:"trust_forwarded_for"`
+	DevChatID            int64  `yaml:"dev_chat_id"`
+	AuthToken            string `yaml:"auth_token"`
+	AdminChatID          int64  `yaml:"-"` // derived from telegram.admin_chat_id at startup
+	AdminEmail           string `yaml:"admin_email"`
+	MaxSearches          int    `yaml:"-"` // derived from telegram.max_searches at startup
+	MaxConcurrentFetches int    `yaml:"max_concurrent_fetches"`
 }
 
 type PollingConfig struct {
@@ -209,6 +210,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Enricher.BackfillInterval == 0 {
 		cfg.Enricher.BackfillInterval = 10 * time.Minute
+	}
+	if cfg.API.MaxConcurrentFetches <= 0 {
+		cfg.API.MaxConcurrentFetches = 10
 	}
 	var filtered []string
 	for _, o := range cfg.API.CORSOrigins {
