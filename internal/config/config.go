@@ -68,9 +68,9 @@ type APIConfig struct {
 	TrustForwardedFor bool   `yaml:"trust_forwarded_for"`
 	DevChatID         int64  `yaml:"dev_chat_id"`
 	AuthToken         string `yaml:"auth_token"`
-	AdminChatID       int64  `yaml:"-"`
-	AdminEmail        string `yaml:"admin_email"`
-	MaxSearches       int    `yaml:"-"`
+	AdminChatID int64  `yaml:"-"` // derived from telegram.admin_chat_id at startup
+	AdminEmail  string `yaml:"admin_email"`
+	MaxSearches int    `yaml:"-"` // derived from telegram.max_searches at startup
 }
 
 type PollingConfig struct {
