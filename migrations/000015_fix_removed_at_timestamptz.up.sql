@@ -1,0 +1,1 @@
+ALTER TABLE listing_history ALTER COLUMN removed_at TYPE TIMESTAMPTZ;
