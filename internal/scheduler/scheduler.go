@@ -957,7 +957,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				filtered := make([]model.RawListing, 0, len(rawForPipeline))
 				for _, r := range rawForPipeline {
 					if r.Km > 0 && r.Km > acc.search.MaxKm {
-						if relErr := s.stores.Dedup.ReleaseClaim(ctx, r.Token, acc.search.ChatID); relErr != nil {
+						if relErr := s.stores.Dedup.ReleaseClaim(ctx, r.Token, acc.search.ChatID, acc.search.ID); relErr != nil {
 							s.logger.ErrorContext(searchCtx,
 								"failed to release dedup claim for km-filtered listing",
 								"token", r.Token, "error", relErr.Error())

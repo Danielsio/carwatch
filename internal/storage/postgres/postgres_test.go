@@ -591,7 +591,7 @@ func TestPostgres_Dedup(t *testing.T) {
 	}
 
 	// ReleaseClaim allows reclaim
-	if err := store.ReleaseClaim(ctx, "token1", 100); err != nil {
+	if err := store.ReleaseClaim(ctx, "token1", 100, 1); err != nil {
 		t.Fatalf("release: %v", err)
 	}
 	isNew, _ = store.ClaimNew(ctx, "token1", 100, 1)

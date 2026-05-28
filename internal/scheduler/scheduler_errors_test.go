@@ -51,11 +51,11 @@ func (m *errDedup) ClaimNew(ctx context.Context, token string, chatID int64, sea
 	return m.mockDedup.ClaimNew(ctx, token, chatID, searchID)
 }
 
-func (m *errDedup) ReleaseClaim(ctx context.Context, token string, chatID int64) error {
+func (m *errDedup) ReleaseClaim(ctx context.Context, token string, chatID int64, searchID int64) error {
 	if m.releaseErr != nil {
 		return m.releaseErr
 	}
-	return m.mockDedup.ReleaseClaim(ctx, token, chatID)
+	return m.mockDedup.ReleaseClaim(ctx, token, chatID, searchID)
 }
 
 func (m *errDedup) Prune(_ context.Context, _ time.Duration) (int64, error) {
