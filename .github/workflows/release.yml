@@ -197,7 +197,20 @@ jobs:
             echo "Saved previous image tag: $PREV_TAG"
             echo "Prepared new image tag: $NEW_TAG"
 
+      - name: Skip deploy if superseded by a newer release
+        id: stale-check
+        run: |
+          git fetch origin main --quiet
+          LATEST=$(git rev-parse origin/main)
+          if [ "$LATEST" != "$GITHUB_SHA" ]; then
+            echo "This release ($GITHUB_SHA) is superseded by $LATEST — skipping deploy"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Pull, recreate and health-check
+        if: steps.stale-check.outputs.skip != 'true'
         uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f # v1.2.2
         with:
           host: ${{ secrets.DEPLOY_HOST }}
