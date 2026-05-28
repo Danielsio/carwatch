@@ -68,6 +68,7 @@ type Server struct {
 	vapidPublicKey   string
 	refreshMu        sync.Map
 	lastRefreshSweep atomic.Int64 // unix nano of last sweep
+	fetchSem         chan struct{}
 
 	logHub   *logstream.Hub
 	logLevel *slog.LevelVar
@@ -131,6 +132,11 @@ func New(c Config) *Server {
 		}
 	}
 
+	fetchCap := c.API.MaxConcurrentFetches
+	if fetchCap <= 0 {
+		fetchCap = 10
+	}
+
 	return &Server{
 		catalog:        c.Catalog,
 		searches:       c.Searches,
@@ -159,6 +165,7 @@ func New(c Config) *Server {
 		logLevel:       c.LogLevel,
 		cycleLog:       c.CycleLog,
 		vitals:         newVitalsRing(),
+		fetchSem:       make(chan struct{}, fetchCap),
 	}
 }
 
@@ -220,6 +227,7 @@ func (s *Server) Routes() http.Handler {
 	authMux.HandleFunc("GET /api/v1/searches/{id}/listings", s.listListings)
 	authMux.HandleFunc("POST /api/v1/searches/{id}/refresh", s.refreshListings)
 	authMux.HandleFunc("GET /api/v1/listings/{token}", s.getListing)
+	authMux.HandleFunc("GET /api/v1/listings/{token}/price-history", s.listingPriceHistory)
 
 	if s.admin != nil {
 		authMux.HandleFunc("GET /api/v1/admin/stats", s.requireAdmin(s.adminStats))

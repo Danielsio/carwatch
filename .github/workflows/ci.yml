@@ -79,15 +79,32 @@ jobs:
           args: --timeout=5m
       - name: Validate production compose env contract
         run: |
+          CARWATCH_IMAGE_TAG=1.2.3 \
           POSTGRES_PASSWORD=test-postgres \
           REDIS_PASSWORD=test-redis \
           TELEMETRY_AUTH_TOKEN=test-telemetry \
           CARWATCH_DOMAIN=example.com \
           TELEGRAM_BOT_TOKEN=test-token \
           docker compose -f docker-compose.prod.yaml config >/dev/null
+      - name: Verify CARWATCH_IMAGE_TAG is required in production compose
+        run: |
+          set +e
+          POSTGRES_PASSWORD=test-postgres \
+          REDIS_PASSWORD=test-redis \
+          TELEMETRY_AUTH_TOKEN=test-telemetry \
+          CARWATCH_DOMAIN=example.com \
+          TELEGRAM_BOT_TOKEN=test-token \
+          docker compose -f docker-compose.prod.yaml config >/dev/null 2>&1
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "Expected docker compose config to fail without CARWATCH_IMAGE_TAG"
+            exit 1
+          fi
       - name: Verify REDIS_PASSWORD is required in production compose
         run: |
           set +e
+          CARWATCH_IMAGE_TAG=1.2.3 \
           POSTGRES_PASSWORD=test-postgres \
           TELEMETRY_AUTH_TOKEN=test-telemetry \
           CARWATCH_DOMAIN=example.com \
@@ -102,6 +119,7 @@ jobs:
       - name: Verify TELEMETRY_AUTH_TOKEN is required in production compose
         run: |
           set +e
+          CARWATCH_IMAGE_TAG=1.2.3 \
           POSTGRES_PASSWORD=test-postgres \
           REDIS_PASSWORD=test-redis \
           CARWATCH_DOMAIN=example.com \
@@ -111,6 +129,25 @@ jobs:
           set -e
           if [ "$rc" -eq 0 ]; then
             echo "Expected docker compose config to fail without TELEMETRY_AUTH_TOKEN"
+            exit 1
+          fi
+      - name: Enforce immutable image tags in production compose
+        run: |
+          if grep -n "ghcr.io/danielsio/carwatch:latest" docker-compose.prod.yaml; then
+            echo "docker-compose.prod.yaml must not pin app services to :latest"
+            exit 1
+          fi
+      - name: Ensure watchtower does not auto-update app containers
+        run: |
+          if grep -n "com.centurylinklabs.watchtower.enable=true" docker-compose.prod.yaml; then
+            echo "watchtower auto-update labels must be removed from app services"
+            exit 1
+          fi
+      - name: Ensure all app services use CARWATCH_IMAGE_TAG
+        run: |
+          count=$(grep -c "ghcr.io/danielsio/carwatch:\${CARWATCH_IMAGE_TAG" docker-compose.prod.yaml || true)
+          if [ "$count" -ne 5 ]; then
+            echo "Expected api/bot-poller/scraper/notifier/enricher to use CARWATCH_IMAGE_TAG (found $count)"
             exit 1
           fi
       - name: Verify all timestamp columns use TIMESTAMPTZ

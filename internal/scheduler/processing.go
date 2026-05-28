@@ -74,7 +74,7 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
 		for _, l := range sr.newListings {
-			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, l.Token, search.ChatID); relErr != nil {
+			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, l.Token, search.ChatID, search.ID); relErr != nil {
 				log.ErrorContext(ctx, "failed to release dedup claim after delivery failure",
 					"token", l.Token,
 					"error", relErr.Error(),
@@ -101,7 +101,7 @@ func (s *Scheduler) persistListings(ctx context.Context, records []storage.Listi
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
 		for _, rec := range records {
-			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, rec.Token, rec.ChatID); relErr != nil {
+			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, rec.Token, rec.ChatID, rec.SearchID); relErr != nil {
 				log.ErrorContext(ctx, "failed to release dedup claim after batch save failure, listing may be permanently lost",
 					"token", rec.Token,
 					"error", relErr.Error(),

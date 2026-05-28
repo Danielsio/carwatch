@@ -17,6 +17,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
+	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/storage"
 	"github.com/dsionov/carwatch/internal/storage/pgtest"
 	"github.com/dsionov/carwatch/internal/storage/postgres"
@@ -1286,6 +1287,62 @@ func TestAdminEnrichmentStatusCountsOnlyActionableBacklog(t *testing.T) {
 	}
 	if int64(got) != 1 {
 		t.Fatalf("unenriched_count = %v, want 1", got)
+	}
+
+	cooldown, ok := resp["cooldown_count"].(float64)
+	if !ok {
+		t.Fatalf("cooldown_count missing or invalid: %v", resp)
+	}
+	if int64(cooldown) != 1 {
+		t.Fatalf("cooldown_count = %v, want 1", cooldown)
+	}
+
+	exhausted, ok := resp["exhausted_count"].(float64)
+	if !ok {
+		t.Fatalf("exhausted_count missing or invalid: %v", resp)
+	}
+	if int64(exhausted) != 1 {
+		t.Fatalf("exhausted_count = %v, want 1", exhausted)
+	}
+}
+
+func TestAdminLogs_DefaultAndMaxLimit(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	hub := logstream.NewHub(12000)
+	srv.logHub = hub
+
+	now := time.Now().UTC()
+	for i := 0; i < 11000; i++ {
+		hub.Publish(logstream.LogEntry{
+			Time:      now.Add(time.Duration(i) * time.Millisecond),
+			Level:     "INFO",
+			Message:   fmt.Sprintf("entry-%d", i),
+			Component: "scheduler",
+		})
+	}
+
+	var defaultResp struct {
+		Items []logstream.LogEntry `json:"items"`
+	}
+	w := doRequest(t, srv, "GET", "/api/v1/admin/logs", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("default /admin/logs expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	mustUnmarshal(t, w.Body.Bytes(), &defaultResp)
+	if len(defaultResp.Items) != 2000 {
+		t.Fatalf("default /admin/logs returned %d items, want 2000", len(defaultResp.Items))
+	}
+
+	var cappedResp struct {
+		Items []logstream.LogEntry `json:"items"`
+	}
+	w = doRequest(t, srv, "GET", "/api/v1/admin/logs?limit=50000", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("capped /admin/logs expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	mustUnmarshal(t, w.Body.Bytes(), &cappedResp)
+	if len(cappedResp.Items) != 10000 {
+		t.Fatalf("capped /admin/logs returned %d items, want 10000", len(cappedResp.Items))
 	}
 }
 
