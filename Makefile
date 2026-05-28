@@ -1,6 +1,6 @@
 .PHONY: all build build-api build-bot-poller build-scraper build-notifier build-enricher build-all \
        run test test-cover test-e2e lint ci clean docker-build docker-run \
-       dev dev-db dev-stop dev-reset dev-pg-shell \
+       dev dev-db dev-stop dev-reset dev-pg-shell migrate \
        vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-smoke vm-deploy vm-deploy-all vm-sync \
        vm-backup vm-backup-list vm-pg-shell \
        vm-setup-backup vm-backup-status \
@@ -98,6 +98,9 @@ dev-pg-shell:
 
 dev: build dev-db
 	./api-server -config config.dev.yaml
+
+migrate:
+	go run $(LDFLAGS) ./cmd/api-server -config config.yaml -migrate-only
 
 docker-build:
 	docker build -t carwatch .

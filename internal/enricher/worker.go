@@ -48,22 +48,22 @@ func NewWorker(f ItemFetcher, ls storage.ListingStore, rl *AdaptiveRateLimiter, 
 // fetches the item page, and updates the database.
 func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) error {
 	// Check if already enriched (idempotent skip).
-	// A listing is considered enriched if any field has been successfully
-	// fetched (Km > 0, or City/ImageURL populated).
+	// A listing is considered fully enriched only when all key fields exist.
+	// If one field is missing (for example only image exists), keep trying.
 	existing, err := w.listings.LookupEnrichmentData(ctx, []string{req.Token})
 	if err != nil {
 		w.logger.ErrorContext(ctx, "failed to check enrichment status",
 			"token", req.Token, "error", err.Error())
 		return err
 	}
-	if rec, ok := existing[req.Token]; ok && (rec.Km > 0 || rec.City != "" || rec.ImageURL != "") {
+	if rec, ok := existing[req.Token]; ok && rec.Km > 0 && rec.City != "" && rec.ImageURL != "" {
 		hasKm := rec.Km > 0
 		hasCity := rec.City != ""
 		hasImage := rec.ImageURL != ""
 		w.logger.DebugContext(ctx, "listing already enriched, skipping",
 			"token", req.Token, "km", rec.Km, "city", rec.City,
 			"has_km", hasKm, "has_city", hasCity, "has_image", hasImage,
-			"skip_reason", "already_has_enrichment_field")
+			"skip_reason", "already_fully_enriched")
 		if telemetry.EnrichSkipped != nil {
 			telemetry.EnrichSkipped.Add(ctx, 1)
 		}

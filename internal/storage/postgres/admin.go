@@ -234,10 +234,14 @@ func (s *Store) AdminDeleteUser(ctx context.Context, chatID int64) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if _, err := tx.ExecContext(ctx, `DELETE FROM price_history WHERE token IN (SELECT DISTINCT token FROM listing_history WHERE chat_id = $1)`, chatID); err != nil {
+		return fmt.Errorf("admin delete user price_history: %w", err)
+	}
+
 	for _, table := range []string{
 		"searches", "listing_history", "seen_listings", "listing_user_seen",
 		"saved_listings", "hidden_listings",
-		"pending_digest",
+		"push_subscriptions", "pending_digest",
 	} {
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE chat_id = $1`, quoteIdent(table)), chatID); err != nil {
 			return fmt.Errorf("admin delete user data from %s: %w", table, err)

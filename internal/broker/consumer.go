@@ -9,7 +9,11 @@ import (
 	"os"
 	"time"
 
+	"strconv"
+	"strings"
+
 	"github.com/dsionov/carwatch/internal/notifier"
+	"github.com/dsionov/carwatch/internal/telemetry"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/time/rate"
 )
@@ -92,6 +96,9 @@ func (c *Consumer) Run(ctx context.Context) error {
 	orphanTicker := time.NewTicker(60 * time.Second)
 	defer orphanTicker.Stop()
 
+	metricsTicker := time.NewTicker(30 * time.Second)
+	defer metricsTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -100,6 +107,8 @@ func (c *Consumer) Run(ctx context.Context) error {
 			c.reclaimPending(ctx)
 		case <-orphanTicker.C:
 			c.reclaimOrphans(ctx)
+		case <-metricsTicker.C:
+			c.reportQueueMetrics(ctx)
 		default:
 		}
 
@@ -224,6 +233,12 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {
 
 	c.ack(ctx, msg.ID)
 	c.logger.Info("alert delivered", "id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName)
+
+	if telemetry.QueueLag != nil {
+		if lag := messageAge(msg.ID); lag > 0 {
+			telemetry.QueueLag.Record(ctx, lag.Seconds())
+		}
+	}
 }
 
 func parseAlert(msg redis.XMessage) (Alert, error) {
@@ -242,6 +257,31 @@ func (c *Consumer) ack(ctx context.Context, id string) {
 	if err := c.client.XAck(ctx, StreamName, GroupName, id).Err(); err != nil {
 		c.logger.Error("ack failed", "id", id, "error", err)
 	}
+}
+
+func (c *Consumer) reportQueueMetrics(ctx context.Context) {
+	if telemetry.QueueDepth != nil {
+		if depth, err := c.client.XLen(ctx, StreamName).Result(); err == nil {
+			telemetry.QueueDepth.Record(ctx, depth)
+		}
+	}
+	if telemetry.QueuePending != nil {
+		if info, err := c.client.XPending(ctx, StreamName, GroupName).Result(); err == nil {
+			telemetry.QueuePending.Record(ctx, info.Count)
+		}
+	}
+}
+
+func messageAge(id string) time.Duration {
+	parts := strings.SplitN(id, "-", 2)
+	if len(parts) == 0 {
+		return 0
+	}
+	ms, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return time.Since(time.UnixMilli(ms))
 }
 
 const orphanIdleThreshold = 5 * time.Minute

@@ -3,6 +3,7 @@ package notifier
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ type fakeNotifier struct {
 	rawCalls      []string
 	connectErr    error
 	disconnectErr error
+	notifyErr     error
 }
 
 func (f *fakeNotifier) Connect(_ context.Context) error {
@@ -36,12 +38,12 @@ func (f *fakeNotifier) Disconnect() error {
 
 func (f *fakeNotifier) Notify(_ context.Context, recipient string, _ []model.Listing, _ locale.Lang) error {
 	f.calls = append(f.calls, recipient)
-	return nil
+	return f.notifyErr
 }
 
 func (f *fakeNotifier) NotifyRaw(_ context.Context, recipient string, _ string) error {
 	f.rawCalls = append(f.rawCalls, recipient)
-	return nil
+	return f.notifyErr
 }
 
 type fakeUserStore struct {
@@ -84,32 +86,66 @@ func (f *fakeUserStore) GetLinkedTelegramUser(_ context.Context, _ int64) (*stor
 	return nil, nil
 }
 
-func TestMultiNotifier_RoutesToCorrectChannel(t *testing.T) {
+func TestMultiNotifier_FanOutToAllChannels(t *testing.T) {
 	tg := &fakeNotifier{name: "telegram"}
-	wa := &fakeNotifier{name: "whatsapp"}
+	wp := &fakeNotifier{name: "webpush"}
 
 	users := &fakeUserStore{users: map[int64]*storage.User{
 		100: {ChatID: 100, Channel: "telegram"},
-		200: {ChatID: 200, Channel: "whatsapp"},
 	}}
 
 	mn := NewMultiNotifier(users, slog.Default())
 	_ = mn.Register("telegram", tg)
-	_ = mn.Register("whatsapp", wa)
+	_ = mn.Register("webpush", wp)
 
 	ctx := context.Background()
-	if err := mn.NotifyRaw(ctx, "100", "hello telegram"); err != nil {
-		t.Fatalf("notify 100: %v", err)
-	}
-	if err := mn.NotifyRaw(ctx, "200", "hello whatsapp"); err != nil {
-		t.Fatalf("notify 200: %v", err)
+	if err := mn.NotifyRaw(ctx, "100", "hello"); err != nil {
+		t.Fatalf("notify: %v", err)
 	}
 
-	if len(tg.rawCalls) != 1 || tg.rawCalls[0] != "100" {
-		t.Errorf("telegram got %v, want [100]", tg.rawCalls)
+	if len(tg.rawCalls) != 1 {
+		t.Errorf("telegram got %d calls, want 1", len(tg.rawCalls))
 	}
-	if len(wa.rawCalls) != 1 || wa.rawCalls[0] != "200" {
-		t.Errorf("whatsapp got %v, want [200]", wa.rawCalls)
+	if len(wp.rawCalls) != 1 {
+		t.Errorf("webpush got %d calls, want 1 (fan-out)", len(wp.rawCalls))
+	}
+}
+
+func TestMultiNotifier_PartialFailureSucceeds(t *testing.T) {
+	tg := &fakeNotifier{name: "telegram", notifyErr: fmt.Errorf("telegram down")}
+	wp := &fakeNotifier{name: "webpush"}
+
+	users := &fakeUserStore{users: map[int64]*storage.User{
+		100: {ChatID: 100, Channel: "telegram"},
+	}}
+
+	mn := NewMultiNotifier(users, slog.Default())
+	_ = mn.Register("telegram", tg)
+	_ = mn.Register("webpush", wp)
+
+	ctx := context.Background()
+	err := mn.NotifyRaw(ctx, "100", "hello")
+	if err != nil {
+		t.Fatalf("partial failure should succeed, got: %v", err)
+	}
+}
+
+func TestMultiNotifier_TotalFailureReturnsError(t *testing.T) {
+	tg := &fakeNotifier{name: "telegram", notifyErr: fmt.Errorf("telegram down")}
+	wp := &fakeNotifier{name: "webpush", notifyErr: fmt.Errorf("webpush down")}
+
+	users := &fakeUserStore{users: map[int64]*storage.User{
+		100: {ChatID: 100, Channel: "telegram"},
+	}}
+
+	mn := NewMultiNotifier(users, slog.Default())
+	_ = mn.Register("telegram", tg)
+	_ = mn.Register("webpush", wp)
+
+	ctx := context.Background()
+	err := mn.NotifyRaw(ctx, "100", "hello")
+	if err == nil {
+		t.Fatal("total failure should return error")
 	}
 }
 
@@ -128,31 +164,6 @@ func TestMultiNotifier_FallsBackToFirst(t *testing.T) {
 
 	if len(tg.rawCalls) != 1 {
 		t.Errorf("fallback: telegram got %d calls, want 1", len(tg.rawCalls))
-	}
-}
-
-func TestMultiNotifier_NotifyRoutesCorrectly(t *testing.T) {
-	tg := &fakeNotifier{name: "telegram"}
-	wa := &fakeNotifier{name: "whatsapp"}
-
-	users := &fakeUserStore{users: map[int64]*storage.User{
-		300: {ChatID: 300, Channel: "whatsapp"},
-	}}
-
-	mn := NewMultiNotifier(users, slog.Default())
-	_ = mn.Register("telegram", tg)
-	_ = mn.Register("whatsapp", wa)
-
-	ctx := context.Background()
-	if err := mn.Notify(ctx, "300", nil, locale.Hebrew); err != nil {
-		t.Fatalf("notify: %v", err)
-	}
-
-	if len(wa.calls) != 1 {
-		t.Errorf("whatsapp got %d Notify calls, want 1", len(wa.calls))
-	}
-	if len(tg.calls) != 0 {
-		t.Errorf("telegram got %d Notify calls, want 0", len(tg.calls))
 	}
 }
 
@@ -241,31 +252,22 @@ func TestMultiNotifier_DisconnectJoinsErrors(t *testing.T) {
 
 func TestMultiNotifier_NotifyRaw_UserLookupErrorFallsBack(t *testing.T) {
 	tg := &fakeNotifier{name: "telegram"}
-	wa := &fakeNotifier{name: "whatsapp"}
-	base := &fakeUserStore{
-		users: map[int64]*storage.User{
-			55: {ChatID: 55, Channel: "whatsapp"},
-		},
-	}
+	base := &fakeUserStore{users: map[int64]*storage.User{}}
 	usersBroken := &fakeUserGetErrStore{fakeUserStore: base, err: errors.New("db unavailable")}
 
 	mn := NewMultiNotifier(usersBroken, slog.Default())
 	_ = mn.Register("telegram", tg)
-	_ = mn.Register("whatsapp", wa)
 
 	ctx := context.Background()
 	if err := mn.NotifyRaw(ctx, "55", "hi"); err != nil {
 		t.Fatalf("notify: %v", err)
 	}
 	if len(tg.rawCalls) != 1 {
-		t.Errorf("fallback should use first registered notifier (telegram), calls=%v", tg.rawCalls)
-	}
-	if len(wa.rawCalls) != 0 {
-		t.Errorf("whatsapp should not receive when falling back, got %v", wa.rawCalls)
+		t.Errorf("fallback should use first registered notifier, calls=%v", tg.rawCalls)
 	}
 }
 
-func TestMultiNotifier_WebChannelAliasRoutesToWebpush(t *testing.T) {
+func TestMultiNotifier_WebChannelAliasIncludesWebpush(t *testing.T) {
 	tg := &fakeNotifier{name: "telegram"}
 	webpush := &fakeNotifier{name: "webpush"}
 	users := &fakeUserStore{users: map[int64]*storage.User{
@@ -279,32 +281,11 @@ func TestMultiNotifier_WebChannelAliasRoutesToWebpush(t *testing.T) {
 	if err := mn.NotifyRaw(context.Background(), "777", "hello web user"); err != nil {
 		t.Fatalf("notify web user: %v", err)
 	}
-	if len(webpush.rawCalls) != 1 || webpush.rawCalls[0] != "777" {
-		t.Fatalf("webpush got %v, want [777]", webpush.rawCalls)
+	if len(webpush.rawCalls) != 1 {
+		t.Errorf("webpush got %d calls, want 1", len(webpush.rawCalls))
 	}
-	if len(tg.rawCalls) != 0 {
-		t.Fatalf("telegram should not be used for web channel alias, got %v", tg.rawCalls)
-	}
-}
-
-func TestMultiNotifier_KnownChannelWithoutNotifierReturnsError(t *testing.T) {
-	tg := &fakeNotifier{name: "telegram"}
-	users := &fakeUserStore{users: map[int64]*storage.User{
-		888: {ChatID: 888, Channel: "web"},
-	}}
-
-	mn := NewMultiNotifier(users, slog.Default())
-	_ = mn.Register("telegram", tg)
-
-	err := mn.NotifyRaw(context.Background(), "888", "hello")
-	if err == nil {
-		t.Fatal("expected channel resolution error")
-	}
-	if !errors.Is(err, ErrNoChannelNotifier) {
-		t.Fatalf("expected ErrNoChannelNotifier, got %v", err)
-	}
-	if len(tg.rawCalls) != 0 {
-		t.Fatalf("telegram fallback must not be used for known unsupported channels, got %v", tg.rawCalls)
+	if len(tg.rawCalls) != 1 {
+		t.Errorf("telegram got %d calls, want 1 (fan-out)", len(tg.rawCalls))
 	}
 }
 

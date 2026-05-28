@@ -18,10 +18,16 @@ permissions:
   contents: write
   packages: write
 
+concurrency:
+  group: release-prod
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Version, Build & Push
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -113,7 +119,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/danielsio/carwatch:${{ steps.version.outputs.version }}
-            ghcr.io/danielsio/carwatch:latest
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
             GIT_COMMIT=${{ github.sha }}
@@ -158,16 +163,39 @@ jobs:
           source: "docker-compose.prod.yaml,migrations"
           target: ~/carwatch/
 
-      - name: Save previous image tag
+      - name: Prepare immutable deploy tag and rollback marker
         uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f # v1.2.2
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            PREV=$(docker inspect carwatch-api --format='{{.Config.Image}}' 2>/dev/null || echo 'none')
-            echo "$PREV" > ~/carwatch/prev_image_tag
-            echo "Saved previous image tag: $PREV"
+            set -euo pipefail
+            cd "$HOME/carwatch"
+            if [ ! -f .env ]; then
+              echo ".env is missing in ~/carwatch"
+              exit 1
+            fi
+
+            if [ -f .deploy_recreate_started ] && [ -s prev_image_tag ]; then
+              PREV_TAG=$(cat prev_image_tag)
+              PREV_TAG="${PREV_TAG##*:}"
+            else
+              PREV_TAG=$(awk -F= '/^CARWATCH_IMAGE_TAG=/{print $2}' .env | tail -1 | tr -d '"' || true)
+              if [ -z "$PREV_TAG" ]; then
+                PREV_TAG=$(docker exec carwatch-api api-server -version 2>/dev/null | awk '{print $2}' || true)
+              fi
+              if [ -z "$PREV_TAG" ]; then
+                PREV_TAG=none
+              fi
+            fi
+            echo "$PREV_TAG" > prev_image_tag
+
+            NEW_TAG="${{ needs.release.outputs.version }}"
+            echo "$NEW_TAG" > next_image_tag
+
+            echo "Saved previous image tag: $PREV_TAG"
+            echo "Prepared new image tag: $NEW_TAG"
 
       - name: Pull, recreate and health-check
         uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f # v1.2.2
@@ -179,13 +207,33 @@ jobs:
           script: |
             set -euo pipefail
             cd "$HOME/carwatch"
-            rm -f .deploy_recreate_started
-
-            # Source .env if present (CARWATCH_DOMAIN, TELEGRAM_BOT_TOKEN, REDIS_PASSWORD, etc.)
             if [ -f .env ]; then
               set -a; source .env; set +a
+            else
+              echo ".env is missing in ~/carwatch"
+              exit 1
             fi
+            APP_SERVICES="postgres redis api bot-poller scraper notifier enricher"
+            if [ -f .deploy_recreate_started ]; then
+              echo "==> Found stale deploy marker; restoring previously known-good services before continuing"
+              RECOVERY_TAG=$(cat prev_image_tag 2>/dev/null || echo 'none')
+              RECOVERY_TAG="${RECOVERY_TAG##*:}"
+              if [ "$RECOVERY_TAG" = "none" ] || [ -z "$RECOVERY_TAG" ]; then
+                RECOVERY_TAG=$(awk -F= '/^CARWATCH_IMAGE_TAG=/{print $2}' .env | tail -1 | tr -d '"' || true)
+              fi
+              if [ -n "$RECOVERY_TAG" ] && [ "$RECOVERY_TAG" != "none" ]; then
+                CARWATCH_IMAGE_TAG="$RECOVERY_TAG" docker compose -f docker-compose.prod.yaml pull $APP_SERVICES || true
+                CARWATCH_IMAGE_TAG="$RECOVERY_TAG" docker compose -f docker-compose.prod.yaml up -d $APP_SERVICES || true
+              fi
+              rm -f .deploy_recreate_started
+            fi
+
             : "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in ~/carwatch/.env}"
+            NEW_TAG=$(cat next_image_tag 2>/dev/null || true)
+            if [ -z "$NEW_TAG" ]; then
+              echo "next_image_tag is missing"
+              exit 1
+            fi
             if [ ! -f config.yaml ]; then
               echo "config.yaml is missing in ~/carwatch"
               exit 1
@@ -218,10 +266,9 @@ jobs:
 
             # Only manage app + infra services; watchtower and caddy are
             # long-lived infrastructure that must not be recreated on every deploy.
-            APP_SERVICES="postgres redis api bot-poller scraper notifier enricher"
 
-            echo "==> Pulling latest image..."
-            docker compose -f docker-compose.prod.yaml pull $APP_SERVICES
+            echo "==> Pulling release image tag: $NEW_TAG"
+            CARWATCH_IMAGE_TAG="$NEW_TAG" docker compose -f docker-compose.prod.yaml pull $APP_SERVICES
 
             # NOTE: Migrations run automatically on app startup.
             # The postgres.New() constructor runs golang-migrate/migrate before
@@ -229,7 +276,7 @@ jobs:
 
             echo "==> Recreating containers..."
             touch .deploy_recreate_started
-            docker compose -f docker-compose.prod.yaml up -d $APP_SERVICES
+            CARWATCH_IMAGE_TAG="$NEW_TAG" docker compose -f docker-compose.prod.yaml up -d $APP_SERVICES
 
             echo "==> Waiting for API health check..."
             for i in $(seq 1 15); do
@@ -271,6 +318,15 @@ jobs:
             done
             echo "==> Worker health checks passed!"
 
+            if grep -q '^CARWATCH_IMAGE_TAG=' .env; then
+              sed -i "s/^CARWATCH_IMAGE_TAG=.*/CARWATCH_IMAGE_TAG=${NEW_TAG}/" .env
+            else
+              echo "CARWATCH_IMAGE_TAG=${NEW_TAG}" >> .env
+            fi
+            rm -f .deploy_recreate_started
+            rm -f next_image_tag
+            echo "==> Persisted CARWATCH_IMAGE_TAG=${NEW_TAG} in .env"
+
       - name: Rollback on failure
         if: failure()
         uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f # v1.2.2
@@ -281,17 +337,63 @@ jobs:
           script: |
             set -euo pipefail
             cd "$HOME/carwatch"
+            if [ -f .env ]; then
+              set -a; source .env; set +a
+            fi
             if [ ! -f .deploy_recreate_started ]; then
               echo "==> Skipping rollback (deploy failed before container recreation)"
               exit 0
             fi
             PREV=$(cat prev_image_tag 2>/dev/null || echo 'none')
+            PREV="${PREV##*:}"
             if [ "$PREV" != 'none' ]; then
-              echo "==> Rolling back to previous image: $PREV"
-              docker tag "$PREV" ghcr.io/danielsio/carwatch:latest
-              docker compose -f docker-compose.prod.yaml up -d postgres redis api bot-poller scraper notifier enricher
-              echo "==> Rolled back to previous version"
+              echo "==> Rolling back to previous image tag: $PREV"
+              APP_SERVICES="postgres redis api bot-poller scraper notifier enricher"
+              CARWATCH_IMAGE_TAG="$PREV" docker compose -f docker-compose.prod.yaml pull $APP_SERVICES
+              CARWATCH_IMAGE_TAG="$PREV" docker compose -f docker-compose.prod.yaml up -d $APP_SERVICES
+
+              for i in $(seq 1 15); do
+                if docker exec carwatch-api wget -q --spider http://localhost:8080/healthz 2>/dev/null; then
+                  break
+                fi
+                sleep 5
+              done
+              if ! docker exec carwatch-api wget -q --spider http://localhost:8080/healthz 2>/dev/null; then
+                echo "==> Rollback API health check failed"
+                exit 1
+              fi
+              for svc in bot-poller scraper notifier enricher; do
+                container="carwatch-$svc"
+                port=$(case "$svc" in
+                  bot-poller) echo 8082 ;;
+                  scraper) echo 8081 ;;
+                  notifier) echo 8083 ;;
+                  enricher) echo 8084 ;;
+                esac)
+                ok=0
+                for i in $(seq 1 15); do
+                  if docker exec "$container" wget -q --spider "http://localhost:${port}/healthz" 2>/dev/null; then
+                    ok=1
+                    break
+                  fi
+                  sleep 5
+                done
+                if [ "$ok" -ne 1 ]; then
+                  echo "==> Rollback worker health check failed: $container"
+                  exit 1
+                fi
+              done
+
+              if grep -q '^CARWATCH_IMAGE_TAG=' .env; then
+                sed -i "s/^CARWATCH_IMAGE_TAG=.*/CARWATCH_IMAGE_TAG=${PREV}/" .env
+              else
+                echo "CARWATCH_IMAGE_TAG=${PREV}" >> .env
+              fi
+              echo "==> Rolled back to previous version and restored .env"
               rm -f .deploy_recreate_started
+              rm -f next_image_tag
             else
               echo "==> No previous image tag found, skipping rollback"
+              rm -f .deploy_recreate_started
+              rm -f next_image_tag
             fi
