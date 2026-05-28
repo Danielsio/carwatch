@@ -237,6 +237,22 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	signal.Notify(sighup, syscall.SIGHUP)
 	defer signal.Stop(sighup)
 
+	if s.stores.Market != nil {
+		go func() {
+			s.refreshMarketView(ctx)
+			ticker := time.NewTicker(s.marketCacheTTL)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					s.refreshMarketView(ctx)
+				}
+			}
+		}()
+	}
+
 	cycle := s.runMultiTenantCycle
 
 	if s.isActiveHours() {
@@ -1039,12 +1055,19 @@ func (s *Scheduler) getOrBuildMarketCache(ctx context.Context) *scoring.MarketCa
 	return s.marketCache
 }
 
+func (s *Scheduler) refreshMarketView(ctx context.Context) {
+	if s.stores.Market == nil {
+		return
+	}
+	if err := s.stores.Market.RefreshMarketMedians(ctx); err != nil {
+		s.logger.Error("background market view refresh failed", "error", err)
+	} else {
+		s.logger.Debug("background market view refreshed")
+	}
+}
+
 func (s *Scheduler) buildMarketCache(ctx context.Context) *scoring.MarketCache {
 	refreshStart := time.Now()
-	if err := s.stores.Market.RefreshMarketMedians(ctx); err != nil {
-		s.logger.Error("failed to refresh market median materialized view", "error", err)
-	}
-
 	rows, err := s.stores.Market.LoadMarketMedians(ctx)
 	if err != nil {
 		s.logger.Error("failed to load market medians from database, keeping previous cache", "error", err)
