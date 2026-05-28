@@ -75,6 +75,14 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	select {
+	case s.fetchSem <- struct{}{}:
+	case <-ctx.Done():
+		writeError(w, http.StatusServiceUnavailable, "server too busy, try again later")
+		return
+	}
+	defer func() { <-s.fetchSem }()
+
 	sources := strings.Split(req.Source, ",")
 	var allRaw []model.RawListing
 	for _, src := range sources {
