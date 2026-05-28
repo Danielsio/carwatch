@@ -132,6 +132,11 @@ func New(c Config) *Server {
 		}
 	}
 
+	fetchCap := c.API.MaxConcurrentFetches
+	if fetchCap <= 0 {
+		fetchCap = 10
+	}
+
 	return &Server{
 		catalog:        c.Catalog,
 		searches:       c.Searches,
@@ -160,7 +165,7 @@ func New(c Config) *Server {
 		logLevel:       c.LogLevel,
 		cycleLog:       c.CycleLog,
 		vitals:         newVitalsRing(),
-		fetchSem:       make(chan struct{}, c.API.MaxConcurrentFetches),
+		fetchSem:       make(chan struct{}, fetchCap),
 	}
 }
 
