@@ -40,10 +40,10 @@ describe("ProtectedRoute", () => {
     expect(screen.getByText("טוען...")).toBeInTheDocument();
   });
 
-  it("renders content for unauthenticated guests (no redirect)", () => {
+  it("redirects unauthenticated users to login", () => {
     authState = { user: null, loading: false };
     renderWithRoute();
-    expect(screen.getByText("Protected Content")).toBeInTheDocument();
-    expect(screen.queryByText("Login Page")).not.toBeInTheDocument();
+    expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    expect(screen.getByText("Login Page")).toBeInTheDocument();
   });
 });

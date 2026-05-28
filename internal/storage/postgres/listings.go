@@ -73,6 +73,11 @@ AND COALESCE(image_url, '') = ''
 AND enrich_attempts < 10
 AND (last_enrich_at IS NULL OR last_enrich_at < NOW() - INTERVAL '1 hour')`
 
+const unenrichedMissingFieldsWhereSQL = `
+km <= 0
+AND COALESCE(city, '') = ''
+AND COALESCE(image_url, '') = ''`
+
 type listingScanner interface {
 	Scan(dest ...any) error
 }
@@ -596,6 +601,36 @@ func (s *Store) CountUnenrichedTokens(ctx context.Context) (int64, error) {
 		   WHERE `+unenrichedBacklogWhereSQL+`
 		   ORDER BY token, first_seen_at DESC
 		 ) t`).Scan(&count)
+	return count, err
+}
+
+func (s *Store) CountUnenrichedCooldownTokens(ctx context.Context) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*)
+		 FROM (
+		   SELECT DISTINCT ON (token) token, enrich_attempts, last_enrich_at
+		   FROM listing_history
+		   WHERE `+unenrichedMissingFieldsWhereSQL+`
+		   ORDER BY token, first_seen_at DESC
+		 ) t
+		 WHERE enrich_attempts < 10
+		   AND last_enrich_at IS NOT NULL
+		   AND last_enrich_at >= NOW() - INTERVAL '1 hour'`).Scan(&count)
+	return count, err
+}
+
+func (s *Store) CountUnenrichedExhaustedTokens(ctx context.Context) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*)
+		 FROM (
+		   SELECT DISTINCT ON (token) token, enrich_attempts
+		   FROM listing_history
+		   WHERE `+unenrichedMissingFieldsWhereSQL+`
+		   ORDER BY token, first_seen_at DESC
+		 ) t
+		 WHERE enrich_attempts >= 10`).Scan(&count)
 	return count, err
 }
 

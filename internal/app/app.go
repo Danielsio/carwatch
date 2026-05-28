@@ -41,9 +41,15 @@ func LoadConfig(path string) (*config.Config, error) {
 	return config.Load(path)
 }
 
-// OpenStore opens a PostgreSQL store using the configuration's DSN.
-func OpenStore(cfg *config.Config) (*postgres.Store, error) {
-	return postgres.New(cfg.Storage.DSN, cfg.Storage.MigrationsPath)
+// OpenStore opens a PostgreSQL store using the configuration's DSN and
+// runs pending migrations. Pass skipMigrate=true to connect without
+// running migrations (useful when a separate deploy step handles them).
+func OpenStore(cfg *config.Config, skipMigrate ...bool) (*postgres.Store, error) {
+	migrationsPath := cfg.Storage.MigrationsPath
+	if len(skipMigrate) > 0 && skipMigrate[0] {
+		migrationsPath = ""
+	}
+	return postgres.New(cfg.Storage.DSN, migrationsPath)
 }
 
 // FetcherBundle groups all fetcher-related objects returned by BuildFetchers.

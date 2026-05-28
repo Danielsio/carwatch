@@ -22,7 +22,7 @@ storage:
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError + 1}))
-	err := run(path, "0.0.0.0:0", logger)
+	err := run(path, "0.0.0.0:0", false, logger)
 	if err == nil {
 		t.Fatal("expected error when redis.addr is empty")
 	}

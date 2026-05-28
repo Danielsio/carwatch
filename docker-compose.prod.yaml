@@ -61,7 +61,7 @@ services:
           memory: 256M
 
   api:
-    image: ghcr.io/danielsio/carwatch:latest
+    image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
     container_name: carwatch-api
     entrypoint: ["/usr/local/bin/api-server"]
     networks:
@@ -82,8 +82,6 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
       - TELEMETRY_AUTH_TOKEN=${TELEMETRY_AUTH_TOKEN:?TELEMETRY_AUTH_TOKEN must be set}
     restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     logging:
       driver: json-file
       options:
@@ -95,7 +93,7 @@ services:
           memory: 512M
 
   bot-poller:
-    image: ghcr.io/danielsio/carwatch:latest
+    image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
     container_name: carwatch-bot-poller
     entrypoint: ["/usr/local/bin/bot-poller"]
     networks:
@@ -116,8 +114,6 @@ services:
       timeout: 5s
       retries: 3
     restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     logging:
       driver: json-file
       options:
@@ -129,7 +125,7 @@ services:
           memory: 256M
 
   scraper:
-    image: ghcr.io/danielsio/carwatch:latest
+    image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
     container_name: carwatch-scraper
     entrypoint: ["/usr/local/bin/scraper"]
     networks:
@@ -152,8 +148,6 @@ services:
       timeout: 5s
       retries: 3
     restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     logging:
       driver: json-file
       options:
@@ -165,7 +159,7 @@ services:
           memory: 512M
 
   notifier:
-    image: ghcr.io/danielsio/carwatch:latest
+    image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
     container_name: carwatch-notifier
     entrypoint: ["/usr/local/bin/notifier"]
     networks:
@@ -187,8 +181,6 @@ services:
       timeout: 5s
       retries: 3
     restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     logging:
       driver: json-file
       options:
@@ -200,7 +192,7 @@ services:
           memory: 256M
 
   enricher:
-    image: ghcr.io/danielsio/carwatch:latest
+    image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
     container_name: carwatch-enricher
     entrypoint: ["/usr/local/bin/enricher"]
     networks:
@@ -222,8 +214,6 @@ services:
       timeout: 5s
       retries: 3
     restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     logging:
       driver: json-file
       options:
