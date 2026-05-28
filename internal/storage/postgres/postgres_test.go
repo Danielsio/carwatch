@@ -32,7 +32,7 @@ func testStore(t *testing.T) *Store {
 		tables := []string{
 			"listing_user_seen", "pending_digest",
 			"saved_listings", "hidden_listings", "listing_history",
-			"seen_listings", "price_history", "link_tokens",
+			"seen_listings", "price_history", "push_subscriptions", "link_tokens",
 			"daily_digest", "searches", "price_list_cache", "users",
 		}
 		for _, tbl := range tables {
@@ -1588,5 +1588,69 @@ func TestPostgres_Admin(t *testing.T) {
 	stats := store.DBPoolStats()
 	if stats == nil {
 		t.Error("expected non-nil pool stats")
+	}
+}
+
+func TestPostgres_AdminDeleteUserCompleteness(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	const chatID int64 = 99999
+
+	seedPgUser(t, store, chatID)
+
+	// Create a search so listing_history can reference it.
+	_, err := store.CreateSearch(ctx, storage.Search{ChatID: chatID, Name: "test-search", Manufacturer: 1})
+	if err != nil {
+		t.Fatalf("create search: %v", err)
+	}
+
+	// Insert listing_history for the user.
+	err = store.SaveListing(ctx, storage.ListingRecord{
+		Token: "del-tok-1", ChatID: chatID, SearchID: 1,
+		SearchName: "test-search", Manufacturer: "Toyota", Model: "Corolla",
+	})
+	if err != nil {
+		t.Fatalf("save listing: %v", err)
+	}
+
+	// Insert price_history for that token.
+	_, err = store.DB().ExecContext(ctx, `INSERT INTO price_history (token, price) VALUES ($1, $2)`, "del-tok-1", 100000)
+	if err != nil {
+		t.Fatalf("insert price_history: %v", err)
+	}
+
+	// Insert push_subscriptions for the user.
+	_, err = store.DB().ExecContext(ctx, `INSERT INTO push_subscriptions (chat_id, endpoint, p256dh, auth) VALUES ($1, $2, $3, $4)`,
+		chatID, "https://push.example.com/sub1", "key1", "auth1")
+	if err != nil {
+		t.Fatalf("insert push_subscription: %v", err)
+	}
+
+	// Delete the user.
+	if err := store.AdminDeleteUser(ctx, chatID); err != nil {
+		t.Fatalf("AdminDeleteUser: %v", err)
+	}
+
+	// Verify all tables are clean.
+	var count int64
+
+	_ = store.DB().QueryRowContext(ctx, `SELECT count(*) FROM price_history WHERE token = $1`, "del-tok-1").Scan(&count)
+	if count != 0 {
+		t.Errorf("price_history should be empty, got %d rows", count)
+	}
+
+	_ = store.DB().QueryRowContext(ctx, `SELECT count(*) FROM push_subscriptions WHERE chat_id = $1`, chatID).Scan(&count)
+	if count != 0 {
+		t.Errorf("push_subscriptions should be empty, got %d rows", count)
+	}
+
+	_ = store.DB().QueryRowContext(ctx, `SELECT count(*) FROM listing_history WHERE chat_id = $1`, chatID).Scan(&count)
+	if count != 0 {
+		t.Errorf("listing_history should be empty, got %d rows", count)
+	}
+
+	_ = store.DB().QueryRowContext(ctx, `SELECT count(*) FROM users WHERE chat_id = $1`, chatID).Scan(&count)
+	if count != 0 {
+		t.Errorf("users should be empty, got %d rows", count)
 	}
 }
