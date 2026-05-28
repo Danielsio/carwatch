@@ -220,6 +220,7 @@ func (s *Server) Routes() http.Handler {
 	authMux.HandleFunc("GET /api/v1/searches/{id}/listings", s.listListings)
 	authMux.HandleFunc("POST /api/v1/searches/{id}/refresh", s.refreshListings)
 	authMux.HandleFunc("GET /api/v1/listings/{token}", s.getListing)
+	authMux.HandleFunc("GET /api/v1/listings/{token}/price-history", s.listingPriceHistory)
 
 	if s.admin != nil {
 		authMux.HandleFunc("GET /api/v1/admin/stats", s.requireAdmin(s.adminStats))

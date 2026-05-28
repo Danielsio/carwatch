@@ -9,7 +9,7 @@ import {
   ReferenceDot,
 } from "recharts";
 import { TrendingDown, TrendingUp, Minus } from "lucide-react";
-import { adminApi, type AdminPriceRecord } from "@/lib/api";
+import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -42,7 +42,7 @@ export function PriceHistoryChart({
   token,
   currentPrice,
 }: PriceHistoryChartProps) {
-  const [records, setRecords] = useState<AdminPriceRecord[]>([]);
+  const [records, setRecords] = useState<{ price: number; observed_at: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -50,8 +50,8 @@ export function PriceHistoryChart({
     let cancelled = false;
     setLoading(true);
     setError(false);
-    adminApi
-      .priceHistory({ token, limit: 100 })
+    api
+      .priceHistory(token)
       .then((res) => {
         if (!cancelled) {
           setRecords(res.items);

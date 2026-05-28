@@ -205,6 +205,8 @@ export const api = {
       fetchAPI<SearchStatsResponse>(`/searches/${id}/stats`),
   },
   listing: (token: string) => fetchAPI<Listing>(`/listings/${encodeURIComponent(token)}`),
+  priceHistory: (token: string) =>
+    fetchAPI<{ items: { price: number; observed_at: string }[] }>(`/listings/${encodeURIComponent(token)}/price-history`),
   markListingSeen: (token: string) =>
     fetchAPI<void>(`/listings/${encodeURIComponent(token)}/seen`, {
       method: "POST",
