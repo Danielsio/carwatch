@@ -113,6 +113,40 @@ jobs:
             echo "Expected docker compose config to fail without TELEMETRY_AUTH_TOKEN"
             exit 1
           fi
+      - name: Verify compose topology has expected app services
+        run: |
+          EXPECTED_SERVICES="api bot-poller scraper notifier enricher"
+          CARWATCH_IMAGE_TAG=test \
+          POSTGRES_PASSWORD=test \
+          REDIS_PASSWORD=test \
+          TELEMETRY_AUTH_TOKEN=test \
+          CARWATCH_DOMAIN=example.com \
+          TELEGRAM_BOT_TOKEN=test \
+          docker compose -f docker-compose.prod.yaml config --services > /tmp/compose-services.txt
+          for svc in $EXPECTED_SERVICES; do
+            if ! grep -q "^${svc}$" /tmp/compose-services.txt; then
+              echo "::error::Missing expected app service: ${svc}"
+              exit 1
+            fi
+          done
+          echo "All expected app services present ✓"
+      - name: Verify all app services define healthchecks
+        run: |
+          APP_SERVICES="bot-poller scraper notifier enricher"
+          CARWATCH_IMAGE_TAG=test \
+          POSTGRES_PASSWORD=test \
+          REDIS_PASSWORD=test \
+          TELEMETRY_AUTH_TOKEN=test \
+          CARWATCH_DOMAIN=example.com \
+          TELEGRAM_BOT_TOKEN=test \
+          docker compose -f docker-compose.prod.yaml config > /tmp/compose-full.yaml
+          for svc in $APP_SERVICES; do
+            if ! grep -A20 "^  ${svc}:" /tmp/compose-full.yaml | grep -q "healthcheck:"; then
+              echo "::error::Service ${svc} is missing a healthcheck"
+              exit 1
+            fi
+          done
+          echo "All app services have healthchecks ✓"
 
   test:
     name: Test
