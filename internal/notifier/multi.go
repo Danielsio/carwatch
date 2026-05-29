@@ -146,7 +146,9 @@ func (m *MultiNotifier) resolveAll(ctx context.Context, recipient string) map[st
 
 	if _, ok := result["telegram"]; !ok {
 		if n, ok := m.notifiers["telegram"]; ok {
-			result["telegram"] = n
+			if user != nil && normalizeChannel(user.Channel) == "telegram" {
+				result["telegram"] = n
+			}
 		}
 	}
 

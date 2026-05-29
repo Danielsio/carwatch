@@ -1492,6 +1492,7 @@ func TestPostgres_UnenrichedBacklogFilters(t *testing.T) {
 	save("has-city", 0, "Tel Aviv", "")
 	save("has-image", 0, "", "https://img.example/1.jpg")
 	save("has-km", 120000, "", "")
+	save("fully-enriched", 120000, "Tel Aviv", "https://img.example/2.jpg")
 	save("maxed-attempts", 0, "", "")
 	save("cooldown", 0, "", "")
 
@@ -1508,16 +1509,24 @@ func TestPostgres_UnenrichedBacklogFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUnenrichedTokens: %v", err)
 	}
-	if len(tokens) != 1 || tokens[0] != "unenriched-ok" {
-		t.Fatalf("unexpected unenriched tokens: %v", tokens)
+	// OR-based filter: listings missing ANY of km/city/image are unenriched.
+	// Excluded: fully-enriched (has all), maxed-attempts (>=10), cooldown (recent).
+	want := map[string]bool{"unenriched-ok": true, "has-city": true, "has-image": true, "has-km": true}
+	if len(tokens) != len(want) {
+		t.Fatalf("ListUnenrichedTokens returned %d tokens, want %d: %v", len(tokens), len(want), tokens)
+	}
+	for _, tok := range tokens {
+		if !want[tok] {
+			t.Errorf("unexpected token in unenriched list: %s", tok)
+		}
 	}
 
 	count, err := store.CountUnenrichedTokens(ctx)
 	if err != nil {
 		t.Fatalf("CountUnenrichedTokens: %v", err)
 	}
-	if count != 1 {
-		t.Fatalf("unenriched count = %d, want 1", count)
+	if count != int64(len(want)) {
+		t.Fatalf("unenriched count = %d, want %d", count, len(want))
 	}
 
 	cooldown, err := store.CountUnenrichedCooldownTokens(ctx)

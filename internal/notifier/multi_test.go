@@ -47,7 +47,8 @@ func (f *fakeNotifier) NotifyRaw(_ context.Context, recipient string, _ string) 
 }
 
 type fakeUserStore struct {
-	users map[int64]*storage.User
+	users         map[int64]*storage.User
+	linkedTgUsers map[int64]*storage.User
 }
 
 func (f *fakeUserStore) UpsertUser(_ context.Context, _ int64, _ string) error         { return nil }
@@ -82,8 +83,15 @@ func (f *fakeUserStore) GetUser(_ context.Context, chatID int64) (*storage.User,
 
 func (f *fakeUserStore) LinkTelegramToWeb(_ context.Context, _, _ int64) error { return nil }
 
-func (f *fakeUserStore) GetLinkedTelegramUser(_ context.Context, _ int64) (*storage.User, error) {
-	return nil, nil
+func (f *fakeUserStore) GetLinkedTelegramUser(_ context.Context, webChatID int64) (*storage.User, error) {
+	if f.linkedTgUsers == nil {
+		return nil, nil
+	}
+	u, ok := f.linkedTgUsers[webChatID]
+	if !ok {
+		return nil, nil
+	}
+	return u, nil
 }
 
 func TestMultiNotifier_FanOutToAllChannels(t *testing.T) {
@@ -267,7 +275,7 @@ func TestMultiNotifier_NotifyRaw_UserLookupErrorFallsBack(t *testing.T) {
 	}
 }
 
-func TestMultiNotifier_WebChannelAliasIncludesWebpush(t *testing.T) {
+func TestMultiNotifier_WebUserWithoutLinkedTelegram(t *testing.T) {
 	tg := &fakeNotifier{name: "telegram"}
 	webpush := &fakeNotifier{name: "webpush"}
 	users := &fakeUserStore{users: map[int64]*storage.User{
@@ -284,8 +292,56 @@ func TestMultiNotifier_WebChannelAliasIncludesWebpush(t *testing.T) {
 	if len(webpush.rawCalls) != 1 {
 		t.Errorf("webpush got %d calls, want 1", len(webpush.rawCalls))
 	}
+	if len(tg.rawCalls) != 0 {
+		t.Errorf("telegram got %d calls, want 0 (web user without linked telegram)", len(tg.rawCalls))
+	}
+}
+
+func TestMultiNotifier_WebUserWithLinkedTelegram_NoFanOut(t *testing.T) {
+	tg := &fakeNotifier{name: "telegram"}
+	webpush := &fakeNotifier{name: "webpush"}
+	users := &fakeUserStore{
+		users: map[int64]*storage.User{
+			777: {ChatID: 777, Channel: "web"},
+		},
+		linkedTgUsers: map[int64]*storage.User{
+			777: {ChatID: 123456, Channel: "telegram"},
+		},
+	}
+
+	mn := NewMultiNotifier(users, slog.Default())
+	_ = mn.Register("telegram", tg)
+	_ = mn.Register("webpush", webpush)
+
+	if err := mn.NotifyRaw(context.Background(), "777", "hello linked user"); err != nil {
+		t.Fatalf("notify linked user: %v", err)
+	}
+	if len(webpush.rawCalls) != 1 {
+		t.Errorf("webpush got %d calls, want 1", len(webpush.rawCalls))
+	}
+	// Telegram fan-out is NOT attempted for linked web users because
+	// resolveAll passes the web chat ID (777) to the telegram notifier,
+	// not the linked telegram chat ID (123456). Until recipient-override
+	// support is added, linked telegram delivery is intentionally skipped.
+	if len(tg.rawCalls) != 0 {
+		t.Errorf("telegram got %d calls, want 0 (linked telegram fan-out not yet supported)", len(tg.rawCalls))
+	}
+}
+
+func TestMultiNotifier_TelegramUserAlwaysGetsTelegram(t *testing.T) {
+	tg := &fakeNotifier{name: "telegram"}
+	users := &fakeUserStore{users: map[int64]*storage.User{
+		100: {ChatID: 100, Channel: "telegram"},
+	}}
+
+	mn := NewMultiNotifier(users, slog.Default())
+	_ = mn.Register("telegram", tg)
+
+	if err := mn.NotifyRaw(context.Background(), "100", "hello tg user"); err != nil {
+		t.Fatalf("notify telegram user: %v", err)
+	}
 	if len(tg.rawCalls) != 1 {
-		t.Errorf("telegram got %d calls, want 1 (fan-out)", len(tg.rawCalls))
+		t.Errorf("telegram got %d calls, want 1", len(tg.rawCalls))
 	}
 }
 
