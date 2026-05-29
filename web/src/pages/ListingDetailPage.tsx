@@ -1,6 +1,6 @@
 import { useLocation, Link, useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, lazy, Suspense, type ReactNode } from "react";
 import {
   ArrowRight,
   ExternalLink,
@@ -33,7 +33,9 @@ import { useSaveBookmark, useRemoveBookmark } from "@/hooks/useBookmarks";
 import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { PriceHistoryChart } from "@/components/PriceHistoryChart";
+const PriceHistoryChart = lazy(() =>
+  import("@/components/PriceHistoryChart").then((m) => ({ default: m.PriceHistoryChart })),
+);
 
 function listingSource(pageLink: string): string | null {
   if (!pageLink) return null;
@@ -293,7 +295,9 @@ function ListingDetailContent({
       />
 
       {/* Price history chart */}
-      <PriceHistoryChart token={listing.token} currentPrice={listing.price} />
+      <Suspense fallback={<Skeleton className="h-52 rounded-2xl" />}>
+        <PriceHistoryChart token={listing.token} currentPrice={listing.price} />
+      </Suspense>
 
       {/* Description */}
       {listing.description && (
