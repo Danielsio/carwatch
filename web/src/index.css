@@ -87,6 +87,11 @@
   --animate-pulse-glow: pulse-glow 2.5s ease-in-out infinite;
 }
 
+/* ═══ Layout ═══ */
+:root {
+  --bottom-nav-h: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+}
+
 /* ═══ Light Mode — Clean, bright, professional ═══ */
 :root {
   --primary: #1D4ED8;
