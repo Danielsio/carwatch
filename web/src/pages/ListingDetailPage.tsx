@@ -217,6 +217,8 @@ function ListingDetailContent({
             src={listing.image_url}
             alt={`${listing.manufacturer} ${listing.model}`}
             referrerPolicy="no-referrer"
+            width={1280}
+            height={720}
             className="h-full w-full object-cover"
           />
         </div>
