@@ -13,8 +13,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useInfiniteListings } from "@/hooks/useInfiniteListings";
-import { useSaveBookmark, useRemoveBookmark } from "@/hooks/useBookmarks";
-import { useMarkListingSeen, useUnmarkListingSeen } from "@/hooks/useListingSeen";
+import { useListingActions } from "@/hooks/useListingActions";
 import { safeHref, cn, formatPrice } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Listing, RefreshResponse } from "@/lib/api";
@@ -314,21 +313,8 @@ export function ListingsPage() {
 
 const ListingCard = memo(function ListingCard({ listing }: { listing: Listing }) {
   const navigate = useNavigate();
-  const saveBookmark = useSaveBookmark();
-  const removeBookmark = useRemoveBookmark();
-  const markListingSeen = useMarkListingSeen();
-  const unmarkListingSeen = useUnmarkListingSeen();
+  const { saved, seen, toggleSaved, toggleSeen } = useListingActions(listing);
   const { toast } = useToast();
-  const [saved, setSaved] = useState(() => listing.saved ?? false);
-  const [seen, setSeen] = useState(() => listing.seen ?? false);
-
-  useEffect(() => {
-    setSaved(listing.saved ?? false);
-  }, [listing.token, listing.saved]);
-
-  useEffect(() => {
-    setSeen(listing.seen ?? false);
-  }, [listing.token, listing.seen]);
 
   return (
     <div
@@ -360,12 +346,7 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
               aria-pressed={seen}
               onClick={(e) => {
                 e.stopPropagation();
-                const next = !seen;
-                setSeen(next);
-                const mutation = next ? markListingSeen : unmarkListingSeen;
-                mutation.mutate(listing.token, {
-                  onError: () => setSeen(!next),
-                });
+                toggleSeen();
               }}
               className={cn(
                 "rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all duration-150",
@@ -386,18 +367,8 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
               aria-pressed={saved}
               onClick={(e) => {
                 e.stopPropagation();
-                const next = !saved;
-                setSaved(next);
-                const mutation = next ? saveBookmark : removeBookmark;
-                mutation.mutate(listing.token, {
-                  onSuccess: () => {
-                    if (next) {
-                      toast("נשמר בהצלחה", "success");
-                    } else {
-                      toast("הוסר מהשמורים", "info");
-                    }
-                  },
-                  onError: () => setSaved(!next),
+                toggleSaved({
+                  onSuccess: (next) => toast(next ? "נשמר בהצלחה" : "הוסר מהשמורים", next ? "success" : "info"),
                 });
               }}
               className={cn(
