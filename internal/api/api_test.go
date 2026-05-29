@@ -1272,6 +1272,7 @@ func TestAdminEnrichmentStatusCountsOnlyActionableBacklog(t *testing.T) {
 	save("unenriched-ok", 0, "", "")
 	save("has-city", 0, "Tel Aviv", "")
 	save("has-image", 0, "", "https://img.example/1.jpg")
+	save("fully-enriched", 120000, "Tel Aviv", "https://img.example/2.jpg")
 	save("maxed-attempts", 0, "", "")
 	save("cooldown", 0, "", "")
 
@@ -1294,8 +1295,10 @@ func TestAdminEnrichmentStatusCountsOnlyActionableBacklog(t *testing.T) {
 	if !ok {
 		t.Fatalf("unenriched_count missing or invalid: %v", resp)
 	}
-	if int64(got) != 1 {
-		t.Fatalf("unenriched_count = %v, want 1", got)
+	// OR-based filter: unenriched-ok (all empty), has-city (km=0, no image),
+	// has-image (km=0, no city) — 3 actionable. fully-enriched excluded.
+	if int64(got) != 3 {
+		t.Fatalf("unenriched_count = %v, want 3", got)
 	}
 
 	cooldown, ok := resp["cooldown_count"].(float64)
