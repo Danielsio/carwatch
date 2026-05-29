@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router";
 import {
   Play,
@@ -36,9 +37,14 @@ export function SearchCard({
   onCancelDelete,
 }: SearchCardProps) {
   const navigate = useNavigate();
+  const confirmRef = useRef<HTMLButtonElement>(null);
   const isActive = search.active;
   const listingsPath = `/searches/${search.id}/listings`;
   const { data: stats } = useSearchStats(search.id);
+
+  useEffect(() => {
+    if (isConfirmingDelete) confirmRef.current?.focus();
+  }, [isConfirmingDelete]);
 
   const mfrLogo =
     manufacturerLogoSrcFromCatalogId(search.manufacturer_id) ??
@@ -232,8 +238,9 @@ export function SearchCard({
       </Link>
 
       {isConfirmingDelete ? (
-        <div className="border-border/60 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+        <div className="border-border/60 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3" role="alertdialog" aria-label="אישור מחיקת חיפוש">
           <Button
+            ref={confirmRef}
             type="button"
             variant="destructive"
             size="md"

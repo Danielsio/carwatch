@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
-import { useParams, useNavigate, Link } from "react-router";
+import { useParams, Link } from "react-router";
 import {
   ExternalLink,
   Bookmark,
@@ -36,11 +36,6 @@ const SORT_OPTIONS = [
 ];
 
 const REFRESH_COOLDOWN_S = 60;
-
-function isInteractiveTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-  return target.closest("button,a,input,select,textarea") != null;
-}
 
 function RefreshButton({ searchId }: { searchId: number }) {
   const { toast } = useToast();
@@ -312,27 +307,15 @@ export function ListingsPage() {
 }
 
 const ListingCard = memo(function ListingCard({ listing }: { listing: Listing }) {
-  const navigate = useNavigate();
   const { saved, seen, toggleSaved, toggleSeen } = useListingActions(listing);
   const { toast } = useToast();
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <Link
+      to={`/listings/${listing.token}`}
+      state={{ listing }}
       aria-label={`${listing.manufacturer} ${listing.model} ${listing.year} - ${formatPrice(listing.price)}`}
-      onClick={(e) => {
-        if (isInteractiveTarget(e.target)) return;
-        navigate(`/listings/${listing.token}`, { state: { listing } });
-      }}
-      onKeyDown={(e) => {
-        if (isInteractiveTarget(e.target)) return;
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          navigate(`/listings/${listing.token}`, { state: { listing } });
-        }
-      }}
-      className="group block cursor-pointer rounded-2xl border border-border/40 bg-card overflow-hidden shadow-sm transition-all duration-300 ease-out hover:border-primary/20 hover:shadow-[0_16px_48px_-12px_var(--color-glow-primary)] hover:-translate-y-1 dir-rtl"
+      className="group block rounded-2xl border border-border/40 bg-card overflow-hidden shadow-sm transition-all duration-300 ease-out hover:border-primary/20 hover:shadow-[0_16px_48px_-12px_var(--color-glow-primary)] hover:-translate-y-1 dir-rtl"
     >
       <ListingCardBody
         listing={listing}
@@ -397,6 +380,6 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
           </>
         }
       />
-    </div>
+    </Link>
   );
 });

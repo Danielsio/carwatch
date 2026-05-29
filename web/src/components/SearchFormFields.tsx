@@ -312,6 +312,7 @@ export function BudgetFields({
             value={form.maxKm}
             onChange={(v) => set("maxKm", v)}
             formatLabel={formatKmLabel}
+            aria-label='ק"מ מקסימלי'
           />
         </FormField>
 

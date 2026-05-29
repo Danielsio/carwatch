@@ -8,6 +8,7 @@ export interface RangeSliderProps {
   onChange: (value: number) => void;
   formatLabel?: (value: number) => string;
   className?: string;
+  "aria-label"?: string;
 }
 
 export function RangeSlider({
@@ -18,6 +19,7 @@ export function RangeSlider({
   onChange,
   formatLabel,
   className,
+  "aria-label": ariaLabel,
 }: RangeSliderProps) {
   const label = formatLabel ? formatLabel(value) : String(value);
   const percent = ((value - min) / (max - min)) * 100;
@@ -36,6 +38,8 @@ export function RangeSlider({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={ariaLabel}
+        aria-valuetext={label}
         className="range-slider w-full"
         style={
           { "--range-percent": `${percent}%` } as React.CSSProperties

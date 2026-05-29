@@ -305,6 +305,7 @@ export default function TrySearchPage() {
                 value={form.maxKm}
                 onChange={(v) => set("maxKm", v)}
                 formatLabel={formatKmLabel}
+                aria-label='ק"מ מקסימלי'
               />
             </FormField>
 

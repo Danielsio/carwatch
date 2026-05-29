@@ -268,6 +268,7 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
                 onBlur={() => setTouched((p) => ({ ...p, email: true }))}
                 required
                 aria-invalid={!!emailErr}
+                aria-describedby={emailErr ? "auth-email-error" : undefined}
                 className={cn(
                   "w-full rounded-lg border bg-secondary px-3.5 py-2.5 text-sm text-foreground outline-none transition-all",
                   "placeholder:text-muted-foreground/50",
@@ -276,7 +277,7 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
                 )}
                 placeholder="you@example.com"
               />
-              {emailErr && <p className="mt-1 text-xs text-destructive">{emailErr}</p>}
+              {emailErr && <p id="auth-email-error" className="mt-1 text-xs text-destructive">{emailErr}</p>}
             </div>
 
             <div>
@@ -295,6 +296,7 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
                   onBlur={() => setTouched((p) => ({ ...p, password: true }))}
                   required
                   aria-invalid={!!passwordErr}
+                  aria-describedby={passwordErr ? "auth-password-error" : undefined}
                   className={cn(
                     "w-full rounded-lg border bg-secondary py-2.5 ps-10 pe-3.5 text-sm text-foreground outline-none transition-all",
                     "placeholder:text-muted-foreground/50",
@@ -314,7 +316,7 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
                 </button>
               </div>
               {tab === "login" && passwordErr && (
-                <p className="mt-1 text-xs text-destructive">{passwordErr}</p>
+                <p id="auth-password-error" className="mt-1 text-xs text-destructive">{passwordErr}</p>
               )}
               {tab === "signup" && touched.password && password.length > 0 && (
                 <ul className="mt-2 space-y-0.5">
@@ -352,6 +354,7 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
                   onChange={(e) => setConfirm(e.target.value)}
                   onBlur={() => setTouched((p) => ({ ...p, confirm: true }))}
                   required
+                  aria-describedby={confirmErr ? "auth-confirm-error" : undefined}
                   className={cn(
                     "w-full rounded-lg border bg-secondary px-3.5 py-2.5 text-sm text-foreground outline-none transition-all",
                     "placeholder:text-muted-foreground/50",
@@ -360,7 +363,7 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
                   )}
                   placeholder="••••••••"
                 />
-                {confirmErr && <p className="mt-1 text-xs text-destructive">{confirmErr}</p>}
+                {confirmErr && <p id="auth-confirm-error" className="mt-1 text-xs text-destructive">{confirmErr}</p>}
                 {touched.confirm && confirm.length > 0 && confirm === password && (
                   <p className="mt-1 flex items-center gap-1 text-xs text-success">
                     <Check className="h-3 w-3" />

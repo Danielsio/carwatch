@@ -4,7 +4,7 @@ import { Bookmark, AlertTriangle, Clock, Flame, TrendingDown, TrendingUp, Minus 
 import { formatPrice, formatKm, relativeTime, cn, marketComparison, listingSource } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
-import { scoreHsl } from "@/lib/scoringAlgorithm";
+import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
 import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 
 function dealInfo(listing: Listing): {
@@ -202,7 +202,7 @@ export function ListingCardBody({
             <>
               <MatchScoreBox score={listing.fitness_score} size="sm" />
               <span className="text-xs font-semibold" style={{ color: scoreHsl(listing.fitness_score) }}>
-                {listing.fitness_score.toFixed(1)}
+                {listing.fitness_score.toFixed(1)} · {scoreLabel(listing.fitness_score)}
               </span>
             </>
           ) : null}
