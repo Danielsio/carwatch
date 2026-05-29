@@ -135,7 +135,7 @@ function ScrollToTopButton() {
     <button
       type="button"
       onClick={() => document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" })}
-      className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] left-4 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-150 hover:opacity-90 active:scale-95 md:bottom-6"
+      className="fixed bottom-[calc(var(--bottom-nav-h)+1rem)] left-4 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-150 hover:opacity-90 active:scale-95 md:bottom-6"
       aria-label="חזרה למעלה"
     >
       <ArrowUp className="h-4 w-4" />

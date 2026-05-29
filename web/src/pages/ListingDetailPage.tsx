@@ -396,7 +396,7 @@ function ListingDetailContent({
       </div>
 
       {/* Mobile sticky action bar */}
-      <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] z-40 border-t border-border/50 bg-card/95 px-4 py-3 backdrop-blur-xl md:hidden">
+      <div className="fixed inset-x-0 bottom-[var(--bottom-nav-h)] z-40 border-t border-border/50 bg-card/95 px-4 py-3 backdrop-blur-xl md:hidden">
         <div className="flex items-center gap-2">
           <Button
             type="button"

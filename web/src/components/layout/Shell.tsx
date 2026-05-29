@@ -296,7 +296,7 @@ export function Shell() {
       </aside>
 
       {/* ── Main Content ── */}
-      <main className="h-[100dvh] overflow-y-auto scroll-smooth pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] landscape:pb-16 md:mr-60 md:pb-0">
+      <main className="h-[100dvh] overflow-y-auto scroll-smooth pb-[var(--bottom-nav-h)] landscape:pb-16 md:mr-60 md:pb-0">
         <div className="mx-auto max-w-5xl px-4 py-6 landscape:py-4 sm:px-6 md:py-8 lg:px-8">
           <div key={location.pathname} className="animate-fade-in">
             <Outlet />
