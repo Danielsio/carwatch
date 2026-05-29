@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { ArrowLeft, Bell, TrendingDown } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
 
 function FloatingCard({
   className,
@@ -12,25 +11,17 @@ function FloatingCard({
   children: ReactNode;
   delay?: number;
 }) {
-  const reduceMotion = useReducedMotion();
   return (
-    <motion.div
-      initial={{ opacity: 0, y: reduceMotion ? 0 : 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{
-        delay: reduceMotion ? 0 : delay,
-        duration: reduceMotion ? 0.15 : 0.6,
-        ease: "easeOut",
-      }}
-      className={`glass-card absolute rounded-2xl p-3.5 shadow-xl ${className ?? ""}`}
+    <div
+      className={`glass-card absolute rounded-2xl p-3.5 shadow-xl animate-slide-up motion-reduce:animate-none ${className ?? ""}`}
+      style={delay > 0 ? { animationDelay: `${delay}s`, animationFillMode: "backwards" } : undefined}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 
 export function HeroSection() {
-  const reduceMotion = useReducedMotion();
   return (
     <section className="relative flex min-h-screen items-center justify-center pt-16">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -42,55 +33,44 @@ export function HeroSection() {
       <div className="landing-grid-bg pointer-events-none absolute inset-0 opacity-[0.03]" />
 
       <div className="relative z-10 mx-auto max-w-5xl px-4 text-center sm:px-6">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
           lang="he"
-          className="mb-8 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary"
+          className="mb-8 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary animate-fade-in motion-reduce:animate-none"
         >
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
           מעקב רכבים חכם בישראל
-        </motion.div>
+        </div>
 
-        <motion.h1
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.7 }}
+        <h1
           lang="he"
-          className="mb-6 text-4xl leading-[1.12] font-bold text-foreground sm:text-5xl md:text-6xl lg:text-7xl"
+          className="mb-6 text-4xl leading-[1.12] font-bold text-foreground sm:text-5xl md:text-6xl lg:text-7xl animate-slide-up motion-reduce:animate-none"
+          style={{ animationDelay: "0.1s", animationFillMode: "backwards" }}
         >
           עקוב אחרי המודעות
           <br />
           <span className="gradient-text">וקנה לפני שכולם הספיקו.</span>
-        </motion.h1>
+        </h1>
 
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.7 }}
+        <p
           lang="he"
-          className="mx-auto mb-2 max-w-2xl text-lg leading-relaxed text-muted-foreground md:text-xl"
+          className="mx-auto mb-2 max-w-2xl text-lg leading-relaxed text-muted-foreground md:text-xl animate-slide-up motion-reduce:animate-none"
+          style={{ animationDelay: "0.2s", animationFillMode: "backwards" }}
         >
           CarWatch סורקת מקורות מרובים בישראל, מדרגת מודעות בציון חכם ושולחת התראות
           בזמן אמת — כדי שתאסוף את הרכב הנכון במחיר הנכון.
-        </motion.p>
-        <motion.p
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25, duration: 0.6 }}
-          className="mx-auto mb-10 max-w-2xl text-sm font-medium text-muted-foreground/90 md:text-base"
+        </p>
+        <p
+          className="mx-auto mb-10 max-w-2xl text-sm font-medium text-muted-foreground/90 md:text-base animate-slide-up motion-reduce:animate-none"
           lang="en"
           dir="ltr"
+          style={{ animationDelay: "0.25s", animationFillMode: "backwards" }}
         >
           Multi-source monitoring · Smart Match Score · Real-time alerts
-        </motion.p>
+        </p>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.6 }}
-          className="mb-16 flex flex-col items-center justify-center gap-4 sm:flex-row"
+        <div
+          className="mb-16 flex flex-col items-center justify-center gap-4 sm:flex-row animate-slide-up motion-reduce:animate-none"
+          style={{ animationDelay: "0.3s", animationFillMode: "backwards" }}
         >
           <Link
             to="/signup"
@@ -111,13 +91,11 @@ export function HeroSection() {
           >
             איך זה עובד?
           </a>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 40, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ delay: 0.4, duration: 0.8, ease: "easeOut" }}
-          className="relative mx-auto max-w-3xl pb-10"
+        <div
+          className="relative mx-auto max-w-3xl pb-10 animate-slide-up motion-reduce:animate-none"
+          style={{ animationDelay: "0.4s", animationFillMode: "backwards" }}
         >
           <div className="glass-card rounded-3xl border border-border/80 p-5 shadow-2xl sm:p-6">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -251,28 +229,21 @@ export function HeroSection() {
               </div>
             </div>
           </FloatingCard>
-        </motion.div>
+        </div>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: reduceMotion ? 0 : 1.5 }}
-        className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5"
+      <div
+        className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5 animate-fade-in motion-reduce:animate-none"
+        style={{ animationDelay: "1.5s", animationFillMode: "backwards" }}
       >
         <span className="text-xs text-muted-foreground/50">גלול למטה</span>
         <div className="flex h-8 w-5 items-start justify-center rounded-full border-2 border-border/50 p-1">
-          <motion.div
-            animate={reduceMotion ? { y: 0 } : { y: [0, 10, 0] }}
-            transition={{
-              duration: 1.5,
-              repeat: reduceMotion ? 0 : Infinity,
-              ease: "easeInOut",
-            }}
+          <div
             className="h-1.5 w-1 rounded-full bg-muted-foreground/50"
+            style={{ animation: "scroll-dot 1.5s ease-in-out infinite" }}
           />
         </div>
-      </motion.div>
+      </div>
     </section>
   );
 }

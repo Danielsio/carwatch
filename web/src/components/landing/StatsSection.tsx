@@ -1,8 +1,6 @@
-import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { motion } from "motion/react";
 import { Bell, Clock, Search, Shield } from "lucide-react";
-import { useInView } from "@/hooks/useInView";
+import { FadeUp } from "./FadeUp";
 
 const features: {
   label: string;
@@ -30,26 +28,6 @@ const features: {
     icon: Shield,
   },
 ];
-
-function FadeUp({
-  children,
-  delay = 0,
-}: {
-  children: ReactNode;
-  delay?: number;
-}) {
-  const { ref, inView } = useInView();
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 20 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ delay, duration: 0.5 }}
-    >
-      {children}
-    </motion.div>
-  );
-}
 
 export function StatsSection() {
   return (

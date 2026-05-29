@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
-import { motion } from "motion/react";
 import { Sparkles, TrendingUp, Gauge, Calendar, Users } from "lucide-react";
 import { useInView } from "@/hooks/useInView";
+import { cn } from "@/lib/utils";
+import { FadeUp } from "./FadeUp";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import {
   scoreListingAgainstSearch,
@@ -80,26 +80,6 @@ const factors = [
   },
 ];
 
-function FadeUp({
-  children,
-  delay = 0,
-}: {
-  children: ReactNode;
-  delay?: number;
-}) {
-  const { ref, inView } = useInView();
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 28 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ delay, duration: 0.6 }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
 function DemoCard({
   listing,
   delay,
@@ -113,12 +93,13 @@ function DemoCard({
   const label = scoreLabel(score);
 
   return (
-    <motion.div
+    <div
       ref={ref}
-      initial={{ opacity: 0, x: 20 }}
-      animate={inView ? { opacity: 1, x: 0 } : {}}
-      transition={{ delay, duration: 0.5 }}
-      className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4"
+      className={cn(
+        "flex items-center gap-4 rounded-2xl border border-border bg-card p-4 transition-all duration-500 ease-out motion-reduce:transition-none",
+        inView ? "opacity-100 translate-x-0" : "opacity-0 translate-x-5",
+      )}
+      style={delay > 0 ? { transitionDelay: `${delay}s` } : undefined}
     >
       <MatchScoreBox score={score} size="md" />
 
@@ -152,7 +133,7 @@ function DemoCard({
       <div className="shrink-0 text-sm font-bold tabular-nums text-primary">
         ₪{listing.price.toLocaleString("he-IL")}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
