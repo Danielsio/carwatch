@@ -1,7 +1,5 @@
-import type { ReactNode } from "react";
-import { motion } from "motion/react";
 import { Search, Bell, Car } from "lucide-react";
-import { useInView } from "@/hooks/useInView";
+import { FadeUp } from "./FadeUp";
 
 const steps = [
   {
@@ -32,26 +30,6 @@ const steps = [
     glow: "shadow-success/20",
   },
 ];
-
-function FadeUp({
-  children,
-  delay = 0,
-}: {
-  children: ReactNode;
-  delay?: number;
-}) {
-  const { ref, inView } = useInView();
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 28 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ delay, duration: 0.6 }}
-    >
-      {children}
-    </motion.div>
-  );
-}
 
 export function HowItWorks() {
   return (

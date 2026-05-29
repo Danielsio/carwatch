@@ -1,7 +1,5 @@
-import type { ReactNode } from "react";
-import { motion } from "motion/react";
 import { X, Check } from "lucide-react";
-import { useInView } from "@/hooks/useInView";
+import { FadeUp } from "./FadeUp";
 
 const problems = [
   "רצת לאתר יד2 כל שעה כדי לא לפספס הזדמנות",
@@ -16,26 +14,6 @@ const solutions = [
   "מעקב מחירים חכם — תדע כשמחיר יורד",
   "פילטרים מדויקים — רק מה שרלוונטי אליך",
 ];
-
-function FadeUp({
-  children,
-  delay = 0,
-}: {
-  children: ReactNode;
-  delay?: number;
-}) {
-  const { ref, inView } = useInView();
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 24 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ delay, duration: 0.6 }}
-    >
-      {children}
-    </motion.div>
-  );
-}
 
 export function ProblemSolution() {
   return (

@@ -193,6 +193,11 @@
   50% { transform: translateY(-4px); }
 }
 
+@keyframes scroll-dot {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(10px); }
+}
+
 /* ═══ Utilities ═══ */
 @utility shimmer-skeleton {
   background: linear-gradient(

@@ -1,20 +1,13 @@
 import { Link } from "react-router";
 import { ArrowLeft, Zap } from "lucide-react";
-import { motion } from "motion/react";
-import { useInView } from "@/hooks/useInView";
+import { FadeUp } from "./FadeUp";
 
 export function FinalCTA() {
-  const { ref, inView } = useInView(0.3);
-
   return (
-    <section ref={ref} className="px-4 py-24 sm:px-6">
+    <section className="px-4 py-24 sm:px-6">
       <div className="mx-auto max-w-3xl">
-        <motion.div
-          initial={{ opacity: 0, y: 32, scale: 0.97 }}
-          animate={inView ? { opacity: 1, y: 0, scale: 1 } : {}}
-          transition={{ duration: 0.7 }}
-          className="relative overflow-hidden rounded-3xl border border-border bg-card p-10 text-center md:p-16"
-        >
+        <FadeUp>
+          <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-10 text-center md:p-16">
           <div className="pointer-events-none absolute inset-0">
             <div className="absolute top-0 start-1/2 h-48 w-72 -translate-x-1/2 rounded-full bg-primary/12 blur-[80px]" />
             <div className="absolute end-1/4 bottom-0 h-32 w-48 rounded-full bg-purple-500/8 blur-[60px]" />
@@ -48,7 +41,8 @@ export function FinalCTA() {
               </p>
             </div>
           </div>
-        </motion.div>
+        </div>
+        </FadeUp>
       </div>
     </section>
   );
