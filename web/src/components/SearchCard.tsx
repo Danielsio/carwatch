@@ -15,7 +15,6 @@ import {
   manufacturerLogoSrc,
   manufacturerLogoSrcFromCatalogId,
 } from "@/lib/manufacturerLogo";
-import { useSearchStats } from "@/hooks/useSearchStats";
 
 export type SearchCardProps = {
   search: Search;
@@ -40,7 +39,7 @@ export function SearchCard({
   const confirmRef = useRef<HTMLButtonElement>(null);
   const isActive = search.active;
   const listingsPath = `/searches/${search.id}/listings`;
-  const { data: stats } = useSearchStats(search.id);
+  const stats = search.stats;
 
   useEffect(() => {
     if (isConfirmingDelete) confirmRef.current?.focus();
