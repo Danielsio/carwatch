@@ -236,7 +236,7 @@ export function SearchCard({
           <Button
             type="button"
             variant="destructive"
-            size="sm"
+            size="md"
             onClick={onDelete}
             disabled={disabled}
             aria-label="אישור מחיקת חיפוש"
@@ -246,7 +246,7 @@ export function SearchCard({
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="md"
             onClick={onCancelDelete}
             aria-label="ביטול מחיקה"
           >
