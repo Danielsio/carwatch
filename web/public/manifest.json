@@ -38,5 +38,18 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "categories": ["auto", "shopping", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "חיפוש חדש",
+      "url": "/searches/new",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "התראות",
+      "url": "/notifications",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    }
   ]
 }
