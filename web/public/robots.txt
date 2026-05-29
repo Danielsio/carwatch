@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /signup
+Allow: /try
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /searches/
+Disallow: /listings/
+Disallow: /saved
+Disallow: /history
+Disallow: /notifications
+Disallow: /settings
+Disallow: /api/

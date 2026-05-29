@@ -225,30 +225,13 @@ export function ListingCardBody({
         </div>
 
         {/* Specs grid */}
-        <div className="grid grid-cols-3 gap-1.5">
-          <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center">
-            <p className="text-[10px] text-muted-foreground/70">ק״מ</p>
-            <p className="text-xs font-semibold tabular-nums text-foreground">
-              {listing.km > 0 ? formatKm(listing.km) : (
-                <span className="inline-flex items-center gap-0.5 text-muted-foreground/50">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  <span className="text-[9px]">מעשיר</span>
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center">
-            <p className="text-[10px] text-muted-foreground/70">יד</p>
-            <p className="text-xs font-semibold text-foreground">
-              {listing.hand > 0 ? listing.hand : "—"}
-            </p>
-          </div>
-          <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center">
-            <p className="text-[10px] text-muted-foreground/70">תיבת הילוכים</p>
-            <p className="text-xs font-semibold text-foreground truncate">
-              {listing.gear_box || "—"}
-            </p>
-          </div>
+        <div className="flex flex-wrap gap-1.5">
+          <SpecChip label="ק״מ" value={listing.km > 0 ? formatKm(listing.km) : undefined} enriching={listing.km <= 0} />
+          <SpecChip label="יד" value={listing.hand > 0 ? String(listing.hand) : undefined} />
+          {listing.gear_box ? <SpecChip label="הילוכים" value={listing.gear_box} /> : null}
+          {listing.engine_type ? <SpecChip label="דלק" value={listing.engine_type} /> : null}
+          {listing.engine_volume ? <SpecChip label="נפח" value={`${(listing.engine_volume / 1000).toFixed(1)}L`} /> : null}
+          {listing.horse_power ? <SpecChip label="כ״ס" value={String(listing.horse_power)} /> : null}
         </div>
 
         {/* Description */}
@@ -283,5 +266,21 @@ export function ListingCardBody({
         </div>
       </div>
     </>
+  );
+}
+
+function SpecChip({ label, value, enriching }: { label: string; value?: string; enriching?: boolean }) {
+  return (
+    <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center min-w-[3.5rem]">
+      <p className="text-[10px] text-muted-foreground/70">{label}</p>
+      <p className="text-xs font-semibold text-foreground truncate tabular-nums">
+        {value ?? (enriching ? (
+          <span className="inline-flex items-center gap-0.5 text-muted-foreground/50">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-[9px]">מעשיר</span>
+          </span>
+        ) : "—")}
+      </p>
+    </div>
   );
 }

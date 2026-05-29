@@ -72,9 +72,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navigation requests and hashed assets (e.g. /assets/Foo-abc123.js):
-  // always go network-first so deploys take effect immediately.
-  if (event.request.mode === 'navigate' || url.pathname.startsWith('/assets/')) {
+  // Hashed assets are immutable (hash changes on rebuild) — cache-first.
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Navigation requests: network-first so deploys take effect immediately.
+  if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
     );
