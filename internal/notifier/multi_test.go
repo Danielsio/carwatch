@@ -297,7 +297,7 @@ func TestMultiNotifier_WebUserWithoutLinkedTelegram(t *testing.T) {
 	}
 }
 
-func TestMultiNotifier_WebUserWithLinkedTelegram(t *testing.T) {
+func TestMultiNotifier_WebUserWithLinkedTelegram_NoFanOut(t *testing.T) {
 	tg := &fakeNotifier{name: "telegram"}
 	webpush := &fakeNotifier{name: "webpush"}
 	users := &fakeUserStore{
@@ -319,10 +319,12 @@ func TestMultiNotifier_WebUserWithLinkedTelegram(t *testing.T) {
 	if len(webpush.rawCalls) != 1 {
 		t.Errorf("webpush got %d calls, want 1", len(webpush.rawCalls))
 	}
-	// Telegram notifier is added to the fan-out, but delivery uses the web chat ID.
-	// The linked telegram user exists, so the notifier is included in the channel set.
-	if len(tg.rawCalls) != 1 {
-		t.Errorf("telegram got %d calls, want 1 (linked telegram should be attempted)", len(tg.rawCalls))
+	// Telegram fan-out is NOT attempted for linked web users because
+	// resolveAll passes the web chat ID (777) to the telegram notifier,
+	// not the linked telegram chat ID (123456). Until recipient-override
+	// support is added, linked telegram delivery is intentionally skipped.
+	if len(tg.rawCalls) != 0 {
+		t.Errorf("telegram got %d calls, want 0 (linked telegram fan-out not yet supported)", len(tg.rawCalls))
 	}
 }
 
