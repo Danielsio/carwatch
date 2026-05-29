@@ -184,6 +184,12 @@ export function Shell() {
 
   return (
     <div className="min-h-screen bg-background">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:right-4 focus:z-[60] focus:rounded-xl focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg"
+      >
+        דלג לתוכן
+      </a>
       <ConnectionBanner status={connectionStatus} />
 
       {/* ── Desktop Sidebar ── */}
@@ -296,7 +302,7 @@ export function Shell() {
       </aside>
 
       {/* ── Main Content ── */}
-      <main className="h-[100dvh] overflow-y-auto scroll-smooth pb-[var(--bottom-nav-h)] landscape:pb-16 md:mr-60 md:pb-0">
+      <main id="main-content" className="h-[100dvh] overflow-y-auto scroll-smooth pb-[var(--bottom-nav-h)] landscape:pb-16 md:mr-60 md:pb-0">
         <div className="mx-auto max-w-5xl px-4 py-6 landscape:py-4 sm:px-6 md:py-8 lg:px-8">
           <div key={location.pathname} className="animate-fade-in">
             <Outlet />
