@@ -1,6 +1,6 @@
 import { useLocation, Link, useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   ArrowRight,
   ExternalLink,
@@ -22,25 +22,17 @@ import {
   Store,
   User,
 } from "lucide-react";
-import { formatPrice, formatKm, relativeTime, safeHref, marketComparison, cn } from "@/lib/utils";
+import { formatPrice, formatKm, relativeTime, safeHref, marketComparison, cn, listingSource } from "@/lib/utils";
 import { api, ApiError } from "@/lib/api";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
-import { useMarkListingSeen, useUnmarkListingSeen } from "@/hooks/useListingSeen";
-import { useSaveBookmark, useRemoveBookmark } from "@/hooks/useBookmarks";
+import { useListingActions } from "@/hooks/useListingActions";
 import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PriceHistoryChart } from "@/components/PriceHistoryChart";
-
-function listingSource(pageLink: string): string | null {
-  if (!pageLink) return null;
-  const lower = pageLink.toLowerCase();
-  if (lower.includes("yad2")) return "Yad2";
-  return null;
-}
 
 export function ListingDetailPage() {
   const location = useLocation();
@@ -163,17 +155,7 @@ function ListingDetailContent({
   listing: Listing;
   backButton: ReactNode;
 }) {
-  const markSeen = useMarkListingSeen();
-  const unmarkSeen = useUnmarkListingSeen();
-  const saveBookmark = useSaveBookmark();
-  const removeBookmark = useRemoveBookmark();
-  const [seen, setSeen] = useState(() => listing.seen ?? false);
-  const [saved, setSaved] = useState(() => listing.saved ?? false);
-
-  useEffect(() => {
-    setSeen(listing.seen ?? false);
-    setSaved(listing.saved ?? false);
-  }, [listing.token, listing.seen, listing.saved]);
+  const { saved, seen, toggleSaved, toggleSeen, isSaving, isTogglingSeen } = useListingActions(listing);
 
   const detailLogoSrc = manufacturerLogoSrc(listing.manufacturer);
   const source = listingSource(listing.page_link);
@@ -348,13 +330,8 @@ function ListingDetailContent({
           type="button"
           variant={saved ? "secondary" : "primary"}
           size="lg"
-          disabled={saved ? removeBookmark.isPending : saveBookmark.isPending}
-          onClick={() => {
-            const next = !saved;
-            setSaved(next);
-            const mutation = next ? saveBookmark : removeBookmark;
-            mutation.mutate(listing.token, { onError: () => setSaved(!next) });
-          }}
+          disabled={isSaving}
+          onClick={() => toggleSaved()}
         >
           {saved ? (
             <><BookmarkCheck className="h-4 w-4" />שמור</>
@@ -366,13 +343,8 @@ function ListingDetailContent({
           type="button"
           variant="secondary"
           size="lg"
-          disabled={seen ? unmarkSeen.isPending : markSeen.isPending}
-          onClick={() => {
-            const next = !seen;
-            setSeen(next);
-            const mutation = next ? markSeen : unmarkSeen;
-            mutation.mutate(listing.token, { onError: () => setSeen(!next) });
-          }}
+          disabled={isTogglingSeen}
+          onClick={() => toggleSeen()}
         >
           {seen ? (
             <><EyeOff className="h-4 w-4" />החזר לחדשות</>
@@ -403,13 +375,8 @@ function ListingDetailContent({
             variant={saved ? "secondary" : "primary"}
             size="md"
             className="flex-1"
-            disabled={saved ? removeBookmark.isPending : saveBookmark.isPending}
-            onClick={() => {
-              const next = !saved;
-              setSaved(next);
-              const mutation = next ? saveBookmark : removeBookmark;
-              mutation.mutate(listing.token, { onError: () => setSaved(!next) });
-            }}
+            disabled={isSaving}
+            onClick={() => toggleSaved()}
           >
             {saved ? (
               <><BookmarkCheck className="h-4 w-4" />שמור</>
@@ -421,13 +388,8 @@ function ListingDetailContent({
             type="button"
             variant="secondary"
             size="md"
-            disabled={seen ? unmarkSeen.isPending : markSeen.isPending}
-            onClick={() => {
-              const next = !seen;
-              setSeen(next);
-              const mutation = next ? markSeen : unmarkSeen;
-              mutation.mutate(listing.token, { onError: () => setSeen(!next) });
-            }}
+            disabled={isTogglingSeen}
+            onClick={() => toggleSeen()}
           >
             {seen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>

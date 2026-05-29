@@ -98,6 +98,12 @@ export function marketComparison(
   return null;
 }
 
+export function listingSource(pageLink: string): string | null {
+  if (!pageLink) return null;
+  if (pageLink.toLowerCase().includes("yad2")) return "Yad2";
+  return null;
+}
+
 export function relativeTime(dateStr: string): string {
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) return "—";

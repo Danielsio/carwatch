@@ -1,18 +1,11 @@
 import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
 import { Bookmark, AlertTriangle, Clock, Flame, TrendingDown, TrendingUp, Minus } from "lucide-react";
-import { formatPrice, formatKm, relativeTime, cn, marketComparison } from "@/lib/utils";
+import { formatPrice, formatKm, relativeTime, cn, marketComparison, listingSource } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl } from "@/lib/scoringAlgorithm";
 import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
-
-function listingSource(pageLink: string): "Yad2" | null {
-  if (!pageLink) return null;
-  const lower = pageLink.toLowerCase();
-  if (lower.includes("yad2")) return "Yad2";
-  return null;
-}
 
 function dealInfo(listing: Listing): {
   label: string;
