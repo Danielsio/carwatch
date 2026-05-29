@@ -46,7 +46,7 @@ func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 		return
 	}
 
-	tokens, err := s.stores.Listings.ListUnenrichedTokens(ctx, 15)
+	tokens, err := s.stores.Listings.ListUnenrichedTokens(ctx, 30)
 	if err != nil {
 		s.logger.Error("list unenriched tokens failed", "error", err)
 		return

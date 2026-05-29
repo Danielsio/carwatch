@@ -1460,11 +1460,20 @@ func TestPostgres_UnenrichedBacklogFilters(t *testing.T) {
 	ctx := context.Background()
 	seedPgUser(t, store, 100)
 
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "enrich-test", Manufacturer: 27, Model: 10332,
+		YearMin: 2020, YearMax: 2025, PriceMax: 200000, Active: true,
+	})
+	if err != nil {
+		t.Fatalf("create search: %v", err)
+	}
+
 	save := func(token string, km int, city, image string) {
 		t.Helper()
 		if err := store.SaveListing(ctx, storage.ListingRecord{
 			Token:        token,
 			ChatID:       100,
+			SearchID:     searchID,
 			SearchName:   "enrich-test",
 			Manufacturer: "Mazda",
 			Model:        "3",

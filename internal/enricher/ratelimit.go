@@ -2,6 +2,8 @@ package enricher
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"sync"
 	"time"
 )
@@ -48,6 +50,11 @@ func (r *AdaptiveRateLimiter) Wait(ctx context.Context) bool {
 	if delay <= 0 {
 		return true
 	}
+
+	var buf [8]byte
+	_, _ = rand.Read(buf[:])
+	jitter := time.Duration(int64(binary.LittleEndian.Uint64(buf[:])) % int64(delay/4+1))
+	delay += jitter
 
 	timer := time.NewTimer(delay)
 	defer timer.Stop()

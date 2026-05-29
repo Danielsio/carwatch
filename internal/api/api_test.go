@@ -1241,11 +1241,20 @@ func TestAdminEnrichmentStatusCountsOnlyActionableBacklog(t *testing.T) {
 	srv, store := setupTestServer(t)
 	ctx := context.Background()
 
+	searchID, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 999, Name: "enrich-test", Manufacturer: 27, Model: 10332,
+		YearMin: 2020, YearMax: 2025, PriceMax: 200000, Active: true,
+	})
+	if err != nil {
+		t.Fatalf("create search: %v", err)
+	}
+
 	save := func(token string, km int, city, image string) {
 		t.Helper()
 		if err := store.SaveListing(ctx, storage.ListingRecord{
 			Token:        token,
 			ChatID:       999,
+			SearchID:     searchID,
 			SearchName:   "enrich-test",
 			Manufacturer: "Mazda",
 			Model:        "3",
