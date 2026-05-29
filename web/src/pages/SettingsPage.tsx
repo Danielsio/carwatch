@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Loader2,
   MessageCircle,
@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
-import { telegramApi, type TelegramStatus } from "@/lib/api";
+import { telegramApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
@@ -31,39 +31,22 @@ export function SettingsPage() {
   const { pushState, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } =
     usePushSubscription(!!user);
 
-  const [tgStatus, setTgStatus] = useState<TelegramStatus | null>(null);
-  const [tgLoading, setTgLoading] = useState(true);
-  const [linkLoading, setLinkLoading] = useState(false);
+  const { data: tgStatus, isLoading: tgLoading, refetch: refetchTg } = useQuery({
+    queryKey: ["telegram-status"],
+    queryFn: () => telegramApi.status(),
+  });
 
-  const fetchTgStatus = useCallback(async () => {
-    try {
-      setTgLoading(true);
-      const status = await telegramApi.status();
-      setTgStatus(status);
-    } catch {
-      setTgStatus(null);
-    } finally {
-      setTgLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTgStatus();
-  }, [fetchTgStatus]);
-
-  async function handleTelegramLink() {
-    try {
-      setLinkLoading(true);
-      const result = await telegramApi.createLink();
+  const linkMutation = useMutation({
+    mutationFn: () => telegramApi.createLink(),
+    onSuccess: (result) => {
       window.open(result.link, "_blank", "noopener");
       toast("נפתח קישור לטלגרם — לחץ Start בבוט", "success");
-      setTimeout(fetchTgStatus, 5000);
-    } catch {
+      setTimeout(() => void refetchTg(), 5000);
+    },
+    onError: () => {
       toast("לא ניתן ליצור קישור. נסה שוב.", "error");
-    } finally {
-      setLinkLoading(false);
-    }
-  }
+    },
+  });
 
   return (
     <div className="space-y-6 pb-24 md:pb-8">
@@ -137,7 +120,7 @@ export function SettingsPage() {
           {!tgLoading && tgStatus?.connected && (
             <button
               type="button"
-              onClick={fetchTgStatus}
+              onClick={() => void refetchTg()}
               className="p-1.5 rounded-lg hover:bg-muted/50 text-muted-foreground transition-colors"
               aria-label="רענון סטטוס"
             >
@@ -169,12 +152,12 @@ export function SettingsPage() {
               חבר את חשבונך כדי לקבל התראות על מודעות חדשות ישירות בטלגרם. הקישור תקף ל-15 דקות.
             </p>
             <Button
-              onClick={handleTelegramLink}
-              disabled={linkLoading}
+              onClick={() => linkMutation.mutate()}
+              disabled={linkMutation.isPending}
               variant="secondary"
               className="w-full sm:w-auto"
             >
-              {linkLoading ? (
+              {linkMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <ExternalLink className="h-4 w-4" />
