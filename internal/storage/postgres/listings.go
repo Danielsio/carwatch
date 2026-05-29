@@ -67,17 +67,13 @@ const upsertListingSQL = `
 		removed_at = NULL`
 
 const unenrichedBacklogWhereSQL = `
-km <= 0
-AND COALESCE(city, '') = ''
-AND COALESCE(image_url, '') = ''
+(km <= 0 OR COALESCE(city, '') = '')
 AND enrich_attempts < 10
 AND (last_enrich_at IS NULL OR last_enrich_at < NOW() - INTERVAL '1 hour')
 AND first_seen_at > NOW() - INTERVAL '7 days'`
 
 const unenrichedMissingFieldsWhereSQL = `
-km <= 0
-AND COALESCE(city, '') = ''
-AND COALESCE(image_url, '') = ''`
+(km <= 0 OR COALESCE(city, '') = '')`
 
 type listingScanner interface {
 	Scan(dest ...any) error

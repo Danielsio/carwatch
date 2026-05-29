@@ -146,7 +146,18 @@ func (m *MultiNotifier) resolveAll(ctx context.Context, recipient string) map[st
 
 	if _, ok := result["telegram"]; !ok {
 		if n, ok := m.notifiers["telegram"]; ok {
-			result["telegram"] = n
+			resolved := ""
+			if user != nil {
+				resolved = normalizeChannel(user.Channel)
+			}
+			if resolved == "telegram" {
+				result["telegram"] = n
+			} else if user != nil && resolved != "telegram" {
+				linked, lErr := m.userStore.GetLinkedTelegramUser(ctx, chatID)
+				if lErr == nil && linked != nil {
+					result["telegram"] = n
+				}
+			}
 		}
 	}
 
