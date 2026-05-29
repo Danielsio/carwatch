@@ -217,7 +217,7 @@ export function HeroSection() {
           </div>
 
           <FloatingCard
-            className="-top-5 max-w-[min(18rem,calc(100vw-3rem))] sm:-start-8 md:-start-14"
+            className="-top-5 max-w-[min(18rem,calc(100vw-3rem))] start-2 sm:-start-8 md:-start-14"
             delay={0.8}
           >
             <div className="flex items-start gap-2.5">
@@ -238,7 +238,7 @@ export function HeroSection() {
             </div>
           </FloatingCard>
 
-          <FloatingCard className="-bottom-5 max-w-[min(18rem,calc(100vw-3rem))] sm:-end-8 md:-end-14" delay={1.0}>
+          <FloatingCard className="-bottom-5 max-w-[min(18rem,calc(100vw-3rem))] end-2 sm:-end-8 md:-end-14" delay={1.0}>
             <div className="flex items-center gap-2.5">
               <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-success/20">
                 <TrendingDown size={13} className="text-success" />

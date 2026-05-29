@@ -159,7 +159,7 @@ export function AdminPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-xl bg-secondary/50 p-1 w-fit flex-wrap">
+      <div className="flex gap-1 rounded-xl bg-secondary/50 p-1 max-w-full overflow-x-auto scrollbar-hide">
         {TABS.map((t) => (
           <button
             key={t.key}

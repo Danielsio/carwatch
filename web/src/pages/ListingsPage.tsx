@@ -218,7 +218,7 @@ export function ListingsPage() {
       />
 
       {/* Sort pills + refresh */}
-      <div className="sticky top-0 z-30 -mx-4 bg-background/90 px-4 py-2 backdrop-blur-lg border-b border-border/30 md:static md:mx-0 md:px-0 md:bg-transparent md:backdrop-blur-none md:border-0">
+      <div className="sticky top-0 z-30 -mx-4 bg-background/90 px-4 py-2 backdrop-blur-lg border-b border-border/30 will-change-transform md:static md:mx-0 md:px-0 md:bg-transparent md:backdrop-blur-none md:border-0 md:will-change-auto">
         <div className="flex items-center gap-2 dir-rtl">
           <div className="flex flex-wrap gap-1.5 flex-1">
             {SORT_OPTIONS.map((opt) => (
