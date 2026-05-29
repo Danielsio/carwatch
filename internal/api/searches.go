@@ -49,29 +49,36 @@ type updateSearchRequest struct {
 }
 
 type searchResponse struct {
-	ID               int64  `json:"id"`
-	Name             string `json:"name"`
-	Source           string `json:"source"`
-	ManufacturerID   int    `json:"manufacturer_id"`
-	ManufacturerName string `json:"manufacturer_name"`
-	ModelID          int    `json:"model_id"`
-	ModelName        string `json:"model_name"`
-	YearMin          int    `json:"year_min"`
-	YearMax          int    `json:"year_max"`
-	PriceMin         int    `json:"price_min,omitempty"`
-	PriceMax         int    `json:"price_max"`
-	EngineMinCC      int    `json:"engine_min_cc"`
-	MaxKm            int    `json:"max_km"`
-	MaxHand          int    `json:"max_hand"`
-	Keywords         string `json:"keywords,omitempty"`
-	ExcludeKeys      string `json:"exclude_keys,omitempty"`
-	SellerFilter     string `json:"seller_filter,omitempty"`
-	GearBox          string `json:"gear_box,omitempty"`
-	PriceOnly        bool   `json:"price_only,omitempty"`
-	PhotoOnly        bool   `json:"photo_only,omitempty"`
-	Active           bool   `json:"active"`
-	CreatedAt        string `json:"created_at"`
-	ListingsCount    int64  `json:"listings_count"`
+	ID               int64              `json:"id"`
+	Name             string             `json:"name"`
+	Source           string             `json:"source"`
+	ManufacturerID   int                `json:"manufacturer_id"`
+	ManufacturerName string             `json:"manufacturer_name"`
+	ModelID          int                `json:"model_id"`
+	ModelName        string             `json:"model_name"`
+	YearMin          int                `json:"year_min"`
+	YearMax          int                `json:"year_max"`
+	PriceMin         int                `json:"price_min,omitempty"`
+	PriceMax         int                `json:"price_max"`
+	EngineMinCC      int                `json:"engine_min_cc"`
+	MaxKm            int                `json:"max_km"`
+	MaxHand          int                `json:"max_hand"`
+	Keywords         string             `json:"keywords,omitempty"`
+	ExcludeKeys      string             `json:"exclude_keys,omitempty"`
+	SellerFilter     string             `json:"seller_filter,omitempty"`
+	GearBox          string             `json:"gear_box,omitempty"`
+	PriceOnly        bool               `json:"price_only,omitempty"`
+	PhotoOnly        bool               `json:"photo_only,omitempty"`
+	Active           bool               `json:"active"`
+	CreatedAt        string             `json:"created_at"`
+	ListingsCount    int64              `json:"listings_count"`
+	Stats            *searchStatsInline `json:"stats,omitempty"`
+}
+
+type searchStatsInline struct {
+	Total    int64   `json:"total"`
+	New24h   int64   `json:"new_24h"`
+	AvgPrice float64 `json:"avg_price"`
 }
 
 func (s *Server) ensureUserActive(ctx context.Context, chatID int64) {
@@ -202,15 +209,33 @@ func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	statsMap := make(map[int64]*storage.SearchStats, len(searches))
+	if s.listings != nil {
+		for i := range searches {
+			sr := &searches[i]
+			st, err := s.listings.SearchStats(r.Context(), chatID, sr.ID, listingFilterFromSearch(sr))
+			if err != nil {
+				log.Error("search stats failed", "search_id", sr.ID, "error", err)
+				continue
+			}
+			statsMap[sr.ID] = st
+		}
+	}
+
 	resp := make([]searchResponse, 0, len(searches))
 	for _, sr := range searches {
+		item := s.toSearchResponse(sr)
 		if counts != nil {
-			item := s.toSearchResponse(sr)
 			item.ListingsCount = counts[sr.ID]
-			resp = append(resp, item)
-			continue
 		}
-		resp = append(resp, s.searchResponseWithListingCount(r.Context(), chatID, sr))
+		if st := statsMap[sr.ID]; st != nil {
+			item.Stats = &searchStatsInline{
+				Total:    st.Total,
+				New24h:   st.New24h,
+				AvgPrice: st.AvgPrice,
+			}
+		}
+		resp = append(resp, item)
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

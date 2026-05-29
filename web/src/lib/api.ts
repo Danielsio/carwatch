@@ -86,6 +86,11 @@ export interface Search {
   photo_only?: boolean;
   /** Total listings found for this search; from API when supported. */
   listings_count?: number;
+  stats?: {
+    total: number;
+    new_24h: number;
+    avg_price: number;
+  };
 }
 
 export interface CreateSearchRequest {
