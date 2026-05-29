@@ -3,7 +3,6 @@ import { Link } from "react-router";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useAuth } from "@/contexts/AuthContext";
 import { Plus, Search as SearchIcon, Activity, Bell, Car, Sparkles } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
 import {
   useSearches,
   useDeleteSearch,
@@ -24,29 +23,11 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { useToast } from "@/components/ui/Toast";
 
-const STAGGER_DELAY = 0.06;
-
-function useFadeUpVariants() {
-  const reduceMotion = useReducedMotion();
-  return {
-    hidden: { opacity: 0, y: reduceMotion ? 0 : 18 },
-    visible: (i: number) => ({
-      opacity: 1,
-      y: 0,
-      transition: {
-        delay: reduceMotion ? 0 : i * STAGGER_DELAY,
-        duration: reduceMotion ? 0.15 : 0.4,
-        ease: [0, 0, 0.2, 1] as const,
-      },
-    }),
-  };
-}
+const STAGGER_MS = 60;
 
 export function SearchesPage() {
   usePageTitle("לוח בקרה");
   const { user } = useAuth();
-  const fadeUp = useFadeUpVariants();
-  const reduceMotion = useReducedMotion();
   const { toast } = useToast();
   const { data: searches, isLoading, isError } = useSearches(!!user);
   const { data: notifCount } = useNotificationCount(!!user);
@@ -134,19 +115,10 @@ export function SearchesPage() {
   }
 
   return (
-    <motion.div
-      className="space-y-8 pb-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: reduceMotion ? 0.15 : 0.35 }}
-    >
-      <motion.div
-        initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: reduceMotion ? 0.15 : 0.4, ease: [0, 0, 0.2, 1] }}
-      >
+    <div className="space-y-8 pb-4 animate-fade-in motion-reduce:animate-none">
+      <div className="animate-slide-up motion-reduce:animate-none">
         <DashboardHeader />
-      </motion.div>
+      </div>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
@@ -186,25 +158,19 @@ export function SearchesPage() {
             glow: "shadow-[0_0_24px_-4px_var(--color-glow-chart-purple)]",
           },
         ].map((stat, i) => (
-          <motion.div
+          <div
             key={stat.label}
-            custom={i}
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
+            className="animate-slide-up motion-reduce:animate-none"
+            style={{ animationDelay: `${i * STAGGER_MS}ms`, animationFillMode: "backwards" }}
           >
             <StatCard {...stat} />
-          </motion.div>
+          </div>
         ))}
       </div>
 
       {/* Daily digest */}
       {totalSearches > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: reduceMotion ? 0 : 0.06, duration: reduceMotion ? 0.15 : 0.4 }}
-        >
+        <div className="animate-slide-up motion-reduce:animate-none" style={{ animationDelay: "60ms", animationFillMode: "backwards" }}>
           <div className="rounded-2xl border border-border/50 bg-card p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-foreground">סיכום יומי</h2>
@@ -232,16 +198,11 @@ export function SearchesPage() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Saved searches */}
-      <motion.section
-        className="space-y-4"
-        initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: reduceMotion ? 0 : 0.08, duration: reduceMotion ? 0.15 : 0.45 }}
-      >
+      <section className="space-y-4 animate-slide-up motion-reduce:animate-none" style={{ animationDelay: "80ms", animationFillMode: "backwards" }}>
         <SectionHeader title="חיפושים שמורים" />
 
         {!searches || searches.length === 0 ? (
@@ -281,12 +242,10 @@ export function SearchesPage() {
         ) : (
           <div className={cn("grid gap-4", searches.length > 1 && "sm:grid-cols-2")}>
             {searches.map((search, i) => (
-              <motion.div
+              <div
                 key={search.id}
-                custom={i}
-                initial="hidden"
-                animate="visible"
-                variants={fadeUp}
+                className="animate-slide-up motion-reduce:animate-none"
+                style={{ animationDelay: `${i * STAGGER_MS}ms`, animationFillMode: "backwards" }}
               >
                 <SearchCard
                   search={search}
@@ -314,20 +273,15 @@ export function SearchesPage() {
                   isConfirmingDelete={confirmDelete === search.id}
                   onCancelDelete={() => setConfirmDelete(null)}
                 />
-              </motion.div>
+              </div>
             ))}
           </div>
         )}
-      </motion.section>
+      </section>
 
       {/* Recent listings feed */}
       {recentListings && recentListings.items.length > 0 && (
-        <motion.section
-          className="space-y-4"
-          initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: reduceMotion ? 0 : 0.12, duration: reduceMotion ? 0.15 : 0.45 }}
-        >
+        <section className="space-y-4 animate-slide-up motion-reduce:animate-none" style={{ animationDelay: "120ms", animationFillMode: "backwards" }}>
           <SectionHeader
             title="מודעות אחרונות"
             linkTo="/notifications"
@@ -335,20 +289,18 @@ export function SearchesPage() {
           />
           <div className="space-y-2">
             {recentListings.items.map((listing, i) => (
-              <motion.div
+              <div
                 key={listing.token}
-                custom={i}
-                initial="hidden"
-                animate="visible"
-                variants={fadeUp}
+                className="animate-slide-up motion-reduce:animate-none"
+                style={{ animationDelay: `${i * STAGGER_MS}ms`, animationFillMode: "backwards" }}
               >
                 <RecentListingRow listing={listing} />
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.section>
+        </section>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -391,18 +343,14 @@ function StatCard({
   bg: string;
   glow?: string;
 }) {
-  const reduceMotion = useReducedMotion();
   return (
-    <motion.div
-      whileHover={
-        reduceMotion ? undefined : { y: -4, transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] } }
-      }
-      whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+    <div
       className={cn(
         "group relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-b from-card to-card/80 p-4 sm:p-5 backdrop-blur-sm transition-all duration-300",
-        "hover:border-primary/30 hover:shadow-[0_8px_32px_-8px_var(--color-glow-primary)]",
+        "hover:border-primary/30 hover:shadow-[0_8px_32px_-8px_var(--color-glow-primary)] hover:-translate-y-1 active:scale-[0.98]",
         "dark:from-[#0d1017] dark:to-[#0a0d14] dark:border-white/[0.06]",
         "dark:hover:border-white/[0.12] dark:hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.2)]",
+        "motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100",
         glow,
       )}
     >
@@ -428,18 +376,13 @@ function StatCard({
         {value}
       </p>
       <span className="relative mt-1 block text-[11px] sm:text-xs font-medium text-muted-foreground tracking-wide uppercase">{label}</span>
-    </motion.div>
+    </div>
   );
 }
 
 function RecentListingRow({ listing }: { listing: Listing }) {
-  const reduceMotion = useReducedMotion();
   return (
-    <motion.div
-      whileHover={reduceMotion ? undefined : { scale: 1.01 }}
-      transition={{ type: "spring", stiffness: 400, damping: 28 }}
-      className="block"
-    >
+    <div>
       <Link
         to={`/listings/${listing.token}`}
         state={{ listing }}
@@ -472,6 +415,6 @@ function RecentListingRow({ listing }: { listing: Listing }) {
           {formatPrice(listing.price)}
         </span>
       </Link>
-    </motion.div>
+    </div>
   );
 }
