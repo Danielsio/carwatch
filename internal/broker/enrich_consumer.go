@@ -27,10 +27,11 @@ type EnrichFunc func(ctx context.Context, req EnrichRequest) error
 // Redis Stream, sorts each batch by priority, and processes them via
 // a caller-provided EnrichFunc.
 type EnrichConsumer struct {
-	client   *redis.Client
-	enrich   EnrichFunc
-	logger   *slog.Logger
-	consumer string
+	client               *redis.Client
+	enrich               EnrichFunc
+	logger               *slog.Logger
+	consumer             string
+	reclaimIdleThreshold time.Duration
 }
 
 // NewEnrichConsumer connects to Redis, creates the consumer group if
@@ -58,10 +59,11 @@ func NewEnrichConsumer(addr, password string, db int, fn EnrichFunc, logger *slo
 		hostname = fmt.Sprintf("enricher-%d", time.Now().UnixNano())
 	}
 	return &EnrichConsumer{
-		client:   client,
-		enrich:   fn,
-		logger:   logger,
-		consumer: hostname,
+		client:               client,
+		enrich:               fn,
+		logger:               logger,
+		consumer:             hostname,
+		reclaimIdleThreshold: 30 * time.Second,
 	}, nil
 }
 
@@ -151,6 +153,7 @@ func (c *EnrichConsumer) processBatch(ctx context.Context, msgs []redis.XMessage
 }
 
 func (c *EnrichConsumer) reclaimPending(ctx context.Context) {
+	idle := c.reclaimIdleThreshold
 	pending, err := c.client.XPendingExt(ctx, &redis.XPendingExtArgs{
 		Stream:   EnrichStreamName,
 		Group:    EnrichGroupName,
@@ -158,24 +161,38 @@ func (c *EnrichConsumer) reclaimPending(ctx context.Context) {
 		Start:    "-",
 		End:      "+",
 		Count:    50,
-		Idle:     30 * time.Second,
+		Idle:     idle,
 	}).Result()
 	if err != nil || len(pending) == 0 {
 		return
 	}
 
 	c.logger.Info("reclaiming pending enrich messages", "count", len(pending))
+
+	var retryIDs []string
 	for _, p := range pending {
 		if p.RetryCount >= int64(enrichMaxRetries) {
 			c.deadLetter(ctx, p.ID)
 			continue
 		}
-		msgs, err := c.client.XRangeN(ctx, EnrichStreamName, p.ID, p.ID, 1).Result()
-		if err != nil || len(msgs) == 0 {
-			continue
-		}
-		c.processBatch(ctx, msgs)
+		retryIDs = append(retryIDs, p.ID)
 	}
+	if len(retryIDs) == 0 {
+		return
+	}
+
+	claimed, err := c.client.XClaim(ctx, &redis.XClaimArgs{
+		Stream:   EnrichStreamName,
+		Group:    EnrichGroupName,
+		Consumer: c.consumer,
+		MinIdle:  idle,
+		Messages: retryIDs,
+	}).Result()
+	if err != nil {
+		c.logger.Error("xclaim pending enrich messages failed", "error", err)
+		return
+	}
+	c.processBatch(ctx, claimed)
 }
 
 func (c *EnrichConsumer) deadLetter(ctx context.Context, id string) {
@@ -188,17 +205,26 @@ func (c *EnrichConsumer) deadLetter(ctx context.Context, id string) {
 		c.ack(ctx, id)
 		return
 	}
+
+	token := ""
+	if data, ok := msgs[0].Values["data"].(string); ok {
+		var req EnrichRequest
+		if err := json.Unmarshal([]byte(data), &req); err == nil {
+			token = req.Token
+		}
+	}
+
 	if err := c.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: EnrichDeadLetterStream,
 		MaxLen: enrichDeadLetterMaxLen,
 		Approx: true,
 		Values: msgs[0].Values,
 	}).Err(); err != nil {
-		c.logger.Error("enrich dead-letter failed, leaving message pending", "id", id, "error", err)
+		c.logger.Error("enrich dead-letter failed, leaving message pending", "id", id, "token", token, "error", err)
 		return
 	}
 	c.logger.Warn("enrich message dead-lettered after max retries",
-		"id", id, "max_retries", enrichMaxRetries)
+		"id", id, "token", token, "max_retries", enrichMaxRetries)
 	c.ack(ctx, id)
 }
 

@@ -2,6 +2,7 @@ package broker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -113,6 +114,80 @@ func TestEnrichConsumer_AcksOnSuccess(t *testing.T) {
 	}
 	if pending.Count != 0 {
 		t.Errorf("expected 0 pending after ack, got %d", pending.Count)
+	}
+}
+
+func TestEnrichConsumer_DeadLettersAfterMaxRetries(t *testing.T) {
+	s := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	defer func() { _ = client.Close() }()
+
+	pub := NewEnrichPublisher(client)
+	ctx := context.Background()
+
+	req := EnrichRequest{Token: "stuck-token", Priority: 3, Source: "test"}
+	if err := pub.PublishEnrich(ctx, req); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	fn := func(_ context.Context, _ EnrichRequest) error {
+		return fmt.Errorf("anti-bot challenge detected")
+	}
+
+	cons, err := NewEnrichConsumer(s.Addr(), "", 0, fn, testLogger())
+	if err != nil {
+		t.Fatalf("create consumer: %v", err)
+	}
+	defer func() { _ = cons.Close() }()
+	cons.reclaimIdleThreshold = 0
+
+	// Initial read creates PEL entry (delivery count = 1).
+	streams, err := cons.client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    EnrichGroupName,
+		Consumer: cons.consumer,
+		Streams:  []string{EnrichStreamName, ">"},
+		Count:    10,
+		Block:    time.Second,
+	}).Result()
+	if err != nil {
+		t.Fatalf("xreadgroup: %v", err)
+	}
+	cons.processBatch(ctx, streams[0].Messages)
+
+	// Each reclaimPending call XClaims (incrementing delivery count) and reprocesses.
+	// After enrichMaxRetries deliveries, the message should be dead-lettered.
+	for i := 0; i < enrichMaxRetries+1; i++ {
+		cons.reclaimPending(ctx)
+	}
+
+	// Verify message was dead-lettered.
+	dlq, err := client.XRange(ctx, EnrichDeadLetterStream, "-", "+").Result()
+	if err != nil {
+		t.Fatalf("xrange dead-letter: %v", err)
+	}
+	if len(dlq) != 1 {
+		t.Fatalf("expected 1 dead-lettered message, got %d", len(dlq))
+	}
+
+	var dlqReq EnrichRequest
+	data, ok := dlq[0].Values["data"].(string)
+	if !ok {
+		t.Fatal("dead-lettered message missing data field")
+	}
+	if err := json.Unmarshal([]byte(data), &dlqReq); err != nil {
+		t.Fatalf("unmarshal DLQ message: %v", err)
+	}
+	if dlqReq.Token != "stuck-token" {
+		t.Errorf("DLQ token = %q, want stuck-token", dlqReq.Token)
+	}
+
+	// Verify no more pending messages.
+	pending, err := client.XPending(ctx, EnrichStreamName, EnrichGroupName).Result()
+	if err != nil {
+		t.Fatalf("xpending: %v", err)
+	}
+	if pending.Count != 0 {
+		t.Errorf("expected 0 pending after dead-letter, got %d", pending.Count)
 	}
 }
 
