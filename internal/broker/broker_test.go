@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -332,6 +333,129 @@ func TestConsumerAcksUnsupportedChannelWithoutRetry(t *testing.T) {
 	}
 	if pending.Count != 0 {
 		t.Fatalf("expected 0 pending entries, got %d", pending.Count)
+	}
+}
+
+func TestConsumerAcksBlockedRecipientWithoutRetry(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	pub, err := NewPublisher(mr.Addr(), "", 0)
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	defer func() { _ = pub.Close() }()
+
+	alert := Alert{ChatID: 888, Message: "blocked recipient test"}
+	if err := pub.Publish(context.Background(), alert); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	var calls atomic.Int32
+	var hookCalls atomic.Int32
+	notify := func(_ context.Context, _ string, _ string) error {
+		calls.Add(1)
+		return fmt.Errorf("%w: chat not found", notifier.ErrRecipientBlocked)
+	}
+	cons, err := NewConsumer(mr.Addr(), "", 0, notify, slog.Default(), WithDeadLetterHook(func(_ context.Context, a Alert) error {
+		hookCalls.Add(1)
+		if a.ChatID != 888 {
+			t.Fatalf("dead-letter hook chat_id=%d, want 888", a.ChatID)
+		}
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("new consumer: %v", err)
+	}
+	defer func() { _ = cons.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
+	defer cancel()
+	_ = cons.Run(ctx)
+
+	cons.reclaimPending(context.Background())
+
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("notify calls = %d, want 1 (should not retry blocked recipient)", got)
+	}
+	if got := hookCalls.Load(); got != 1 {
+		t.Fatalf("dead-letter hook calls = %d, want 1", got)
+	}
+
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+	pending, err := client.XPending(context.Background(), StreamName, GroupName).Result()
+	if err != nil {
+		t.Fatalf("xpending: %v", err)
+	}
+	if pending.Count != 0 {
+		t.Fatalf("expected 0 pending entries, got %d", pending.Count)
+	}
+}
+
+func TestConsumerReclaimPendingDeadLettersAfterMaxRetries(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	pub, err := NewPublisher(mr.Addr(), "", 0)
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	defer func() { _ = pub.Close() }()
+
+	alert := Alert{ChatID: 999, Message: "transient failure test"}
+	if err := pub.Publish(context.Background(), alert); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	notify := func(_ context.Context, _ string, _ string) error {
+		return fmt.Errorf("temporary network error")
+	}
+
+	cons, err := NewConsumer(mr.Addr(), "", 0, notify, slog.Default())
+	if err != nil {
+		t.Fatalf("new consumer: %v", err)
+	}
+	defer func() { _ = cons.Close() }()
+	cons.reclaimIdleThreshold = 0
+
+	ctx := context.Background()
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+
+	// Initial read creates PEL entry (delivery count = 1).
+	streams, err := cons.client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    GroupName,
+		Consumer: cons.consumer,
+		Streams:  []string{StreamName, ">"},
+		Count:    10,
+		Block:    time.Second,
+	}).Result()
+	if err != nil {
+		t.Fatalf("xreadgroup: %v", err)
+	}
+	for _, msg := range streams[0].Messages {
+		cons.processMessage(ctx, msg)
+	}
+
+	// Each reclaimPending XClaims (incrementing delivery count) and reprocesses.
+	for i := 0; i < MaxRetries+1; i++ {
+		cons.reclaimPending(ctx)
+	}
+
+	// Verify message was dead-lettered.
+	dlq, err := client.XRange(ctx, DeadLetterStream, "-", "+").Result()
+	if err != nil {
+		t.Fatalf("xrange dead-letter: %v", err)
+	}
+	if len(dlq) != 1 {
+		t.Fatalf("expected 1 dead-lettered message, got %d", len(dlq))
+	}
+
+	pending, err := client.XPending(ctx, StreamName, GroupName).Result()
+	if err != nil {
+		t.Fatalf("xpending: %v", err)
+	}
+	if pending.Count != 0 {
+		t.Errorf("expected 0 pending after dead-letter, got %d", pending.Count)
 	}
 }
 
