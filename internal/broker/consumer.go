@@ -33,13 +33,14 @@ type DeadLetterHook func(ctx context.Context, alert Alert) error
 
 // Consumer reads alerts from the Redis Stream and delivers them.
 type Consumer struct {
-	client              *redis.Client
-	notify              NotifyFunc
-	deadLetterHook      DeadLetterHook
-	limiter             *rate.Limiter
-	logger              *slog.Logger
-	consumer            string
-	orphanIdleThreshold time.Duration
+	client               *redis.Client
+	notify               NotifyFunc
+	deadLetterHook       DeadLetterHook
+	limiter              *rate.Limiter
+	logger               *slog.Logger
+	consumer             string
+	reclaimIdleThreshold time.Duration
+	orphanIdleThreshold  time.Duration
 }
 
 // NewConsumer connects to Redis, creates the consumer group if needed,
@@ -68,12 +69,13 @@ func NewConsumer(addr, password string, db int, notify NotifyFunc, logger *slog.
 		hostname = fmt.Sprintf("consumer-%d", time.Now().UnixNano())
 	}
 	c := &Consumer{
-		client:              client,
-		notify:              notify,
-		limiter:             rate.NewLimiter(rate.Limit(30), 30), // 30 msg/sec Telegram limit
-		logger:              logger,
-		consumer:            hostname,
-		orphanIdleThreshold: orphanIdleThreshold,
+		client:               client,
+		notify:               notify,
+		limiter:              rate.NewLimiter(rate.Limit(30), 30), // 30 msg/sec Telegram limit
+		logger:               logger,
+		consumer:             hostname,
+		reclaimIdleThreshold: 30 * time.Second,
+		orphanIdleThreshold:  orphanIdleThreshold,
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -142,6 +144,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 // reclaimPending reclaims messages that were delivered but not acked
 // (failed deliveries). Messages exceeding MaxRetries are dead-lettered.
 func (c *Consumer) reclaimPending(ctx context.Context) {
+	idle := c.reclaimIdleThreshold
 	pending, err := c.client.XPendingExt(ctx, &redis.XPendingExtArgs{
 		Stream:   StreamName,
 		Group:    GroupName,
@@ -149,23 +152,39 @@ func (c *Consumer) reclaimPending(ctx context.Context) {
 		Start:    "-",
 		End:      "+",
 		Count:    50,
-		Idle:     30 * time.Second,
+		Idle:     idle,
 	}).Result()
 	if err != nil || len(pending) == 0 {
 		return
 	}
 
 	c.logger.Info("reclaiming pending messages", "count", len(pending))
+
+	var retryIDs []string
 	for _, p := range pending {
 		if p.RetryCount >= int64(MaxRetries) {
 			c.deadLetter(ctx, p.ID)
 			continue
 		}
-		msgs, err := c.client.XRangeN(ctx, StreamName, p.ID, p.ID, 1).Result()
-		if err != nil || len(msgs) == 0 {
-			continue
-		}
-		c.processMessage(ctx, msgs[0])
+		retryIDs = append(retryIDs, p.ID)
+	}
+	if len(retryIDs) == 0 {
+		return
+	}
+
+	claimed, err := c.client.XClaim(ctx, &redis.XClaimArgs{
+		Stream:   StreamName,
+		Group:    GroupName,
+		Consumer: c.consumer,
+		MinIdle:  idle,
+		Messages: retryIDs,
+	}).Result()
+	if err != nil {
+		c.logger.Error("xclaim pending messages failed", "error", err)
+		return
+	}
+	for _, msg := range claimed {
+		c.processMessage(ctx, msg)
 	}
 }
 
@@ -215,14 +234,14 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {
 
 	recipient := fmt.Sprintf("%d", alert.ChatID)
 	if err := c.notify(ctx, recipient, alert.Message); err != nil {
-		if errors.Is(err, notifier.ErrNoChannelNotifier) {
+		if errors.Is(err, notifier.ErrNoChannelNotifier) || errors.Is(err, notifier.ErrRecipientBlocked) {
 			if c.deadLetterHook != nil {
 				if hookErr := c.deadLetterHook(ctx, alert); hookErr != nil {
 					c.logger.Error("drop alert cleanup failed", "id", msg.ID, "chat_id", alert.ChatID, "error", hookErr)
 					return
 				}
 			}
-			c.logger.Warn("dropping alert due to unsupported user channel",
+			c.logger.Warn("dropping alert for permanently undeliverable recipient",
 				"id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName, "error", err)
 			c.ack(ctx, msg.ID)
 			return
