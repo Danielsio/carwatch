@@ -47,35 +47,30 @@ func NewWorker(f ItemFetcher, ls storage.ListingStore, rl *AdaptiveRateLimiter, 
 // enrichment request: checks if already enriched, waits for rate limit,
 // fetches the item page, and updates the database.
 func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) error {
-	// Check if already enriched (idempotent skip).
-	// A listing is considered fully enriched only when all key fields exist.
-	// If one field is missing (for example only image exists), keep trying.
+	// Resolve car identity for structured logging. LookupEnrichmentData
+	// only matches rows that already have some enrichment data; fall back
+	// to LookupListingIdentity for brand-new unenriched listings.
 	existing, err := w.listings.LookupEnrichmentData(ctx, []string{req.Token})
 	if err != nil {
 		w.logger.ErrorContext(ctx, "failed to check enrichment status",
 			"token", req.Token, "error", err.Error())
 		return err
 	}
+
+	carAttrs := w.carAttrs(ctx, req, existing)
+
 	if rec, ok := existing[req.Token]; ok && rec.Km > 0 && rec.City != "" && rec.ImageURL != "" {
-		hasKm := rec.Km > 0
-		hasCity := rec.City != ""
-		hasImage := rec.ImageURL != ""
-		w.logger.DebugContext(ctx, "listing already enriched, skipping",
-			"token", req.Token, "km", rec.Km, "city", rec.City,
-			"has_km", hasKm, "has_city", hasCity, "has_image", hasImage,
-			"skip_reason", "already_fully_enriched")
+		w.logger.DebugContext(ctx, "listing already enriched, skipping", carAttrs...)
 		if telemetry.EnrichSkipped != nil {
 			telemetry.EnrichSkipped.Add(ctx, 1)
 		}
 		return nil
 	}
 
-	// Wait for rate limiter.
 	if !w.limiter.Wait(ctx) {
 		return ctx.Err()
 	}
 
-	// Fetch item detail page.
 	details, fetchErr := w.fetcher.FetchItem(ctx, req.Token)
 	if fetchErr != nil {
 		if incErr := w.listings.IncrementEnrichAttempt(ctx, req.Token); incErr != nil {
@@ -89,19 +84,17 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 				telemetry.EnrichChallenges.Add(ctx, 1)
 			}
 			w.logger.WarnContext(ctx, "bot challenge during enrichment, backing off",
-				"token", req.Token, "cooldown", w.limiter.InCooldown(),
-				"current_delay", w.limiter.CurrentDelay())
+				append(carAttrs, "cooldown", w.limiter.InCooldown(), "current_delay", w.limiter.CurrentDelay())...)
 			return fetchErr
 		}
 
 		w.logger.WarnContext(ctx, "failed to fetch listing detail page",
-			"token", req.Token, "error", fetchErr.Error())
+			append(carAttrs, "error", fetchErr.Error())...)
 		return fetchErr
 	}
 
 	w.limiter.RecordSuccess()
 
-	// Build a minimal listing record for backfill.
 	rec := storage.ListingRecord{
 		Token:    req.Token,
 		Km:       details.Km,
@@ -110,7 +103,7 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 	}
 	if err := w.listings.BackfillListings(ctx, []storage.ListingRecord{rec}); err != nil {
 		w.logger.ErrorContext(ctx, "failed to backfill enriched data to database",
-			"token", req.Token, "error", err.Error())
+			append(carAttrs, "error", err.Error())...)
 		return err
 	}
 
@@ -119,8 +112,29 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 	}
 
 	w.logger.InfoContext(ctx, "enriched listing",
-		"token", req.Token, "km", details.Km, "city", details.City,
-		"has_image", details.ImageURL != "", "priority", req.Priority)
+		append(carAttrs, "km", details.Km, "city", details.City, "has_image", details.ImageURL != "")...)
 
 	return nil
+}
+
+// carAttrs builds a reusable slog attribute slice with car-identifying fields.
+func (w *Worker) carAttrs(ctx context.Context, req broker.EnrichRequest, existing map[string]storage.EnrichmentRecord) []any {
+	attrs := []any{"token", req.Token, "source", req.Source, "priority", req.Priority}
+	if len(req.SearchIDs) > 0 {
+		attrs = append(attrs, "search_ids", req.SearchIDs)
+	}
+
+	if rec, ok := existing[req.Token]; ok {
+		return append(attrs,
+			"manufacturer", rec.Manufacturer, "model", rec.Model,
+			"year", rec.Year, "price", rec.Price, "search_name", rec.SearchName)
+	}
+
+	id, err := w.listings.LookupListingIdentity(ctx, req.Token)
+	if err != nil {
+		return attrs
+	}
+	return append(attrs,
+		"manufacturer", id.Manufacturer, "model", id.Model,
+		"year", id.Year, "price", id.Price, "search_name", id.SearchName)
 }

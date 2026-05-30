@@ -316,3 +316,6 @@ func (m *mockListingStore) ListUnenrichedTokens(_ context.Context, _ int) ([]str
 }
 func (m *mockListingStore) CountUnenrichedTokens(_ context.Context) (int64, error)   { return 0, nil }
 func (m *mockListingStore) IncrementEnrichAttempt(_ context.Context, _ string) error { return nil }
+func (m *mockListingStore) LookupListingIdentity(_ context.Context, _ string) (*storage.ListingIdentity, error) {
+	return &storage.ListingIdentity{}, nil
+}

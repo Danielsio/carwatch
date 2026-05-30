@@ -20,6 +20,8 @@ import (
 	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/health"
 	"github.com/dsionov/carwatch/internal/logstream"
+	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/redis/go-redis/v9"
 )
 
 var (
@@ -126,6 +128,15 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 		}
 	}()
 
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     cfg.Redis.Addr,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+	defer func() { _ = redisClient.Close() }()
+
+	enrichPub := broker.NewEnrichPublisher(redisClient)
+
 	cons, err := broker.NewEnrichConsumer(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB,
 		worker.HandleRequest, logger.With("component", "enrich-consumer"))
 	if err != nil {
@@ -140,6 +151,8 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 		"max_delay", cfg.Enricher.MaxDelay,
 		"cooldown", cfg.Enricher.CooldownDuration,
 	)
+
+	go enrichmentStatsLoop(ctx, store, enrichPub, logger)
 
 	consumerLoop(ctx, cons, logger)
 	return nil
@@ -210,4 +223,28 @@ func (a *yad2ItemFetcherAdapter) FetchItem(ctx context.Context, token string) (e
 		City:     details.City,
 		Area:     details.Area,
 	}, nil
+}
+
+func enrichmentStatsLoop(ctx context.Context, store storage.ListingStore, pub *broker.EnrichPublisher, logger *slog.Logger) {
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	log := logger.With("component", "enricher-stats")
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			attrs := []any{}
+			if queueLen, err := pub.EnrichQueueLen(ctx); err == nil {
+				attrs = append(attrs, "queue_depth", queueLen)
+			}
+			if unenriched, err := store.CountUnenrichedTokens(ctx); err == nil {
+				attrs = append(attrs, "unenriched_total", unenriched)
+			}
+			if len(attrs) > 0 {
+				log.InfoContext(ctx, "enrichment stats", attrs...)
+			}
+		}
+	}
 }

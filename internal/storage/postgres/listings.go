@@ -213,7 +213,7 @@ func (s *Store) LookupEnrichmentData(ctx context.Context, tokens []string) (map[
 			placeholders[i] = fmt.Sprintf("$%d", i+1)
 		}
 
-		q := `SELECT DISTINCT ON (token) token, km, city, image_url
+		q := `SELECT DISTINCT ON (token) token, manufacturer, model, year, price, search_name, km, city, image_url
 			FROM listing_history
 			WHERE token IN (` + strings.Join(placeholders, ", ") + `) AND (km > 0 OR city != '' OR image_url != '')
 			ORDER BY token, first_seen_at DESC`
@@ -224,13 +224,16 @@ func (s *Store) LookupEnrichmentData(ctx context.Context, tokens []string) (map[
 		}
 
 		for rows.Next() {
-			var tok, city, img string
-			var km int
-			if err := rows.Scan(&tok, &km, &city, &img); err != nil {
+			var tok, manufacturer, model, searchName, city, img string
+			var year, price, km int
+			if err := rows.Scan(&tok, &manufacturer, &model, &year, &price, &searchName, &km, &city, &img); err != nil {
 				_ = rows.Close()
 				return nil, fmt.Errorf("scan enrichment data: %w", err)
 			}
-			out[tok] = storage.EnrichmentRecord{Km: km, City: city, ImageURL: img}
+			out[tok] = storage.EnrichmentRecord{
+				Manufacturer: manufacturer, Model: model, Year: year, Price: price, SearchName: searchName,
+				Km: km, City: city, ImageURL: img,
+			}
 		}
 		if err := rows.Err(); err != nil {
 			_ = rows.Close()
@@ -239,6 +242,19 @@ func (s *Store) LookupEnrichmentData(ctx context.Context, tokens []string) (map[
 		_ = rows.Close()
 	}
 	return out, nil
+}
+
+func (s *Store) LookupListingIdentity(ctx context.Context, token string) (*storage.ListingIdentity, error) {
+	var id storage.ListingIdentity
+	err := s.db.QueryRowContext(ctx,
+		`SELECT manufacturer, model, year, price, search_name
+		 FROM listing_history WHERE token = $1
+		 ORDER BY first_seen_at DESC LIMIT 1`, token).
+		Scan(&id.Manufacturer, &id.Model, &id.Year, &id.Price, &id.SearchName)
+	if err != nil {
+		return nil, fmt.Errorf("lookup listing identity: %w", err)
+	}
+	return &id, nil
 }
 
 func (s *Store) GetListing(ctx context.Context, chatID int64, token string) (*storage.ListingRecord, error) {

@@ -114,6 +114,9 @@ func (m *mockListingStore) PruneListings(_ context.Context, _ time.Duration) (in
 func (m *mockListingStore) DeleteStaleListings(_ context.Context, _ int64, _ int64, _ []string) (int64, error) {
 	return 0, nil
 }
+func (m *mockListingStore) LookupListingIdentity(_ context.Context, _ string) (*storage.ListingIdentity, error) {
+	return &storage.ListingIdentity{}, nil
+}
 
 func testWorkerLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(&discardWriter{}, &slog.HandlerOptions{Level: slog.LevelError + 1}))
