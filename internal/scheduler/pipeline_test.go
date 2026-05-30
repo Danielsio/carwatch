@@ -61,6 +61,9 @@ func (s *prefillTrackingStore) ListUnenrichedTokens(_ context.Context, _ int) ([
 }
 func (s *prefillTrackingStore) CountUnenrichedTokens(_ context.Context) (int64, error)   { return 0, nil }
 func (s *prefillTrackingStore) IncrementEnrichAttempt(_ context.Context, _ string) error { return nil }
+func (s *prefillTrackingStore) LookupListingIdentity(_ context.Context, _ string) (*storage.ListingIdentity, error) {
+	return &storage.ListingIdentity{}, nil
+}
 
 func pipelineTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError + 1}))

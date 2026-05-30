@@ -193,11 +193,26 @@ type DBPoolStats struct {
 	WaitDuration       string `json:"wait_duration"`
 }
 
-// EnrichmentRecord holds km/city/image data previously learned for a listing token.
+// EnrichmentRecord holds km/city/image data previously learned for a listing token,
+// along with car-identifying fields for log context.
 type EnrichmentRecord struct {
-	Km       int
-	City     string
-	ImageURL string
+	Manufacturer string
+	Model        string
+	Year         int
+	Price        int
+	SearchName   string
+	Km           int
+	City         string
+	ImageURL     string
+}
+
+// ListingIdentity holds car-identifying fields for a listing token.
+type ListingIdentity struct {
+	Manufacturer string
+	Model        string
+	Year         int
+	Price        int
+	SearchName   string
 }
 
 // ListingFilter restricts which listing_history rows are returned.
@@ -241,6 +256,7 @@ type ListingStore interface {
 	SearchStats(ctx context.Context, chatID int64, searchID int64, f ListingFilter) (*SearchStats, error)
 	ListUnenrichedTokens(ctx context.Context, limit int) ([]string, error)
 	CountUnenrichedTokens(ctx context.Context) (int64, error)
+	LookupListingIdentity(ctx context.Context, token string) (*ListingIdentity, error)
 	IncrementEnrichAttempt(ctx context.Context, token string) error
 	PruneListings(ctx context.Context, olderThan time.Duration) (int64, error)
 	DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error)
