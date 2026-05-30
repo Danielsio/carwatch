@@ -252,6 +252,9 @@ func (s *Store) LookupListingIdentity(ctx context.Context, token string) (*stora
 		 ORDER BY first_seen_at DESC LIMIT 1`, token).
 		Scan(&id.Manufacturer, &id.Model, &id.Year, &id.Price, &id.SearchName)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, storage.ErrNotFound
+		}
 		return nil, fmt.Errorf("lookup listing identity: %w", err)
 	}
 	return &id, nil

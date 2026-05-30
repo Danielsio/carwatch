@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -152,9 +153,15 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 		"cooldown", cfg.Enricher.CooldownDuration,
 	)
 
-	go enrichmentStatsLoop(ctx, store, enrichPub, logger)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		enrichmentStatsLoop(ctx, store, enrichPub, logger)
+	}()
 
 	consumerLoop(ctx, cons, logger)
+	wg.Wait()
 	return nil
 }
 

@@ -132,6 +132,9 @@ func (w *Worker) carAttrs(ctx context.Context, req broker.EnrichRequest, existin
 
 	id, err := w.listings.LookupListingIdentity(ctx, req.Token)
 	if err != nil {
+		if !errors.Is(err, storage.ErrNotFound) {
+			w.logger.WarnContext(ctx, "failed to lookup listing identity", "token", req.Token, "error", err.Error())
+		}
 		return attrs
 	}
 	return append(attrs,
