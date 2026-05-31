@@ -257,16 +257,18 @@ func TestSendWithKeyboard_Error_LogsAndContinues(t *testing.T) {
 
 // --- ensureUser error test ---
 
-func TestEnsureUser_Error_LogsAndContinues(t *testing.T) {
+func TestEnsureUser_Error_SendsErrorAndReturnsFalse(t *testing.T) {
 	msg := &mockMessenger{}
 	users := &errUserStore{upsertErr: errors.New("db full")}
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
 
-	b.ensureUser(context.Background(), 100, "alice")
-	// ensureUser swallows DB errors; verify no error message was sent to the user.
-	if len(msg.messages) != 0 {
-		t.Errorf("expected no messages sent on ensureUser error, got %d", len(msg.messages))
+	ok := b.ensureUser(context.Background(), 100, "alice")
+	if ok {
+		t.Error("expected ensureUser to return false on error")
+	}
+	if len(msg.messages) != 1 {
+		t.Errorf("expected 1 error message sent to user, got %d", len(msg.messages))
 	}
 }
 
