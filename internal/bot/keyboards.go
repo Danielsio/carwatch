@@ -312,10 +312,21 @@ func gearBoxKeyboard(lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
 			{
 				{Text: locale.T(lang, "btn_gearbox_any"), CallbackData: cbPrefixGearBox + "any"},
-				{Text: locale.T(lang, "btn_gearbox_auto"), CallbackData: cbPrefixGearBox + "אוטומט"},
-				{Text: locale.T(lang, "btn_gearbox_manual"), CallbackData: cbPrefixGearBox + "ידני"},
+				{Text: locale.T(lang, "btn_gearbox_auto"), CallbackData: cbPrefixGearBox + "Automatic"},
+				{Text: locale.T(lang, "btn_gearbox_manual"), CallbackData: cbPrefixGearBox + "Manual"},
 			},
 		},
+	}
+}
+
+func gearboxDisplayName(lang locale.Lang, code string) string {
+	switch code {
+	case "Automatic", "אוטומט":
+		return locale.T(lang, "btn_gearbox_auto")
+	case "Manual", "ידני":
+		return locale.T(lang, "btn_gearbox_manual")
+	default:
+		return code
 	}
 }
 
@@ -387,7 +398,7 @@ func confirmKeyboard(data WizardData, lang locale.Lang) (*tgmodels.InlineKeyboar
 		summary += locale.Tf(lang, "wizard_confirm_price_min", format.Number(data.PriceMin))
 	}
 	if data.GearBox != "" {
-		summary += locale.Tf(lang, "wizard_confirm_gearbox", data.GearBox)
+		summary += locale.Tf(lang, "wizard_confirm_gearbox", gearboxDisplayName(lang, data.GearBox))
 	}
 	if data.Keywords != "" {
 		summary += locale.Tf(lang, "wizard_confirm_keywords", format.EscapeMarkdown(data.Keywords))
