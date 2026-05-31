@@ -184,8 +184,8 @@ func TestMultiNotifier_NoRegisteredNotifier(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when no notifiers registered")
 	}
-	if !errors.Is(err, errNoNotifier) {
-		t.Errorf("expected errNoNotifier, got %v", err)
+	if !errors.Is(err, ErrNoChannelNotifier) {
+		t.Errorf("expected ErrNoChannelNotifier, got %v", err)
 	}
 }
 
