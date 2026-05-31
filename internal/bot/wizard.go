@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
@@ -82,7 +83,7 @@ func (b *Bot) onMfrPage(ctx context.Context, chatID int64, data string) {
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
 		b.logger.Warn("invalid manufacturer page callback", "chat_id", chatID, "raw", pageStr, "error", err)
-		b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "error_generic"))
+		b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "error_wrong_state"))
 		return
 	}
 	lang := b.getUserLang(ctx, chatID)
@@ -110,7 +111,7 @@ func (b *Bot) onMdlPage(ctx context.Context, chatID int64, data string) {
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
 		b.logger.Warn("invalid model page callback", "chat_id", chatID, "raw", pageStr, "error", err)
-		b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "error_generic"))
+		b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "error_wrong_state"))
 		return
 	}
 	wd := b.loadWizardData(ctx, chatID)
@@ -136,7 +137,7 @@ func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data str
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskManufacturer) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskManufacturer) {
 		return
 	}
 	idStr := strings.TrimPrefix(data, cbPrefixMfr)
@@ -184,7 +185,7 @@ func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskModel) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskModel) {
 		return
 	}
 	idStr := strings.TrimPrefix(data, cbPrefixModel)
@@ -210,7 +211,7 @@ func (b *Bot) onEngineSelected(ctx context.Context, chatID int64, data string) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskEngine) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskEngine) {
 		return
 	}
 	ccStr := strings.TrimPrefix(data, cbPrefixEngine)
@@ -236,7 +237,7 @@ func (b *Bot) onMaxKmSelected(ctx context.Context, chatID int64, data string) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskMaxKm) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskMaxKm) {
 		return
 	}
 	kmStr := strings.TrimPrefix(data, cbPrefixMaxKm)
@@ -260,7 +261,7 @@ func (b *Bot) onMaxHandSelected(ctx context.Context, chatID int64, data string) 
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskMaxHand) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskMaxHand) {
 		return
 	}
 	handStr := strings.TrimPrefix(data, cbPrefixMaxHand)
@@ -286,7 +287,7 @@ func (b *Bot) onSkipKeywords(ctx context.Context, chatID int64) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskKeywords) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskKeywords) {
 		return
 	}
 	wd := b.loadWizardData(ctx, chatID)
@@ -305,7 +306,7 @@ func (b *Bot) onSkipExcludeKeys(ctx context.Context, chatID int64) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskExcludeKeys) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskExcludeKeys) {
 		return
 	}
 	wd := b.loadWizardData(ctx, chatID)
@@ -597,7 +598,7 @@ func (b *Bot) onSkipPriceMin(ctx context.Context, chatID int64) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskPriceMin) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskPriceMin) {
 		return
 	}
 	wd := b.loadWizardData(ctx, chatID)
@@ -614,7 +615,7 @@ func (b *Bot) onGearBoxSelected(ctx context.Context, chatID int64, data string) 
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskGearBox) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskGearBox) {
 		return
 	}
 	gearbox := strings.TrimPrefix(data, cbPrefixGearBox)
@@ -644,8 +645,8 @@ func (b *Bot) handleKeywordsInput(ctx context.Context, chatID int64, text string
 	if strings.EqualFold(text, skip) || strings.EqualFold(text, "skip") || strings.EqualFold(text, "דלג") {
 		wd.Keywords = ""
 	} else {
-		if len(text) > maxKeywordsLen {
-			b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		if utf8.RuneCountInString(text) > maxKeywordsLen {
+			b.send(ctx, chatID, locale.Tf(lang, "wizard_keywords_too_long", maxKeywordsLen))
 			return
 		}
 		wd.Keywords = normalizeKeywords(text)
@@ -667,8 +668,8 @@ func (b *Bot) handleExcludeKeysInput(ctx context.Context, chatID int64, text str
 	if strings.EqualFold(text, skip) || strings.EqualFold(text, "skip") || strings.EqualFold(text, "דלג") {
 		wd.ExcludeKeys = ""
 	} else {
-		if len(text) > maxKeywordsLen {
-			b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		if utf8.RuneCountInString(text) > maxKeywordsLen {
+			b.send(ctx, chatID, locale.Tf(lang, "wizard_keywords_too_long", maxKeywordsLen))
 			return
 		}
 		wd.ExcludeKeys = normalizeKeywords(text)

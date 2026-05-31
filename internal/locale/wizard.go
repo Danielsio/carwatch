@@ -1,7 +1,7 @@
 package locale
 
 var heWizard = map[string]string{
-	"wizard_source_prompt": "באילו אתרים לחפש? (בחר אחד או שניהם)",
+	"wizard_source_prompt": "באילו אתרים לחפש? (בחר אחד או שניהם)\n\n⏱ ההגדרה תפוג אחרי 30 דקות של חוסר פעילות.",
 	"wizard_source_empty":  "אנא בחר לפחות אתר אחד.",
 	"wizard_start_over":    "בוא נתחיל מחדש. באילו אתרים?",
 
@@ -46,6 +46,7 @@ var heWizard = map[string]string{
 	"wizard_keywords_prompt":     "מילות מפתח לחיפוש בתיאור? (מופרדות בפסיק, או הקלד 'דלג')\nלדוגמה: אוטומטי, שמור",
 	"wizard_exclude_keys_prompt": "מילות מפתח להחרגה מהתיאור? (מופרדות בפסיק, או הקלד 'דלג')\nלדוגמה: תאונה, חורף",
 	"wizard_keywords_skip":       "דלג",
+	"wizard_keywords_too_long":   "מילות מפתח ארוכות מדי (מקסימום %d תווים). אנא קצר ונסה שוב.",
 
 	// wizard - confirm
 	"wizard_confirm_summary": "*החיפוש שלך:*\n" +
@@ -69,7 +70,7 @@ var heWizard = map[string]string{
 }
 
 var enWizard = map[string]string{
-	"wizard_source_prompt": "Which marketplaces do you want to search? (select one or both)",
+	"wizard_source_prompt": "Which marketplaces do you want to search? (select one or both)\n\n⏱ This setup expires after 30 minutes of inactivity.",
 	"wizard_source_empty":  "Please select at least one marketplace.",
 	"wizard_start_over":    "Let's start over. Which marketplaces?",
 
@@ -114,6 +115,7 @@ var enWizard = map[string]string{
 	"wizard_keywords_prompt":     "Any keywords to require in the description? (comma-separated, or type 'skip')\nExample: automatic, well-kept",
 	"wizard_exclude_keys_prompt": "Any keywords to exclude? (comma-separated, or type 'skip')\nExample: accident, damaged",
 	"wizard_keywords_skip":       "skip",
+	"wizard_keywords_too_long":   "Keywords are too long (max %d characters). Please shorten and try again.",
 
 	// wizard - confirm
 	"wizard_confirm_summary": "*Your search:*\n" +
