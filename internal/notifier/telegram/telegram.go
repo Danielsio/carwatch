@@ -82,11 +82,30 @@ func (n *Notifier) Connect(ctx context.Context) error {
 
 func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.Listing, lang locale.Lang) error {
 	n.throttleChat(chatID)
-	if len(listings) == 1 && listings[0].ImageURL != "" {
-		return n.sendListingWithPhoto(ctx, chatID, listings[0], lang)
+	if len(listings) == 1 {
+		kb := listingActionKeyboard(listings[0].Token, lang)
+		if listings[0].ImageURL != "" {
+			return n.sendListingWithPhotoAndKeyboard(ctx, chatID, listings[0], lang, kb)
+		}
+		msg := notifier.FormatBatch(listings, lang)
+		return n.sendMessageMarkdownWithKeyboard(ctx, chatID, msg, kb)
 	}
 	msg := notifier.FormatBatch(listings, lang)
 	return n.sendMessageMarkdown(ctx, chatID, msg)
+}
+
+func listingActionKeyboard(token string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
+	if token == "" {
+		return nil
+	}
+	return &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+			{
+				{Text: locale.T(lang, "btn_save"), CallbackData: "save:" + token},
+				{Text: locale.T(lang, "btn_hide"), CallbackData: "hide:" + token},
+			},
+		},
+	}
 }
 
 func (n *Notifier) NotifyRaw(ctx context.Context, chatID string, message string) error {
@@ -121,7 +140,7 @@ func (n *Notifier) throttleChat(chatID string) {
 	n.lastSendTime.Store(chatID, time.Now())
 }
 
-func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, listing model.Listing, lang locale.Lang) error {
+func (n *Notifier) sendListingWithPhotoAndKeyboard(ctx context.Context, chatID string, listing model.Listing, lang locale.Lang, kb *tgmodels.InlineKeyboardMarkup) error {
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid chat ID %q: %w", chatID, err)
@@ -143,15 +162,19 @@ func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, list
 		captionForPhoto = truncateTelegramCaption(captionForPhoto, maxCaptionLen)
 	}
 
-	err = n.sendPhotoWithRetry(ctx, chatID, &tgbot.SendPhotoParams{
+	params := &tgbot.SendPhotoParams{
 		ChatID:    id,
 		Photo:     &tgmodels.InputFileString{Data: listing.ImageURL},
 		Caption:   captionForPhoto,
 		ParseMode: tgmodels.ParseModeMarkdownV1,
-	})
+	}
+	if kb != nil {
+		params.ReplyMarkup = kb
+	}
+	err = n.sendPhotoWithRetry(ctx, chatID, params)
 	if err != nil {
 		n.logger.Warn("sendPhoto failed, falling back to text", "chat_id", chatID, "error", err)
-		return n.sendMessageMarkdown(ctx, chatID, caption)
+		return n.sendMessageMarkdownWithKeyboard(ctx, chatID, caption, kb)
 	}
 
 	n.logger.Info("sent telegram photo", "chat_id", chatID)
@@ -159,10 +182,14 @@ func (n *Notifier) sendListingWithPhoto(ctx context.Context, chatID string, list
 }
 
 func (n *Notifier) sendMessageMarkdown(ctx context.Context, chatID string, text string) error {
-	return n.sendMessageWithParseMode(ctx, chatID, text, tgmodels.ParseModeMarkdownV1)
+	return n.sendMessageWithParseModeAndKeyboard(ctx, chatID, text, tgmodels.ParseModeMarkdownV1, nil)
 }
 
-func (n *Notifier) sendMessageWithParseMode(ctx context.Context, chatID string, text string, parseMode tgmodels.ParseMode) error {
+func (n *Notifier) sendMessageMarkdownWithKeyboard(ctx context.Context, chatID string, text string, kb *tgmodels.InlineKeyboardMarkup) error {
+	return n.sendMessageWithParseModeAndKeyboard(ctx, chatID, text, tgmodels.ParseModeMarkdownV1, kb)
+}
+
+func (n *Notifier) sendMessageWithParseModeAndKeyboard(ctx context.Context, chatID string, text string, parseMode tgmodels.ParseMode, kb *tgmodels.InlineKeyboardMarkup) error {
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid chat ID %q: %w", chatID, err)
@@ -188,6 +215,9 @@ func (n *Notifier) sendMessageWithParseMode(ctx context.Context, chatID string, 
 		}
 		if parseMode != "" {
 			params.ParseMode = parseMode
+		}
+		if kb != nil && i == len(chunks)-1 {
+			params.ReplyMarkup = kb
 		}
 		err = n.sendMessageWithRetry(ctx, chatID, params)
 		if err != nil {

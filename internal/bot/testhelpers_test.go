@@ -58,6 +58,10 @@ func (m *mockMessenger) AnswerCallback(_ context.Context, _ string) error {
 	return nil
 }
 
+func (m *mockMessenger) SendChatAction(_ context.Context, _ int64, _ string) error {
+	return nil
+}
+
 func (m *mockMessenger) last() sentMessage {
 	m.mu.Lock()
 	defer m.mu.Unlock()

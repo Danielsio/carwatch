@@ -25,6 +25,7 @@ func (b *Bot) handleHistory(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
 		return
 	}
+	b.sendTyping(ctx, chatID)
 	b.sendHistoryPage(ctx, chatID, 0)
 }
 
@@ -142,6 +143,7 @@ func (b *Bot) handleSaved(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
 		return
 	}
+	b.sendTyping(ctx, chatID)
 	b.sendSavedPage(ctx, chatID, 0)
 }
 
@@ -248,6 +250,7 @@ func (b *Bot) handleHidden(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
 		return
 	}
+	b.sendTyping(ctx, chatID)
 	b.sendHiddenPage(ctx, chatID, 0)
 }
 

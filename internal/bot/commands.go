@@ -211,6 +211,7 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
 		return
 	}
+	b.sendTyping(ctx, chatID)
 	lang := b.getUserLang(ctx, chatID)
 
 	searches, err := b.searches.ListSearches(ctx, chatID)
@@ -388,6 +389,7 @@ func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
 		return
 	}
+	b.sendTyping(ctx, chatID)
 	lang := b.getUserLang(ctx, chatID)
 
 	count, err := b.searches.CountSearches(ctx, chatID)
@@ -413,6 +415,7 @@ func (b *Bot) handleStats(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 		b.send(ctx, chatID, locale.T(lang, "unknown_command"))
 		return
 	}
+	b.sendTyping(ctx, chatID)
 
 	users, _ := b.users.CountUsers(ctx)
 	searches, _ := b.searches.CountAllSearches(ctx)
@@ -539,6 +542,7 @@ func (b *Bot) handleEdit(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
 		return
 	}
+	b.sendTyping(ctx, chatID)
 	lang := b.getUserLang(ctx, chatID)
 
 	parts := strings.Fields(update.Message.Text)

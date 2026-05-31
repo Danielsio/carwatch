@@ -60,8 +60,6 @@ func (m *MultiNotifier) Disconnect() error {
 	return errors.Join(errs...)
 }
 
-var errNoNotifier = fmt.Errorf("no notifiers registered")
-
 var ErrNoChannelNotifier = fmt.Errorf("no notifier for user channel")
 
 func normalizeChannel(channel string) string {
@@ -76,7 +74,7 @@ func normalizeChannel(channel string) string {
 func (m *MultiNotifier) Notify(ctx context.Context, recipient string, listings []model.Listing, lang locale.Lang) error {
 	targets := m.resolveAll(ctx, recipient)
 	if len(targets) == 0 {
-		return errNoNotifier
+		return ErrNoChannelNotifier
 	}
 
 	var errs []error
@@ -98,7 +96,7 @@ func (m *MultiNotifier) Notify(ctx context.Context, recipient string, listings [
 func (m *MultiNotifier) NotifyRaw(ctx context.Context, recipient string, message string) error {
 	targets := m.resolveAll(ctx, recipient)
 	if len(targets) == 0 {
-		return errNoNotifier
+		return ErrNoChannelNotifier
 	}
 
 	var errs []error
@@ -159,6 +157,12 @@ func (m *MultiNotifier) resolveAll(ctx context.Context, recipient string) map[st
 	}
 
 	if len(result) == 0 {
+		channel := ""
+		if user != nil {
+			channel = user.Channel
+		}
+		m.logger.Warn("no notification channel resolved for user",
+			"recipient", recipient, "channel", channel)
 		if n := m.notifiers[m.fallback]; n != nil {
 			result[m.fallback] = n
 		}

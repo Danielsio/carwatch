@@ -16,6 +16,8 @@ import (
 
 var errMalformedMessage = errors.New("blocked malformed message")
 
+const maxBatchSize = 10
+
 type DeliveryStrategy interface {
 	DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error
 	DeliverRaw(ctx context.Context, chatID int64, message string) error
@@ -64,8 +66,17 @@ func WithSearchContext(id int64, name string) func(*InstantDelivery) {
 }
 
 func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error {
+	truncated := 0
+	if len(listings) > maxBatchSize {
+		truncated = len(listings) - maxBatchSize
+		listings = listings[:maxBatchSize]
+	}
+
 	if d.publisher != nil {
 		msg := notifier.FormatBatch(listings, d.lang)
+		if truncated > 0 {
+			msg += locale.Tf(d.lang, "fmt_batch_overflow", truncated)
+		}
 		if notifier.IsMalformedMessage(msg) {
 			d.logger.ErrorContext(ctx, "blocked delivery of malformed batch message, skipping to prevent Telegram API errors",
 				"chat_id", chatID, "msg_len", len(msg))
@@ -149,7 +160,15 @@ func NewDigestDelivery(s storage.DigestStore, lang locale.Lang) *DigestDelivery 
 }
 
 func (d *DigestDelivery) DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error {
+	truncated := 0
+	if len(listings) > maxBatchSize {
+		truncated = len(listings) - maxBatchSize
+		listings = listings[:maxBatchSize]
+	}
 	msg := notifier.FormatBatch(listings, d.lang)
+	if truncated > 0 {
+		msg += locale.Tf(d.lang, "fmt_batch_overflow", truncated)
+	}
 	if notifier.IsMalformedMessage(msg) {
 		return errMalformedMessage
 	}
