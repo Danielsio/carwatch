@@ -34,20 +34,26 @@ func (b *Bot) onSourceToggle(ctx context.Context, chatID int64, data string) {
 
 func (b *Bot) onLegacySourceSelected(ctx context.Context, chatID int64, source string) {
 	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Source = source
 	b.saveWizardState(ctx, chatID, StateAskSource, wd)
-	unlock()
 
-	b.onSourceDone(ctx, chatID)
+	b.sourceDoneLocked(ctx, chatID)
 }
 
 func (b *Bot) onSourceDone(ctx context.Context, chatID int64) {
 	unlock := b.lockChat(chatID)
+	defer unlock()
+
+	b.sourceDoneLocked(ctx, chatID)
+}
+
+func (b *Bot) sourceDoneLocked(ctx context.Context, chatID int64) {
 	wd := b.loadWizardData(ctx, chatID)
 	lang := b.getUserLang(ctx, chatID)
 	if wd.Source == "" {
-		unlock()
 		b.sendWithKeyboard(ctx, chatID,
 			locale.T(lang, "wizard_source_empty"),
 			sourceKeyboard("", lang))
@@ -55,7 +61,6 @@ func (b *Bot) onSourceDone(ctx context.Context, chatID int64) {
 	}
 	b.logger.Debug("sources selected", "chat_id", chatID, "source", wd.Source)
 	b.saveWizardState(ctx, chatID, StateAskManufacturer, wd)
-	unlock()
 
 	b.sendWithKeyboard(ctx, chatID,
 		locale.T(lang, "wizard_mfr_prompt"),
