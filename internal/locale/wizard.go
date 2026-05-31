@@ -46,6 +46,7 @@ var heWizard = map[string]string{
 	"wizard_keywords_prompt":     "מילות מפתח לחיפוש בתיאור? (מופרדות בפסיק, או הקלד 'דלג')\nלדוגמה: אוטומטי, שמור",
 	"wizard_exclude_keys_prompt": "מילות מפתח להחרגה מהתיאור? (מופרדות בפסיק, או הקלד 'דלג')\nלדוגמה: תאונה, חורף",
 	"wizard_keywords_skip":       "דלג",
+	"wizard_keywords_too_long":   "מילות מפתח ארוכות מדי (מקסימום %d תווים). אנא קצר ונסה שוב.",
 
 	// wizard - confirm
 	"wizard_confirm_summary": "*החיפוש שלך:*\n" +
@@ -114,6 +115,7 @@ var enWizard = map[string]string{
 	"wizard_keywords_prompt":     "Any keywords to require in the description? (comma-separated, or type 'skip')\nExample: automatic, well-kept",
 	"wizard_exclude_keys_prompt": "Any keywords to exclude? (comma-separated, or type 'skip')\nExample: accident, damaged",
 	"wizard_keywords_skip":       "skip",
+	"wizard_keywords_too_long":   "Keywords are too long (max %d characters). Please shorten and try again.",
 
 	// wizard - confirm
 	"wizard_confirm_summary": "*Your search:*\n" +

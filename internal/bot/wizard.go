@@ -82,7 +82,7 @@ func (b *Bot) onMfrPage(ctx context.Context, chatID int64, data string) {
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
 		b.logger.Warn("invalid manufacturer page callback", "chat_id", chatID, "raw", pageStr, "error", err)
-		b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "error_generic"))
+		b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "error_wrong_state"))
 		return
 	}
 	lang := b.getUserLang(ctx, chatID)
@@ -110,7 +110,7 @@ func (b *Bot) onMdlPage(ctx context.Context, chatID int64, data string) {
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
 		b.logger.Warn("invalid model page callback", "chat_id", chatID, "raw", pageStr, "error", err)
-		b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "error_generic"))
+		b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "error_wrong_state"))
 		return
 	}
 	wd := b.loadWizardData(ctx, chatID)
@@ -645,7 +645,7 @@ func (b *Bot) handleKeywordsInput(ctx context.Context, chatID int64, text string
 		wd.Keywords = ""
 	} else {
 		if len(text) > maxKeywordsLen {
-			b.send(ctx, chatID, locale.T(lang, "error_generic"))
+			b.send(ctx, chatID, locale.Tf(lang, "wizard_keywords_too_long", maxKeywordsLen))
 			return
 		}
 		wd.Keywords = normalizeKeywords(text)
@@ -668,7 +668,7 @@ func (b *Bot) handleExcludeKeysInput(ctx context.Context, chatID int64, text str
 		wd.ExcludeKeys = ""
 	} else {
 		if len(text) > maxKeywordsLen {
-			b.send(ctx, chatID, locale.T(lang, "error_generic"))
+			b.send(ctx, chatID, locale.Tf(lang, "wizard_keywords_too_long", maxKeywordsLen))
 			return
 		}
 		wd.ExcludeKeys = normalizeKeywords(text)
