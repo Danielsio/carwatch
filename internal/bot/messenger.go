@@ -13,6 +13,7 @@ type messenger interface {
 	SendMessage(ctx context.Context, chatID int64, text string, parseMode string, kb *tgmodels.InlineKeyboardMarkup) error
 	SendPhoto(ctx context.Context, chatID int64, photoPath string, caption string, parseMode string, kb *tgmodels.InlineKeyboardMarkup) error
 	AnswerCallback(ctx context.Context, callbackID string) error
+	SendChatAction(ctx context.Context, chatID int64, action string) error
 }
 
 type telegramMessenger struct {
@@ -53,6 +54,14 @@ func (t *telegramMessenger) SendPhoto(ctx context.Context, chatID int64, photoPa
 		params.ReplyMarkup = kb
 	}
 	_, err = t.bot.SendPhoto(ctx, params)
+	return err
+}
+
+func (t *telegramMessenger) SendChatAction(ctx context.Context, chatID int64, action string) error {
+	_, err := t.bot.SendChatAction(ctx, &tgbot.SendChatActionParams{
+		ChatID: chatID,
+		Action: tgmodels.ChatAction(action),
+	})
 	return err
 }
 

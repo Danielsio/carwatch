@@ -258,6 +258,12 @@ func (b *Bot) send(ctx context.Context, chatID int64, text string) {
 	}
 }
 
+func (b *Bot) sendTyping(ctx context.Context, chatID int64) {
+	if err := b.msg.SendChatAction(ctx, chatID, "typing"); err != nil {
+		b.logger.Debug("send typing action failed", "chat_id", chatID, "error", err)
+	}
+}
+
 func (b *Bot) sendMarkdown(ctx context.Context, chatID int64, text string) {
 	b.logger.Debug("sending markdown message", "chat_id", chatID, "text_len", len(text))
 	if err := b.msg.SendMessage(ctx, chatID, text, "Markdown", nil); err != nil {
