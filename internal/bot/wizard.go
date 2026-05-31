@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
@@ -644,7 +645,7 @@ func (b *Bot) handleKeywordsInput(ctx context.Context, chatID int64, text string
 	if strings.EqualFold(text, skip) || strings.EqualFold(text, "skip") || strings.EqualFold(text, "דלג") {
 		wd.Keywords = ""
 	} else {
-		if len(text) > maxKeywordsLen {
+		if utf8.RuneCountInString(text) > maxKeywordsLen {
 			b.send(ctx, chatID, locale.Tf(lang, "wizard_keywords_too_long", maxKeywordsLen))
 			return
 		}
@@ -667,7 +668,7 @@ func (b *Bot) handleExcludeKeysInput(ctx context.Context, chatID int64, text str
 	if strings.EqualFold(text, skip) || strings.EqualFold(text, "skip") || strings.EqualFold(text, "דלג") {
 		wd.ExcludeKeys = ""
 	} else {
-		if len(text) > maxKeywordsLen {
+		if utf8.RuneCountInString(text) > maxKeywordsLen {
 			b.send(ctx, chatID, locale.Tf(lang, "wizard_keywords_too_long", maxKeywordsLen))
 			return
 		}
