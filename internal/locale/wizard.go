@@ -1,7 +1,7 @@
 package locale
 
 var heWizard = map[string]string{
-	"wizard_source_prompt": "באילו אתרים לחפש? (בחר אחד או שניהם)",
+	"wizard_source_prompt": "באילו אתרים לחפש? (בחר אחד או שניהם)\n\n⏱ ההגדרה תפוג אחרי 30 דקות של חוסר פעילות.",
 	"wizard_source_empty":  "אנא בחר לפחות אתר אחד.",
 	"wizard_start_over":    "בוא נתחיל מחדש. באילו אתרים?",
 
@@ -70,7 +70,7 @@ var heWizard = map[string]string{
 }
 
 var enWizard = map[string]string{
-	"wizard_source_prompt": "Which marketplaces do you want to search? (select one or both)",
+	"wizard_source_prompt": "Which marketplaces do you want to search? (select one or both)\n\n⏱ This setup expires after 30 minutes of inactivity.",
 	"wizard_source_empty":  "Please select at least one marketplace.",
 	"wizard_start_over":    "Let's start over. Which marketplaces?",
 
