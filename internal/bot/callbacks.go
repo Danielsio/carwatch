@@ -189,7 +189,9 @@ func (b *Bot) onEditRestart(ctx context.Context, chatID int64) {
 	lang := b.getUserLang(ctx, chatID)
 	wd := b.loadWizardData(ctx, chatID)
 	newWd := WizardData{EditSearchID: wd.EditSearchID}
-	b.saveWizardState(ctx, chatID, StateAskSource, newWd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskSource, newWd) {
+		return
+	}
 	b.sendWithKeyboard(ctx, chatID,
 		locale.T(lang, "wizard_start_over"),
 		sourceKeyboard("", lang))

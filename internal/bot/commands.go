@@ -567,7 +567,9 @@ func (b *Bot) handleEdit(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 		PhotoOnly:        search.PhotoOnly,
 		EditSearchID:     search.ID,
 	}
-	b.saveWizardState(ctx, chatID, StateAskSource, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskSource, wd) {
+		return
+	}
 	b.sendWithKeyboard(ctx, chatID,
 		locale.T(lang, "wizard_source_prompt"),
 		sourceKeyboard(wd.Source, lang))

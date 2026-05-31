@@ -238,10 +238,13 @@ func (b *Bot) RegisterHandlers() {
 	b.bot.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "", tgbot.MatchTypePrefix, b.rateLimited(b.handleCallback))
 }
 
-func (b *Bot) ensureUser(ctx context.Context, chatID int64, username string) {
+func (b *Bot) ensureUser(ctx context.Context, chatID int64, username string) bool {
 	if err := b.users.UpsertUser(ctx, chatID, username); err != nil {
 		b.logger.Error("upsert user failed", "chat_id", chatID, "username", username, "error", err)
+		b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "error_generic"))
+		return false
 	}
+	return true
 }
 
 func (b *Bot) send(ctx context.Context, chatID int64, text string) {
@@ -455,15 +458,26 @@ func (b *Bot) loadWizardData(ctx context.Context, chatID int64) WizardData {
 	return wd
 }
 
-func (b *Bot) saveWizardState(ctx context.Context, chatID int64, state string, wd WizardData) {
+func (b *Bot) saveWizardState(ctx context.Context, chatID int64, state string, wd WizardData) error {
 	wd.UpdatedAt = b.now().Unix()
 	data, err := json.Marshal(wd)
 	if err != nil {
 		b.logger.Error("save wizard state: marshal failed", "chat_id", chatID, "error", err)
-		return
+		return err
 	}
 	b.logger.Debug("saving wizard state", "chat_id", chatID, "state", state, "data", string(data))
 	if err := b.users.UpdateUserState(ctx, chatID, state, string(data)); err != nil {
 		b.logger.Error("save wizard state: update failed", "chat_id", chatID, "state", state, "error", err)
+		return err
 	}
+	return nil
+}
+
+func (b *Bot) saveWizardStateOrAbort(ctx context.Context, chatID int64, state string, wd WizardData) bool {
+	if err := b.saveWizardState(ctx, chatID, state, wd); err != nil {
+		lang := b.getUserLang(ctx, chatID)
+		b.send(ctx, chatID, locale.T(lang, "wizard_save_failed"))
+		return false
+	}
+	return true
 }
