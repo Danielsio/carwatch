@@ -66,7 +66,7 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -215,7 +215,7 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -289,7 +289,7 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listingPriceHistory(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -379,7 +379,7 @@ func (s *Server) sweepRefreshCooldowns() {
 }
 
 func (s *Server) listListings(w http.ResponseWriter, r *http.Request) {
-	chatID, okChat := requireChatID(w, r)
+	chatID, okChat := s.requireResolvedChatID(w, r)
 	if !okChat {
 		return
 	}

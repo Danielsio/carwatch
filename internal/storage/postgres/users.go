@@ -253,6 +253,49 @@ func (s *Store) LinkTelegramToWeb(ctx context.Context, telegramChatID, webChatID
 	if n == 0 {
 		return storage.ErrNotFound
 	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE searches SET chat_id = $1
+		WHERE chat_id = $2
+		AND NOT EXISTS (
+			SELECT 1 FROM searches s2
+			WHERE s2.chat_id = $1 AND s2.manufacturer = searches.manufacturer AND s2.model = searches.model
+		)`,
+		telegramChatID, webChatID); err != nil {
+		return fmt.Errorf("migrate searches: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM searches WHERE chat_id = $1`, webChatID); err != nil {
+		return fmt.Errorf("cleanup duplicate searches: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE saved_listings SET chat_id = $1
+		WHERE chat_id = $2
+		AND NOT EXISTS (
+			SELECT 1 FROM saved_listings s2
+			WHERE s2.chat_id = $1 AND s2.token = saved_listings.token
+		)`,
+		telegramChatID, webChatID); err != nil {
+		return fmt.Errorf("migrate saved listings: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM saved_listings WHERE chat_id = $1`, webChatID); err != nil {
+		return fmt.Errorf("cleanup duplicate saved: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE hidden_listings SET chat_id = $1
+		WHERE chat_id = $2
+		AND NOT EXISTS (
+			SELECT 1 FROM hidden_listings h2
+			WHERE h2.chat_id = $1 AND h2.token = hidden_listings.token
+		)`,
+		telegramChatID, webChatID); err != nil {
+		return fmt.Errorf("migrate hidden listings: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM hidden_listings WHERE chat_id = $1`, webChatID); err != nil {
+		return fmt.Errorf("cleanup duplicate hidden: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
@@ -263,7 +306,7 @@ func (s *Store) GetLinkedTelegramUser(ctx context.Context, webChatID int64) (*st
 	row := s.db.QueryRowContext(ctx, `
 		SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used, channel, channel_id
 		FROM users
-		WHERE linked_web_id = $1 AND channel = 'telegram'
+		WHERE linked_web_id = $1 AND channel = 'telegram' AND active = true
 		LIMIT 1`,
 		webChatID)
 

@@ -186,10 +186,10 @@ func (s *Server) searchResponseWithListingCount(ctx context.Context, chatID int6
 func (s *Server) listSearches(w http.ResponseWriter, r *http.Request) {
 	chatID, ok := chatIDFromContext(r.Context())
 	if !ok {
-		// Guest user — return empty list.
 		writeJSON(w, http.StatusOK, []searchResponse{})
 		return
 	}
+	chatID = s.resolveCanonicalChatID(r.Context(), chatID)
 	log := s.handlerLogger(r, "op", "list_searches")
 
 	searches, err := s.searches.ListSearches(r.Context(), chatID)
@@ -341,7 +341,7 @@ func (s *Server) writeCreatedSearch(w http.ResponseWriter, r *http.Request, chat
 }
 
 func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -388,7 +388,7 @@ func (s *Server) createSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getSearch(w http.ResponseWriter, r *http.Request) {
-	chatID, okChat := requireChatID(w, r)
+	chatID, okChat := s.requireResolvedChatID(w, r)
 	if !okChat {
 		return
 	}
@@ -415,7 +415,7 @@ func (s *Server) getSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
-	chatID, okChat := requireChatID(w, r)
+	chatID, okChat := s.requireResolvedChatID(w, r)
 	if !okChat {
 		return
 	}
@@ -486,7 +486,7 @@ func (s *Server) updateSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteSearch(w http.ResponseWriter, r *http.Request) {
-	chatID, okChat := requireChatID(w, r)
+	chatID, okChat := s.requireResolvedChatID(w, r)
 	if !okChat {
 		return
 	}
@@ -513,7 +513,7 @@ func (s *Server) deleteSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) searchStats(w http.ResponseWriter, r *http.Request) {
-	chatID, okChat := requireChatID(w, r)
+	chatID, okChat := s.requireResolvedChatID(w, r)
 	if !okChat {
 		return
 	}
@@ -564,7 +564,7 @@ func (s *Server) resumeSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) setSearchActive(w http.ResponseWriter, r *http.Request, active bool) {
-	chatID, okChat := requireChatID(w, r)
+	chatID, okChat := s.requireResolvedChatID(w, r)
 	if !okChat {
 		return
 	}
