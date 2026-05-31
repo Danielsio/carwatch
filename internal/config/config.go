@@ -88,10 +88,12 @@ type ActiveHours struct {
 }
 
 type TelegramConfig struct {
-	Token       string `yaml:"token"`
-	AdminChatID int64  `yaml:"admin_chat_id"`
-	MaxSearches int    `yaml:"max_searches"`
-	BotUsername string `yaml:"bot_username"`
+	Token                  string `yaml:"token"`
+	AdminChatID            int64  `yaml:"admin_chat_id"`
+	MaxSearches            int    `yaml:"max_searches"`
+	BotUsername             string `yaml:"bot_username"`
+	QuickStartManufacturer int    `yaml:"quick_start_manufacturer"`
+	QuickStartModel        int    `yaml:"quick_start_model"`
 }
 
 type StorageConfig struct {

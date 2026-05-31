@@ -38,10 +38,12 @@ type Bot struct {
 	hidden       storage.HiddenListingStore
 	dailyDigests storage.DailyDigestStore
 	catalog      catalog.Catalog
-	adminChatID  int64
-	maxSearches  int
-	botUsername  string
-	pollInterval time.Duration
+	adminChatID            int64
+	maxSearches            int
+	botUsername             string
+	pollInterval           time.Duration
+	quickStartManufacturer int
+	quickStartModel        int
 	logger       *slog.Logger
 	health       *health.Status
 	chatMu       sync.Map
@@ -100,18 +102,20 @@ func (b *Bot) isRateLimited(chatID int64) bool {
 }
 
 type Config struct {
-	AdminChatID  int64
-	MaxSearches  int
-	BotUsername  string
-	PollInterval time.Duration
-	Health       *health.Status
-	Digests      storage.DigestStore
-	Listings     storage.ListingStore
-	Saved        storage.SavedListingStore
-	Hidden       storage.HiddenListingStore
-	DailyDigests storage.DailyDigestStore
-	Catalog      catalog.Catalog
-	LinkTokens   storage.LinkTokenStore
+	AdminChatID            int64
+	MaxSearches            int
+	BotUsername             string
+	PollInterval           time.Duration
+	QuickStartManufacturer int
+	QuickStartModel        int
+	Health                 *health.Status
+	Digests                storage.DigestStore
+	Listings               storage.ListingStore
+	Saved                  storage.SavedListingStore
+	Hidden                 storage.HiddenListingStore
+	DailyDigests           storage.DailyDigestStore
+	Catalog                catalog.Catalog
+	LinkTokens             storage.LinkTokenStore
 }
 
 func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cfg Config, logger *slog.Logger) *Bot {
@@ -120,6 +124,12 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 	}
 	if cfg.PollInterval == 0 {
 		cfg.PollInterval = 15 * time.Minute
+	}
+	if cfg.QuickStartManufacturer == 0 {
+		cfg.QuickStartManufacturer = DefaultQuickStartManufacturer
+	}
+	if cfg.QuickStartModel == 0 {
+		cfg.QuickStartModel = DefaultQuickStartModel
 	}
 	cat := cfg.Catalog
 	if cat == nil {
@@ -141,10 +151,12 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		hidden:       cfg.Hidden,
 		dailyDigests: cfg.DailyDigests,
 		catalog:      cat,
-		adminChatID:  cfg.AdminChatID,
-		maxSearches:  cfg.MaxSearches,
-		botUsername:  cfg.BotUsername,
-		pollInterval: cfg.PollInterval,
+		adminChatID:            cfg.AdminChatID,
+		maxSearches:            cfg.MaxSearches,
+		botUsername:             cfg.BotUsername,
+		pollInterval:           cfg.PollInterval,
+		quickStartManufacturer: cfg.QuickStartManufacturer,
+		quickStartModel:        cfg.QuickStartModel,
 		logger:       logger,
 		health:       cfg.Health,
 	}

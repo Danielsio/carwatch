@@ -15,8 +15,6 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
-// DefaultQuickStartManufacturer and DefaultQuickStartModel are catalog IDs for the quick-start preset (Toyota Corolla).
-// TODO: these should eventually come from config instead of hardcoding.
 const (
 	DefaultQuickStartManufacturer = 19
 	DefaultQuickStartModel        = 8640
@@ -216,12 +214,16 @@ func (b *Bot) onQuickStart(ctx context.Context, chatID int64) {
 		return
 	}
 
+	mfr := b.catalog.ManufacturerName(b.quickStartManufacturer)
+	mdl := b.modelDisplayName(b.quickStartManufacturer, b.quickStartModel)
+	name := fmt.Sprintf("%s-%s", strings.ToLower(mfr), strings.ToLower(mdl))
+
 	id, err := b.searches.CreateSearch(ctx, storage.Search{
 		ChatID:       chatID,
-		Name:         "toyota-corolla",
+		Name:         name,
 		Source:       "yad2",
-		Manufacturer: DefaultQuickStartManufacturer,
-		Model:        DefaultQuickStartModel,
+		Manufacturer: b.quickStartManufacturer,
+		Model:        b.quickStartModel,
 		YearMin:      2018,
 		YearMax:      time.Now().Year() + 2,
 		PriceMax:     200000,
