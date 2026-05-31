@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/dsionov/carwatch/internal/botcore"
+	"github.com/dsionov/carwatch/internal/locale"
 )
 
 const (
@@ -31,6 +32,21 @@ type WizardData = botcore.WizardData
 func (b *Bot) expectState(ctx context.Context, chatID int64, expected string) bool {
 	user, err := b.users.GetUser(ctx, chatID)
 	if err != nil || user == nil || user.State != expected {
+		return false
+	}
+	return true
+}
+
+func (b *Bot) expectStateOrNotify(ctx context.Context, chatID int64, expected string) bool {
+	lang := b.getUserLang(ctx, chatID)
+	user, err := b.users.GetUser(ctx, chatID)
+	if err != nil {
+		b.logger.Error("expectState: get user failed", "chat_id", chatID, "error", err)
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return false
+	}
+	if user == nil || user.State != expected {
+		b.send(ctx, chatID, locale.T(lang, "callback_expired"))
 		return false
 	}
 	return true

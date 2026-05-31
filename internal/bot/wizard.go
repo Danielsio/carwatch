@@ -136,7 +136,7 @@ func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data str
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskManufacturer) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskManufacturer) {
 		return
 	}
 	idStr := strings.TrimPrefix(data, cbPrefixMfr)
@@ -184,7 +184,7 @@ func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskModel) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskModel) {
 		return
 	}
 	idStr := strings.TrimPrefix(data, cbPrefixModel)
@@ -210,7 +210,7 @@ func (b *Bot) onEngineSelected(ctx context.Context, chatID int64, data string) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskEngine) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskEngine) {
 		return
 	}
 	ccStr := strings.TrimPrefix(data, cbPrefixEngine)
@@ -236,7 +236,7 @@ func (b *Bot) onMaxKmSelected(ctx context.Context, chatID int64, data string) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskMaxKm) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskMaxKm) {
 		return
 	}
 	kmStr := strings.TrimPrefix(data, cbPrefixMaxKm)
@@ -260,7 +260,7 @@ func (b *Bot) onMaxHandSelected(ctx context.Context, chatID int64, data string) 
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskMaxHand) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskMaxHand) {
 		return
 	}
 	handStr := strings.TrimPrefix(data, cbPrefixMaxHand)
@@ -286,7 +286,7 @@ func (b *Bot) onSkipKeywords(ctx context.Context, chatID int64) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskKeywords) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskKeywords) {
 		return
 	}
 	wd := b.loadWizardData(ctx, chatID)
@@ -305,7 +305,7 @@ func (b *Bot) onSkipExcludeKeys(ctx context.Context, chatID int64) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskExcludeKeys) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskExcludeKeys) {
 		return
 	}
 	wd := b.loadWizardData(ctx, chatID)
@@ -597,7 +597,7 @@ func (b *Bot) onSkipPriceMin(ctx context.Context, chatID int64) {
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskPriceMin) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskPriceMin) {
 		return
 	}
 	wd := b.loadWizardData(ctx, chatID)
@@ -614,7 +614,7 @@ func (b *Bot) onGearBoxSelected(ctx context.Context, chatID int64, data string) 
 	unlock := b.lockChat(chatID)
 	defer unlock()
 
-	if !b.expectState(ctx, chatID, StateAskGearBox) {
+	if !b.expectStateOrNotify(ctx, chatID, StateAskGearBox) {
 		return
 	}
 	gearbox := strings.TrimPrefix(data, cbPrefixGearBox)
