@@ -16,43 +16,44 @@ import (
 const maxRecentManufacturers = 4
 
 const (
-	cbPrefixSource    = "src:"
-	cbPrefixMfr       = "mfr:"
-	cbPrefixModel     = "mdl:"
-	cbPrefixEngine    = "eng:"
-	cbPrefixMaxKm     = "maxkm:"
-	cbPrefixMaxHand   = "maxhand:"
-	cbConfirm         = "confirm:yes"
-	cbEdit            = "confirm:edit"
-	cbCancel          = "confirm:cancel"
-	cbDeleteSearch    = "del:"
-	cbPrefixShareCopy = "share_copy:"
-	cbDigestOn        = "digest:on"
-	cbDigestOff       = "digest:off"
-	cbDigestInterval  = "digest_int:"
-	cbMfrPage         = "mfr_pg:"
-	cbMfrSearch       = "mfr_search"
-	cbMdlPage         = "mdl_pg:"
-	cbMdlSearch       = "mdl_search"
-	cbAnyModel        = "mdl:0"
-	cbAnyMfr          = "mfr:0"
-	cbHistoryPage     = "hist_pg:"
-	cbSourceToggle    = "src_toggle:"
-	cbSourceDone      = "src_done"
-	cbLangHe          = "lang:he"
-	cbLangEn          = "lang:en"
-	cbPrefixSave      = "save:"
-	cbPrefixHide      = "hide:"
-	cbQuickStart      = "quick_start"
-	cbHiddenClear     = "hidden_clear"
-	cbSavedPage       = "saved_pg:"
-	cbHiddenPage      = "hidden_pg:"
-	cbSkipKeywords    = "skip_keywords"
-	cbSkipExcludeKeys = "skip_exclude_keys"
-	cbSkipPriceMin    = "skip_price_min"
-	cbPrefixGearBox   = "gearbox:"
-	cbDailyDigestOn   = "daily_digest:on"
-	cbDailyDigestOff  = "daily_digest:off"
+	cbPrefixSource       = "src:"
+	cbPrefixMfr          = "mfr:"
+	cbPrefixModel        = "mdl:"
+	cbPrefixEngine       = "eng:"
+	cbPrefixMaxKm        = "maxkm:"
+	cbPrefixMaxHand      = "maxhand:"
+	cbConfirm            = "confirm:yes"
+	cbEdit               = "confirm:edit"
+	cbCancel             = "confirm:cancel"
+	cbDeleteSearch       = "del:"
+	cbPrefixShareCopy    = "share_copy:"
+	cbDigestOn           = "digest:on"
+	cbDigestOff          = "digest:off"
+	cbDigestInterval     = "digest_int:"
+	cbMfrPage            = "mfr_pg:"
+	cbMfrSearch          = "mfr_search"
+	cbMdlPage            = "mdl_pg:"
+	cbMdlSearch          = "mdl_search"
+	cbAnyModel           = "mdl:0"
+	cbAnyMfr             = "mfr:0"
+	cbHistoryPage        = "hist_pg:"
+	cbSourceToggle       = "src_toggle:"
+	cbSourceDone         = "src_done"
+	cbLangHe             = "lang:he"
+	cbLangEn             = "lang:en"
+	cbPrefixSave         = "save:"
+	cbPrefixHide         = "hide:"
+	cbQuickStart         = "quick_start"
+	cbHiddenClear        = "hidden_clear"
+	cbHiddenClearConfirm = "hidden_clear_yes"
+	cbSavedPage          = "saved_pg:"
+	cbHiddenPage         = "hidden_pg:"
+	cbSkipKeywords       = "skip_keywords"
+	cbSkipExcludeKeys    = "skip_exclude_keys"
+	cbSkipPriceMin       = "skip_price_min"
+	cbPrefixGearBox      = "gearbox:"
+	cbDailyDigestOn      = "daily_digest:on"
+	cbDailyDigestOff     = "daily_digest:off"
 
 	pageSize   = 10
 	colsPerRow = 2
@@ -311,10 +312,21 @@ func gearBoxKeyboard(lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
 			{
 				{Text: locale.T(lang, "btn_gearbox_any"), CallbackData: cbPrefixGearBox + "any"},
-				{Text: locale.T(lang, "btn_gearbox_auto"), CallbackData: cbPrefixGearBox + "אוטומט"},
-				{Text: locale.T(lang, "btn_gearbox_manual"), CallbackData: cbPrefixGearBox + "ידני"},
+				{Text: locale.T(lang, "btn_gearbox_auto"), CallbackData: cbPrefixGearBox + "Automatic"},
+				{Text: locale.T(lang, "btn_gearbox_manual"), CallbackData: cbPrefixGearBox + "Manual"},
 			},
 		},
+	}
+}
+
+func gearboxDisplayName(lang locale.Lang, code string) string {
+	switch code {
+	case "Automatic", "אוטומט":
+		return locale.T(lang, "btn_gearbox_auto")
+	case "Manual", "ידני":
+		return locale.T(lang, "btn_gearbox_manual")
+	default:
+		return code
 	}
 }
 
@@ -386,7 +398,7 @@ func confirmKeyboard(data WizardData, lang locale.Lang) (*tgmodels.InlineKeyboar
 		summary += locale.Tf(lang, "wizard_confirm_price_min", format.Number(data.PriceMin))
 	}
 	if data.GearBox != "" {
-		summary += locale.Tf(lang, "wizard_confirm_gearbox", data.GearBox)
+		summary += locale.Tf(lang, "wizard_confirm_gearbox", gearboxDisplayName(lang, data.GearBox))
 	}
 	if data.Keywords != "" {
 		summary += locale.Tf(lang, "wizard_confirm_keywords", format.EscapeMarkdown(data.Keywords))

@@ -257,16 +257,18 @@ func TestSendWithKeyboard_Error_LogsAndContinues(t *testing.T) {
 
 // --- ensureUser error test ---
 
-func TestEnsureUser_Error_LogsAndContinues(t *testing.T) {
+func TestEnsureUser_Error_SendsErrorAndReturnsFalse(t *testing.T) {
 	msg := &mockMessenger{}
 	users := &errUserStore{upsertErr: errors.New("db full")}
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
 
-	b.ensureUser(context.Background(), 100, "alice")
-	// ensureUser swallows DB errors; verify no error message was sent to the user.
-	if len(msg.messages) != 0 {
-		t.Errorf("expected no messages sent on ensureUser error, got %d", len(msg.messages))
+	ok := b.ensureUser(context.Background(), 100, "alice")
+	if ok {
+		t.Error("expected ensureUser to return false on error")
+	}
+	if len(msg.messages) != 1 {
+		t.Errorf("expected 1 error message sent to user, got %d", len(msg.messages))
 	}
 }
 
@@ -318,7 +320,7 @@ func TestSaveWizardState_UpdateError(t *testing.T) {
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
 
-	b.saveWizardState(context.Background(), 100, StateAskYearMin, WizardData{Manufacturer: 27})
+	_ = b.saveWizardState(context.Background(), 100, StateAskYearMin, WizardData{Manufacturer: 27})
 	// saveWizardState swallows the DB error; verify no error message was sent to the user.
 	if len(msg.messages) != 0 {
 		t.Errorf("expected no messages sent on saveWizardState error, got %d", len(msg.messages))
@@ -879,7 +881,7 @@ func TestOnConfirm_EmptySourceDefaultsToYad2(t *testing.T) {
 		Model: 10332, ModelName: "3",
 		YearMin: 2020, YearMax: 2024, PriceMax: 100000,
 	}
-	tb.bot.saveWizardState(ctx, chatID, StateConfirm, wd)
+	_ = tb.bot.saveWizardState(ctx, chatID, StateConfirm, wd)
 	tb.msg.reset()
 
 	tb.simulateCallback(ctx, chatID, cbConfirm)

@@ -189,7 +189,9 @@ func (b *Bot) onEditRestart(ctx context.Context, chatID int64) {
 	lang := b.getUserLang(ctx, chatID)
 	wd := b.loadWizardData(ctx, chatID)
 	newWd := WizardData{EditSearchID: wd.EditSearchID}
-	b.saveWizardState(ctx, chatID, StateAskSource, newWd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskSource, newWd) {
+		return
+	}
 	b.sendWithKeyboard(ctx, chatID,
 		locale.T(lang, "wizard_start_over"),
 		sourceKeyboard("", lang))
@@ -340,6 +342,38 @@ func (b *Bot) onHideListing(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onClearHidden(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
+	lang := b.getUserLang(ctx, chatID)
+	if b.hidden == nil {
+		return
+	}
+	count, err := b.hidden.CountHidden(ctx, chatID)
+	if err != nil {
+		b.logger.Error("count hidden failed", "chat_id", chatID, "error", err)
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	if count == 0 {
+		b.send(ctx, chatID, locale.T(lang, "hidden_empty"))
+		return
+	}
+	kb := &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+			{
+				{Text: locale.T(lang, "btn_confirm"), CallbackData: cbHiddenClearConfirm},
+				{Text: locale.T(lang, "btn_cancel"), CallbackData: "noop"},
+			},
+		},
+	}
+	b.sendWithKeyboard(ctx, chatID, locale.Tf(lang, "hidden_clear_confirm", count), kb)
+}
+
+func (b *Bot) onClearHiddenConfirm(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	lang := b.getUserLang(ctx, chatID)
 	if b.hidden == nil {
 		return

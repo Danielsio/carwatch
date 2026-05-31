@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -131,12 +132,28 @@ func TestOnClearHidden(t *testing.T) {
 
 	tb.simulateCallback(ctx, 100, "hidden_clear")
 
+	// Should show confirmation, not clear yet.
 	count, err := tb.store.CountHidden(ctx, 100)
 	if err != nil {
 		t.Fatalf("CountHidden: %v", err)
 	}
+	if count != 2 {
+		t.Errorf("expected 2 hidden after confirmation prompt, got %d", count)
+	}
+	last := tb.msg.last()
+	if !strings.Contains(last.Text, "2") {
+		t.Errorf("confirmation prompt should mention count, got %q", last.Text)
+	}
+
+	// Confirm the clear.
+	tb.simulateCallback(ctx, 100, "hidden_clear_yes")
+
+	count, err = tb.store.CountHidden(ctx, 100)
+	if err != nil {
+		t.Fatalf("CountHidden: %v", err)
+	}
 	if count != 0 {
-		t.Errorf("expected 0 hidden after clear, got %d", count)
+		t.Errorf("expected 0 hidden after confirm, got %d", count)
 	}
 }
 
@@ -513,7 +530,7 @@ func TestSaveAndLoadWizardState(t *testing.T) {
 		Manufacturer:     19,
 		ManufacturerName: "Toyota",
 	}
-	tb.bot.saveWizardState(ctx, 100, "ask_model", wd)
+	_ = tb.bot.saveWizardState(ctx, 100, "ask_model", wd)
 
 	loaded := tb.bot.loadWizardData(ctx, 100)
 	if loaded.Manufacturer != 19 {

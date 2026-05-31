@@ -24,7 +24,9 @@ func (b *Bot) onSourceToggle(ctx context.Context, chatID int64, data string) {
 
 	selected := toggleSource(wd.Source, source)
 	wd.Source = selected
-	b.saveWizardState(ctx, chatID, StateAskSource, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskSource, wd) {
+		return
+	}
 
 	lang := b.getUserLang(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID,
@@ -34,28 +36,37 @@ func (b *Bot) onSourceToggle(ctx context.Context, chatID int64, data string) {
 
 func (b *Bot) onLegacySourceSelected(ctx context.Context, chatID int64, source string) {
 	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Source = source
-	b.saveWizardState(ctx, chatID, StateAskSource, wd)
-	unlock()
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskSource, wd) {
+		return
+	}
 
-	b.onSourceDone(ctx, chatID)
+	b.sourceDoneLocked(ctx, chatID)
 }
 
 func (b *Bot) onSourceDone(ctx context.Context, chatID int64) {
 	unlock := b.lockChat(chatID)
+	defer unlock()
+
+	b.sourceDoneLocked(ctx, chatID)
+}
+
+func (b *Bot) sourceDoneLocked(ctx context.Context, chatID int64) {
 	wd := b.loadWizardData(ctx, chatID)
 	lang := b.getUserLang(ctx, chatID)
 	if wd.Source == "" {
-		unlock()
 		b.sendWithKeyboard(ctx, chatID,
 			locale.T(lang, "wizard_source_empty"),
 			sourceKeyboard("", lang))
 		return
 	}
 	b.logger.Debug("sources selected", "chat_id", chatID, "source", wd.Source)
-	b.saveWizardState(ctx, chatID, StateAskManufacturer, wd)
-	unlock()
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskManufacturer, wd) {
+		return
+	}
 
 	b.sendWithKeyboard(ctx, chatID,
 		locale.T(lang, "wizard_mfr_prompt"),
@@ -85,7 +96,9 @@ func (b *Bot) onMfrSearch(ctx context.Context, chatID int64) {
 	defer unlock()
 
 	wd := b.loadWizardData(ctx, chatID)
-	b.saveWizardState(ctx, chatID, StateSearchManufacturer, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateSearchManufacturer, wd) {
+		return
+	}
 	b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "wizard_mfr_search"))
 }
 
@@ -112,7 +125,9 @@ func (b *Bot) onMdlSearch(ctx context.Context, chatID int64) {
 	defer unlock()
 
 	wd := b.loadWizardData(ctx, chatID)
-	b.saveWizardState(ctx, chatID, StateSearchModel, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateSearchModel, wd) {
+		return
+	}
 	lang := b.getUserLang(ctx, chatID)
 	b.send(ctx, chatID, locale.Tf(lang, "wizard_model_search", wd.ManufacturerName))
 }
@@ -147,14 +162,18 @@ func (b *Bot) onManufacturerSelected(ctx context.Context, chatID int64, data str
 		wd.Model = 0
 		wd.ModelName = locale.T(lang, "btn_any_model")
 		b.logger.Debug("any manufacturer selected, skipping model step", "chat_id", chatID)
-		b.saveWizardState(ctx, chatID, StateAskYearMin, wd)
+		if !b.saveWizardStateOrAbort(ctx, chatID, StateAskYearMin, wd) {
+			return
+		}
 		b.send(ctx, chatID, locale.T(lang, "wizard_year_min"))
 		return
 	}
 
 	wd.ManufacturerName = b.catalog.ManufacturerName(id)
 	b.logger.Debug("manufacturer selected", "chat_id", chatID, "id", id, "name", wd.ManufacturerName)
-	b.saveWizardState(ctx, chatID, StateAskModel, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskModel, wd) {
+		return
+	}
 
 	b.sendWithKeyboard(ctx, chatID,
 		locale.Tf(lang, "wizard_model_prompt", wd.ManufacturerName),
@@ -180,7 +199,9 @@ func (b *Bot) onModelSelected(ctx context.Context, chatID int64, data string) {
 	wd.Model = modelID
 	wd.ModelName = b.modelDisplayName(wd.Manufacturer, modelID)
 	b.logger.Debug("model selected", "chat_id", chatID, "manufacturer", wd.ManufacturerName, "model_id", modelID, "model_name", wd.ModelName)
-	b.saveWizardState(ctx, chatID, StateAskYearMin, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskYearMin, wd) {
+		return
+	}
 
 	b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "wizard_year_min"))
 }
@@ -203,7 +224,9 @@ func (b *Bot) onEngineSelected(ctx context.Context, chatID int64, data string) {
 	wd := b.loadWizardData(ctx, chatID)
 	wd.EngineMinCC = cc
 	b.logger.Debug("engine selected", "chat_id", chatID, "engine_min_cc", cc)
-	b.saveWizardState(ctx, chatID, StateAskMaxKm, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskMaxKm, wd) {
+		return
+	}
 
 	lang := b.getUserLang(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID, locale.T(lang, "wizard_km_prompt"), maxKmKeyboard(lang))
@@ -225,7 +248,9 @@ func (b *Bot) onMaxKmSelected(ctx context.Context, chatID int64, data string) {
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.MaxKm = km
-	b.saveWizardState(ctx, chatID, StateAskMaxHand, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskMaxHand, wd) {
+		return
+	}
 
 	lang := b.getUserLang(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID, locale.T(lang, "wizard_hand_prompt"), maxHandKeyboard(lang))
@@ -247,7 +272,9 @@ func (b *Bot) onMaxHandSelected(ctx context.Context, chatID int64, data string) 
 
 	wd := b.loadWizardData(ctx, chatID)
 	wd.MaxHand = hand
-	b.saveWizardState(ctx, chatID, StateAskKeywords, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskKeywords, wd) {
+		return
+	}
 
 	lang := b.getUserLang(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID,
@@ -264,7 +291,9 @@ func (b *Bot) onSkipKeywords(ctx context.Context, chatID int64) {
 	}
 	wd := b.loadWizardData(ctx, chatID)
 	wd.Keywords = ""
-	b.saveWizardState(ctx, chatID, StateAskExcludeKeys, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskExcludeKeys, wd) {
+		return
+	}
 
 	lang := b.getUserLang(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID,
@@ -281,7 +310,9 @@ func (b *Bot) onSkipExcludeKeys(ctx context.Context, chatID int64) {
 	}
 	wd := b.loadWizardData(ctx, chatID)
 	wd.ExcludeKeys = ""
-	b.saveWizardState(ctx, chatID, StateConfirm, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateConfirm, wd) {
+		return
+	}
 
 	lang := b.getUserLang(ctx, chatID)
 	kb, summary := confirmKeyboard(wd, lang)
@@ -410,7 +441,9 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	}
 
 	chatID := update.Message.Chat.ID
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 
 	unlock := b.lockChat(chatID)
 	defer unlock()
@@ -479,7 +512,9 @@ func (b *Bot) handleYearMin(ctx context.Context, chatID int64, text string) {
 	wd := b.loadWizardData(ctx, chatID)
 	wd.YearMin = year
 	b.logger.Debug("year min set", "chat_id", chatID, "year_min", year)
-	b.saveWizardState(ctx, chatID, StateAskYearMax, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskYearMax, wd) {
+		return
+	}
 	b.send(ctx, chatID, locale.T(lang, "wizard_year_max"))
 }
 
@@ -501,7 +536,9 @@ func (b *Bot) handleYearMax(ctx context.Context, chatID int64, text string) {
 	}
 	wd.YearMax = year
 	b.logger.Debug("year max set", "chat_id", chatID, "year_max", year)
-	b.saveWizardState(ctx, chatID, StateAskPriceMax, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskPriceMax, wd) {
+		return
+	}
 	b.send(ctx, chatID, locale.T(lang, "wizard_price_prompt"))
 }
 
@@ -519,7 +556,9 @@ func (b *Bot) handlePriceMax(ctx context.Context, chatID int64, text string) {
 	wd := b.loadWizardData(ctx, chatID)
 	wd.PriceMax = price
 	b.logger.Debug("price max set", "chat_id", chatID, "price_max", price)
-	b.saveWizardState(ctx, chatID, StateAskPriceMin, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskPriceMin, wd) {
+		return
+	}
 	b.sendWithKeyboard(ctx, chatID,
 		locale.T(lang, "wizard_price_min_prompt"),
 		skipKeyboard(cbSkipPriceMin, lang))
@@ -548,7 +587,9 @@ func (b *Bot) handlePriceMin(ctx context.Context, chatID int64, text string) {
 	}
 
 	b.logger.Debug("price min set", "chat_id", chatID, "price_min", wd.PriceMin)
-	b.saveWizardState(ctx, chatID, StateAskGearBox, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskGearBox, wd) {
+		return
+	}
 	b.sendWithKeyboard(ctx, chatID, locale.T(lang, "wizard_gearbox_prompt"), gearBoxKeyboard(lang))
 }
 
@@ -561,7 +602,9 @@ func (b *Bot) onSkipPriceMin(ctx context.Context, chatID int64) {
 	}
 	wd := b.loadWizardData(ctx, chatID)
 	wd.PriceMin = 0
-	b.saveWizardState(ctx, chatID, StateAskGearBox, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskGearBox, wd) {
+		return
+	}
 
 	lang := b.getUserLang(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID, locale.T(lang, "wizard_gearbox_prompt"), gearBoxKeyboard(lang))
@@ -583,7 +626,9 @@ func (b *Bot) onGearBoxSelected(ctx context.Context, chatID int64, data string) 
 		wd.GearBox = gearbox
 	}
 	b.logger.Debug("gearbox selected", "chat_id", chatID, "gear_box", wd.GearBox)
-	b.saveWizardState(ctx, chatID, StateAskEngine, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskEngine, wd) {
+		return
+	}
 
 	lang := b.getUserLang(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID, locale.T(lang, "wizard_engine_prompt"), engineKeyboard(lang))
@@ -606,7 +651,9 @@ func (b *Bot) handleKeywordsInput(ctx context.Context, chatID int64, text string
 		wd.Keywords = normalizeKeywords(text)
 	}
 
-	b.saveWizardState(ctx, chatID, StateAskExcludeKeys, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskExcludeKeys, wd) {
+		return
+	}
 	b.sendWithKeyboard(ctx, chatID,
 		locale.T(lang, "wizard_exclude_keys_prompt"),
 		skipKeyboard(cbSkipExcludeKeys, lang))
@@ -627,7 +674,9 @@ func (b *Bot) handleExcludeKeysInput(ctx context.Context, chatID int64, text str
 		wd.ExcludeKeys = normalizeKeywords(text)
 	}
 
-	b.saveWizardState(ctx, chatID, StateConfirm, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateConfirm, wd) {
+		return
+	}
 	kb, summary := confirmKeyboard(wd, lang)
 	b.sendWithKeyboard(ctx, chatID, summary, kb)
 }
@@ -638,7 +687,9 @@ func normalizeKeywords(input string) string {
 
 func (b *Bot) handleManufacturerSearch(ctx context.Context, chatID int64, query string) {
 	wd := b.loadWizardData(ctx, chatID)
-	b.saveWizardState(ctx, chatID, StateAskManufacturer, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskManufacturer, wd) {
+		return
+	}
 	lang := b.getUserLang(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID,
 		locale.T(lang, "wizard_mfr_results"),
@@ -647,7 +698,9 @@ func (b *Bot) handleManufacturerSearch(ctx context.Context, chatID int64, query 
 
 func (b *Bot) handleModelSearch(ctx context.Context, chatID int64, query string) {
 	wd := b.loadWizardData(ctx, chatID)
-	b.saveWizardState(ctx, chatID, StateAskModel, wd)
+	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskModel, wd) {
+		return
+	}
 	lang := b.getUserLang(ctx, chatID)
 	b.sendWithKeyboard(ctx, chatID,
 		locale.T(lang, "wizard_model_results"),
