@@ -66,6 +66,9 @@ func init() {
 		cbHiddenClear: func(b *Bot, ctx context.Context, chatID int64, _ string) {
 			b.onClearHidden(ctx, chatID)
 		},
+		cbHiddenClearConfirm: func(b *Bot, ctx context.Context, chatID int64, _ string) {
+			b.onClearHiddenConfirm(ctx, chatID)
+		},
 		cbDailyDigestOn: func(b *Bot, ctx context.Context, chatID int64, _ string) {
 			b.onDailyDigestOn(ctx, chatID)
 		},

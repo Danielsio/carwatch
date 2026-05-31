@@ -346,6 +346,32 @@ func (b *Bot) onClearHidden(ctx context.Context, chatID int64) {
 	if b.hidden == nil {
 		return
 	}
+	count, err := b.hidden.CountHidden(ctx, chatID)
+	if err != nil {
+		b.logger.Error("count hidden failed", "chat_id", chatID, "error", err)
+		b.send(ctx, chatID, locale.T(lang, "error_generic"))
+		return
+	}
+	if count == 0 {
+		b.send(ctx, chatID, locale.T(lang, "hidden_empty"))
+		return
+	}
+	kb := &tgmodels.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
+			{
+				{Text: locale.T(lang, "btn_confirm"), CallbackData: cbHiddenClearConfirm},
+				{Text: locale.T(lang, "btn_cancel"), CallbackData: "noop"},
+			},
+		},
+	}
+	b.sendWithKeyboard(ctx, chatID, locale.Tf(lang, "hidden_clear_confirm", count), kb)
+}
+
+func (b *Bot) onClearHiddenConfirm(ctx context.Context, chatID int64) {
+	lang := b.getUserLang(ctx, chatID)
+	if b.hidden == nil {
+		return
+	}
 	if err := b.hidden.ClearHidden(ctx, chatID); err != nil {
 		b.logger.Error("clear hidden failed", "chat_id", chatID, "error", err)
 		b.send(ctx, chatID, locale.T(lang, "error_generic"))

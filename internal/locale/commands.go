@@ -126,8 +126,9 @@ var heCommands = map[string]string{
 	// /hidden
 	"hidden_empty":     "אין לך רכבים מוסתרים.",
 	"hidden_header":    "*רכבים מוסתרים (%d):*\n",
-	"hidden_clear_btn": "נקה הכל",
-	"hidden_cleared":   "כל הרכבים המוסתרים נוקו.",
+	"hidden_clear_btn":     "נקה הכל",
+	"hidden_clear_confirm": "למחוק %d רכבים מוסתרים?",
+	"hidden_cleared":       "כל הרכבים המוסתרים נוקו.",
 
 	// listing actions
 	"listing_saved":        "נשמר!",
@@ -408,8 +409,9 @@ var enCommands = map[string]string{
 	// /hidden
 	"hidden_empty":     "You have no hidden listings.",
 	"hidden_header":    "*Hidden listings (%d):*\n",
-	"hidden_clear_btn": "Clear all",
-	"hidden_cleared":   "All hidden listings cleared.",
+	"hidden_clear_btn":     "Clear all",
+	"hidden_clear_confirm": "Clear %d hidden listings?",
+	"hidden_cleared":       "All hidden listings cleared.",
 
 	// listing actions
 	"listing_saved":        "Saved!",
