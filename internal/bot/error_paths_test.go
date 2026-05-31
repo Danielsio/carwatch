@@ -318,7 +318,7 @@ func TestSaveWizardState_UpdateError(t *testing.T) {
 	searches := &errSearchStore{}
 	b := newErrBot(t, msg, users, searches)
 
-	b.saveWizardState(context.Background(), 100, StateAskYearMin, WizardData{Manufacturer: 27})
+	_ = b.saveWizardState(context.Background(), 100, StateAskYearMin, WizardData{Manufacturer: 27})
 	// saveWizardState swallows the DB error; verify no error message was sent to the user.
 	if len(msg.messages) != 0 {
 		t.Errorf("expected no messages sent on saveWizardState error, got %d", len(msg.messages))
@@ -879,7 +879,7 @@ func TestOnConfirm_EmptySourceDefaultsToYad2(t *testing.T) {
 		Model: 10332, ModelName: "3",
 		YearMin: 2020, YearMax: 2024, PriceMax: 100000,
 	}
-	tb.bot.saveWizardState(ctx, chatID, StateConfirm, wd)
+	_ = tb.bot.saveWizardState(ctx, chatID, StateConfirm, wd)
 	tb.msg.reset()
 
 	tb.simulateCallback(ctx, chatID, cbConfirm)

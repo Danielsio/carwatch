@@ -124,8 +124,8 @@ var heCommands = map[string]string{
 	"saved_load_error": "טעינת שמורים נכשלה. אנא נסה שוב.",
 
 	// /hidden
-	"hidden_empty":     "אין לך רכבים מוסתרים.",
-	"hidden_header":    "*רכבים מוסתרים (%d):*\n",
+	"hidden_empty":         "אין לך רכבים מוסתרים.",
+	"hidden_header":        "*רכבים מוסתרים (%d):*\n",
 	"hidden_clear_btn":     "נקה הכל",
 	"hidden_clear_confirm": "למחוק %d רכבים מוסתרים?",
 	"hidden_cleared":       "כל הרכבים המוסתרים נוקו.",
@@ -407,8 +407,8 @@ var enCommands = map[string]string{
 	"saved_load_error": "Failed to load saved listings. Please try again.",
 
 	// /hidden
-	"hidden_empty":     "You have no hidden listings.",
-	"hidden_header":    "*Hidden listings (%d):*\n",
+	"hidden_empty":         "You have no hidden listings.",
+	"hidden_header":        "*Hidden listings (%d):*\n",
 	"hidden_clear_btn":     "Clear all",
 	"hidden_clear_confirm": "Clear %d hidden listings?",
 	"hidden_cleared":       "All hidden listings cleared.",

@@ -32,7 +32,7 @@ func setupWizardAtPriceMin(t *testing.T, tb *testBot, chatID int64, priceMax int
 	tb.simulateCommand(ctx, chatID, "/watch")
 	wd := tb.bot.loadWizardData(ctx, chatID)
 	wd.PriceMax = priceMax
-	tb.bot.saveWizardState(ctx, chatID, StateAskPriceMin, wd)
+	_ = tb.bot.saveWizardState(ctx, chatID, StateAskPriceMin, wd)
 	tb.msg.reset()
 }
 
@@ -93,7 +93,7 @@ func TestHandlePriceMin_ExceedsMax(t *testing.T) {
 
 	wd := tb.bot.loadWizardData(ctx, 100)
 	wd.PriceMax = 100000
-	tb.bot.saveWizardState(ctx, 100, StateAskPriceMin, wd)
+	_ = tb.bot.saveWizardState(ctx, 100, StateAskPriceMin, wd)
 	tb.msg.reset()
 
 	tb.bot.handlePriceMin(ctx, 100, "200000")

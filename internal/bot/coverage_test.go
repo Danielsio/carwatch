@@ -513,7 +513,7 @@ func TestSaveAndLoadWizardState(t *testing.T) {
 		Manufacturer:     19,
 		ManufacturerName: "Toyota",
 	}
-	tb.bot.saveWizardState(ctx, 100, "ask_model", wd)
+	_ = tb.bot.saveWizardState(ctx, 100, "ask_model", wd)
 
 	loaded := tb.bot.loadWizardData(ctx, 100)
 	if loaded.Manufacturer != 19 {
