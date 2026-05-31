@@ -230,6 +230,8 @@ func (b *Bot) onSavedPage(ctx context.Context, chatID int64, data string) {
 	pageStr := strings.TrimPrefix(data, cbSavedPage)
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
+		b.logger.Warn("invalid saved page callback", "chat_id", chatID, "raw", pageStr, "error", err)
+		b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "error_generic"))
 		return
 	}
 	b.sendSavedPage(ctx, chatID, page)
@@ -317,6 +319,8 @@ func (b *Bot) onHiddenPage(ctx context.Context, chatID int64, data string) {
 	pageStr := strings.TrimPrefix(data, cbHiddenPage)
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
+		b.logger.Warn("invalid hidden page callback", "chat_id", chatID, "raw", pageStr, "error", err)
+		b.send(ctx, chatID, locale.T(b.getUserLang(ctx, chatID), "error_generic"))
 		return
 	}
 	b.sendHiddenPage(ctx, chatID, page)
