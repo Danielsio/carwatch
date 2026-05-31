@@ -34,7 +34,7 @@ func (s *Server) notificationCount(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listNotifications(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -78,7 +78,7 @@ func (s *Server) listNotifications(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) markNotificationsSeen(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}

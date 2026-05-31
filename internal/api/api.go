@@ -489,6 +489,21 @@ func chatIDFromContext(ctx context.Context) (int64, bool) {
 	return id, true
 }
 
+func (s *Server) resolveCanonicalChatID(ctx context.Context, webChatID int64) int64 {
+	if s.users == nil {
+		return webChatID
+	}
+	linked, err := s.users.GetLinkedTelegramUser(ctx, webChatID)
+	if err != nil {
+		s.logger.Warn("resolve canonical chatID: lookup failed", "web_chat_id", webChatID, "error", err)
+		return webChatID
+	}
+	if linked == nil {
+		return webChatID
+	}
+	return linked.ChatID
+}
+
 func emailFromContext(ctx context.Context) string {
 	e, ok := ctx.Value(emailKey).(string)
 	if !ok {
@@ -504,6 +519,14 @@ func requireChatID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 		return 0, false
 	}
 	return id, true
+}
+
+func (s *Server) requireResolvedChatID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, ok := requireChatID(w, r)
+	if !ok {
+		return 0, false
+	}
+	return s.resolveCanonicalChatID(r.Context(), id), true
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

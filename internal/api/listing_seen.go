@@ -3,7 +3,7 @@ package api
 import "net/http"
 
 func (s *Server) markListingSeen(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -22,7 +22,7 @@ func (s *Server) markListingSeen(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) unmarkListingSeen(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}

@@ -14,7 +14,7 @@ const (
 )
 
 func (s *Server) saveListing(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -45,7 +45,7 @@ func (s *Server) saveListing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) unsaveListing(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -65,7 +65,7 @@ func (s *Server) unsaveListing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listSaved(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -105,7 +105,7 @@ func (s *Server) listSaved(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) hideListing(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -136,7 +136,7 @@ func (s *Server) hideListing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) unhideListing(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -156,7 +156,7 @@ func (s *Server) unhideListing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listHistory(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
