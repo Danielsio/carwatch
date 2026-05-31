@@ -27,7 +27,9 @@ func (b *Bot) handleStart(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	log := b.commandLogger(chatID, username, "/start")
 	log.Info("command received")
 
-	b.ensureUser(ctx, chatID, username)
+	if !b.ensureUser(ctx, chatID, username) {
+		return
+	}
 
 	parts := strings.Fields(update.Message.Text)
 	if len(parts) == 2 && strings.HasPrefix(parts[1], "share_") {
@@ -63,7 +65,9 @@ func (b *Bot) handleShare(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 
 	chatID := update.Message.Chat.ID
 	b.commandLogger(chatID, update.Message.From.Username, "/share").Info("command received")
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 	lang := b.getUserLang(ctx, chatID)
 
 	if b.botUsername == "" {
@@ -183,7 +187,9 @@ func (b *Bot) handleWatch(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 	chatID := update.Message.Chat.ID
 	log := b.commandLogger(chatID, update.Message.From.Username, "/watch")
 	log.Info("command received")
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 	lang := b.getUserLang(ctx, chatID)
 
 	if b.checkSearchLimit(ctx, chatID, lang, "watch_limit") {
@@ -202,7 +208,9 @@ func (b *Bot) handleList(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 
 	chatID := update.Message.Chat.ID
 	b.commandLogger(chatID, update.Message.From.Username, "/list").Info("command received")
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 	lang := b.getUserLang(ctx, chatID)
 
 	searches, err := b.searches.ListSearches(ctx, chatID)
@@ -377,7 +385,9 @@ func (b *Bot) handleSettings(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 
 	chatID := update.Message.Chat.ID
 	b.commandLogger(chatID, update.Message.From.Username, "/settings").Info("command received")
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 	lang := b.getUserLang(ctx, chatID)
 
 	count, err := b.searches.CountSearches(ctx, chatID)
@@ -437,7 +447,9 @@ func (b *Bot) handleDigest(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 
 	chatID := update.Message.Chat.ID
 	b.commandLogger(chatID, update.Message.From.Username, "/digest").Info("command received")
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 	lang := b.getUserLang(ctx, chatID)
 
 	if b.digests == nil {
@@ -502,7 +514,9 @@ func (b *Bot) handleLanguage(ctx context.Context, _ *tgbot.Bot, update *tgmodels
 
 	chatID := update.Message.Chat.ID
 	b.commandLogger(chatID, update.Message.From.Username, "/language").Info("command received")
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 	lang := b.getUserLang(ctx, chatID)
 
 	kb := &tgmodels.InlineKeyboardMarkup{
@@ -522,7 +536,9 @@ func (b *Bot) handleEdit(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 
 	chatID := update.Message.Chat.ID
 	b.commandLogger(chatID, update.Message.From.Username, "/edit").Info("command received")
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 	lang := b.getUserLang(ctx, chatID)
 
 	parts := strings.Fields(update.Message.Text)
@@ -581,7 +597,9 @@ func (b *Bot) handleUpgrade(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 
 	chatID := update.Message.Chat.ID
 	b.commandLogger(chatID, update.Message.From.Username, "/upgrade").Info("command received")
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 	lang := b.getUserLang(ctx, chatID)
 	b.sendMarkdown(ctx, chatID, locale.T(lang, "upgrade_disabled"))
 }

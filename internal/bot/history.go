@@ -22,7 +22,9 @@ func (b *Bot) handleHistory(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 
 	chatID := update.Message.Chat.ID
 	b.commandLogger(chatID, update.Message.From.Username, "/history").Info("command received")
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 	b.sendHistoryPage(ctx, chatID, 0)
 }
 
@@ -137,7 +139,9 @@ func (b *Bot) handleSaved(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Up
 
 	chatID := update.Message.Chat.ID
 	b.commandLogger(chatID, update.Message.From.Username, "/saved").Info("command received")
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 	b.sendSavedPage(ctx, chatID, 0)
 }
 
@@ -239,7 +243,9 @@ func (b *Bot) handleHidden(ctx context.Context, _ *tgbot.Bot, update *tgmodels.U
 
 	chatID := update.Message.Chat.ID
 	b.commandLogger(chatID, update.Message.From.Username, "/hidden").Info("command received")
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 	b.sendHiddenPage(ctx, chatID, 0)
 }
 

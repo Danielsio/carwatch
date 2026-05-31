@@ -441,7 +441,9 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	}
 
 	chatID := update.Message.Chat.ID
-	b.ensureUser(ctx, chatID, update.Message.From.Username)
+	if !b.ensureUser(ctx, chatID, update.Message.From.Username) {
+		return
+	}
 
 	unlock := b.lockChat(chatID)
 	defer unlock()

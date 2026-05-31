@@ -342,6 +342,9 @@ func (b *Bot) onHideListing(ctx context.Context, chatID int64, data string) {
 }
 
 func (b *Bot) onClearHidden(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	lang := b.getUserLang(ctx, chatID)
 	if b.hidden == nil {
 		return
@@ -368,6 +371,9 @@ func (b *Bot) onClearHidden(ctx context.Context, chatID int64) {
 }
 
 func (b *Bot) onClearHiddenConfirm(ctx context.Context, chatID int64) {
+	unlock := b.lockChat(chatID)
+	defer unlock()
+
 	lang := b.getUserLang(ctx, chatID)
 	if b.hidden == nil {
 		return
