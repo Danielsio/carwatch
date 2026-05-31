@@ -211,6 +211,7 @@ var heCommands = map[string]string{
 	"fmt_price_drop":             "💰 *ירידת מחיר!* %s: ₪%s → ₪%s (-₪%s)\n",
 	"fmt_batch_header":           "🚗 *%d מודעות חדשות*\n",
 	"fmt_batch_item":             "*[%d/%d]*\n",
+	"fmt_batch_overflow":          "\n...ו-%d מודעות נוספות. השתמש ב /history כדי לראות הכל.",
 	"fmt_digest_header":          "*סיכום יומי (%d פריטים):*\n",
 
 	// fitness scoring
@@ -494,6 +495,7 @@ var enCommands = map[string]string{
 	"fmt_price_drop":             "💰 *Price Drop!* %s: ₪%s → ₪%s (-₪%s)\n",
 	"fmt_batch_header":           "🚗 *%d New Listings Found*\n",
 	"fmt_batch_item":             "*[%d/%d]*\n",
+	"fmt_batch_overflow":          "\n...and %d more new listings. Use /history to see all.",
 	"fmt_digest_header":          "*Digest Summary (%d items):*\n",
 
 	// fitness scoring
