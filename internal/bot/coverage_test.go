@@ -28,19 +28,21 @@ func newTestBotFull(t *testing.T) *testBot {
 	logger := slog.New(slog.NewTextHandler(&discardWriter{}, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	b := &Bot{
-		msg:          mm,
-		users:        store,
-		searches:     store,
-		listings:     store,
-		digests:      store,
-		saved:        store,
-		hidden:       store,
-		dailyDigests: store,
-		catalog:      catalog.NewStatic(),
-		adminChatID:  999,
-		maxSearches:  defaultMaxSearches,
-		botUsername:  "test_bot",
-		logger:       logger,
+		msg:                    mm,
+		users:                  store,
+		searches:               store,
+		listings:               store,
+		digests:                store,
+		saved:                  store,
+		hidden:                 store,
+		dailyDigests:           store,
+		catalog:                catalog.NewStatic(),
+		adminChatID:            999,
+		maxSearches:            defaultMaxSearches,
+		botUsername:            "test_bot",
+		quickStartManufacturer: DefaultQuickStartManufacturer,
+		quickStartModel:        DefaultQuickStartModel,
+		logger:                 logger,
 	}
 
 	return &testBot{bot: b, msg: mm, store: store}

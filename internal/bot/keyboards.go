@@ -8,6 +8,7 @@ import (
 
 	tgmodels "github.com/go-telegram/bot/models"
 
+	"github.com/dsionov/carwatch/internal/botcore"
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/format"
 	"github.com/dsionov/carwatch/internal/locale"
@@ -407,6 +408,13 @@ func confirmKeyboard(data WizardData, lang locale.Lang) (*tgmodels.InlineKeyboar
 		summary += locale.Tf(lang, "wizard_confirm_exclude_keys", format.EscapeMarkdown(data.ExcludeKeys))
 	}
 
+	if data.OriginalSearch != nil {
+		diff := formatEditDiff(data, *data.OriginalSearch, lang)
+		if diff != "" {
+			summary += diff
+		}
+	}
+
 	kb := &tgmodels.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgmodels.InlineKeyboardButton{
 			{
@@ -418,6 +426,53 @@ func confirmKeyboard(data WizardData, lang locale.Lang) (*tgmodels.InlineKeyboar
 	}
 
 	return kb, summary
+}
+
+func formatEditDiff(current WizardData, orig botcore.OriginalSearch, lang locale.Lang) string {
+	var changes []string
+
+	add := func(label string, oldVal, newVal string) {
+		if oldVal != newVal {
+			changes = append(changes, fmt.Sprintf("%s: %s → %s", label, format.EscapeMarkdown(oldVal), format.EscapeMarkdown(newVal)))
+		}
+	}
+	addInt := func(label string, oldVal, newVal int) {
+		if oldVal != newVal {
+			changes = append(changes, fmt.Sprintf("%s: %d → %d", label, oldVal, newVal))
+		}
+	}
+	addPrice := func(label string, oldVal, newVal int) {
+		if oldVal != newVal {
+			changes = append(changes, fmt.Sprintf("%s: %s → %s", label, format.Number(oldVal), format.Number(newVal)))
+		}
+	}
+
+	add(locale.T(lang, "edit_diff_source"), sourceDisplayName(orig.Source), sourceDisplayName(current.Source))
+	if orig.Manufacturer != current.Manufacturer || orig.Model != current.Model {
+		oldCar := orig.ManufacturerName + " " + orig.ModelName
+		newCar := current.ManufacturerName + " " + current.ModelName
+		add(locale.T(lang, "edit_diff_car"), oldCar, newCar)
+	}
+	addInt(locale.T(lang, "edit_diff_year_min"), orig.YearMin, current.YearMin)
+	addInt(locale.T(lang, "edit_diff_year_max"), orig.YearMax, current.YearMax)
+	addPrice(locale.T(lang, "edit_diff_price_max"), orig.PriceMax, current.PriceMax)
+	addPrice(locale.T(lang, "edit_diff_price_min"), orig.PriceMin, current.PriceMin)
+	add(locale.T(lang, "edit_diff_gearbox"), gearboxDisplayName(lang, orig.GearBox), gearboxDisplayName(lang, current.GearBox))
+	addInt(locale.T(lang, "edit_diff_engine"), orig.EngineMinCC, current.EngineMinCC)
+	addInt(locale.T(lang, "edit_diff_km"), orig.MaxKm, current.MaxKm)
+	addInt(locale.T(lang, "edit_diff_hand"), orig.MaxHand, current.MaxHand)
+	add(locale.T(lang, "edit_diff_keywords"), orig.Keywords, current.Keywords)
+	add(locale.T(lang, "edit_diff_exclude"), orig.ExcludeKeys, current.ExcludeKeys)
+
+	if len(changes) == 0 {
+		return "\n\n" + locale.T(lang, "edit_diff_no_changes")
+	}
+
+	result := "\n\n" + locale.T(lang, "edit_diff_header")
+	for _, c := range changes {
+		result += "\n• " + c
+	}
+	return result
 }
 
 func ListingActionKeyboard(token string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
