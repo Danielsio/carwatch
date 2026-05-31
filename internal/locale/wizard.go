@@ -66,6 +66,22 @@ var heWizard = map[string]string{
 	"wizard_save_failed":          "שמירת החיפוש נכשלה. אנא נסה שוב.",
 	"wizard_session_expired":      "הסשן פג. השתמש ב /watch כדי להתחיל חיפוש חדש.",
 
+	// edit diff
+	"edit_diff_header":     "*שינויים:*",
+	"edit_diff_no_changes": "אין שינויים.",
+	"edit_diff_source":     "מקור",
+	"edit_diff_car":        "רכב",
+	"edit_diff_year_min":   "שנה מינימלית",
+	"edit_diff_year_max":   "שנה מקסימלית",
+	"edit_diff_price_max":  "מחיר מקסימלי",
+	"edit_diff_price_min":  "מחיר מינימלי",
+	"edit_diff_gearbox":    "תיבת הילוכים",
+	"edit_diff_engine":     "מנוע",
+	"edit_diff_km":         "ק\"מ מקסימלי",
+	"edit_diff_hand":       "יד מקסימלית",
+	"edit_diff_keywords":   "מילות מפתח",
+	"edit_diff_exclude":    "מילות החרגה",
+
 	// /watch
 }
 
@@ -134,6 +150,22 @@ var enWizard = map[string]string{
 	"wizard_search_updated":       "Search #%d updated!\n\nUse /list to see your searches.",
 	"wizard_save_failed":          "Failed to save search. Please try again.",
 	"wizard_session_expired":      "Session expired. Use /watch to start a new search.",
+
+	// edit diff
+	"edit_diff_header":     "*Changes:*",
+	"edit_diff_no_changes": "No changes detected.",
+	"edit_diff_source":     "Source",
+	"edit_diff_car":        "Car",
+	"edit_diff_year_min":   "Year min",
+	"edit_diff_year_max":   "Year max",
+	"edit_diff_price_max":  "Max price",
+	"edit_diff_price_min":  "Min price",
+	"edit_diff_gearbox":    "Gearbox",
+	"edit_diff_engine":     "Engine",
+	"edit_diff_km":         "Max km",
+	"edit_diff_hand":       "Max hand",
+	"edit_diff_keywords":   "Keywords",
+	"edit_diff_exclude":    "Exclude",
 
 	// /watch
 }

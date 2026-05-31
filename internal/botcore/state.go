@@ -21,6 +21,32 @@ const (
 )
 
 type WizardData struct {
+	Source           string          `json:"source,omitempty"`
+	Manufacturer     int             `json:"manufacturer,omitempty"`
+	ManufacturerName string          `json:"manufacturer_name,omitempty"`
+	Model            int             `json:"model,omitempty"`
+	ModelName        string          `json:"model_name,omitempty"`
+	YearMin          int             `json:"year_min,omitempty"`
+	YearMax          int             `json:"year_max,omitempty"`
+	PriceMax         int             `json:"price_max,omitempty"`
+	PriceMin         int             `json:"price_min,omitempty"`
+	GearBox          string          `json:"gear_box,omitempty"`
+	EngineMinCC      int             `json:"engine_min_cc,omitempty"`
+	MaxKm            int             `json:"max_km,omitempty"`
+	MaxHand          int             `json:"max_hand,omitempty"`
+	Keywords         string          `json:"keywords,omitempty"`
+	ExcludeKeys      string          `json:"exclude_keys,omitempty"`
+	SellerFilter     string          `json:"seller_filter,omitempty"`
+	PriceOnly        bool            `json:"price_only,omitempty"`
+	PhotoOnly        bool            `json:"photo_only,omitempty"`
+	EditSearchID     int64           `json:"edit_search_id,omitempty"`
+	OriginalSearch   *OriginalSearch `json:"original_search,omitempty"`
+	// UpdatedAt tracks when the wizard state was last modified (Unix seconds).
+	// Used to auto-cancel stale wizard sessions.
+	UpdatedAt int64 `json:"updated_at,omitempty"`
+}
+
+type OriginalSearch struct {
 	Source           string `json:"source,omitempty"`
 	Manufacturer     int    `json:"manufacturer,omitempty"`
 	ManufacturerName string `json:"manufacturer_name,omitempty"`
@@ -36,11 +62,4 @@ type WizardData struct {
 	MaxHand          int    `json:"max_hand,omitempty"`
 	Keywords         string `json:"keywords,omitempty"`
 	ExcludeKeys      string `json:"exclude_keys,omitempty"`
-	SellerFilter     string `json:"seller_filter,omitempty"`
-	PriceOnly        bool   `json:"price_only,omitempty"`
-	PhotoOnly        bool   `json:"photo_only,omitempty"`
-	EditSearchID     int64  `json:"edit_search_id,omitempty"`
-	// UpdatedAt tracks when the wizard state was last modified (Unix seconds).
-	// Used to auto-cancel stale wizard sessions.
-	UpdatedAt int64 `json:"updated_at,omitempty"`
 }

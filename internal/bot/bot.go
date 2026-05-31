@@ -27,29 +27,29 @@ type PollTrigger interface {
 var wizardTimeout = 30 * time.Minute
 
 type Bot struct {
-	bot          *tgbot.Bot
-	msg          messenger
-	users        storage.UserStore
-	linkTokens   storage.LinkTokenStore
-	searches     storage.SearchStore
-	listings     storage.ListingStore
-	digests      storage.DigestStore
-	saved        storage.SavedListingStore
-	hidden       storage.HiddenListingStore
-	dailyDigests storage.DailyDigestStore
-	catalog      catalog.Catalog
+	bot                    *tgbot.Bot
+	msg                    messenger
+	users                  storage.UserStore
+	linkTokens             storage.LinkTokenStore
+	searches               storage.SearchStore
+	listings               storage.ListingStore
+	digests                storage.DigestStore
+	saved                  storage.SavedListingStore
+	hidden                 storage.HiddenListingStore
+	dailyDigests           storage.DailyDigestStore
+	catalog                catalog.Catalog
 	adminChatID            int64
 	maxSearches            int
-	botUsername             string
+	botUsername            string
 	pollInterval           time.Duration
 	quickStartManufacturer int
 	quickStartModel        int
-	logger       *slog.Logger
-	health       *health.Status
-	chatMu       sync.Map
-	pollTrigger  PollTrigger
-	rateLimiter  sync.Map
-	nowFunc      func() time.Time // overridable clock for testing; nil means time.Now
+	logger                 *slog.Logger
+	health                 *health.Status
+	chatMu                 sync.Map
+	pollTrigger            PollTrigger
+	rateLimiter            sync.Map
+	nowFunc                func() time.Time // overridable clock for testing; nil means time.Now
 }
 
 type chatMuEntry struct {
@@ -104,7 +104,7 @@ func (b *Bot) isRateLimited(chatID int64) bool {
 type Config struct {
 	AdminChatID            int64
 	MaxSearches            int
-	BotUsername             string
+	BotUsername            string
 	PollInterval           time.Duration
 	QuickStartManufacturer int
 	QuickStartModel        int
@@ -140,25 +140,25 @@ func New(b *tgbot.Bot, users storage.UserStore, searches storage.SearchStore, cf
 		msg = &telegramMessenger{bot: b}
 	}
 	return &Bot{
-		bot:          b,
-		msg:          msg,
-		users:        users,
-		linkTokens:   cfg.LinkTokens,
-		searches:     searches,
-		listings:     cfg.Listings,
-		digests:      cfg.Digests,
-		saved:        cfg.Saved,
-		hidden:       cfg.Hidden,
-		dailyDigests: cfg.DailyDigests,
-		catalog:      cat,
+		bot:                    b,
+		msg:                    msg,
+		users:                  users,
+		linkTokens:             cfg.LinkTokens,
+		searches:               searches,
+		listings:               cfg.Listings,
+		digests:                cfg.Digests,
+		saved:                  cfg.Saved,
+		hidden:                 cfg.Hidden,
+		dailyDigests:           cfg.DailyDigests,
+		catalog:                cat,
 		adminChatID:            cfg.AdminChatID,
 		maxSearches:            cfg.MaxSearches,
-		botUsername:             cfg.BotUsername,
+		botUsername:            cfg.BotUsername,
 		pollInterval:           cfg.PollInterval,
 		quickStartManufacturer: cfg.QuickStartManufacturer,
 		quickStartModel:        cfg.QuickStartModel,
-		logger:       logger,
-		health:       cfg.Health,
+		logger:                 logger,
+		health:                 cfg.Health,
 	}
 }
 

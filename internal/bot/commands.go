@@ -11,6 +11,7 @@ import (
 	tgbot "github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
 
+	"github.com/dsionov/carwatch/internal/botcore"
 	"github.com/dsionov/carwatch/internal/format"
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/storage"
@@ -586,6 +587,23 @@ func (b *Bot) handleEdit(ctx context.Context, _ *tgbot.Bot, update *tgmodels.Upd
 		PriceOnly:        search.PriceOnly,
 		PhotoOnly:        search.PhotoOnly,
 		EditSearchID:     search.ID,
+		OriginalSearch: &botcore.OriginalSearch{
+			Source:           search.Source,
+			Manufacturer:     search.Manufacturer,
+			ManufacturerName: mfr,
+			Model:            search.Model,
+			ModelName:        mdl,
+			YearMin:          search.YearMin,
+			YearMax:          search.YearMax,
+			PriceMin:         search.PriceMin,
+			PriceMax:         search.PriceMax,
+			GearBox:          search.GearBox,
+			EngineMinCC:      search.EngineMinCC,
+			MaxKm:            search.MaxKm,
+			MaxHand:          search.MaxHand,
+			Keywords:         search.Keywords,
+			ExcludeKeys:      search.ExcludeKeys,
+		},
 	}
 	if !b.saveWizardStateOrAbort(ctx, chatID, StateAskSource, wd) {
 		return
