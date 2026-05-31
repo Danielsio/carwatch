@@ -184,7 +184,11 @@ func (b *Bot) rateLimited(next tgbot.HandlerFunc) tgbot.HandlerFunc {
 		} else if update.CallbackQuery != nil && update.CallbackQuery.Message.Message != nil {
 			chatID = update.CallbackQuery.Message.Message.Chat.ID
 		}
-		if chatID != 0 && b.isRateLimited(chatID) {
+		if chatID == 0 {
+			b.logger.Warn("skipping update with zero chat_id")
+			return
+		}
+		if b.isRateLimited(chatID) {
 			b.logger.Warn("rate limited", "chat_id", chatID)
 			if update.CallbackQuery != nil {
 				tgBot := bot
