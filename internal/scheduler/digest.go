@@ -110,9 +110,6 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 		return
 	}
 
-	// Delivery succeeded; clear the failure marker.
-	s.digestFailures.Delete(chatID)
-
 	if err := s.stores.Digests.AckDigest(ctx, chatID, cutoff); err != nil {
 		s.logger.Error("digest ack failed after successful send, items may be resent",
 			"chat_id", chatID,
@@ -120,7 +117,10 @@ func (s *Scheduler) flushAndSendDigest(ctx context.Context, chatID int64) {
 			"items", len(payloads),
 			"error", err,
 		)
+		s.digestFailures.Store(chatID, time.Now())
+		return
 	}
+	s.digestFailures.Delete(chatID)
 
 	s.logger.Info("digest sent",
 		"chat_id", chatID,
