@@ -302,6 +302,96 @@ func (s *Store) LinkTelegramToWeb(ctx context.Context, telegramChatID, webChatID
 	return nil
 }
 
+func (s *Store) BackfillLinkedData(ctx context.Context) (int, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT chat_id, linked_web_id FROM users
+		WHERE linked_web_id IS NOT NULL AND channel = 'telegram' AND active = true`)
+	if err != nil {
+		return 0, fmt.Errorf("query linked accounts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	type link struct {
+		telegramID int64
+		webID      int64
+	}
+	var links []link
+	for rows.Next() {
+		var l link
+		if err := rows.Scan(&l.telegramID, &l.webID); err != nil {
+			return 0, fmt.Errorf("scan linked account: %w", err)
+		}
+		links = append(links, l)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	migrated := 0
+	for _, l := range links {
+		n, err := s.migrateUserData(ctx, l.telegramID, l.webID)
+		if err != nil {
+			return migrated, fmt.Errorf("migrate chat_id %d→%d: %w", l.webID, l.telegramID, err)
+		}
+		migrated += n
+	}
+	return migrated, nil
+}
+
+func (s *Store) migrateUserData(ctx context.Context, telegramChatID, webChatID int64) (int, error) {
+	var total int64
+
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE searches SET chat_id = $1
+		WHERE chat_id = $2
+		AND NOT EXISTS (
+			SELECT 1 FROM searches s2
+			WHERE s2.chat_id = $1 AND s2.manufacturer = searches.manufacturer AND s2.model = searches.model
+		)`, telegramChatID, webChatID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	total += n
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM searches WHERE chat_id = $1`, webChatID); err != nil {
+		return int(total), err
+	}
+
+	res, err = s.db.ExecContext(ctx, `
+		UPDATE saved_listings SET chat_id = $1
+		WHERE chat_id = $2
+		AND NOT EXISTS (
+			SELECT 1 FROM saved_listings s2
+			WHERE s2.chat_id = $1 AND s2.token = saved_listings.token
+		)`, telegramChatID, webChatID)
+	if err != nil {
+		return int(total), err
+	}
+	n, _ = res.RowsAffected()
+	total += n
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM saved_listings WHERE chat_id = $1`, webChatID); err != nil {
+		return int(total), err
+	}
+
+	res, err = s.db.ExecContext(ctx, `
+		UPDATE hidden_listings SET chat_id = $1
+		WHERE chat_id = $2
+		AND NOT EXISTS (
+			SELECT 1 FROM hidden_listings h2
+			WHERE h2.chat_id = $1 AND h2.token = hidden_listings.token
+		)`, telegramChatID, webChatID)
+	if err != nil {
+		return int(total), err
+	}
+	n, _ = res.RowsAffected()
+	total += n
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM hidden_listings WHERE chat_id = $1`, webChatID); err != nil {
+		return int(total), err
+	}
+
+	return int(total), nil
+}
+
 func (s *Store) GetLinkedTelegramUser(ctx context.Context, webChatID int64) (*storage.User, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used, channel, channel_id

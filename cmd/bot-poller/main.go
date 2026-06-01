@@ -86,6 +86,12 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 	}
 	defer func() { _ = store.Close() }()
 
+	if n, bfErr := store.BackfillLinkedData(ctx); bfErr != nil {
+		logger.Warn("backfill linked data failed", "error", bfErr)
+	} else if n > 0 {
+		logger.Info("backfilled linked account data", "rows_migrated", n)
+	}
+
 	fb, err := app.BuildFetchers(cfg, logger)
 	if err != nil {
 		return err
