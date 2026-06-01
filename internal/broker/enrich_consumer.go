@@ -198,7 +198,8 @@ func (c *EnrichConsumer) reclaimPending(ctx context.Context) {
 func (c *EnrichConsumer) deadLetter(ctx context.Context, id string) {
 	msgs, err := c.client.XRangeN(ctx, EnrichStreamName, id, id, 1).Result()
 	if err != nil {
-		c.logger.Error("read enrich message for dead-letter failed", "id", id, "error", err)
+		c.logger.Error("read enrich message for dead-letter failed, acking to prevent stuck loop", "id", id, "error", err)
+		c.ack(ctx, id)
 		return
 	}
 	if len(msgs) == 0 {

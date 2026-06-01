@@ -748,8 +748,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	// cycles get that data before matching.
 	prefilled := false
 	if s.stores.Listings != nil {
-		s.prefillFromDB(ctx, raw)
-		prefilled = true
+		prefilled = s.prefillFromDB(ctx, raw)
 	}
 
 	// 4. Build a per-search accumulator to collect results across listings.
@@ -956,7 +955,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 			if acc.search.MaxKm > 0 {
 				filtered := make([]model.RawListing, 0, len(rawForPipeline))
 				for _, r := range rawForPipeline {
-					if r.Km > 0 && r.Km > acc.search.MaxKm {
+					if r.Km <= 0 || r.Km > acc.search.MaxKm {
 						if relErr := s.stores.Dedup.ReleaseClaim(ctx, r.Token, acc.search.ChatID, acc.search.ID); relErr != nil {
 							s.logger.ErrorContext(searchCtx,
 								"failed to release dedup claim for km-filtered listing",
@@ -1105,7 +1104,7 @@ type cycleStats struct {
 // prefillFromDB fills in km/city/image from listing_history for listings
 // that the enricher could not reach this cycle. Once a listing's km is
 // learned in any previous cycle, it is remembered here.
-func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListing) {
+func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListing) bool {
 	var tokens []string
 	for i := range listings {
 		if listings[i].Km <= 0 || listings[i].City == "" || listings[i].ImageURL == "" {
@@ -1113,7 +1112,7 @@ func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListi
 		}
 	}
 	if len(tokens) == 0 {
-		return
+		return true
 	}
 
 	prefillStart := time.Now()
@@ -1121,10 +1120,10 @@ func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListi
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to look up enrichment data from database for prefill",
 			"error", err, "looked_up", len(tokens))
-		return
+		return false
 	}
 	if len(data) == 0 {
-		return
+		return true
 	}
 
 	filled := 0
@@ -1155,6 +1154,7 @@ func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListi
 			"filled", filled, "looked_up", len(tokens),
 			"duration_ms", time.Since(prefillStart).Milliseconds())
 	}
+	return true
 }
 
 // backfillEnrichedListings upserts listing_history for listings that gained

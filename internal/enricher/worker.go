@@ -107,6 +107,15 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 		return err
 	}
 
+	// Count toward the enrich_attempts cap when km is genuinely unavailable
+	// on the source page, so backfill stops re-queuing this token.
+	if details.Km <= 0 {
+		if incErr := w.listings.IncrementEnrichAttempt(ctx, req.Token); incErr != nil {
+			w.logger.ErrorContext(ctx, "failed to increment enrich attempt for km-unavailable listing",
+				"token", req.Token, "error", incErr.Error())
+		}
+	}
+
 	if telemetry.EnrichSuccesses != nil {
 		telemetry.EnrichSuccesses.Add(ctx, 1)
 	}
