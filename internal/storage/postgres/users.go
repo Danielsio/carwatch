@@ -339,9 +339,15 @@ func (s *Store) BackfillLinkedData(ctx context.Context) (int, error) {
 }
 
 func (s *Store) migrateUserData(ctx context.Context, telegramChatID, webChatID int64) (int, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	var total int64
 
-	res, err := s.db.ExecContext(ctx, `
+	res, err := tx.ExecContext(ctx, `
 		UPDATE searches SET chat_id = $1
 		WHERE chat_id = $2
 		AND NOT EXISTS (
@@ -351,13 +357,14 @@ func (s *Store) migrateUserData(ctx context.Context, telegramChatID, webChatID i
 	if err != nil {
 		return 0, err
 	}
-	n, _ := res.RowsAffected()
-	total += n
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM searches WHERE chat_id = $1`, webChatID); err != nil {
-		return int(total), err
+	if n, err := res.RowsAffected(); err == nil {
+		total += n
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM searches WHERE chat_id = $1`, webChatID); err != nil {
+		return 0, err
 	}
 
-	res, err = s.db.ExecContext(ctx, `
+	res, err = tx.ExecContext(ctx, `
 		UPDATE saved_listings SET chat_id = $1
 		WHERE chat_id = $2
 		AND NOT EXISTS (
@@ -365,15 +372,16 @@ func (s *Store) migrateUserData(ctx context.Context, telegramChatID, webChatID i
 			WHERE s2.chat_id = $1 AND s2.token = saved_listings.token
 		)`, telegramChatID, webChatID)
 	if err != nil {
-		return int(total), err
+		return 0, err
 	}
-	n, _ = res.RowsAffected()
-	total += n
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM saved_listings WHERE chat_id = $1`, webChatID); err != nil {
-		return int(total), err
+	if n, err := res.RowsAffected(); err == nil {
+		total += n
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM saved_listings WHERE chat_id = $1`, webChatID); err != nil {
+		return 0, err
 	}
 
-	res, err = s.db.ExecContext(ctx, `
+	res, err = tx.ExecContext(ctx, `
 		UPDATE hidden_listings SET chat_id = $1
 		WHERE chat_id = $2
 		AND NOT EXISTS (
@@ -381,14 +389,18 @@ func (s *Store) migrateUserData(ctx context.Context, telegramChatID, webChatID i
 			WHERE h2.chat_id = $1 AND h2.token = hidden_listings.token
 		)`, telegramChatID, webChatID)
 	if err != nil {
-		return int(total), err
+		return 0, err
 	}
-	n, _ = res.RowsAffected()
-	total += n
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM hidden_listings WHERE chat_id = $1`, webChatID); err != nil {
-		return int(total), err
+	if n, err := res.RowsAffected(); err == nil {
+		total += n
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM hidden_listings WHERE chat_id = $1`, webChatID); err != nil {
+		return 0, err
 	}
 
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
 	return int(total), nil
 }
 
