@@ -40,8 +40,7 @@ export function SettingsPage() {
     mutationFn: () => telegramApi.createLink(),
     onSuccess: (result) => {
       window.open(result.link, "_blank", "noopener");
-      toast("נפתח קישור לטלגרם — לחץ Start בבוט", "success");
-      setTimeout(() => void refetchTg(), 5000);
+      toast("נפתח קישור לטלגרם — לחץ Start בבוט וחזור לכאן", "success");
     },
     onError: () => {
       toast("לא ניתן ליצור קישור. נסה שוב.", "error");
@@ -146,11 +145,47 @@ export function SettingsPage() {
               )}
             </div>
           </div>
+        ) : linkMutation.isSuccess ? (
+          <div className="space-y-3">
+            <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 space-y-2">
+              <p className="text-sm font-medium text-foreground">
+                כמעט שם! עקוב אחרי הצעדים:
+              </p>
+              <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside leading-relaxed">
+                <li>עבור לטלגרם (נפתח בחלון חדש)</li>
+                <li>לחץ <span className="font-medium text-foreground">Start</span> בבוט</li>
+                <li>חזור לכאן ולחץ &quot;בדוק חיבור&quot;</li>
+              </ol>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => void refetchTg()}
+                variant="secondary"
+                className="flex-1 sm:flex-none"
+              >
+                <RefreshCw className="h-4 w-4" />
+                בדוק חיבור
+              </Button>
+              <Button
+                onClick={() => linkMutation.mutate()}
+                variant="ghost"
+                disabled={linkMutation.isPending}
+                className="flex-1 sm:flex-none"
+              >
+                שלח קישור חדש
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              חבר את חשבונך כדי לקבל התראות על מודעות חדשות ישירות בטלגרם. הקישור תקף ל-15 דקות.
-            </p>
+            <div className="text-xs text-muted-foreground leading-relaxed space-y-1.5">
+              <p>חבר את חשבון הטלגרם שלך כדי:</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                <li>לקבל התראות על מודעות חדשות ישירות בטלגרם</li>
+                <li>לסנכרן חיפושים ומודעות שמורות בין האתר לבוט</li>
+                <li>לנהל הכל ממקום אחד</li>
+              </ul>
+            </div>
             <Button
               onClick={() => linkMutation.mutate()}
               disabled={linkMutation.isPending}
