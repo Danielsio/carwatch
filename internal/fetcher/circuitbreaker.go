@@ -100,12 +100,10 @@ func (cb *CircuitBreaker) Fetch(ctx context.Context, params model.SourceParams) 
 	cb.probing = false
 
 	if err != nil {
+		if errors.Is(err, ErrPartialResults) && len(listings) > 0 {
+			return listings, err
+		}
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			// Partial results with data indicate degradation but not total failure;
-			// don't count them toward opening the circuit.
-			if errors.Is(err, ErrPartialResults) && len(listings) > 0 {
-				return listings, err
-			}
 			cb.failures++
 			if cb.failures >= cb.failureThreshold || cb.state == StateHalfOpen {
 				prev := cb.state

@@ -371,6 +371,10 @@ func (c *Consumer) Drain(ctx context.Context) {
 	}
 	c.logger.Info("draining pending messages", "count", len(pending))
 	for _, p := range pending {
+		if p.RetryCount >= int64(MaxRetries) {
+			c.deadLetter(ctx, p.ID)
+			continue
+		}
 		msgs, err := c.client.XRangeN(ctx, StreamName, p.ID, p.ID, 1).Result()
 		if err != nil || len(msgs) == 0 {
 			continue

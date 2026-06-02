@@ -46,11 +46,11 @@ func (c *CachingFetcher) Fetch(ctx context.Context, params model.SourceParams) (
 
 	listings, err := c.inner.Fetch(ctx, params)
 	if err != nil {
+		if errors.Is(err, ErrPartialResults) && len(listings) > 0 {
+			return listings, err
+		}
 		if errors.Is(err, ErrChallenge) || errors.Is(err, ErrRateLimited) {
 			return nil, err
-		}
-		if errors.Is(err, ErrPartialResults) {
-			return listings, err
 		}
 		if ok {
 			c.touch(key)

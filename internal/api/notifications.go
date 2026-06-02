@@ -7,9 +7,8 @@ type notifCountResponse struct {
 }
 
 func (s *Server) notificationCount(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := chatIDFromContext(r.Context())
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
-		// Guest user — return zero count.
 		writeJSON(w, http.StatusOK, notifCountResponse{Count: 0})
 		return
 	}

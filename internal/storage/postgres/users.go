@@ -259,7 +259,20 @@ func (s *Store) LinkTelegramToWeb(ctx context.Context, telegramChatID, webChatID
 		WHERE chat_id = $2
 		AND NOT EXISTS (
 			SELECT 1 FROM searches s2
-			WHERE s2.chat_id = $1 AND s2.manufacturer = searches.manufacturer AND s2.model = searches.model
+			WHERE s2.chat_id = $1
+			AND s2.manufacturer = searches.manufacturer
+			AND s2.model = searches.model
+			AND s2.year_min = searches.year_min
+			AND s2.year_max = searches.year_max
+			AND s2.price_min = searches.price_min
+			AND s2.price_max = searches.price_max
+			AND s2.max_km = searches.max_km
+			AND s2.max_hand = searches.max_hand
+			AND s2.engine_min_cc = searches.engine_min_cc
+			AND COALESCE(s2.keywords, '') = COALESCE(searches.keywords, '')
+			AND COALESCE(s2.exclude_keys, '') = COALESCE(searches.exclude_keys, '')
+			AND COALESCE(s2.seller_filter, '') = COALESCE(searches.seller_filter, '')
+			AND COALESCE(s2.gear_box, '') = COALESCE(searches.gear_box, '')
 		)`,
 		telegramChatID, webChatID); err != nil {
 		return fmt.Errorf("migrate searches: %w", err)

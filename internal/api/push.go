@@ -22,7 +22,7 @@ type unsubscribeRequest struct {
 }
 
 func (s *Server) pushSubscribe(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}
@@ -53,7 +53,7 @@ func (s *Server) pushSubscribe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) pushUnsubscribe(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := requireChatID(w, r)
+	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
 		return
 	}

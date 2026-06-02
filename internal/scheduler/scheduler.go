@@ -772,6 +772,12 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	// 5. Percolator match: for each listing, find matching searches.
 	hiddenCache := make(map[int64]map[string]bool)
 	matchedIndices := make(map[int]struct{})
+	type priceResult struct {
+		oldPrice int
+		changed  bool
+		err      bool
+	}
+	priceCache := make(map[string]priceResult)
 
 	for i := range raw {
 		matches := s.percolator.Match(raw[i])
@@ -808,23 +814,30 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				continue
 			}
 
-			// Record price to detect changes. If a drop is detected,
-			// defer notification until after enrichment.
+			// Record price to detect changes. Cache per token so
+			// subsequent matches for the same listing see the
+			// original price, not the just-recorded one.
 			if s.stores.Prices != nil && raw[i].Price > 0 {
-				oldPrice, changed, err := s.stores.Prices.RecordPrice(ctx, raw[i].Token, raw[i].Price)
-				if err != nil {
-					matchLog.ErrorContext(ctx, "failed to record listing price in price tracker",
-						"token", raw[i].Token, "error", err.Error())
-				} else {
-					if changed || oldPrice == 0 {
-						acc.result.recordedTokens = append(acc.result.recordedTokens, raw[i].Token)
+				pr, cached := priceCache[raw[i].Token]
+				if !cached {
+					oldPrice, changed, err := s.stores.Prices.RecordPrice(ctx, raw[i].Token, raw[i].Price)
+					if err != nil {
+						matchLog.ErrorContext(ctx, "failed to record listing price in price tracker",
+							"token", raw[i].Token, "error", err.Error())
+						pr = priceResult{err: true}
+					} else {
+						pr = priceResult{oldPrice: oldPrice, changed: changed}
+						if changed || oldPrice == 0 {
+							acc.result.recordedTokens = append(acc.result.recordedTokens, raw[i].Token)
+						}
 					}
-					if changed && raw[i].Price < oldPrice {
-						priceDropCandidates = append(priceDropCandidates, priceDropCandidate{
-							rawIdx: i, searchID: m.SearchID, oldPrice: oldPrice,
-						})
-						continue
-					}
+					priceCache[raw[i].Token] = pr
+				}
+				if !pr.err && pr.changed && raw[i].Price < pr.oldPrice {
+					priceDropCandidates = append(priceDropCandidates, priceDropCandidate{
+						rawIdx: i, searchID: m.SearchID, oldPrice: pr.oldPrice,
+					})
+					continue
 				}
 			}
 

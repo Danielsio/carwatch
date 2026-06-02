@@ -64,7 +64,7 @@ func matches(c model.FilterCriteria, l model.RawListing) bool {
 		return false
 	}
 
-	desc := strings.ToLower(l.Description)
+	desc := strings.ToLower(l.Description + " " + l.SubModel)
 
 	for _, kw := range c.Keywords {
 		if !strings.Contains(desc, kw) {

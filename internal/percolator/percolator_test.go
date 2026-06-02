@@ -170,12 +170,13 @@ func TestMatch_EngineMinCC(t *testing.T) {
 		t.Errorf("engine big enough: expected 1, got %d", len(m))
 	}
 
-	// Unknown engine (0) should pass.
+	// Unknown engine (0) should be rejected when EngineMinCC is set
+	// (consistent with filter.Apply behavior).
 	if m := p.Match(model.RawListing{
 		Token: "c", ManufacturerID: 27, ModelID: 10332, Year: 2020, Price: 100000,
 		EngineVolume: 0,
-	}); len(m) != 1 {
-		t.Errorf("unknown engine: expected 1, got %d", len(m))
+	}); len(m) != 0 {
+		t.Errorf("unknown engine: expected 0, got %d", len(m))
 	}
 }
 

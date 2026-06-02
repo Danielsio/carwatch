@@ -465,7 +465,11 @@ func (b *Bot) handleDefault(ctx context.Context, _ *tgbot.Bot, update *tgmodels.
 	// Auto-cancel stale wizard sessions.
 	if user.State != StateIdle {
 		wd := b.loadWizardData(ctx, chatID)
-		if wd.UpdatedAt > 0 && b.now().Unix()-wd.UpdatedAt > int64(wizardTimeout.Seconds()) {
+		age := b.now().Unix() - wd.UpdatedAt
+		if wd.UpdatedAt == 0 {
+			age = int64(wizardTimeout.Seconds()) + 1
+		}
+		if age > int64(wizardTimeout.Seconds()) {
 			b.logger.Info("auto-cancelling stale wizard session", "chat_id", chatID, "state", user.State, "age_sec", b.now().Unix()-wd.UpdatedAt)
 			_ = b.users.UpdateUserState(ctx, chatID, StateIdle, "{}")
 			lang := b.getUserLang(ctx, chatID)

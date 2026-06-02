@@ -289,6 +289,10 @@ func (c *EnrichConsumer) Drain(ctx context.Context) {
 	}
 	c.logger.Info("draining pending enrich messages", "count", len(pending))
 	for _, p := range pending {
+		if p.RetryCount >= int64(enrichMaxRetries) {
+			c.deadLetter(ctx, p.ID)
+			continue
+		}
 		msgs, err := c.client.XRangeN(ctx, EnrichStreamName, p.ID, p.ID, 1).Result()
 		if err != nil || len(msgs) == 0 {
 			continue
