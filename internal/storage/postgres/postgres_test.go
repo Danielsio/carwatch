@@ -1668,9 +1668,12 @@ func TestPostgres_AdminDeleteUserCompleteness(t *testing.T) {
 	// Verify all tables are clean.
 	var count int64
 
+	// price_history is global (keyed by token, no chat_id) and shared
+	// across users. AdminDeleteUser intentionally does NOT delete it;
+	// PrunePrices handles cleanup via retention policy.
 	_ = store.DB().QueryRowContext(ctx, `SELECT count(*) FROM price_history WHERE token = $1`, "del-tok-1").Scan(&count)
-	if count != 0 {
-		t.Errorf("price_history should be empty, got %d rows", count)
+	if count != 1 {
+		t.Errorf("price_history should be preserved (global data), got %d rows", count)
 	}
 
 	_ = store.DB().QueryRowContext(ctx, `SELECT count(*) FROM push_subscriptions WHERE chat_id = $1`, chatID).Scan(&count)
