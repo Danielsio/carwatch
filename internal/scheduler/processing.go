@@ -52,6 +52,11 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 	)
 
 	if err := delivery.DeliverBatch(ctx, search.ChatID, sr.newListings); err != nil {
+		if errors.Is(err, errMalformedMessage) {
+			log.WarnContext(ctx, "batch message is malformed, keeping dedup claims to prevent infinite retry",
+				"count", len(sr.newListings), "search_name", search.Name)
+			return false
+		}
 		if errors.Is(err, notifier.ErrRecipientBlocked) {
 			log.WarnContext(ctx, "user has blocked the bot during batch delivery, deactivating user account",
 				"impact", "user will stop receiving all notifications",

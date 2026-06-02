@@ -117,6 +117,8 @@ func (b *Bot) onShareCopy(ctx context.Context, chatID int64, data string) {
 		ExcludeKeys:  src.ExcludeKeys,
 		SellerFilter: src.SellerFilter,
 		GearBox:      src.GearBox,
+		PriceOnly:    src.PriceOnly,
+		PhotoOnly:    src.PhotoOnly,
 	})
 	if err != nil {
 		b.logger.Error("clone search failed", "error", err)

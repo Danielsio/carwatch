@@ -176,6 +176,9 @@ func (n *Notifier) deliver(ctx context.Context, chatID int64, subs []storage.Pus
 					"endpoint", truncateEndpoint(sub.Endpoint),
 					"status", resp.StatusCode,
 				)
+				if firstErr == nil {
+					firstErr = fmt.Errorf("webpush: unexpected status %d for %d", resp.StatusCode, chatID)
+				}
 			}
 		}
 	}

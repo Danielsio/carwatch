@@ -234,9 +234,8 @@ func (s *Store) AdminDeleteUser(ctx context.Context, chatID int64) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, `DELETE FROM price_history WHERE token IN (SELECT DISTINCT token FROM listing_history WHERE chat_id = $1)`, chatID); err != nil {
-		return fmt.Errorf("admin delete user price_history: %w", err)
-	}
+	// price_history is global (keyed by token, no chat_id) and shared
+	// across users. PrunePrices handles cleanup via retention policy.
 
 	for _, table := range []string{
 		"searches", "listing_history", "seen_listings", "listing_user_seen",

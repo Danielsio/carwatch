@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -173,6 +174,9 @@ func (n *Notifier) sendListingWithPhotoAndKeyboard(ctx context.Context, chatID s
 	}
 	err = n.sendPhotoWithRetry(ctx, chatID, params)
 	if err != nil {
+		if errors.Is(err, notifier.ErrRecipientBlocked) {
+			return err
+		}
 		n.logger.Warn("sendPhoto failed, falling back to text", "chat_id", chatID, "error", err)
 		return n.sendMessageMarkdownWithKeyboard(ctx, chatID, caption, kb)
 	}
@@ -282,6 +286,17 @@ func (n *Notifier) sendPhotoWithRetry(ctx context.Context, chatID string, params
 		}
 		if recErr := recipientBlockedError(err); recErr != nil {
 			return recErr
+		}
+		if isTransientError(err) && attempt < telegramMaxRetries {
+			delay := telegramRetryBaseDelay * time.Duration(1<<uint(attempt))
+			n.logger.Warn("transient telegram error on sendPhoto, retrying",
+				"chat_id", chatID, "attempt", attempt+1, "wait", delay.String(), "error", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+			continue
 		}
 		if !isRateLimited(err) || attempt >= telegramMaxRetries {
 			return err

@@ -99,8 +99,8 @@ func matchesSearch(l model.RawListing, s storage.Search) bool {
 		return false
 	}
 
-	// Engine size minimum.
-	if s.EngineMinCC > 0 && l.EngineVolume > 0 && int(l.EngineVolume) < s.EngineMinCC {
+	// Engine size minimum (matches filter.Apply behavior).
+	if s.EngineMinCC > 0 && int(l.EngineVolume) < s.EngineMinCC {
 		return false
 	}
 
