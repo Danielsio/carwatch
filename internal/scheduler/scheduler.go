@@ -29,12 +29,9 @@ import (
 
 const (
 	fetchTimeout            = 60 * time.Second
-	maxBackoff              = 4.0
-	minBackoff              = 1.0
 	pruneInterval           = 24 * time.Hour
 	maxRetries              = 3
 	retryBaseDelay          = 2 * time.Second
-	defaultConcurrency      = 4
 	priceHistoryRetention   = 90 * 24 * time.Hour
 	listingHistoryRetention = 90 * 24 * time.Hour
 	defaultMarketCacheTTL   = 30 * time.Minute
@@ -53,27 +50,25 @@ type CarNameResolver interface {
 }
 
 type Scheduler struct {
-	cfgMu             sync.RWMutex
-	cfg               *config.Config
-	configPath        string
-	fetcher           fetcher.Fetcher
-	stores            Stores
-	notifier          notifier.Notifier
-	logger            *slog.Logger
-	loc               *time.Location
-	boMu              sync.RWMutex
-	backoffMultiplier float64
-	lastPruneTime     time.Time
-	observer          CycleObserver
-	fetcherFactory    *fetcher.Factory
-	catalogIngester   CatalogIngester
-	carNames          CarNameResolver
-	priceListSvc      *pricelist.Service
-	publisher         *broker.Publisher
-	enrichPublisher   *broker.EnrichPublisher
-	pipeline          *ListingPipeline
-	percolator        *percolator.Percolator
-	triggerCh         chan struct{}
+	cfgMu           sync.RWMutex
+	cfg             *config.Config
+	configPath      string
+	fetcher         fetcher.Fetcher
+	stores          Stores
+	notifier        notifier.Notifier
+	logger          *slog.Logger
+	loc             *time.Location
+	lastPruneTime   time.Time
+	observer        CycleObserver
+	fetcherFactory  *fetcher.Factory
+	catalogIngester CatalogIngester
+	carNames        CarNameResolver
+	priceListSvc    *pricelist.Service
+	publisher       *broker.Publisher
+	enrichPublisher *broker.EnrichPublisher
+	pipeline        *ListingPipeline
+	percolator      *percolator.Percolator
+	triggerCh       chan struct{}
 
 	langCache      sync.Map
 	digestCache    sync.Map
@@ -198,21 +193,20 @@ func NewWithOptions(
 			DailyDigests: opts.DailyDigestStore,
 			CycleLog:     opts.CycleLogStore,
 		},
-		notifier:          n,
-		logger:            logger,
-		loc:               loc,
-		backoffMultiplier: 1.0,
-		observer:          obs,
-		fetcherFactory:    opts.FetcherFactory,
-		catalogIngester:   opts.CatalogIngester,
-		carNames:          opts.CarNames,
-		priceListSvc:      plSvc,
-		publisher:         opts.Publisher,
-		enrichPublisher:   opts.EnrichPublisher,
-		pipeline:          NewListingPipeline(opts.ListingStore, plSvc, logger),
-		percolator:        percolator.New(),
-		triggerCh:         make(chan struct{}, 1),
-		marketCacheTTL:    mcTTL,
+		notifier:        n,
+		logger:          logger,
+		loc:             loc,
+		observer:        obs,
+		fetcherFactory:  opts.FetcherFactory,
+		catalogIngester: opts.CatalogIngester,
+		carNames:        opts.CarNames,
+		priceListSvc:    plSvc,
+		publisher:       opts.Publisher,
+		enrichPublisher: opts.EnrichPublisher,
+		pipeline:        NewListingPipeline(opts.ListingStore, plSvc, logger),
+		percolator:      percolator.New(),
+		triggerCh:       make(chan struct{}, 1),
+		marketCacheTTL:  mcTTL,
 	}, nil
 }
 
@@ -405,13 +399,9 @@ func (s *Scheduler) nextDelay() time.Duration {
 	interval := s.cfg.Polling.Interval
 	jitterCfg := s.cfg.Polling.Jitter
 	s.cfgMu.RUnlock()
-	s.boMu.RLock()
-	mult := s.backoffMultiplier
-	s.boMu.RUnlock()
-	base := time.Duration(float64(interval) * mult)
-	jitter := jitterCfg
-	if jitter > 0 {
-		offset := time.Duration(rand.Int64N(int64(2*jitter))) - jitter
+	base := interval
+	if jitterCfg > 0 {
+		offset := time.Duration(rand.Int64N(int64(2*jitterCfg))) - jitterCfg
 		base += offset
 	}
 	if base < time.Minute {
@@ -1170,9 +1160,8 @@ func (s *Scheduler) prefillFromDB(ctx context.Context, listings []model.RawListi
 	return true
 }
 
-// backfillEnrichedListings upserts listing_history for listings that gained
-// km/city/image data during enrichment, ensuring the DB is updated even for
-// previously-seen tokens.
+// deactivateExcessSearches pauses the newest searches beyond maxActive for a
+// user whose tier was downgraded, keeping the oldest ones active.
 func (s *Scheduler) deactivateExcessSearches(ctx context.Context, chatID int64, maxActive int) {
 	if s.stores.Searches == nil {
 		return

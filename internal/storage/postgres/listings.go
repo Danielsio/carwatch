@@ -315,37 +315,6 @@ func (s *Store) CountUserListings(ctx context.Context, chatID int64) (int64, err
 	return count, err
 }
 
-func (s *Store) ListListings(ctx context.Context, limit int) ([]storage.ListingRecord, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, year, price, km, hand, city, page_link, image_url,
-			engine_volume, horse_power, engine_type, gear_box, description,
-			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, removed_at
-		FROM (
-			SELECT DISTINCT ON (token)
-				token, search_name, manufacturer, model, sub_model, sub_model_id, year, price, km, hand, city, page_link, image_url,
-				engine_volume, horse_power, engine_type, gear_box, description,
-				is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, removed_at
-			FROM listing_history
-			ORDER BY token, first_seen_at DESC
-		) deduped
-		ORDER BY first_seen_at DESC
-		LIMIT $1`, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	var listings []storage.ListingRecord
-	for rows.Next() {
-		l, err := scanListingRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		listings = append(listings, l)
-	}
-	return listings, rows.Err()
-}
-
 func buildFilterClauses(f storage.ListingFilter, paramStart int) (string, []any, int) {
 	var clauses []string
 	var args []any

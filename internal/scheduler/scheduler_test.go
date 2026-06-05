@@ -258,20 +258,6 @@ func TestFetchWithRetryUsing_RetriesOnError(t *testing.T) {
 	}
 }
 
-func TestNextDelay_WithBackoff(t *testing.T) {
-	cfg := testConfig()
-	cfg.Polling.Interval = 10 * time.Minute
-	cfg.Polling.Jitter = 0
-
-	s, _ := New(cfg, nil, nil, nil, testLogger(), nil)
-	s.backoffMultiplier = 2.0
-
-	delay := s.nextDelay()
-	if delay != 20*time.Minute {
-		t.Errorf("delay = %v, want 20m (10m * 2.0 backoff)", delay)
-	}
-}
-
 func TestNextDelay_MinimumOneMinute(t *testing.T) {
 	cfg := testConfig()
 	cfg.Polling.Interval = 30 * time.Second
