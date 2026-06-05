@@ -17,6 +17,7 @@ func TestCountSearchListingsForChatQuery_Contract(t *testing.T) {
 		"s.seller_filter",
 		"WHEN 'dealer'",
 		"lh.is_commercial",
+		"lh.removed_at IS NULL",
 		"GROUP BY lh.search_id",
 	} {
 		if !strings.Contains(countSearchListingsForChatSQL, frag) {
@@ -47,8 +48,21 @@ func TestQuoteIdent(t *testing.T) {
 
 func TestBuildFilterClauses_Empty(t *testing.T) {
 	clause, args, nextParam := buildFilterClauses(storage.ListingFilter{}, 1)
+	if !strings.Contains(clause, "removed_at IS NULL") {
+		t.Errorf("expected removed_at IS NULL clause, got %q", clause)
+	}
+	if len(args) != 0 {
+		t.Errorf("expected no args, got %v", args)
+	}
+	if nextParam != 1 {
+		t.Errorf("expected nextParam=1, got %d", nextParam)
+	}
+}
+
+func TestBuildFilterClauses_IncludeRemoved(t *testing.T) {
+	clause, args, nextParam := buildFilterClauses(storage.ListingFilter{IncludeRemoved: true}, 1)
 	if clause != "" {
-		t.Errorf("expected empty clause, got %q", clause)
+		t.Errorf("expected empty clause with IncludeRemoved, got %q", clause)
 	}
 	if len(args) != 0 {
 		t.Errorf("expected no args, got %v", args)

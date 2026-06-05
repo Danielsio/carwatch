@@ -225,10 +225,11 @@ type ListingFilter struct {
 	MaxKm    int
 	MaxHand  int
 	// Commercial: non-nil restricts to private (false) or commercial/dealer (true).
-	Commercial *bool
-	GearBox    string
-	PriceOnly  bool
-	PhotoOnly  bool
+	Commercial     *bool
+	GearBox        string
+	PriceOnly      bool
+	PhotoOnly      bool
+	IncludeRemoved bool // when true, include listings with removed_at set
 }
 
 // SearchStats holds aggregate market stats for a single search.
