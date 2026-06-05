@@ -105,8 +105,13 @@ func (c *stealthClient) Get(ctx context.Context, reqURL string) (*HTTPResult, er
 		header[k] = v
 	}
 
+	body := resp.Body
+	if len(body) > maxResponseSize {
+		body = body[:maxResponseSize]
+	}
+
 	return &HTTPResult{
-		Body:       resp.Body,
+		Body:       body,
 		StatusCode: resp.StatusCode,
 		Header:     header,
 	}, nil

@@ -556,10 +556,6 @@ func (s *Server) pauseSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) resumeSearch(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := s.requireResolvedChatID(w, r)
-	if ok {
-		s.ensureUserActive(r.Context(), chatID)
-	}
 	s.setSearchActive(w, r, true)
 }
 
@@ -567,6 +563,9 @@ func (s *Server) setSearchActive(w http.ResponseWriter, r *http.Request, active 
 	chatID, okChat := s.requireResolvedChatID(w, r)
 	if !okChat {
 		return
+	}
+	if active {
+		s.ensureUserActive(r.Context(), chatID)
 	}
 	id, ok := parsePathID(r)
 	if !ok {

@@ -104,6 +104,7 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 
 		var raw []model.RawListing
 		var fetchErr error
+	retryLoop:
 		for attempt := 0; attempt < 3; attempt++ {
 			raw, fetchErr = f.Fetch(ctx, params)
 			if fetchErr == nil {
@@ -115,7 +116,8 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 				delay := time.Duration(1<<attempt) * time.Second
 				select {
 				case <-ctx.Done():
-					break
+					fetchErr = ctx.Err()
+					break retryLoop
 				case <-time.After(delay):
 				}
 			}

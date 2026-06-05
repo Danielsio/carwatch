@@ -83,7 +83,7 @@ func (f *Yad2Fetcher) FetchRawPage(ctx context.Context, rawURL string) ([]byte, 
 	}
 	if result.StatusCode != http.StatusOK {
 		if looksLikeBotProtection(result.Body) {
-			return nil, fmt.Errorf("anti-bot challenge detected")
+			return nil, fmt.Errorf("yad2 raw page: %w", fetcher.ErrChallenge)
 		}
 		return nil, fmt.Errorf("unexpected status %d", result.StatusCode)
 	}
