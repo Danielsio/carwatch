@@ -64,6 +64,13 @@ services:
     image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
     container_name: carwatch-api
     entrypoint: ["/usr/local/bin/api-server"]
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
     networks:
       - carwatch-net
     depends_on:
@@ -101,6 +108,13 @@ services:
     image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
     container_name: carwatch-bot-poller
     entrypoint: ["/usr/local/bin/bot-poller"]
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
     networks:
       - carwatch-net
     depends_on:
@@ -133,6 +147,13 @@ services:
     image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
     container_name: carwatch-scraper
     entrypoint: ["/usr/local/bin/scraper"]
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
     networks:
       - carwatch-net
     depends_on:
@@ -167,6 +188,13 @@ services:
     image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
     container_name: carwatch-notifier
     entrypoint: ["/usr/local/bin/notifier"]
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
     networks:
       - carwatch-net
     depends_on:
@@ -200,6 +228,13 @@ services:
     image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
     container_name: carwatch-enricher
     entrypoint: ["/usr/local/bin/enricher"]
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
     networks:
       - carwatch-net
     depends_on:

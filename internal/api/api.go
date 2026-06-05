@@ -550,7 +550,6 @@ func (s *Server) handlerLogger(r *http.Request, extras ...any) *slog.Logger {
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
-	w.Header().Set("X-Error-Detail", msg)
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 

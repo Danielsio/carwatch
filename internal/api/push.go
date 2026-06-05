@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/dsionov/carwatch/internal/storage"
 )
@@ -34,6 +35,10 @@ func (s *Server) pushSubscribe(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Endpoint == "" || req.Keys.P256DH == "" || req.Keys.Auth == "" {
 		writeError(w, http.StatusBadRequest, "endpoint, keys.p256dh, and keys.auth are required")
+		return
+	}
+	if len(req.Endpoint) > 2048 || !strings.HasPrefix(req.Endpoint, "https://") {
+		writeError(w, http.StatusBadRequest, "endpoint must be an HTTPS URL (max 2048 chars)")
 		return
 	}
 

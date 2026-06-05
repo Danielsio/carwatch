@@ -57,11 +57,6 @@ func (s *Server) withAccessLog(next http.Handler) http.Handler {
 		if chatID > 0 {
 			fields = append(fields, "chat_id", chatID)
 		}
-		if rec.status >= 400 {
-			if detail := rec.Header().Get("X-Error-Detail"); detail != "" {
-				fields = append(fields, "error", detail)
-			}
-		}
 		s.logger.Info("http_request", fields...)
 	})
 }
