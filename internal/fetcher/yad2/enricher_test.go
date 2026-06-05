@@ -129,7 +129,7 @@ func TestEnricher_FillsMissingKm(t *testing.T) {
 	})
 
 	listings := []model.RawListing{
-		{Token: "a", Km: 50000, City: "Haifa"},
+		{Token: "a", Km: 50000, City: "Haifa", Area: "Center"},
 		{Token: "b", Km: 0},
 		{Token: "c", Km: 0},
 	}
