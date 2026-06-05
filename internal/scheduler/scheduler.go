@@ -771,7 +771,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 
 	// 5. Percolator match: for each listing, find matching searches.
 	hiddenCache := make(map[int64]map[string]bool)
-	matchedIndices := make(map[int]struct{})
+	matchedIndices := make(map[int][]int64)
 	type priceResult struct {
 		oldPrice int
 		changed  bool
@@ -784,7 +784,13 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		if len(matches) == 0 {
 			continue
 		}
-		matchedIndices[i] = struct{}{}
+		if _, seen := matchedIndices[i]; !seen {
+			ids := make([]int64, 0, len(matches))
+			for _, m := range matches {
+				ids = append(ids, m.SearchID)
+			}
+			matchedIndices[i] = ids
+		}
 
 		for _, m := range matches {
 			acc, ok := accums[m.SearchID]
@@ -855,15 +861,9 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	// processes these idempotently (skip if already enriched).
 	if s.enrichPublisher != nil && len(matchedIndices) > 0 {
 		published := 0
-		for idx := range matchedIndices {
+		for idx, searchIDs := range matchedIndices {
 			l := raw[idx]
 			if l.Km <= 0 || l.City == "" || l.ImageURL == "" {
-				// Collect search IDs that matched this listing.
-				matches := s.percolator.Match(l)
-				searchIDs := make([]int64, 0, len(matches))
-				for _, m := range matches {
-					searchIDs = append(searchIDs, m.SearchID)
-				}
 				req := broker.EnrichRequest{
 					Token:      l.Token,
 					Priority:   1,
@@ -968,7 +968,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 			if acc.search.MaxKm > 0 {
 				filtered := make([]model.RawListing, 0, len(rawForPipeline))
 				for _, r := range rawForPipeline {
-					if r.Km <= 0 || r.Km > acc.search.MaxKm {
+					if r.Km > 0 && r.Km > acc.search.MaxKm {
 						if relErr := s.stores.Dedup.ReleaseClaim(ctx, r.Token, acc.search.ChatID, acc.search.ID); relErr != nil {
 							s.logger.ErrorContext(searchCtx,
 								"failed to release dedup claim for km-filtered listing",

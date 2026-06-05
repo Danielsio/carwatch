@@ -113,7 +113,6 @@ func (c *CachingFetcher) touch(key string) {
 }
 
 func cacheKey(p model.SourceParams) string {
-	return fmt.Sprintf("%d:%d:%d-%d:%d-%d:%d:%d:%d:%d",
-		p.Manufacturer, p.Model, p.YearMin, p.YearMax, p.PriceMin, p.PriceMax, p.Page,
-		p.MaxKm, p.MaxHand, p.EngineMinCC)
+	return fmt.Sprintf("%d:%d:%d-%d:%d-%d:%d",
+		p.Manufacturer, p.Model, p.YearMin, p.YearMax, p.PriceMin, p.PriceMax, p.Page)
 }

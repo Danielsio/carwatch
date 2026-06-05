@@ -177,6 +177,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 		}
 		if listings[i].Area == "" && details.Area != "" {
 			listings[i].Area = details.Area
+			changed = true
 		}
 		if changed {
 			enriched++

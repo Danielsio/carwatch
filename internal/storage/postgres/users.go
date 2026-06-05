@@ -142,7 +142,7 @@ func (s *Store) UpdateUserState(ctx context.Context, chatID int64, state string,
 
 func (s *Store) ListActiveUsers(ctx context.Context) ([]storage.User, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used FROM users WHERE active = true`)
+		`SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used, channel, channel_id FROM users WHERE active = true`)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func scanUsers(rows *sql.Rows) ([]storage.User, error) {
 	for rows.Next() {
 		var u storage.User
 		if err := rows.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language,
-			&u.Tier, &u.TierExpires, &u.TrialUsed); err != nil {
+			&u.Tier, &u.TierExpires, &u.TrialUsed, &u.Channel, &u.ChannelID); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -470,7 +470,7 @@ func (s *Store) GetLinkedTelegramUser(ctx context.Context, webChatID int64) (*st
 
 func (s *Store) ListExpiredPremium(ctx context.Context) ([]storage.User, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used
+		SELECT chat_id, username, state, state_data, created_at, active, language, tier, tier_expires_at, trial_used, channel, channel_id
 		FROM users
 		WHERE tier = 'premium' AND tier_expires_at <= $1 AND tier_expires_at > '1970-01-01 00:00:00+00'::timestamptz`,
 		time.Now())
