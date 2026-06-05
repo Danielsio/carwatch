@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   LineChart,
   Line,
@@ -9,6 +8,7 @@ import {
   ReferenceDot,
 } from "recharts";
 import { TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -42,32 +42,12 @@ export function PriceHistoryChart({
   token,
   currentPrice,
 }: PriceHistoryChartProps) {
-  const [records, setRecords] = useState<{ price: number; observed_at: string }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(false);
-    api
-      .priceHistory(token)
-      .then((res) => {
-        if (!cancelled) {
-          setRecords(res.items);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setError(true);
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+  const { data, isLoading: loading, isError: error } = useQuery({
+    queryKey: ["price-history", token],
+    queryFn: () => api.priceHistory(token),
+    staleTime: 5 * 60 * 1000,
+  });
+  const records = data?.items ?? [];
 
   if (loading) {
     return (

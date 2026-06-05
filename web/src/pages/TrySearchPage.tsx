@@ -97,7 +97,10 @@ export default function TrySearchPage() {
   const [rateLimited, setRateLimited] = useState(false);
 
   useEffect(() => {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(form));
+    const timer = setTimeout(() => {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(form));
+    }, 300);
+    return () => clearTimeout(timer);
   }, [form]);
 
   const set = <K extends keyof GuestFormData>(key: K, val: GuestFormData[K]) =>
