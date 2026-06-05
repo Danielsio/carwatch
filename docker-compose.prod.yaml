@@ -77,10 +77,15 @@ services:
       - ./firebase-sa.json:/config/firebase-sa.json:ro
     environment:
       - TZ=Asia/Jerusalem
-      - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - CARWATCH_DOMAIN=${CARWATCH_DOMAIN:?CARWATCH_DOMAIN must be set}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN must be set}
       - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
       - TELEMETRY_AUTH_TOKEN=${TELEMETRY_AUTH_TOKEN:?TELEMETRY_AUTH_TOKEN must be set}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
     logging:
       driver: json-file
@@ -106,7 +111,7 @@ services:
       - ./migrations:/migrations:ro
     environment:
       - TZ=Asia/Jerusalem
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN must be set}
       - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/healthz"]
@@ -140,7 +145,7 @@ services:
       - ./migrations:/migrations:ro
     environment:
       - TZ=Asia/Jerusalem
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN must be set}
       - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/healthz"]
@@ -173,7 +178,7 @@ services:
       - ./config.yaml:/config.yaml:ro
     environment:
       - TZ=Asia/Jerusalem
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN must be set}
       - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/healthz"]
@@ -229,6 +234,9 @@ services:
     container_name: caddy
     networks:
       - carwatch-net
+    depends_on:
+      api:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
@@ -237,26 +245,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     environment:
-      - CARWATCH_DOMAIN=${CARWATCH_DOMAIN}
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  watchtower:
-    image: containrrr/watchtower:1.7.1
-    container_name: watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${HOME}/.docker:/etc/watchtower-docker:ro
-    environment:
-      - DOCKER_CONFIG=/etc/watchtower-docker
-      - DOCKER_API_VERSION=1.45
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=300
-      - WATCHTOWER_LABEL_ENABLE=true
+      - CARWATCH_DOMAIN=${CARWATCH_DOMAIN:?CARWATCH_DOMAIN must be set}
     restart: unless-stopped
     logging:
       driver: json-file

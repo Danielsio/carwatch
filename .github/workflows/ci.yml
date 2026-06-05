@@ -169,7 +169,7 @@ jobs:
           echo "All expected app services present ✓"
       - name: Verify all app services define healthchecks
         run: |
-          APP_SERVICES="bot-poller scraper notifier enricher"
+          APP_SERVICES="api bot-poller scraper notifier enricher"
           CARWATCH_IMAGE_TAG=test \
           POSTGRES_PASSWORD=test \
           REDIS_PASSWORD=test \
@@ -200,7 +200,7 @@ jobs:
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.infra == 'true'
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17-alpine
         env:
           POSTGRES_USER: carwatch
           POSTGRES_PASSWORD: carwatch
