@@ -33,6 +33,7 @@ WHERE lh.chat_id = $1
   AND (COALESCE(s.gear_box, '') = '' OR LOWER(lh.gear_box) = LOWER(s.gear_box))
   AND (NOT s.price_only OR lh.price > 0)
   AND (NOT s.photo_only OR lh.image_url != '')
+  AND lh.removed_at IS NULL
 GROUP BY lh.search_id`
 
 const upsertListingSQL = `
@@ -287,7 +288,7 @@ func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offse
 			engine_volume, horse_power, engine_type, gear_box, description,
 			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, removed_at
 		FROM listing_history
-		WHERE chat_id = $1
+		WHERE chat_id = $1 AND removed_at IS NULL
 		ORDER BY first_seen_at DESC, token DESC
 		LIMIT $2 OFFSET $3`, chatID, limit, offset)
 	if err != nil {
@@ -310,7 +311,7 @@ func (s *Store) CountUserListings(ctx context.Context, chatID int64) (int64, err
 	var count int64
 	err := s.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM listing_history
-		WHERE chat_id = $1`, chatID).Scan(&count)
+		WHERE chat_id = $1 AND removed_at IS NULL`, chatID).Scan(&count)
 	return count, err
 }
 
@@ -399,6 +400,9 @@ func buildFilterClauses(f storage.ListingFilter, paramStart int) (string, []any,
 	}
 	if f.PhotoOnly {
 		clauses = append(clauses, "image_url != ''")
+	}
+	if !f.IncludeRemoved {
+		clauses = append(clauses, "removed_at IS NULL")
 	}
 	if len(clauses) == 0 {
 		return "", nil, paramStart
