@@ -92,17 +92,3 @@ func (s *Store) ConsumeLinkToken(ctx context.Context, token string) (int64, erro
 	}
 	return webChatID, nil
 }
-
-// PruneLinkTokens deletes all tokens (used or unused) whose expiry is older than the given duration.
-func (s *Store) PruneLinkTokens(ctx context.Context, olderThan time.Duration) (int64, error) {
-	cutoff := time.Now().UTC().Add(-olderThan)
-	res, err := s.db.ExecContext(ctx, `DELETE FROM link_tokens WHERE expires_at < $1`, cutoff)
-	if err != nil {
-		return 0, fmt.Errorf("prune link tokens: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("prune link tokens rows affected: %w", err)
-	}
-	return n, nil
-}
