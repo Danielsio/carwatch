@@ -390,7 +390,7 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
           {/* Guest entry */}
           <div className="mt-5 flex flex-col items-center gap-2">
             <Link
-              to="/dashboard"
+              to="/try"
               className={cn(
                 "flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors",
                 "hover:bg-secondary hover:text-foreground",

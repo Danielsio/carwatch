@@ -28,7 +28,7 @@ export function Pagination({
         {offset + 1}–{Math.min(offset + pageSize, total)} מתוך {total}
       </span>
       {offset + pageSize < total && (
-        <Button variant="primary" size="sm" onClick={onNext}>
+        <Button variant="secondary" size="sm" onClick={onNext}>
           הבא
         </Button>
       )}
