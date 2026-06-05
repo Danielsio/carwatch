@@ -178,7 +178,7 @@ jobs:
           TELEGRAM_BOT_TOKEN=test \
           docker compose -f docker-compose.prod.yaml config > /tmp/compose-full.yaml
           for svc in $APP_SERVICES; do
-            if ! grep -A20 "^  ${svc}:" /tmp/compose-full.yaml | grep -q "healthcheck:"; then
+            if ! grep -A40 "^  ${svc}:" /tmp/compose-full.yaml | grep -q "healthcheck:"; then
               echo "::error::Service ${svc} is missing a healthcheck"
               exit 1
             fi

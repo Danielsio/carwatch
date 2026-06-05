@@ -141,14 +141,24 @@ func warnHardcodedSecrets(raw string) {
 	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
 		return
 	}
-	tg, ok := doc["telegram"].(map[string]any)
-	if !ok {
-		return
+	checkSecret := func(path, envHint string, section map[string]any, key string) {
+		val, _ := section[key].(string)
+		val = strings.TrimSpace(val)
+		if val != "" && !strings.Contains(val, "${") {
+			slog.Warn(path + " appears hardcoded in config; use ${" + envHint + "} for production")
+		}
 	}
-	token, _ := tg["token"].(string)
-	token = strings.TrimSpace(token)
-	if token != "" && !strings.Contains(token, "${") {
-		slog.Warn("telegram.token appears hardcoded in config; use ${TELEGRAM_BOT_TOKEN} for production")
+	if tg, ok := doc["telegram"].(map[string]any); ok {
+		checkSecret("telegram.token", "TELEGRAM_BOT_TOKEN", tg, "token")
+	}
+	if redis, ok := doc["redis"].(map[string]any); ok {
+		checkSecret("redis.password", "REDIS_PASSWORD", redis, "password")
+	}
+	if push, ok := doc["push"].(map[string]any); ok {
+		checkSecret("push.vapid_private_key", "VAPID_PRIVATE", push, "vapid_private_key")
+	}
+	if storage, ok := doc["storage"].(map[string]any); ok {
+		checkSecret("storage.dsn", "DATABASE_URL", storage, "dsn")
 	}
 }
 
