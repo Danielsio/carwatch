@@ -6,6 +6,8 @@ import (
 	"github.com/dsionov/carwatch/internal/model"
 )
 
+func boolPtr(v bool) *bool { return &v }
+
 func TestApply(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -333,6 +335,81 @@ func TestApply(t *testing.T) {
 				{Token: "valid-year", Year: 2020},
 			},
 			want: []string{"valid-year"},
+		},
+		// --- SellerFilter tests ---
+		{
+			name:     "seller filter private rejects commercial",
+			criteria: model.FilterCriteria{SellerFilter: "private"},
+			listings: []model.RawListing{
+				{Token: "a", Commercial: boolPtr(false)},
+				{Token: "b", Commercial: boolPtr(true)},
+			},
+			want: []string{"a"},
+		},
+		{
+			name:     "seller filter commercial rejects private",
+			criteria: model.FilterCriteria{SellerFilter: "commercial"},
+			listings: []model.RawListing{
+				{Token: "a", Commercial: boolPtr(false)},
+				{Token: "b", Commercial: boolPtr(true)},
+			},
+			want: []string{"b"},
+		},
+		{
+			name:     "seller filter dealer synonym accepted",
+			criteria: model.FilterCriteria{SellerFilter: "dealer"},
+			listings: []model.RawListing{
+				{Token: "a", Commercial: boolPtr(true)},
+				{Token: "b", Commercial: boolPtr(false)},
+			},
+			want: []string{"a"},
+		},
+		{
+			name:     "seller filter nil Commercial passes through",
+			criteria: model.FilterCriteria{SellerFilter: "private"},
+			listings: []model.RawListing{
+				{Token: "a", Commercial: nil},
+				{Token: "b", Commercial: boolPtr(false)},
+			},
+			want: []string{"a", "b"},
+		},
+		{
+			name:     "seller filter any passes all",
+			criteria: model.FilterCriteria{SellerFilter: "any"},
+			listings: []model.RawListing{
+				{Token: "a", Commercial: boolPtr(true)},
+				{Token: "b", Commercial: boolPtr(false)},
+				{Token: "c", Commercial: nil},
+			},
+			want: []string{"a", "b", "c"},
+		},
+		{
+			name:     "seller filter empty passes all",
+			criteria: model.FilterCriteria{SellerFilter: ""},
+			listings: []model.RawListing{
+				{Token: "a", Commercial: boolPtr(true)},
+				{Token: "b", Commercial: boolPtr(false)},
+			},
+			want: []string{"a", "b"},
+		},
+		// --- SubModel keyword matching ---
+		{
+			name:     "keyword matches in SubModel",
+			criteria: model.FilterCriteria{Keywords: []string{"sport"}},
+			listings: []model.RawListing{
+				{Token: "a", Description: "clean car", SubModel: "Sport Edition"},
+				{Token: "b", Description: "clean car", SubModel: "Basic"},
+			},
+			want: []string{"a"},
+		},
+		{
+			name:     "exclude key matches in SubModel",
+			criteria: model.FilterCriteria{ExcludeKeys: []string{"basic"}},
+			listings: []model.RawListing{
+				{Token: "a", Description: "nice car", SubModel: "Sport"},
+				{Token: "b", Description: "nice car", SubModel: "Basic trim"},
+			},
+			want: []string{"a"},
 		},
 	}
 

@@ -65,10 +65,7 @@ func matches(c model.FilterCriteria, l model.RawListing) bool {
 	}
 
 	sf := strings.ToLower(strings.TrimSpace(c.SellerFilter))
-	if sf != "" && sf != "any" {
-		if l.Commercial == nil {
-			return false
-		}
+	if sf != "" && sf != "any" && l.Commercial != nil {
 		isCommercial := *l.Commercial
 		if sf == "private" && isCommercial {
 			return false
