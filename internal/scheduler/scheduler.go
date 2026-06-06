@@ -54,6 +54,7 @@ type Scheduler struct {
 	cfg             *config.Config
 	configPath      string
 	fetcher         fetcher.Fetcher
+	targetedFetcher fetcher.Fetcher // bypasses circuit breaker for per-model fetches
 	stores          Stores
 	notifier        notifier.Notifier
 	logger          *slog.Logger
@@ -120,6 +121,7 @@ type Options struct {
 	Prices           storage.PriceTracker
 	ConfigPath       string
 	FetcherFactory   *fetcher.Factory
+	TargetedFetcher  fetcher.Fetcher // bypasses circuit breaker for per-model fetches
 	ListingStore     storage.ListingStore
 	SearchStore      storage.SearchStore
 	UserStore        storage.UserStore
@@ -176,10 +178,16 @@ func NewWithOptions(
 		mcTTL = defaultMarketCacheTTL
 	}
 
+	tf := opts.TargetedFetcher
+	if tf == nil {
+		tf = f
+	}
+
 	return &Scheduler{
-		cfg:        cfg,
-		configPath: opts.ConfigPath,
-		fetcher:    f,
+		cfg:             cfg,
+		configPath:      opts.ConfigPath,
+		fetcher:         f,
+		targetedFetcher: tf,
 		stores: Stores{
 			Dedup:        d,
 			Prices:       opts.Prices,
@@ -717,7 +725,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 
 	// 1b. Targeted fetches for specific manufacturer/model pairs that
 	// are unlikely to appear in the global feed's 200 most recent listings.
-	raw = s.fetchTargetedListings(ctx, searches, raw, activeFetcher)
+	raw = s.fetchTargetedListings(ctx, searches, raw, s.targetedFetcher)
 	stats.listingsFetched = len(raw)
 
 	// 2. Catalog ingestion.
