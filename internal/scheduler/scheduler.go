@@ -657,10 +657,19 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 			if errors.Is(err, context.Canceled) {
 				return raw
 			}
+			delay := 3 * time.Second
+			if errors.Is(err, fetcher.ErrRateLimited) {
+				delay = 5 * time.Second
+			}
 			s.logger.WarnContext(ctx, "targeted fetch failed, skipping pair",
 				"manufacturer", pair.Manufacturer, "model", pair.Model,
 				"car", s.carName(pair.Manufacturer, pair.Model),
-				"error", err)
+				"error", err, "cooldown", delay.String())
+			select {
+			case <-ctx.Done():
+				return raw
+			case <-time.After(delay):
+			}
 			continue
 		}
 		fetched++
@@ -678,7 +687,7 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 		select {
 		case <-ctx.Done():
 			return raw
-		case <-time.After(2 * time.Second):
+		case <-time.After(3 * time.Second):
 		}
 	}
 
@@ -722,6 +731,14 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		"active_searches", len(searches),
 		"duration_ms", fetchDuration.Milliseconds(),
 	)
+
+	// Cooldown after global feed before targeted fetches to let
+	// Yad2's rate limiter reset.
+	select {
+	case <-ctx.Done():
+		return stats, ctx.Err()
+	case <-time.After(5 * time.Second):
+	}
 
 	// 1b. Targeted fetches for specific manufacturer/model pairs that
 	// are unlikely to appear in the global feed's 200 most recent listings.
