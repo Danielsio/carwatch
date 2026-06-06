@@ -30,7 +30,7 @@ WHERE lh.chat_id = $1
     WHEN 'dealership' THEN lh.is_commercial = 1
     ELSE TRUE
   END
-  AND (COALESCE(s.gear_box, '') = '' OR LOWER(lh.gear_box) = LOWER(s.gear_box))
+  AND (COALESCE(s.gear_box, '') = '' OR lh.gear_box = '' OR LOWER(lh.gear_box) = LOWER(s.gear_box))
   AND (NOT s.price_only OR lh.price > 0)
   AND (NOT s.photo_only OR lh.image_url != '')
   AND lh.removed_at IS NULL
@@ -360,7 +360,7 @@ func buildFilterClauses(f storage.ListingFilter, paramStart int) (string, []any,
 		n++
 	}
 	if f.GearBox != "" {
-		clauses = append(clauses, fmt.Sprintf("LOWER(gear_box) = LOWER($%d)", n))
+		clauses = append(clauses, fmt.Sprintf("(gear_box = '' OR LOWER(gear_box) = LOWER($%d))", n))
 		args = append(args, f.GearBox)
 		n++
 	}
