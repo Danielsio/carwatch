@@ -380,7 +380,7 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 			return listings, nil
 		}
 
-		if errors.Is(err, fetcher.ErrChallenge) || errors.Is(err, fetcher.ErrCircuitOpen) || errors.Is(err, context.Canceled) {
+		if errors.Is(err, fetcher.ErrChallenge) || errors.Is(err, fetcher.ErrRateLimited) || errors.Is(err, fetcher.ErrCircuitOpen) || errors.Is(err, context.Canceled) {
 			return nil, err
 		}
 
@@ -674,11 +674,11 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 			added++
 		}
 
-		// Brief pause between fetches to reduce rate-limit risk.
+		// Pause between targeted fetches to avoid Yad2 rate limiting.
 		select {
 		case <-ctx.Done():
 			return raw
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(2 * time.Second):
 		}
 	}
 
