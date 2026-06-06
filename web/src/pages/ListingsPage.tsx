@@ -233,7 +233,7 @@ export function ListingsPage() {
 
       {/* Enrichment progress banner */}
       {!showSkeletons && allListings.length > 0 && (() => {
-        const unenriched = allListings.filter(l => l.km <= 0 || !l.horse_power || !l.gear_box).length;
+        const unenriched = allListings.filter(l => l.km <= 0 || !l.horse_power || !l.gear_box || !l.engine_type).length;
         if (unenriched === 0) return null;
         const pct = Math.round(((allListings.length - unenriched) / allListings.length) * 100);
         return (
@@ -248,7 +248,7 @@ export function ListingsPage() {
                 מעשיר נתונים עבור {unenriched} מודעות ({pct}% הושלם)
               </p>
               <p className="text-[10px] text-amber-600/70 dark:text-amber-500/60">
-                קילומטראז׳, כ״ס והילוכים יתעדכנו תוך דקות
+                קילומטראז׳, כ״ס, הילוכים ודלק יתעדכנו תוך דקות
               </p>
             </div>
             <div className="h-1.5 w-20 rounded-full bg-amber-500/20 overflow-hidden shrink-0">
