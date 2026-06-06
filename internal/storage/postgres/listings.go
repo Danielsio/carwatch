@@ -24,10 +24,10 @@ WHERE lh.chat_id = $1
   AND (s.max_km <= 0 OR lh.km <= s.max_km OR lh.km = 0)
   AND (s.max_hand <= 0 OR lh.hand <= s.max_hand)
   AND CASE LOWER(TRIM(COALESCE(NULLIF(s.seller_filter, ''), 'any')))
-    WHEN 'private' THEN lh.is_commercial = 0
-    WHEN 'commercial' THEN lh.is_commercial = 1
-    WHEN 'dealer' THEN lh.is_commercial = 1
-    WHEN 'dealership' THEN lh.is_commercial = 1
+    WHEN 'private' THEN COALESCE(lh.is_commercial, 0) = 0
+    WHEN 'commercial' THEN COALESCE(lh.is_commercial, 0) = 1
+    WHEN 'dealer' THEN COALESCE(lh.is_commercial, 0) = 1
+    WHEN 'dealership' THEN COALESCE(lh.is_commercial, 0) = 1
     ELSE TRUE
   END
   AND (COALESCE(s.gear_box, '') = '' OR lh.gear_box = '' OR LOWER(lh.gear_box) = LOWER(s.gear_box))
@@ -351,10 +351,10 @@ func buildFilterClauses(f storage.ListingFilter, paramStart int) (string, []any,
 	}
 	if f.Commercial != nil {
 		if *f.Commercial {
-			clauses = append(clauses, fmt.Sprintf("is_commercial = $%d", n))
+			clauses = append(clauses, fmt.Sprintf("COALESCE(is_commercial, 0) = $%d", n))
 			args = append(args, 1)
 		} else {
-			clauses = append(clauses, fmt.Sprintf("is_commercial = $%d", n))
+			clauses = append(clauses, fmt.Sprintf("COALESCE(is_commercial, 0) = $%d", n))
 			args = append(args, 0)
 		}
 		n++

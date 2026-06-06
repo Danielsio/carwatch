@@ -7,11 +7,12 @@ type notifCountResponse struct {
 }
 
 func (s *Server) notificationCount(w http.ResponseWriter, r *http.Request) {
-	chatID, ok := s.requireResolvedChatID(w, r)
-	if !ok {
+	chatID, ok := chatIDFromContext(r.Context())
+	if !ok || chatID == 0 {
 		writeJSON(w, http.StatusOK, notifCountResponse{Count: 0})
 		return
 	}
+	chatID = s.resolveCanonicalChatID(r.Context(), chatID)
 
 	log := s.handlerLogger(r, "op", "notification_count")
 

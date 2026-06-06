@@ -155,8 +155,8 @@ func TestBuildFilterClauses_Commercial(t *testing.T) {
 	tVal := true
 	f := storage.ListingFilter{Commercial: &tVal}
 	clause, args, next := buildFilterClauses(f, 2)
-	if !strings.Contains(clause, "is_commercial = $2") {
-		t.Fatalf("expected is_commercial placeholder, got %q", clause)
+	if !strings.Contains(clause, "COALESCE(is_commercial, 0) = $2") {
+		t.Fatalf("expected COALESCE is_commercial placeholder, got %q", clause)
 	}
 	if len(args) != 1 || next != 3 {
 		t.Fatalf("args=%v next=%d", args, next)
@@ -165,7 +165,7 @@ func TestBuildFilterClauses_Commercial(t *testing.T) {
 	fVal := false
 	f2 := storage.ListingFilter{Commercial: &fVal}
 	clause2, args2, next2 := buildFilterClauses(f2, 1)
-	if !strings.Contains(clause2, "is_commercial = $1") {
+	if !strings.Contains(clause2, "COALESCE(is_commercial, 0) = $1") {
 		t.Fatalf("expected private clause, got %q", clause2)
 	}
 	if len(args2) != 1 || next2 != 2 {
