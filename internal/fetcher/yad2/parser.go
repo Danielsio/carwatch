@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,12 @@ import (
 const challengeMarker = "Are you for real"
 
 var nextDataRe = regexp.MustCompile(`(?s)<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>`)
+
+// subModelHPRe extracts horsepower from sub-model text like "(165 כ״ס)".
+var subModelHPRe = regexp.MustCompile(`\((\d+)\s*כ״ס\)`)
+
+// subModelGearRe detects automatic transmission markers in sub-model text.
+var subModelGearRe = regexp.MustCompile(`אוט[׳']`)
 
 func ParseListingsPage(body io.Reader) ([]model.RawListing, error) {
 	return ParseListingsPageWithLogger(body, nil)
@@ -220,6 +227,20 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 		Description:        item.MetaData.Description,
 		ImageURL:           imgURL,
 		PageLink:           fmt.Sprintf("https://www.yad2.co.il/vehicles/item/%s", item.Token),
+	}
+
+	// Extract HP and gearbox from sub-model text when the feed
+	// doesn't provide them as separate fields.
+	subModelText := textFromField(item.SubModel)
+	if listing.HorsePower == 0 {
+		if m := subModelHPRe.FindStringSubmatch(subModelText); len(m) == 2 {
+			if hp, err := strconv.Atoi(m[1]); err == nil {
+				listing.HorsePower = hp
+			}
+		}
+	}
+	if listing.GearBox == "" && subModelGearRe.MatchString(subModelText) {
+		listing.GearBox = "אוטומט"
 	}
 
 	listing.City = textFromField(item.Address.City)

@@ -521,3 +521,69 @@ func TestParseNextData_ImageFallbackImagesArray(t *testing.T) {
 		t.Errorf("ImageURL = %q, want first from images array", listings[0].ImageURL)
 	}
 }
+
+func TestParseNextData_ExtractsHPAndGearboxFromSubModel(t *testing.T) {
+	data := []byte(`{
+		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+			"data":{"feed":{"feed_items":[{
+				"token":"hp-test",
+				"manufacturer":{"id":27,"text":"מאזדה"},
+				"model":{"id":10332,"text":"3"},
+				"subModel":{"id":105280,"text":"Premium אוט׳ 2.0 (165 כ״ס) [2017-2019]"},
+				"vehicleDates":{"yearOfProduction":2018},
+				"engineVolume":1998,
+				"price":80000,
+				"hand":{"id":2},
+				"metaData":{"coverImage":"https://img.yad2.co.il/test.jpg"}
+			}]}}
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	l := listings[0]
+	if l.HorsePower != 165 {
+		t.Errorf("HorsePower = %d, want 165 (extracted from sub-model text)", l.HorsePower)
+	}
+	if l.GearBox != "אוטומט" {
+		t.Errorf("GearBox = %q, want אוטומט (extracted from אוט׳ in sub-model text)", l.GearBox)
+	}
+}
+
+func TestParseNextData_PreservesExplicitHPAndGearbox(t *testing.T) {
+	data := []byte(`{
+		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+			"data":{"feed":{"feed_items":[{
+				"token":"explicit-test",
+				"manufacturer":{"id":27},
+				"model":{"id":10332},
+				"subModel":{"text":"Premium אוט׳ 2.0 (165 כ״ס)"},
+				"horsePower":200,
+				"gearBox":{"text":"ידני"},
+				"vehicleDates":{"yearOfProduction":2020},
+				"price":90000,
+				"metaData":{"coverImage":"https://img.yad2.co.il/test.jpg"}
+			}]}}
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	l := listings[0]
+	if l.HorsePower != 200 {
+		t.Errorf("HorsePower = %d, want 200 (explicit field takes priority)", l.HorsePower)
+	}
+	if l.GearBox != "ידני" {
+		t.Errorf("GearBox = %q, want ידני (explicit field takes priority)", l.GearBox)
+	}
+}
