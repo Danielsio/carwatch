@@ -564,9 +564,6 @@ func (s *Server) setSearchActive(w http.ResponseWriter, r *http.Request, active 
 	if !okChat {
 		return
 	}
-	if active {
-		s.ensureUserActive(r.Context(), chatID)
-	}
 	id, ok := parsePathID(r)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid search id")
@@ -585,5 +582,8 @@ func (s *Server) setSearchActive(w http.ResponseWriter, r *http.Request, active 
 		return
 	}
 
+	if active {
+		s.ensureUserActive(r.Context(), chatID)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -110,18 +110,20 @@ type BotBundle struct {
 // multi-notifier (Telegram + optional WebPush).
 func BuildBot(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, h *health.Status, logger *slog.Logger) (*BotBundle, error) {
 	botHandler := cwbot.New(nil, store, store, cwbot.Config{
-		AdminChatID:  cfg.Telegram.AdminChatID,
-		MaxSearches:  cfg.Telegram.MaxSearches,
-		BotUsername:  cfg.Telegram.BotUsername,
-		PollInterval: cfg.Polling.Interval,
-		Health:       h,
-		Digests:      store,
-		Listings:     store,
-		Saved:        store,
-		Hidden:       store,
-		DailyDigests: store,
-		Catalog:      dynCatalog,
-		LinkTokens:   store,
+		AdminChatID:            cfg.Telegram.AdminChatID,
+		MaxSearches:            cfg.Telegram.MaxSearches,
+		BotUsername:            cfg.Telegram.BotUsername,
+		PollInterval:           cfg.Polling.Interval,
+		QuickStartManufacturer: cfg.Telegram.QuickStartManufacturer,
+		QuickStartModel:        cfg.Telegram.QuickStartModel,
+		Health:                 h,
+		Digests:                store,
+		Listings:               store,
+		Saved:                  store,
+		Hidden:                 store,
+		DailyDigests:           store,
+		Catalog:                dynCatalog,
+		LinkTokens:             store,
 	}, logger.With("component", "bot"))
 
 	tgNotif, err := telegram.New(cfg.Telegram.Token, logger.With("component", "telegram"),
