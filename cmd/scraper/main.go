@@ -147,6 +147,7 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 		Prices:           store,
 		ConfigPath:       configPath,
 		FetcherFactory:   fb.Factory,
+		TargetedFetcher:  fb.Targeted,
 		ListingStore:     store,
 		SearchStore:      store,
 		UserStore:        store,

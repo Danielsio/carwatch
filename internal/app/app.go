@@ -54,10 +54,11 @@ func OpenStore(cfg *config.Config, skipMigrate ...bool) (*postgres.Store, error)
 
 // FetcherBundle groups all fetcher-related objects returned by BuildFetchers.
 type FetcherBundle struct {
-	Yad2    *yad2.Yad2Fetcher
-	Caching fetcher.Fetcher
-	Factory *fetcher.Factory
-	Pool    *fetcher.ProxyPool
+	Yad2     *yad2.Yad2Fetcher
+	Caching  fetcher.Fetcher // full chain: CircuitBreaker → Cache → Paginator → Yad2
+	Targeted fetcher.Fetcher // without circuit breaker: Cache → Paginator → Yad2
+	Factory  *fetcher.Factory
+	Pool     *fetcher.ProxyPool
 }
 
 // BuildFetchers creates the Yad2 fetcher, paginating/caching wrappers,
@@ -89,10 +90,11 @@ func BuildFetchers(cfg *config.Config, logger *slog.Logger) (*FetcherBundle, err
 	fetcherFactory.Register("yad2", yad2CB)
 
 	return &FetcherBundle{
-		Yad2:    yad2Fetcher,
-		Caching: yad2CB,
-		Factory: fetcherFactory,
-		Pool:    proxyPool,
+		Yad2:     yad2Fetcher,
+		Caching:  yad2CB,
+		Targeted: cachingFetcher,
+		Factory:  fetcherFactory,
+		Pool:     proxyPool,
 	}, nil
 }
 
