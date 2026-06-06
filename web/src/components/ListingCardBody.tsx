@@ -223,10 +223,10 @@ export function ListingCardBody({
         <div className="flex flex-wrap gap-1.5">
           <SpecChip label="ק״מ" value={listing.km > 0 ? formatKm(listing.km) : undefined} enriching={listing.km <= 0} />
           <SpecChip label="יד" value={listing.hand > 0 ? String(listing.hand) : undefined} />
-          {listing.gear_box ? <SpecChip label="הילוכים" value={listing.gear_box} /> : null}
-          {listing.engine_type ? <SpecChip label="דלק" value={listing.engine_type} /> : null}
+          <SpecChip label="הילוכים" value={listing.gear_box || undefined} enriching={!listing.gear_box} />
+          <SpecChip label="דלק" value={listing.engine_type || undefined} enriching={!listing.engine_type} />
           {listing.engine_volume ? <SpecChip label="נפח" value={`${(listing.engine_volume / 1000).toFixed(1)}L`} /> : null}
-          {listing.horse_power ? <SpecChip label="כ״ס" value={String(listing.horse_power)} /> : null}
+          <SpecChip label="כ״ס" value={listing.horse_power ? String(listing.horse_power) : undefined} enriching={!listing.horse_power} />
         </div>
 
         {/* Description */}
@@ -266,13 +266,19 @@ export function ListingCardBody({
 
 function SpecChip({ label, value, enriching }: { label: string; value?: string; enriching?: boolean }) {
   return (
-    <div className="rounded-lg bg-secondary/70 px-2.5 py-1.5 text-center min-w-[3.5rem]">
+    <div className={cn(
+      "rounded-lg px-2.5 py-1.5 text-center min-w-[3.5rem] transition-colors",
+      enriching ? "bg-amber-500/5 border border-amber-500/10" : "bg-secondary/70",
+    )}>
       <p className="text-[10px] text-muted-foreground/70">{label}</p>
       <p className="text-xs font-semibold text-foreground truncate tabular-nums">
         {value ?? (enriching ? (
-          <span className="inline-flex items-center gap-0.5 text-muted-foreground/50">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-[9px]">מעשיר</span>
+          <span className="inline-flex items-center gap-1 text-amber-500/60">
+            <span className="flex gap-0.5">
+              <span className="h-1 w-1 rounded-full bg-amber-400 animate-pulse" />
+              <span className="h-1 w-1 rounded-full bg-amber-400 animate-pulse [animation-delay:150ms]" />
+              <span className="h-1 w-1 rounded-full bg-amber-400 animate-pulse [animation-delay:300ms]" />
+            </span>
           </span>
         ) : "—")}
       </p>

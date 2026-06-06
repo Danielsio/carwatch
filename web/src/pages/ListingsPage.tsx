@@ -231,6 +231,33 @@ export function ListingsPage() {
         </div>
       </div>
 
+      {/* Enrichment progress banner */}
+      {!showSkeletons && allListings.length > 0 && (() => {
+        const unenriched = allListings.filter(l => l.km <= 0 || !l.horse_power || !l.gear_box).length;
+        if (unenriched === 0) return null;
+        const pct = Math.round(((allListings.length - unenriched) / allListings.length) * 100);
+        return (
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 flex items-center gap-3">
+            <div className="flex gap-0.5 shrink-0">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse [animation-delay:150ms]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse [animation-delay:300ms]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                מעשיר נתונים עבור {unenriched} מודעות ({pct}% הושלם)
+              </p>
+              <p className="text-[10px] text-amber-600/70 dark:text-amber-500/60">
+                קילומטראז׳, כ״ס והילוכים יתעדכנו תוך דקות
+              </p>
+            </div>
+            <div className="h-1.5 w-20 rounded-full bg-amber-500/20 overflow-hidden shrink-0">
+              <div className="h-full rounded-full bg-amber-400 transition-all duration-500" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Grid */}
       {showSkeletons ? (
         <div className="grid gap-5 sm:gap-4 sm:grid-cols-2">
