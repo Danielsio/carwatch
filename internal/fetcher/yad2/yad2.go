@@ -219,6 +219,9 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 			}
 			return nil, fmt.Errorf("yad2: %w", fetcher.ErrChallenge)
 		}
+		if result.StatusCode == http.StatusBadRequest || result.StatusCode == http.StatusTooManyRequests {
+			return nil, fmt.Errorf("yad2 status %d: %w", result.StatusCode, fetcher.ErrRateLimited)
+		}
 		body := string(result.Body)
 		if len(body) > 512 {
 			body = body[:512] + "…"

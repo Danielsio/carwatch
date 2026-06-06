@@ -103,7 +103,7 @@ func (cb *CircuitBreaker) Fetch(ctx context.Context, params model.SourceParams) 
 		if errors.Is(err, ErrPartialResults) && len(listings) > 0 {
 			return listings, err
 		}
-		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, ErrRateLimited) {
 			cb.failures++
 			if cb.failures >= cb.failureThreshold || cb.state == StateHalfOpen {
 				prev := cb.state

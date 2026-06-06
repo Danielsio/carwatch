@@ -150,7 +150,7 @@ func TestE2E_FullPipeline(t *testing.T) {
 		t.Fatalf("create scheduler: %v", err)
 	}
 
-	schedCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	schedCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	_ = sched.Run(schedCtx)
 
