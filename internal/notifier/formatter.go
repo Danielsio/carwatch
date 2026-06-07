@@ -160,11 +160,9 @@ func FormatBatch(listings []model.Listing, lang locale.Lang) string {
 }
 
 var dimKeys = map[string]string{
-	"price":  "dim_price",
-	"km":     "dim_km",
-	"hand":   "dim_hand",
-	"year":   "dim_year",
-	"engine": "dim_engine",
+	"condition": "dim_condition",
+	"value":     "dim_value",
+	"engine":    "dim_engine",
 }
 
 func formatBreakdown(dims []model.FitnessDim, lang locale.Lang) string {

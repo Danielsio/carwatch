@@ -1,4 +1,4 @@
-import { Sparkles, TrendingUp, Gauge, Calendar, Users } from "lucide-react";
+import { Sparkles, TrendingUp, Gauge } from "lucide-react";
 import { useInView } from "@/hooks/useInView";
 import { cn } from "@/lib/utils";
 import { FadeUp } from "./FadeUp";
@@ -55,28 +55,16 @@ const demoListings: DemoListingInput[] = [
 
 const factors = [
   {
-    icon: TrendingUp,
-    label: "מחיר מול תקציב",
-    desc: "ציון גבוה לרכבים שנמצאים מתחת לתקציב שהגדרת",
-    weight: "25%",
-  },
-  {
     icon: Gauge,
-    label: "קילומטרז",
-    desc: "ק\"מ מותאם לגיל הרכב — פחות בלאי ביחס לצפוי = ציון גבוה",
-    weight: "30%",
+    label: "מצב הרכב",
+    desc: "ק\"מ מותאם לגיל + מספר ידיים — פחות בלאי ביחס לצפוי = ציון גבוה",
+    weight: "60%",
   },
   {
-    icon: Calendar,
-    label: "שנת ייצור",
-    desc: "רכבים חדשים יותר בטווח המבוקש מקבלים עדיפות",
-    weight: "20%",
-  },
-  {
-    icon: Users,
-    label: "מספר ידיים",
-    desc: "פחות בעלים = ציון גבוה, עם התחשבות בגיל הרכב",
-    weight: "20%",
+    icon: TrendingUp,
+    label: "שווי העסקה",
+    desc: "מחיר ביחס לתקציב החיפוש, עם התאמה למצב הרכב — עסקאות טובות מקבלות בונוס",
+    weight: "35%",
   },
 ];
 
@@ -111,10 +99,8 @@ function DemoCard({
         <div className="mt-2 flex gap-2">
           {(
             [
-              { key: "price" as const, label: "מחיר" },
-              { key: "mileage" as const, label: "ק״מ" },
-              { key: "year" as const, label: "שנה" },
-              { key: "hand" as const, label: "יד" },
+              { key: "condition" as const, label: "מצב" },
+              { key: "value" as const, label: "שווי" },
             ] as const
           ).map((f) => (
             <div key={f.key} className="flex flex-1 flex-col items-center gap-0.5">

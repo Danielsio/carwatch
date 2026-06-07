@@ -1,6 +1,7 @@
 /**
  * Demo scoring for landing-page Smart Match section only.
- * Production listing scores may use different weights / inputs.
+ * BES v2 demo: additive baseline model — final = clamp(5 + condDelta + valDelta, 0, 10).
+ * Production uses market medians for value scoring; demo uses budget fallback.
  */
 
 export type DemoSearchCriteria = {
@@ -22,132 +23,148 @@ export type DemoListingInput = {
 };
 
 export type ScoreBreakdownPct = {
-  price: number;
-  mileage: number;
-  year: number;
-  hand: number;
+  condition: number;
+  value: number;
 };
 
-const W_PRICE = 0.25;
-const W_KM = 0.30;
-const W_HAND = 0.20;
-const W_YEAR = 0.20;
-const W_ENGINE = 0.05;
-
+const BASELINE = 5.0;
 const AVG_KM_PER_YEAR = 15000;
-const KM_AGE_EXPONENT = 1.2;
-const KM_CAP_EXPONENT = 1.5;
-const AGE_ADJUST_KM_BLEND = 0.6;
-const HAND_CURVE_EXPONENT = 0.6;
-const HAND_AGE_BONUS_MAX = 0.15;
-const HAND_AGE_BONUS_YEARS = 15;
-const YEAR_SCORE_FLOOR = 0.3;
+const KM_LOW_THRESHOLD = 0.85;
+const KM_LOW_BONUS_SCALE = 4.2;
+const KM_DEAD_ZONE_PENALTY = 0.3;
+const KM_EXCESS_STEEPNESS = 4.7;
+const KM_EXCESS_CAP = 1.5;
+const KM_EXCESS_EXPONENT = 0.7;
+
+const HAND1_BONUS_BASE = 0.5;
+const HAND1_AGE_BONUS_RATE = 0.10;
+const HAND1_AGE_BONUS_CAP = 0.8;
+const HAND_EXPECTED_RATE = 5.0;
+const HAND_EXCESS_PENALTY = 1.1;
+const HAND_BELOW_RATE = 0.3;
+const HAND_BELOW_CAP = 0.3;
+
+const COND_DELTA_MIN = -5.0;
+const COND_DELTA_MAX = 4.5;
+
+const BUDGET_HIGH_HEADROOM = 0.30;
+const BUDGET_HIGH_BONUS = 2.0;
+const BUDGET_LOW_HEADROOM = 0.10;
+const BUDGET_LOW_PENALTY = 0.5;
+const BUDGET_OVER_PENALTY = 1.0;
+
+const VAL_DELTA_MIN = -3.5;
+const VAL_DELTA_MAX = 2.5;
+
+function clamp(x: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, x));
+}
 
 function clamp01(x: number): number {
-  return Math.max(0, Math.min(1, x));
+  return clamp(x, 0, 1);
+}
+
+function computeKmDelta(km: number, carAge: number): { delta: number; score01: number } {
+  if (km <= 0) return { delta: 0, score01: 0.5 };
+
+  const expectedKm = carAge * AVG_KM_PER_YEAR;
+  const kmRatio = km / expectedKm;
+  let delta: number;
+
+  if (kmRatio <= KM_LOW_THRESHOLD) {
+    delta = KM_LOW_BONUS_SCALE * Math.sqrt((KM_LOW_THRESHOLD - kmRatio) / KM_LOW_THRESHOLD);
+  } else if (kmRatio <= 1.0) {
+    delta = -KM_DEAD_ZONE_PENALTY * (kmRatio - KM_LOW_THRESHOLD) / (1.0 - KM_LOW_THRESHOLD);
+  } else {
+    const excess = Math.min(kmRatio - 1.0, KM_EXCESS_CAP);
+    delta = -KM_DEAD_ZONE_PENALTY - KM_EXCESS_STEEPNESS * Math.pow(excess, KM_EXCESS_EXPONENT);
+  }
+
+  const score01 = kmRatio <= 1.0
+    ? 1.0 / (1.0 + Math.exp(4.0 * (kmRatio - 0.7)))
+    : 1.0 / (1.0 + Math.exp(5.0 * (kmRatio - 1.0)));
+
+  return { delta, score01 };
+}
+
+function computeHandDelta(hand: number, carAge: number): { delta: number; score01: number } {
+  if (hand <= 0) return { delta: 0, score01: 0.5 };
+
+  if (hand === 1) {
+    const ageBonus = Math.min(HAND1_AGE_BONUS_CAP, carAge * HAND1_AGE_BONUS_RATE);
+    return { delta: HAND1_BONUS_BASE + ageBonus, score01: 1.0 };
+  }
+
+  const expectedHands = 1.0 + carAge / HAND_EXPECTED_RATE;
+  const handExcess = hand - expectedHands;
+
+  if (handExcess <= 0) {
+    return {
+      delta: clamp(-handExcess * HAND_BELOW_RATE, 0, HAND_BELOW_CAP),
+      score01: clamp01(0.7 + (-handExcess) * 0.15),
+    };
+  }
+
+  return {
+    delta: -HAND_EXCESS_PENALTY * handExcess,
+    score01: clamp01(0.5 - handExcess * 0.25),
+  };
+}
+
+function computeValueDelta(
+  price: number,
+  priceMax: number,
+  condScore01: number,
+): { delta: number; score01: number } {
+  if (price <= 0) return { delta: 0, score01: 0.5 };
+
+  let delta: number;
+
+  if (priceMax > 0) {
+    const headroom = 1.0 - price / priceMax;
+    if (headroom >= BUDGET_HIGH_HEADROOM) {
+      delta = BUDGET_HIGH_BONUS;
+    } else if (headroom >= BUDGET_LOW_HEADROOM) {
+      delta = BUDGET_HIGH_BONUS * (headroom - BUDGET_LOW_HEADROOM) / (BUDGET_HIGH_HEADROOM - BUDGET_LOW_HEADROOM);
+    } else if (headroom >= 0) {
+      delta = -BUDGET_LOW_PENALTY * (BUDGET_LOW_HEADROOM - headroom) / BUDGET_LOW_HEADROOM;
+    } else {
+      delta = -BUDGET_OVER_PENALTY;
+    }
+  } else {
+    return { delta: 0, score01: 0.5 };
+  }
+
+  delta = clamp(delta, VAL_DELTA_MIN, VAL_DELTA_MAX);
+  if (delta > 0 && condScore01 < 0.55) {
+    delta *= condScore01 / 0.55;
+  }
+  const score01 = clamp01(0.5 + delta / 5.0);
+  return { delta, score01 };
 }
 
 export function scoreListingAgainstSearch(
   listing: DemoListingInput,
   search: DemoSearchCriteria,
 ): { score: number; breakdown: ScoreBreakdownPct } {
-  // Price: when market median is available, score against market value;
-  // otherwise fall back to budget-based scoring (matches Go logic).
-  let priceFactor: number;
-  if (listing.price <= 0) {
-    priceFactor = NaN;
-  } else if (search.median_price && search.median_price > 0) {
-    const ratio = listing.price / search.median_price;
-    const normalized = clamp01((ratio - 0.7) / 0.6);
-    priceFactor = Math.sqrt(1 - normalized);
-  } else if (search.price_max <= 0) {
-    priceFactor = NaN;
-  } else {
-    const ratio = listing.price / search.price_max;
-    priceFactor = ratio >= 1 ? 0 : Math.sqrt(1 - ratio);
-  }
-
-  // Km: blend age-adjusted expectations with cap-based score.
-  // When mileage is missing/zero, mark as NaN to omit the dimension (matches backend).
   const now = new Date().getFullYear();
   const carAge = Math.max(1, now - listing.year);
-  const hasAge = listing.year > 0;
-  let mileageFactor: number;
-  if (listing.mileage <= 0) {
-    mileageFactor = NaN;
-  } else {
-    let ageScore: number | null = null;
-    if (hasAge) {
-      const expectedKm = carAge * AVG_KM_PER_YEAR;
-      ageScore = clamp01(1 - Math.pow(clamp01(listing.mileage / expectedKm), KM_AGE_EXPONENT));
-    }
-    if (search.mileage_max > 0) {
-      const capScore = clamp01(1 - Math.pow(clamp01(listing.mileage / search.mileage_max), KM_CAP_EXPONENT));
-      mileageFactor = ageScore !== null
-        ? AGE_ADJUST_KM_BLEND * ageScore + (1 - AGE_ADJUST_KM_BLEND) * capScore
-        : capScore;
-    } else if (ageScore !== null) {
-      mileageFactor = ageScore;
-    } else {
-      mileageFactor = NaN;
-    }
-  }
 
-  // Year: position in range with floor and sqrt curve.
-  // When range is invalid/single-year, give full marks (matches Go guard).
-  let yearFactor: number;
-  if (search.year_min <= 0 || search.year_max <= 0 || search.year_max <= search.year_min) {
-    yearFactor = 1.0;
-  } else {
-    const pos = clamp01((listing.year - search.year_min) / (search.year_max - search.year_min));
-    yearFactor = YEAR_SCORE_FLOOR + (1 - YEAR_SCORE_FLOOR) * Math.sqrt(pos);
-  }
+  const km = computeKmDelta(listing.mileage, carAge);
+  const hand = computeHandDelta(listing.hand, carAge);
+  const condDelta = clamp(km.delta + hand.delta, COND_DELTA_MIN, COND_DELTA_MAX);
+  const condScore01 = 0.70 * km.score01 + 0.30 * hand.score01;
 
-  // Hand: ladder with age bonus for older cars.
-  // When hand is unknown/zero, use neutral 0.5 (matches Go).
-  let handFactor: number;
-  if (listing.hand <= 0) {
-    handFactor = 0.5;
-  } else {
-    let handBase: number;
-    if (search.hand_max > 0) {
-      const ratio = Math.max(0, listing.hand - 1) / search.hand_max;
-      handBase = clamp01(1 - Math.pow(clamp01(ratio), HAND_CURVE_EXPONENT));
-    } else {
-      handBase = listing.hand <= 1 ? 1 : listing.hand === 2 ? 0.7 : listing.hand === 3 ? 0.4 : 0.1;
-    }
-    if (listing.hand > 1) {
-      const bonus = clamp01(carAge / HAND_AGE_BONUS_YEARS) * HAND_AGE_BONUS_MAX;
-      handBase = clamp01(handBase + bonus);
-    }
-    handFactor = handBase;
-  }
+  const val = computeValueDelta(listing.price, search.price_max, condScore01);
 
-  const dims: [number, number][] = [
-    [W_PRICE, priceFactor],
-    [W_KM, mileageFactor],
-    [W_YEAR, yearFactor],
-    [W_HAND, handFactor],
-    [W_ENGINE, 1.0], // engine (always 1.0 in demo)
-  ];
-
-  let totalWeight = 0;
-  let weighted = 0;
-  for (const [w, s] of dims) {
-    if (Number.isNaN(s)) continue;
-    totalWeight += w;
-    weighted += w * s;
-  }
-  const combined = totalWeight > 0 ? weighted / totalWeight : 0.5;
-  const score = Math.round(clamp01(combined) * 100) / 10;
+  const raw = BASELINE + condDelta + val.delta;
+  const score = Math.round(clamp(raw, 0, 10) * 10) / 10;
 
   return {
     score,
     breakdown: {
-      price: Number.isNaN(priceFactor) ? 0 : Math.round(priceFactor * 100),
-      mileage: Number.isNaN(mileageFactor) ? 0 : Math.round(mileageFactor * 100),
-      year: Math.round(yearFactor * 100),
-      hand: Math.round(handFactor * 100),
+      condition: Math.round(condScore01 * 100),
+      value: Math.round(val.score01 * 100),
     },
   };
 }

@@ -116,6 +116,7 @@ func (p *ListingPipeline) scoreAndEnrich(ctx context.Context, l model.RawListing
 	}
 	if marketOK {
 		fp.MedianPrice = medianPrice
+		fp.MedianKm = medianKm
 	}
 
 	detailed := scoring.FitnessScoreDetailed(fp)
