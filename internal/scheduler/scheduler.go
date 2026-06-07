@@ -921,8 +921,9 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 			EngineMinCC: acc.search.EngineMinCC,
 		}
 		if marketCache != nil {
-			if median, _, _, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
+			if median, medKm, _, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
 				fp.MedianPrice = median
+				fp.MedianKm = medKm
 			}
 		}
 		listing.FitnessScore = scoring.FitnessScore(fp)

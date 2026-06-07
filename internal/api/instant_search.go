@@ -192,6 +192,7 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 
 		if median, medKm, cohortSize, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
 			fp.MedianPrice = median
+			fp.MedianKm = medKm
 			ds := scoring.ScoreWithKm(l.Price, l.Km, median, medKm)
 			sl.dealScore = &ds
 			sl.median = &median
