@@ -215,11 +215,9 @@ var heCommands = map[string]string{
 	"fmt_digest_header":          "*סיכום יומי (%d פריטים):*\n",
 
 	// fitness scoring
-	"dim_price":  "מחיר",
-	"dim_km":     "ק\"מ",
-	"dim_hand":   "יד",
-	"dim_year":   "שנה",
-	"dim_engine": "מנוע",
+	"dim_condition": "מצב",
+	"dim_value":     "שווי",
+	"dim_engine":    "מנוע",
 
 	// deal scoring
 	"fmt_market_digest_header":     "📈 *סיכום שוק יומי* — %s\n\n",
@@ -499,11 +497,9 @@ var enCommands = map[string]string{
 	"fmt_digest_header":          "*Digest Summary (%d items):*\n",
 
 	// fitness scoring
-	"dim_price":  "price",
-	"dim_km":     "mileage",
-	"dim_hand":   "hand",
-	"dim_year":   "year",
-	"dim_engine": "engine",
+	"dim_condition": "condition",
+	"dim_value":     "value",
+	"dim_engine":    "engine",
 
 	// deal scoring
 	"fmt_market_digest_header":     "📈 *Daily Market Summary* — %s\n\n",

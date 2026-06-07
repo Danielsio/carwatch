@@ -324,8 +324,8 @@ func TestFormatListing_FieldOrder(t *testing.T) {
 		},
 		FitnessScore: 7.0,
 		FitnessBreakdown: []model.FitnessDim{
-			{Name: "price", Score: 0.8, Weight: 0.35},
-			{Name: "km", Score: 0.3, Weight: 0.25},
+			{Name: "condition", Score: 0.8, Weight: 0.60},
+			{Name: "value", Score: 0.3, Weight: 0.35},
 		},
 	}
 
@@ -357,10 +357,8 @@ func TestFormatListing_WithFitnessBreakdown(t *testing.T) {
 		},
 		FitnessScore: 6.5,
 		FitnessBreakdown: []model.FitnessDim{
-			{Name: "price", Score: 0.85, Weight: 0.35},
-			{Name: "km", Score: 0.3, Weight: 0.25},
-			{Name: "hand", Score: 0.5, Weight: 0.20},
-			{Name: "year", Score: 0.9, Weight: 0.15},
+			{Name: "condition", Score: 0.85, Weight: 0.60},
+			{Name: "value", Score: 0.3, Weight: 0.35},
 			{Name: "engine", Score: 0.6, Weight: 0.05},
 		},
 	}
@@ -372,11 +370,11 @@ func TestFormatListing_WithFitnessBreakdown(t *testing.T) {
 	if !strings.Contains(msg, "↓") {
 		t.Errorf("should show down-arrow for bad dimensions:\n%s", msg)
 	}
-	if !strings.Contains(msg, "price") {
-		t.Errorf("should mention 'price' as good dimension:\n%s", msg)
+	if !strings.Contains(msg, "condition") {
+		t.Errorf("should mention 'condition' as good dimension:\n%s", msg)
 	}
-	if !strings.Contains(msg, "mileage") {
-		t.Errorf("should mention 'mileage' as bad dimension:\n%s", msg)
+	if !strings.Contains(msg, "value") {
+		t.Errorf("should mention 'value' as bad dimension:\n%s", msg)
 	}
 }
 
