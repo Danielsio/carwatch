@@ -105,8 +105,9 @@ describe("scoreListingAgainstSearch", () => {
   });
 
   it("low-km old car scores well (condition dominant)", () => {
+    const decadeOldYear = new Date().getFullYear() - 10;
     const gem = scoreListingAgainstSearch(
-      { ...baseListing, year: 2016, mileage: 40000, hand: 1, price: 80000 },
+      { ...baseListing, year: decadeOldYear, mileage: 40000, hand: 1, price: 80000 },
       baseSearch,
     );
     expect(gem.score).toBeGreaterThanOrEqual(8.0);
@@ -114,8 +115,9 @@ describe("scoreListingAgainstSearch", () => {
   });
 
   it("high-km car with many owners scores poorly", () => {
+    const decadeOldYear = new Date().getFullYear() - 10;
     const beater = scoreListingAgainstSearch(
-      { ...baseListing, year: 2016, mileage: 200000, hand: 4, price: 50000 },
+      { ...baseListing, year: decadeOldYear, mileage: 200000, hand: 4, price: 50000 },
       baseSearch,
     );
     expect(beater.score).toBeLessThan(4.0);

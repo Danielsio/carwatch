@@ -431,7 +431,7 @@ func computeValueDelta(p FitnessParams, carAge int, condScore01 float64) (delta 
 
 		if p.MedianKm > 0 && p.Km > 0 {
 			kmDeltaPct := float64(p.MedianKm-p.Km) / float64(p.MedianKm)
-			adjExpected *= (1.0 + kmDeltaPct*kmPriceAdjFactor)
+			adjExpected *= clampRange(1.0+kmDeltaPct*kmPriceAdjFactor, 0.5, 1.5)
 		}
 
 		expectedHands := 1.0 + float64(carAge)/handExpectedRate

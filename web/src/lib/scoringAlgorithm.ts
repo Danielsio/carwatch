@@ -1,6 +1,6 @@
 /**
  * Demo scoring for landing-page Smart Match section only.
- * BES v2: additive baseline model — final = clamp(5 + condDelta + valDelta + engDelta, 0, 10).
+ * BES v2 demo: additive baseline model — final = clamp(5 + condDelta + valDelta, 0, 10).
  * Production uses market medians for value scoring; demo uses budget fallback.
  */
 
