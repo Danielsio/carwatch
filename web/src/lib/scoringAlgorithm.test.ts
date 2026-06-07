@@ -34,14 +34,10 @@ describe("scoreListingAgainstSearch", () => {
 
   it("returns a breakdown with percentage values", () => {
     const { breakdown } = scoreListingAgainstSearch(baseListing, baseSearch);
-    expect(breakdown.price).toBeGreaterThanOrEqual(0);
-    expect(breakdown.price).toBeLessThanOrEqual(100);
-    expect(breakdown.mileage).toBeGreaterThanOrEqual(0);
-    expect(breakdown.mileage).toBeLessThanOrEqual(100);
-    expect(breakdown.year).toBeGreaterThanOrEqual(0);
-    expect(breakdown.year).toBeLessThanOrEqual(100);
-    expect(breakdown.hand).toBeGreaterThanOrEqual(0);
-    expect(breakdown.hand).toBeLessThanOrEqual(100);
+    expect(breakdown.condition).toBeGreaterThanOrEqual(0);
+    expect(breakdown.condition).toBeLessThanOrEqual(100);
+    expect(breakdown.value).toBeGreaterThanOrEqual(0);
+    expect(breakdown.value).toBeLessThanOrEqual(100);
   });
 
   it("scores cheaper cars higher than expensive ones", () => {
@@ -68,18 +64,6 @@ describe("scoreListingAgainstSearch", () => {
     expect(low.score).toBeGreaterThan(high.score);
   });
 
-  it("scores newer cars higher (year breakdown)", () => {
-    const newer = scoreListingAgainstSearch(
-      { ...baseListing, year: 2023 },
-      baseSearch,
-    );
-    const older = scoreListingAgainstSearch(
-      { ...baseListing, year: 2015 },
-      baseSearch,
-    );
-    expect(newer.breakdown.year).toBeGreaterThan(older.breakdown.year);
-  });
-
   it("scores first hand higher than third hand", () => {
     const first = scoreListingAgainstSearch(
       { ...baseListing, hand: 1 },
@@ -92,66 +76,49 @@ describe("scoreListingAgainstSearch", () => {
     expect(first.score).toBeGreaterThan(third.score);
   });
 
-  it("handles zero price (NaN dimension, redistributes weight)", () => {
+  it("handles zero price (neutral value)", () => {
     const { score, breakdown } = scoreListingAgainstSearch(
       { ...baseListing, price: 0 },
       baseSearch,
     );
     expect(score).toBeGreaterThanOrEqual(0);
     expect(score).toBeLessThanOrEqual(10);
-    expect(breakdown.price).toBe(0);
+    expect(breakdown.value).toBe(50);
   });
 
-  it("handles zero mileage (NaN dimension, redistributes weight)", () => {
-    const { score, breakdown } = scoreListingAgainstSearch(
+  it("handles zero mileage (neutral condition km)", () => {
+    const { score } = scoreListingAgainstSearch(
       { ...baseListing, mileage: 0 },
       baseSearch,
     );
     expect(score).toBeGreaterThanOrEqual(0);
     expect(score).toBeLessThanOrEqual(10);
-    expect(breakdown.mileage).toBe(0);
   });
 
-  it("handles zero hand (neutral 0.5)", () => {
-    const { breakdown } = scoreListingAgainstSearch(
+  it("handles zero hand (neutral condition hand)", () => {
+    const result = scoreListingAgainstSearch(
       { ...baseListing, hand: 0 },
       baseSearch,
     );
-    expect(breakdown.hand).toBe(50);
+    expect(result.score).toBeGreaterThanOrEqual(0);
+    expect(result.score).toBeLessThanOrEqual(10);
   });
 
-  it("handles invalid year range gracefully", () => {
-    const result = scoreListingAgainstSearch(baseListing, {
-      ...baseSearch,
-      year_min: 2020,
-      year_max: 2020,
-    });
-    expect(result.breakdown.year).toBe(100);
-  });
-
-  it("gives year full marks when range is zero/negative", () => {
-    const result = scoreListingAgainstSearch(baseListing, {
-      ...baseSearch,
-      year_min: 0,
-      year_max: 0,
-    });
-    expect(result.breakdown.year).toBe(100);
-  });
-
-  it("price at max scores zero", () => {
-    const { breakdown } = scoreListingAgainstSearch(
-      { ...baseListing, price: 200000 },
+  it("low-km old car scores well (condition dominant)", () => {
+    const gem = scoreListingAgainstSearch(
+      { ...baseListing, year: 2016, mileage: 40000, hand: 1, price: 80000 },
       baseSearch,
     );
-    expect(breakdown.price).toBe(0);
+    expect(gem.score).toBeGreaterThanOrEqual(8.0);
+    expect(gem.breakdown.condition).toBeGreaterThanOrEqual(70);
   });
 
-  it("price over max scores zero", () => {
-    const { breakdown } = scoreListingAgainstSearch(
-      { ...baseListing, price: 300000 },
+  it("high-km car with many owners scores poorly", () => {
+    const beater = scoreListingAgainstSearch(
+      { ...baseListing, year: 2016, mileage: 200000, hand: 4, price: 50000 },
       baseSearch,
     );
-    expect(breakdown.price).toBe(0);
+    expect(beater.score).toBeLessThan(4.0);
   });
 });
 
