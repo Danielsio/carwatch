@@ -224,20 +224,60 @@ func abs(x int) int {
 	return x
 }
 
+// BES v2 (Buyer's Excitement Score) — additive baseline model.
+// final = clamp(5.0 + conditionDelta + valueDelta + engineDelta, 0, 10)
 const (
-	weightPrice  = 0.25
-	weightKm     = 0.30
-	weightHand   = 0.20
-	weightYear   = 0.20
-	weightEngine = 0.05
+	baselineScore = 5.0
 
-	avgKmPerYear      = 15000 // Israeli average annual mileage
-	ageAdjustKmBlend  = 0.6   // weight of age-adjusted vs cap-based km score
-	kmAgeExponent     = 1.2   // age-adjusted km scoring curve
-	kmCapExponent     = 1.5   // cap-based km scoring curve
-	handAgeBonusMax   = 0.15  // max hand score bonus for older cars
-	handAgeBonusYears = 15.0  // car age at which full bonus is reached
-	yearScoreFloor    = 0.3   // minimum year score within range
+	// Condition: km sub-delta
+	expectedKmPerYear = 15000
+	kmLowThreshold    = 0.85
+	kmLowBonusScale   = 4.2
+	kmDeadZonePenalty = 0.3
+	kmExcessSteepness = 4.7
+	kmExcessCap       = 1.5
+	kmExcessExponent  = 0.7
+
+	// Condition: hand sub-delta
+	hand1BonusBase    = 0.5
+	hand1AgeBonusRate = 0.10
+	hand1AgeBonusCap  = 0.8
+	handExpectedRate  = 5.0
+	handExcessPenalty = 1.1
+	handBelowRate     = 0.3
+	handBelowCap      = 0.3
+
+	// Condition delta bounds
+	condDeltaMin = -5.0
+	condDeltaMax = 4.5
+
+	// Value delta
+	valDeltaMin           = -3.5
+	valDeltaMax           = 2.5
+	valCondGateThreshold  = 0.55
+	valNeutralLo          = 0.92
+	valNeutralHi          = 1.05
+	valNeutralMaxPenalty  = 0.3
+	valOverpaySteepness   = 3.2
+	valOverpaySpan        = 0.30
+	kmPriceAdjFactor      = 0.15
+	handFirstPricePremium = 0.05
+	handExcessPriceDisc   = 0.07
+
+	// Budget fallback
+	budgetHighHeadroom = 0.30
+	budgetHighBonus    = 2.0
+	budgetLowHeadroom  = 0.10
+	budgetLowPenalty   = 0.5
+	budgetOverPenalty  = 1.0
+
+	// Engine delta
+	engineDeltaMax = 0.1
+
+	// UI breakdown weights (for display proportionality only)
+	condWeight   = 0.60
+	valWeight    = 0.35
+	engineWeight = 0.05
 )
 
 type FitnessParams struct {
@@ -254,10 +294,8 @@ type FitnessParams struct {
 	YearMax     int
 	EngineMinCC int
 
-	// MedianPrice is the market median price for this car's manufacturer+model+year
-	// cohort. When > 0 the price dimension scores against market value instead of
-	// the user's budget cap.
 	MedianPrice int
+	MedianKm    int
 }
 
 type DimScore struct {
@@ -278,39 +316,13 @@ type Dimension struct {
 	Score  func(p FitnessParams) float64
 }
 
-// DefaultDimensions returns the standard fitness dimensions (price, km, hand, year, engine).
-// A score function may return NaN to omit that dimension (used for price when unset).
+// DefaultDimensions returns the BES v2 dimensions (condition, value, engine).
 func DefaultDimensions() []Dimension {
 	return []Dimension{
-		{
-			Name:   "price",
-			Weight: weightPrice,
-			Score: func(p FitnessParams) float64 {
-				if p.Price <= 0 {
-					return math.NaN()
-				}
-				if p.MedianPrice > 0 {
-					return marketPriceScore(p.Price, p.MedianPrice)
-				}
-				if p.PriceMax <= 0 {
-					return math.NaN()
-				}
-				return budgetPriceScore(p.Price, p.PriceMax)
-			},
-		},
-		{Name: "km", Weight: weightKm, Score: func(p FitnessParams) float64 { return kmScore(p.Km, p.MaxKm, p.Year) }},
-		{Name: "hand", Weight: weightHand, Score: func(p FitnessParams) float64 { return handScore(p.Hand, p.MaxHand, p.Year) }},
-		{Name: "year", Weight: weightYear, Score: func(p FitnessParams) float64 { return yearScore(p.Year, p.YearMin, p.YearMax) }},
-		{Name: "engine", Weight: weightEngine, Score: func(p FitnessParams) float64 {
-			return engineScore(p.EngineVolume, p.EngineMinCC)
-		}},
+		{Name: "condition", Weight: condWeight},
+		{Name: "value", Weight: valWeight},
+		{Name: "engine", Weight: engineWeight},
 	}
-}
-
-var defaultFitnessDimensions []Dimension
-
-func init() {
-	defaultFitnessDimensions = DefaultDimensions()
 }
 
 func FitnessScore(p FitnessParams) float64 {
@@ -318,155 +330,176 @@ func FitnessScore(p FitnessParams) float64 {
 }
 
 func FitnessScoreDetailed(p FitnessParams) FitnessResult {
-	dims := make([]DimScore, 0, 5)
-
-	for _, dim := range defaultFitnessDimensions {
-		s := dim.Score(p)
-		if math.IsNaN(s) {
-			continue
-		}
-		dims = append(dims, DimScore{Name: dim.Name, Score: s, Weight: dim.Weight})
-	}
-
-	var totalWeight float64
-	for _, d := range dims {
-		totalWeight += d.Weight
-	}
-	if totalWeight <= 0 {
-		return FitnessResult{Total: 0, Dims: dims}
-	}
-
-	var weighted float64
-	for _, d := range dims {
-		weighted += (d.Weight / totalWeight) * d.Score
-	}
-
-	raw := weighted * 10.0
-	total := math.Round(raw*10) / 10
-
-	return FitnessResult{Total: total, Dims: dims}
-}
-
-// marketPriceScore scores the listing price against the market median.
-// Maps [0.7×median, 1.3×median] → [1.0, 0.0] via a sqrt curve.
-// At median the score is ~0.71 (fair asking price); 30%+ above is 0.
-func marketPriceScore(price, medianPrice int) float64 {
-	ratio := float64(price) / float64(medianPrice)
-	normalized := (ratio - 0.7) / 0.6 // 0.7→0, 1.0→0.5, 1.3→1.0
-	normalized = clamp01(normalized)
-	return math.Sqrt(1.0 - normalized)
-}
-
-// budgetPriceScore: cheaper within budget = better value (legacy fallback).
-// sqrt curve so savings have diminishing returns — 50% of budget is great,
-// 80% is decent, at-cap is low but not zero.
-func budgetPriceScore(price, priceMax int) float64 {
-	if priceMax <= 0 {
-		return 0.5
-	}
-	ratio := float64(price) / float64(priceMax)
-	if ratio >= 1.0 {
-		return 0.0
-	}
-	return math.Sqrt(1.0 - ratio)
-}
-
-// kmScore: blends age-adjusted km expectations with an absolute cap score.
-// A 12-year-old car with 82k km (~7k/yr vs 15k avg) scores well;
-// the same 82k on a 2-year-old car scores poorly.
-func kmScore(km, maxKm, carYear int) float64 {
-	if km <= 0 {
-		return math.NaN()
-	}
-
-	var ageScore float64
-	hasAge := carYear > 0
-	if hasAge {
-		carAge := currentYear() - carYear
+	carAge := 1
+	if p.Year > 0 {
+		carAge = currentYear() - p.Year
 		if carAge < 1 {
 			carAge = 1
 		}
-		expectedKm := float64(carAge * avgKmPerYear)
-		kmRatio := float64(km) / expectedKm
-		ageScore = clamp01(1.0 - math.Pow(clamp01(kmRatio), kmAgeExponent))
 	}
 
-	if maxKm > 0 {
-		capRatio := float64(km) / float64(maxKm)
-		capScore := clamp01(1.0 - math.Pow(clamp01(capRatio), kmCapExponent))
-		if !hasAge {
-			return capScore
+	kmDelta, kmScore01 := computeKmDelta(p.Km, carAge)
+	handDelta, handScore01 := computeHandDelta(p.Hand, carAge)
+	condDelta := clampRange(kmDelta+handDelta, condDeltaMin, condDeltaMax)
+	condScore01 := 0.70*kmScore01 + 0.30*handScore01
+
+	valDelta, valScore01 := computeValueDelta(p, carAge, condScore01)
+	engDelta, engScore01 := computeEngineDelta(p.EngineVolume, p.EngineMinCC)
+
+	if p.EngineMinCC > 0 && p.EngineVolume > 0 && p.EngineVolume < float64(p.EngineMinCC) {
+		return FitnessResult{
+			Total: 0,
+			Dims: []DimScore{
+				{Name: "condition", Score: condScore01, Weight: condWeight},
+				{Name: "value", Score: valScore01, Weight: valWeight},
+				{Name: "engine", Score: 0, Weight: engineWeight},
+			},
 		}
-		return ageAdjustKmBlend*ageScore + (1-ageAdjustKmBlend)*capScore
 	}
-	if !hasAge {
-		return math.NaN()
+
+	raw := baselineScore + condDelta + valDelta + engDelta
+	total := math.Round(clampRange(raw, 0, 10)*10) / 10
+
+	return FitnessResult{
+		Total: total,
+		Dims: []DimScore{
+			{Name: "condition", Score: condScore01, Weight: condWeight},
+			{Name: "value", Score: valScore01, Weight: valWeight},
+			{Name: "engine", Score: engScore01, Weight: engineWeight},
+		},
 	}
-	return ageScore
 }
 
-// handScore: base ladder plus a bonus for older cars where more owners are expected.
-func handScore(hand, maxHand, carYear int) float64 {
-	if hand <= 0 {
-		return math.NaN()
+func computeKmDelta(km int, carAge int) (delta float64, score01 float64) {
+	if km <= 0 {
+		return 0, 0.5
 	}
-	var base float64
-	if maxHand > 0 {
-		ratio := float64(hand-1) / float64(maxHand)
-		base = clamp01(1.0 - math.Pow(clamp01(ratio), 0.6))
+
+	expectedKm := float64(carAge) * expectedKmPerYear
+	kmRatio := float64(km) / expectedKm
+
+	switch {
+	case kmRatio <= kmLowThreshold:
+		delta = kmLowBonusScale * math.Sqrt((kmLowThreshold-kmRatio)/kmLowThreshold)
+	case kmRatio <= 1.0:
+		delta = -kmDeadZonePenalty * (kmRatio - kmLowThreshold) / (1.0 - kmLowThreshold)
+	default:
+		excess := math.Min(kmRatio-1.0, kmExcessCap)
+		delta = -kmDeadZonePenalty - kmExcessSteepness*math.Pow(excess, kmExcessExponent)
+	}
+
+	if kmRatio <= 1.0 {
+		score01 = 1.0 / (1.0 + math.Exp(4.0*(kmRatio-0.7)))
 	} else {
-		switch hand {
-		case 1:
-			base = 1.0
-		case 2:
-			base = 0.7
-		case 3:
-			base = 0.4
-		default:
-			base = 0.1
-		}
+		score01 = 1.0 / (1.0 + math.Exp(5.0*(kmRatio-1.0)))
 	}
-	// Older cars naturally have more owners; don't penalize as harshly.
-	if hand > 1 && carYear > 0 {
-		age := float64(currentYear() - carYear)
-		if age < 1 {
-			age = 1
-		}
-		bonus := clamp01(age/handAgeBonusYears) * handAgeBonusMax
-		base = clamp01(base + bonus)
-	}
-	return base
+
+	return delta, score01
 }
 
-// yearScore: position within search range with a floor so older-in-range
-// cars aren't crushed — price and km already capture age effects.
-func yearScore(year, yearMin, yearMax int) float64 {
-	if yearMin <= 0 || yearMax <= 0 || yearMax <= yearMin {
-		return 1.0
+func computeHandDelta(hand int, carAge int) (delta float64, score01 float64) {
+	if hand <= 0 {
+		return 0, 0.5
 	}
-	pos := clamp01(float64(year-yearMin) / float64(yearMax-yearMin))
-	return yearScoreFloor + (1.0-yearScoreFloor)*math.Sqrt(pos)
+
+	if hand == 1 {
+		ageBonus := math.Min(hand1AgeBonusCap, float64(carAge)*hand1AgeBonusRate)
+		return hand1BonusBase + ageBonus, 1.0
+	}
+
+	expectedHands := 1.0 + float64(carAge)/handExpectedRate
+	handExcess := float64(hand) - expectedHands
+
+	if handExcess <= 0 {
+		delta = clampRange(-handExcess*handBelowRate, 0, handBelowCap)
+		score01 = clamp01(0.7 + (-handExcess)*0.15)
+	} else {
+		delta = -handExcessPenalty * handExcess
+		score01 = clamp01(0.5 - handExcess*0.25)
+	}
+
+	return delta, score01
+}
+
+func computeValueDelta(p FitnessParams, carAge int, condScore01 float64) (delta float64, score01 float64) {
+	if p.Price <= 0 {
+		return 0, 0.5
+	}
+
+	if p.MedianPrice > 0 {
+		adjExpected := float64(p.MedianPrice)
+
+		if p.MedianKm > 0 && p.Km > 0 {
+			kmDeltaPct := float64(p.MedianKm-p.Km) / float64(p.MedianKm)
+			adjExpected *= (1.0 + kmDeltaPct*kmPriceAdjFactor)
+		}
+
+		expectedHands := 1.0 + float64(carAge)/handExpectedRate
+		if p.Hand == 1 && carAge >= 3 {
+			adjExpected *= (1.0 + handFirstPricePremium)
+		} else if p.Hand > 0 && float64(p.Hand) > expectedHands {
+			excess := float64(p.Hand) - expectedHands
+			adjExpected *= math.Max(0.85, 1.0-excess*handExcessPriceDisc)
+		}
+
+		ratio := float64(p.Price) / adjExpected
+
+		switch {
+		case ratio < 0.80:
+			delta = valDeltaMax
+		case ratio < valNeutralLo:
+			delta = valDeltaMax * (valNeutralLo - ratio) / (valNeutralLo - 0.80)
+		case ratio <= valNeutralHi:
+			delta = -valNeutralMaxPenalty * (ratio - valNeutralLo) / (valNeutralHi - valNeutralLo)
+		default:
+			overpay := (ratio - valNeutralHi) / valOverpaySpan
+			delta = clampRange(-valNeutralMaxPenalty-valOverpaySteepness*math.Pow(math.Min(overpay, 1.0), 0.7), valDeltaMin, -valNeutralMaxPenalty)
+		}
+
+		if delta > 0 && condScore01 < valCondGateThreshold {
+			delta *= condScore01 / valCondGateThreshold
+		}
+	} else if p.PriceMax > 0 {
+		headroom := 1.0 - float64(p.Price)/float64(p.PriceMax)
+		switch {
+		case headroom >= budgetHighHeadroom:
+			delta = budgetHighBonus
+		case headroom >= budgetLowHeadroom:
+			delta = budgetHighBonus * (headroom - budgetLowHeadroom) / (budgetHighHeadroom - budgetLowHeadroom)
+		case headroom >= 0:
+			delta = -budgetLowPenalty * (budgetLowHeadroom - headroom) / budgetLowHeadroom
+		default:
+			delta = -budgetOverPenalty
+		}
+	} else {
+		return 0, 0.5
+	}
+
+	delta = clampRange(delta, valDeltaMin, valDeltaMax)
+	score01 = clamp01(0.5 + delta/5.0)
+	return delta, score01
+}
+
+func computeEngineDelta(engineVolume float64, engineMinCC int) (delta float64, score01 float64) {
+	if engineMinCC <= 0 {
+		return 0, 1.0
+	}
+	if engineVolume <= 0 {
+		return 0, 0.5
+	}
+	minCC := float64(engineMinCC)
+	if engineVolume < minCC {
+		return 0, 0
+	}
+	bonus := (engineVolume - minCC) / (minCC * 0.5)
+	score01 = clamp01(0.7 + 0.3*bonus)
+	delta = engineDeltaMax * clamp01(bonus)
+	return delta, score01
 }
 
 // currentYear returns the calendar year. Extracted for testability.
 var currentYear = func() int {
 	return time.Now().Year()
-}
-
-func engineScore(engineVolume float64, engineMinCC int) float64 {
-	if engineMinCC <= 0 {
-		return 1.0
-	}
-	if engineVolume <= 0 {
-		return 0.5
-	}
-	minCC := float64(engineMinCC)
-	if engineVolume < minCC {
-		return 0.0
-	}
-	// Meeting the minimum scores 0.7; 50% above minimum reaches 1.0.
-	bonus := (engineVolume - minCC) / (minCC * 0.5)
-	return clamp01(0.7 + 0.3*bonus)
 }
 
 func clamp01(v float64) float64 {
@@ -475,6 +508,16 @@ func clamp01(v float64) float64 {
 	}
 	if v > 1 {
 		return 1
+	}
+	return v
+}
+
+func clampRange(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
 	}
 	return v
 }
