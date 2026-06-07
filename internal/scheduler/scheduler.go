@@ -978,25 +978,34 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 			}
 
 			// Post-enrichment MaxKm filter: drop listings whose km
-			// (now known after enrichment) exceeds this search's cap.
-			// Release dedup claims for dropped listings so they can be
-			// re-evaluated in future cycles.
+			// exceeds this search's cap OR whose km is still unknown
+			// (pending enrichment). Release dedup claims so they can
+			// be re-evaluated in future cycles once enriched.
 			if acc.search.MaxKm > 0 {
 				filtered := make([]model.RawListing, 0, len(rawForPipeline))
 				for _, r := range rawForPipeline {
-					if r.Km > 0 && r.Km > acc.search.MaxKm {
+					if r.Km <= 0 || r.Km > acc.search.MaxKm {
+						reason := "km_exceeded"
+						if r.Km <= 0 {
+							reason = "km_pending_enrichment"
+						}
 						if relErr := s.stores.Dedup.ReleaseClaim(ctx, r.Token, acc.search.ChatID, acc.search.ID); relErr != nil {
 							s.logger.ErrorContext(searchCtx,
 								"failed to release dedup claim for km-filtered listing",
-								"token", r.Token, "error", relErr.Error())
+								"token", r.Token, "reason", reason, "error", relErr.Error())
 						}
+						s.logger.InfoContext(searchCtx,
+							"holding back listing from notification pending km data",
+							"token", r.Token, "reason", reason,
+							"listing_km", r.Km, "max_km", acc.search.MaxKm,
+						)
 						continue
 					}
 					filtered = append(filtered, r)
 				}
 				if len(filtered) < len(rawForPipeline) {
 					s.logger.InfoContext(searchCtx,
-						"filtered listings exceeding km limit after enrichment",
+						"filtered listings by km limit after enrichment",
 						"search_name", acc.search.Name,
 						"chat_id", acc.search.ChatID,
 						"before", len(rawForPipeline),
