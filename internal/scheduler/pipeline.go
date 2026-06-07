@@ -66,7 +66,7 @@ type ProcessResult struct {
 //  5. Enrich with base price (if pricelist service is available)
 //  6. Build ListingRecords
 func (p *ListingPipeline) Process(ctx context.Context, raw []model.RawListing, params ProcessParams) ProcessResult {
-	log := p.logger.With("op", "pipeline", "search_id", params.SearchID, "chat_id", params.ChatID)
+	log := p.logger.With("op", "pipeline", "search_id", params.SearchID, "chat_id", params.ChatID, "search_name", params.SearchName)
 
 	if !params.SkipPrefill {
 		p.prefillFromDB(ctx, raw, log)

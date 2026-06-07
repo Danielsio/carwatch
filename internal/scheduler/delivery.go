@@ -37,6 +37,9 @@ func NewInstantDelivery(n notifier.Notifier, lang locale.Lang, opts ...func(*Ins
 	for _, o := range opts {
 		o(d)
 	}
+	if d.searchName != "" {
+		d.logger = d.logger.With("search_name", d.searchName)
+	}
 	return d
 }
 

@@ -201,9 +201,13 @@ func (c *Consumer) deadLetter(ctx context.Context, id string) {
 	}
 	if c.deadLetterHook != nil && alertErr == nil {
 		if err := c.deadLetterHook(ctx, alert); err != nil {
-			c.logger.Error("dead-letter hook failed", "id", id, "error", err)
+			c.logger.Error("dead-letter hook failed", "id", id, "chat_id", alert.ChatID, "search_name", alert.SearchName, "error", err)
 			return
 		}
+	}
+	dlAttrs := []any{"id", id, "max_retries", MaxRetries}
+	if alertErr == nil {
+		dlAttrs = append(dlAttrs, "chat_id", alert.ChatID, "search_name", alert.SearchName)
 	}
 	if err := c.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: DeadLetterStream,
@@ -211,10 +215,10 @@ func (c *Consumer) deadLetter(ctx context.Context, id string) {
 		Approx: true,
 		Values: msgs[0].Values,
 	}).Err(); err != nil {
-		c.logger.Error("dead-letter failed", "id", id, "error", err)
+		c.logger.Error("dead-letter failed", append(dlAttrs, "error", err)...)
 		return
 	} else {
-		c.logger.Warn("message dead-lettered after max retries", "id", id, "max_retries", MaxRetries)
+		c.logger.Warn("message dead-lettered after max retries", dlAttrs...)
 	}
 	c.ack(ctx, id)
 }
