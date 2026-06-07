@@ -888,7 +888,7 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				}
 				if err := s.enrichPublisher.PublishEnrich(ctx, req); err != nil {
 					s.logger.WarnContext(ctx, "failed to publish enrichment request to stream",
-						"token", l.Token, "error", err)
+						"token", l.Token, "car", l.Manufacturer+" "+l.Model, "error", err)
 				} else {
 					published++
 				}
@@ -997,6 +997,8 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				if len(filtered) < len(rawForPipeline) {
 					s.logger.InfoContext(searchCtx,
 						"filtered listings exceeding km limit after enrichment",
+						"search_name", acc.search.Name,
+						"chat_id", acc.search.ChatID,
 						"before", len(rawForPipeline),
 						"after", len(filtered),
 						"max_km", acc.search.MaxKm,
@@ -1017,9 +1019,10 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		}
 
 		// Persist listings.
+		searchLog := s.logger.With("chat_id", acc.search.ChatID, "search_name", acc.search.Name)
 		persistOK := true
 		if s.stores.Listings != nil && len(acc.result.listingRecords) > 0 {
-			if err := s.persistListings(searchCtx, acc.result.listingRecords, s.logger); err != nil {
+			if err := s.persistListings(searchCtx, acc.result.listingRecords, searchLog); err != nil {
 				persistOK = false
 			} else {
 				s.invalidateMarketCache()
@@ -1028,20 +1031,19 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		if !persistOK {
 			acc.result.newListings = nil
 			acc.result.listingRecords = nil
-			s.revertPriceRecords(searchCtx, acc.result.recordedTokens, s.logger)
+			s.revertPriceRecords(searchCtx, acc.result.recordedTokens, searchLog)
 		}
 
 		stats.newListings += len(acc.result.newListings)
 
 		// Deliver notifications.
 		if len(acc.result.newListings) > 0 || len(acc.result.priceDropMessages) > 0 {
-			s.logger.InfoContext(searchCtx, "search matched listings, preparing delivery",
-				"search_name", acc.search.Name,
+			searchLog.InfoContext(searchCtx, "search matched listings, preparing delivery",
 				"new", len(acc.result.newListings),
 				"price_drops", len(acc.result.priceDropMessages),
 			)
 		}
-		delivered := s.deliverResults(searchCtx, acc.search, acc.lang, acc.result, s.logger)
+		delivered := s.deliverResults(searchCtx, acc.search, acc.lang, acc.result, searchLog)
 		if delivered {
 			stats.notificationsSent++
 		}

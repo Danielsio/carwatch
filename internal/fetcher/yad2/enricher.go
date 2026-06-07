@@ -119,6 +119,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 				if challengeRetries >= maxChallengeRetries {
 					e.logger.WarnContext(ctx, "halting enrichment pass, source is rate-limiting with bot challenges",
 						"token", listings[i].Token,
+						"car", listings[i].Manufacturer+" "+listings[i].Model,
 						"challenges", challengeRetries,
 						"impact", fmt.Sprintf("%d remaining listings will not be enriched this cycle", len(candidates)-attempts),
 						"action_taken", "aborting enrichment, will retry unenriched listings next cycle",
@@ -129,6 +130,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 				}
 				e.logger.WarnContext(ctx, "bot challenge detected during enrichment, backing off before retry",
 					"token", listings[i].Token,
+					"car", listings[i].Manufacturer+" "+listings[i].Model,
 					"challenge_count", challengeRetries,
 					"backoff", e.cfg.ChallengeBackoff,
 				)
@@ -142,6 +144,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			consecutiveFailures++
 			e.logger.WarnContext(ctx, "failed to fetch detailed listing data for mileage enrichment",
 				"token", listings[i].Token,
+				"car", listings[i].Manufacturer+" "+listings[i].Model,
 				"error", err.Error(),
 				"impact", "listing will appear without km/city data until next cycle",
 				"action_taken", "continuing with remaining candidates",
@@ -150,6 +153,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			if consecutiveFailures >= maxConsecutiveFailures {
 				e.logger.WarnContext(ctx, "halting enrichment pass after consecutive fetch failures",
 					"token", listings[i].Token,
+					"car", listings[i].Manufacturer+" "+listings[i].Model,
 					"consecutive_failures", consecutiveFailures,
 					"impact", fmt.Sprintf("%d remaining listings will not be enriched this cycle", len(candidates)-attempts),
 					"action_taken", "aborting enrichment, unenriched listings will be retried next cycle",
@@ -183,6 +187,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			enriched++
 			e.logger.DebugContext(ctx, "successfully enriched listing with mileage and location data",
 				"token", listings[i].Token,
+				"car", listings[i].Manufacturer+" "+listings[i].Model,
 				"km", details.Km,
 				"city", details.City,
 				"has_image", details.ImageURL != "",
