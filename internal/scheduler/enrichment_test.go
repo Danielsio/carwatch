@@ -312,6 +312,51 @@ func TestEmptyFeed_NoEnrichment(t *testing.T) {
 	}
 }
 
+func TestUnenrichedListingHeldBack_WhenMaxKmSet(t *testing.T) {
+	// Listing arrives with Km=0 (not yet enriched). Search has MaxKm=130000.
+	// The listing should be held back (0 notifications) and the dedup claim
+	// released so it can be re-evaluated once the enricher fills in km.
+	f := &mockFetcher{listings: []model.RawListing{
+		{Token: "pending-km", ManufacturerID: 27, Manufacturer: "Mazda", ModelID: 10332, Model: "3",
+			Price: 90000, Year: 2020, EngineVolume: 2000, Km: 0, City: "", ImageURL: ""},
+	}}
+	d := newMockDedup()
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "mazda3-km-cap", Source: "yad2",
+				Manufacturer: 27, Model: 10332, MaxKm: 130000, Active: true},
+		},
+	}
+
+	s, err := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore: ss,
+	})
+	if err != nil {
+		t.Fatalf("create scheduler: %v", err)
+	}
+
+	if err := s.runMultiTenantCycle(context.Background()); err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.messages) != 0 {
+		t.Errorf("expected 0 notifications (km unknown, MaxKm set), got %d", len(n.messages))
+	}
+
+	// Verify the dedup claim was released so the listing re-matches after enrichment.
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	key := dedupKey{token: "pending-km", chatID: 100}
+	if d.seen[key] {
+		t.Error("dedup claim should be released for unenriched listing when MaxKm is set")
+	}
+}
+
 func TestPartialEnrichment(t *testing.T) {
 	// 3 listings match a search. Two have km data (simulating partial
 	// enrichment), the third has Km=0. All 3 should be delivered since the
