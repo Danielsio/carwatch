@@ -68,6 +68,7 @@ type Server struct {
 	vapidPublicKey   string
 	refreshMu        sync.Map
 	lastRefreshSweep atomic.Int64 // unix nano of last sweep
+	pollingInterval  time.Duration
 	fetchSem         chan struct{}
 
 	logHub   *logstream.Hub
@@ -119,9 +120,10 @@ type Config struct {
 	Fetchers     *fetcher.Factory
 	LogHub       *logstream.Hub
 	LogLevel     *slog.LevelVar
-	CycleLog     storage.CycleLogStore
-	PriceListSvc *pricelist.Service
-	Bind         string
+	CycleLog        storage.CycleLogStore
+	PriceListSvc    *pricelist.Service
+	PollingInterval time.Duration
+	Bind            string
 }
 
 func New(c Config) *Server {
@@ -163,7 +165,8 @@ func New(c Config) *Server {
 		pipeline:       scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger),
 		logHub:         c.LogHub,
 		logLevel:       c.LogLevel,
-		cycleLog:       c.CycleLog,
+		cycleLog:        c.CycleLog,
+		pollingInterval: c.PollingInterval,
 		vitals:         newVitalsRing(),
 		fetchSem:       make(chan struct{}, fetchCap),
 	}
@@ -256,6 +259,10 @@ func (s *Server) Routes() http.Handler {
 			authMux.HandleFunc("GET /api/v1/admin/logs/level", s.requireAdmin(s.adminGetLogLevel))
 			authMux.HandleFunc("PUT /api/v1/admin/logs/level", s.requireAdmin(s.adminSetLogLevel))
 		}
+	}
+
+	if s.cycleLog != nil && s.pollingInterval > 0 {
+		authMux.HandleFunc("GET /api/v1/scheduler/status", s.schedulerStatus)
 	}
 
 	if s.notifs != nil {

@@ -232,8 +232,9 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		BotUsername:  cfg.Telegram.BotUsername,
 		LogHub:       logHub,
 		LogLevel:     logLevel,
-		CycleLog:     store,
-		Fetchers:     fetcherFactory,
+		CycleLog:        store,
+		PollingInterval: cfg.Polling.Interval,
+		Fetchers:        fetcherFactory,
 		PriceListSvc: plSvc,
 		Bind:         cfg.HTTP.Bind,
 	})
