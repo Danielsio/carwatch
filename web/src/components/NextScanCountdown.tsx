@@ -3,6 +3,8 @@ import { Timer, Loader2, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSchedulerStatus } from "@/hooks/useSchedulerStatus";
 
+const DEFAULT_INTERVAL_SEC = 900; // 15 min, matches backend config default
+
 export function NextScanCountdown() {
   const { data: status } = useSchedulerStatus();
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -23,7 +25,7 @@ export function NextScanCountdown() {
   if (!status?.next_cycle_at || remaining === null) return null;
 
   const isOverdue = remaining <= 0;
-  const totalMs = (status.polling_interval_seconds ?? 900) * 1000;
+  const totalMs = (status.polling_interval_seconds || DEFAULT_INTERVAL_SEC) * 1000;
   const elapsed = totalMs - remaining;
   const progress = isOverdue ? 100 : Math.min(100, Math.max(0, (elapsed / totalMs) * 100));
 

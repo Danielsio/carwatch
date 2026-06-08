@@ -759,22 +759,25 @@ func (s *Server) adminEnrichmentStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+type schedulerStatusResponse struct {
+	LastCycleAt         *string `json:"last_cycle_at"`
+	LastCycleDurationMs int     `json:"last_cycle_duration_ms"`
+	LastCycleStatus     string  `json:"last_cycle_status"`
+	NextCycleAt         *string `json:"next_cycle_at"`
+	PollingIntervalSec  int     `json:"polling_interval_seconds"`
+}
+
 func (s *Server) schedulerStatus(w http.ResponseWriter, r *http.Request) {
+	log := s.handlerLogger(r, "op", "scheduler_status")
+
 	entries, err := s.cycleLog.ListCycleLogs(r.Context(), 1)
 	if err != nil {
+		log.Error("failed to list cycle logs", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to get cycle log")
 		return
 	}
 
-	type response struct {
-		LastCycleAt         *string `json:"last_cycle_at"`
-		LastCycleDurationMs int     `json:"last_cycle_duration_ms"`
-		LastCycleStatus     string  `json:"last_cycle_status"`
-		NextCycleAt         *string `json:"next_cycle_at"`
-		PollingIntervalSec  int     `json:"polling_interval_seconds"`
-	}
-
-	resp := response{
+	resp := schedulerStatusResponse{
 		PollingIntervalSec: int(s.pollingInterval.Seconds()),
 	}
 
