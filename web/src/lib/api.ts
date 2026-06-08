@@ -545,6 +545,10 @@ export interface SchedulerStatus {
   last_cycle_status: string;
   next_cycle_at: string | null;
   polling_interval_seconds: number;
+  searches: number;
+  listings_fetched: number;
+  listings_matched: number;
+  notifications: number;
 }
 
 export const schedulerApi = {
