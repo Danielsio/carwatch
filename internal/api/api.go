@@ -101,25 +101,25 @@ func (s *Server) Shutdown() {
 }
 
 type Config struct {
-	Catalog      catalog.Catalog
-	Searches     storage.SearchStore
-	Listings     storage.ListingStore
-	Users        storage.UserStore
-	LinkTokens   storage.LinkTokenStore
-	Prices       storage.PriceTracker
-	Admin        storage.AdminStore
-	Saved        storage.SavedListingStore
-	Hidden       storage.HiddenListingStore
-	Notifs       storage.NotificationStore
-	PushSubs     storage.PushSubscriptionStore
-	Logger       *slog.Logger
-	API          config.APIConfig
-	Push         config.PushConfig
-	FirebaseAuth TokenVerifier
-	BotUsername  string
-	Fetchers     *fetcher.Factory
-	LogHub       *logstream.Hub
-	LogLevel     *slog.LevelVar
+	Catalog         catalog.Catalog
+	Searches        storage.SearchStore
+	Listings        storage.ListingStore
+	Users           storage.UserStore
+	LinkTokens      storage.LinkTokenStore
+	Prices          storage.PriceTracker
+	Admin           storage.AdminStore
+	Saved           storage.SavedListingStore
+	Hidden          storage.HiddenListingStore
+	Notifs          storage.NotificationStore
+	PushSubs        storage.PushSubscriptionStore
+	Logger          *slog.Logger
+	API             config.APIConfig
+	Push            config.PushConfig
+	FirebaseAuth    TokenVerifier
+	BotUsername     string
+	Fetchers        *fetcher.Factory
+	LogHub          *logstream.Hub
+	LogLevel        *slog.LevelVar
 	CycleLog        storage.CycleLogStore
 	PriceListSvc    *pricelist.Service
 	PollingInterval time.Duration
@@ -140,35 +140,35 @@ func New(c Config) *Server {
 	}
 
 	return &Server{
-		catalog:        c.Catalog,
-		searches:       c.Searches,
-		listings:       c.Listings,
-		users:          c.Users,
-		linkTokens:     c.LinkTokens,
-		firebaseAuth:   c.FirebaseAuth,
-		prices:         c.Prices,
-		admin:          c.Admin,
-		saved:          c.Saved,
-		hidden:         c.Hidden,
-		notifs:         c.Notifs,
-		pushSubs:       c.PushSubs,
-		vapidPublicKey: c.Push.VAPIDPublicKey,
-		logger:         c.Logger,
-		cfg:            c.API,
-		botUsername:    c.BotUsername,
-		startTime:      time.Now(),
-		rl:             newRateLimiter(60, time.Second/60),
-		ipRL:           newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
-		guestRL:        newIPRateLimiter(15, 3*time.Minute, c.API.TrustForwardedFor),
-		fetchers:       c.Fetchers,
-		priceListSvc:   c.PriceListSvc,
-		pipeline:       scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger),
-		logHub:         c.LogHub,
-		logLevel:       c.LogLevel,
+		catalog:         c.Catalog,
+		searches:        c.Searches,
+		listings:        c.Listings,
+		users:           c.Users,
+		linkTokens:      c.LinkTokens,
+		firebaseAuth:    c.FirebaseAuth,
+		prices:          c.Prices,
+		admin:           c.Admin,
+		saved:           c.Saved,
+		hidden:          c.Hidden,
+		notifs:          c.Notifs,
+		pushSubs:        c.PushSubs,
+		vapidPublicKey:  c.Push.VAPIDPublicKey,
+		logger:          c.Logger,
+		cfg:             c.API,
+		botUsername:     c.BotUsername,
+		startTime:       time.Now(),
+		rl:              newRateLimiter(60, time.Second/60),
+		ipRL:            newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
+		guestRL:         newIPRateLimiter(15, 3*time.Minute, c.API.TrustForwardedFor),
+		fetchers:        c.Fetchers,
+		priceListSvc:    c.PriceListSvc,
+		pipeline:        scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger),
+		logHub:          c.LogHub,
+		logLevel:        c.LogLevel,
 		cycleLog:        c.CycleLog,
 		pollingInterval: c.PollingInterval,
-		vitals:         newVitalsRing(),
-		fetchSem:       make(chan struct{}, fetchCap),
+		vitals:          newVitalsRing(),
+		fetchSem:        make(chan struct{}, fetchCap),
 	}
 }
 

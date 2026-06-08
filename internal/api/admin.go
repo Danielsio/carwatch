@@ -767,11 +767,11 @@ func (s *Server) schedulerStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type response struct {
-		LastCycleAt        *string `json:"last_cycle_at"`
-		LastCycleDurationMs int    `json:"last_cycle_duration_ms"`
-		LastCycleStatus    string  `json:"last_cycle_status"`
-		NextCycleAt        *string `json:"next_cycle_at"`
-		PollingIntervalSec int     `json:"polling_interval_seconds"`
+		LastCycleAt         *string `json:"last_cycle_at"`
+		LastCycleDurationMs int     `json:"last_cycle_duration_ms"`
+		LastCycleStatus     string  `json:"last_cycle_status"`
+		NextCycleAt         *string `json:"next_cycle_at"`
+		PollingIntervalSec  int     `json:"polling_interval_seconds"`
 	}
 
 	resp := response{
