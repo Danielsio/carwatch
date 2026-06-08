@@ -539,6 +539,18 @@ export const userApi = {
   me: () => fetchAPI<UserProfile>("/me"),
 };
 
+export interface SchedulerStatus {
+  last_cycle_at: string | null;
+  last_cycle_duration_ms: number;
+  last_cycle_status: string;
+  next_cycle_at: string | null;
+  polling_interval_seconds: number;
+}
+
+export const schedulerApi = {
+  status: () => fetchAPI<SchedulerStatus>("/scheduler/status"),
+};
+
 export interface TelegramLinkResponse {
   link: string;
   expires_in_seconds: number;

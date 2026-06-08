@@ -21,6 +21,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchCard } from "@/components/SearchCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { NextScanCountdown } from "@/components/NextScanCountdown";
 import { useToast } from "@/components/ui/Toast";
 
 const STAGGER_MS = 60;
@@ -167,6 +168,13 @@ export function SearchesPage() {
           </div>
         ))}
       </div>
+
+      {/* Next scan countdown */}
+      {totalSearches > 0 && (
+        <div className="animate-slide-up motion-reduce:animate-none" style={{ animationDelay: "40ms", animationFillMode: "backwards" }}>
+          <NextScanCountdown />
+        </div>
+      )}
 
       {/* Daily digest */}
       {totalSearches > 0 && (
