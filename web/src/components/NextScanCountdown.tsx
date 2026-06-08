@@ -26,13 +26,16 @@ export function NextScanCountdown() {
 
   const isOverdue = remaining <= 0;
   const totalMs = (status.polling_interval_seconds || DEFAULT_INTERVAL_SEC) * 1000;
-  const elapsed = totalMs - remaining;
-  const progress = isOverdue ? 100 : Math.min(100, Math.max(0, (elapsed / totalMs) * 100));
+  const elapsed = isOverdue ? totalMs : totalMs - remaining;
+  const progress = Math.min(100, Math.max(0, (elapsed / totalMs) * 100));
 
   const mins = Math.max(0, Math.floor(remaining / 60_000));
   const secs = Math.max(0, Math.floor((remaining % 60_000) / 1000));
 
-  const hasStats = status.last_cycle_at && status.listings_fetched > 0;
+  const fetched = status.listings_fetched ?? 0;
+  const matched = status.listings_matched ?? 0;
+  const notifs = status.notifications ?? 0;
+  const hasStats = !!status.last_cycle_at && fetched > 0;
 
   return (
     <div
@@ -45,7 +48,7 @@ export function NextScanCountdown() {
       )}
     >
       {/* Progress bar */}
-      <div className="absolute inset-x-0 bottom-0 h-[2px] bg-border/20">
+      <div className="absolute inset-x-0 bottom-0 h-1 bg-border/20">
         <div
           className={cn(
             "h-full transition-all duration-1000 ease-linear rounded-full",
@@ -65,11 +68,11 @@ export function NextScanCountdown() {
           )}
         >
           {isOverdue ? (
-            <Loader2 className="h-4 w-4 text-primary animate-spin" />
+            <Loader2 className="h-4 w-4 text-primary animate-spin" aria-label="סורק" />
           ) : remaining < 60_000 ? (
-            <CheckCircle2 className="h-4 w-4 text-success" />
+            <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
           ) : (
-            <Timer className="h-4 w-4 text-muted-foreground" />
+            <Timer className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           )}
         </div>
 
@@ -82,25 +85,25 @@ export function NextScanCountdown() {
         {/* Last cycle stats */}
         {hasStats && !isOverdue && (
           <div className="hidden sm:flex items-center gap-3 text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1" title="מודעות שנסרקו">
-              <Eye className="h-3 w-3" />
-              <span className="tabular-nums">{status.listings_fetched.toLocaleString()}</span>
+            <span className="flex items-center gap-1" aria-label={`${fetched.toLocaleString()} מודעות נסרקו`}>
+              <Eye className="h-3 w-3" aria-hidden="true" />
+              <span className="tabular-nums">{fetched.toLocaleString()}</span>
             </span>
-            <span className="flex items-center gap-1" title="התאמות">
-              <Filter className="h-3 w-3" />
-              <span className="tabular-nums">{status.listings_matched}</span>
+            <span className="flex items-center gap-1" aria-label={`${matched.toLocaleString()} התאמות`}>
+              <Filter className="h-3 w-3" aria-hidden="true" />
+              <span className="tabular-nums">{matched.toLocaleString()}</span>
             </span>
-            {status.notifications > 0 && (
-              <span className="flex items-center gap-1 text-primary" title="התראות שנשלחו">
-                <Bell className="h-3 w-3" />
-                <span className="tabular-nums">{status.notifications}</span>
+            {notifs > 0 && (
+              <span className="flex items-center gap-1 text-primary font-medium" aria-label={`${notifs.toLocaleString()} התראות נשלחו`}>
+                <Bell className="h-3 w-3" aria-hidden="true" />
+                <span className="tabular-nums">{notifs.toLocaleString()}</span>
               </span>
             )}
           </div>
         )}
 
         {!isOverdue && (
-          <p className="text-sm font-semibold tabular-nums text-foreground tracking-tight">
+          <p className="text-base font-bold tabular-nums text-foreground tracking-tight" role="timer" aria-live="off">
             {mins}:{String(secs).padStart(2, "0")}
           </p>
         )}
