@@ -159,9 +159,9 @@ func TestRunMultiTenantCycle_SharedScraping(t *testing.T) {
 	fetchCalls := f.calls
 	f.mu.Unlock()
 
-	// 1 global feed + 1 targeted fetch for the shared (27, 10332) pair.
-	if fetchCalls != 2 {
-		t.Errorf("fetcher called %d times, want 2 (global + targeted)", fetchCalls)
+	// 1 global feed + 2 targeted fetches (different year/price filters per search).
+	if fetchCalls != 3 {
+		t.Errorf("fetcher called %d times, want 3 (global + 2 targeted)", fetchCalls)
 	}
 
 	n.mu.Lock()

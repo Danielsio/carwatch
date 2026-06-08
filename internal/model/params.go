@@ -44,6 +44,23 @@ func FilterCriteriaFromSearch(s *storage.Search) FilterCriteria {
 	return criteria
 }
 
+// SourceParamsFromSearch builds the SourceParams sent to listing sources
+// from a saved search definition. Used by both the scheduler's targeted
+// fetches and the API refresh handler.
+func SourceParamsFromSearch(s *storage.Search) SourceParams {
+	return SourceParams{
+		Manufacturer: s.Manufacturer,
+		Model:        s.Model,
+		YearMin:      s.YearMin,
+		YearMax:      s.YearMax,
+		PriceMin:     s.PriceMin,
+		PriceMax:     s.PriceMax,
+		MaxKm:        s.MaxKm,
+		MaxHand:      s.MaxHand,
+		EngineMinCC:  s.EngineMinCC,
+	}
+}
+
 // SourceParams defines the search parameters sent to listing sources.
 type SourceParams struct {
 	Manufacturer int

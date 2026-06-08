@@ -118,17 +118,7 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			continue
 		}
-		params := model.SourceParams{
-			Manufacturer: sr.Manufacturer,
-			Model:        sr.Model,
-			YearMin:      sr.YearMin,
-			YearMax:      sr.YearMax,
-			PriceMin:     sr.PriceMin,
-			PriceMax:     sr.PriceMax,
-			MaxKm:        sr.MaxKm,
-			MaxHand:      sr.MaxHand,
-			EngineMinCC:  sr.EngineMinCC,
-		}
+		params := model.SourceParamsFromSearch(sr)
 
 		var raw []model.RawListing
 		var fetchErr error

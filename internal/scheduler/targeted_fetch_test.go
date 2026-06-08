@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -10,22 +11,26 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
-// paramAwareFetcher returns different listings based on SourceParams.
+// paramAwareFetcher returns different listings based on the full SourceParams.
 type paramAwareFetcher struct {
 	mu       sync.Mutex
 	calls    []model.SourceParams
-	results  map[paramKey][]model.RawListing
-	errors   map[paramKey]error
+	results  map[string][]model.RawListing
+	errors   map[string]error
 	fallback []model.RawListing
 }
 
-type paramKey struct{ Manufacturer, Model int }
+func paramKeyStr(p model.SourceParams) string {
+	return fmt.Sprintf("%d:%d:%d-%d:%d-%d:%d:%d:%d",
+		p.Manufacturer, p.Model, p.YearMin, p.YearMax,
+		p.PriceMin, p.PriceMax, p.MaxKm, p.MaxHand, p.EngineMinCC)
+}
 
 func (f *paramAwareFetcher) Fetch(_ context.Context, p model.SourceParams) ([]model.RawListing, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, p)
-	key := paramKey{p.Manufacturer, p.Model}
+	key := paramKeyStr(p)
 	if err, ok := f.errors[key]; ok {
 		return nil, err
 	}
@@ -48,8 +53,10 @@ func TestFetchTargetedListings_NoPairsNoFetch(t *testing.T) {
 	f := &paramAwareFetcher{}
 	s := newTestSchedulerWithFetcher(f)
 
+	// Wildcard searches (Manufacturer=0 or Model=0) should not trigger targeted fetches.
 	searches := []storage.Search{
 		{ID: 1, Manufacturer: 0, Model: 0},
+		{ID: 2, Manufacturer: 27, Model: 0},
 	}
 	global := []model.RawListing{{Token: "g1"}}
 	result := s.fetchTargetedListings(context.Background(), searches, global, f)
@@ -60,15 +67,22 @@ func TestFetchTargetedListings_NoPairsNoFetch(t *testing.T) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if len(f.calls) != 0 {
-		t.Errorf("expected 0 fetch calls for wildcard-only searches, got %d", len(f.calls))
+		t.Errorf("expected 0 fetch calls for wildcard searches, got %d", len(f.calls))
 	}
 }
 
-func TestFetchTargetedListings_FetchesUncoveredPair(t *testing.T) {
+func TestFetchTargetedListings_FetchesWithFullParams(t *testing.T) {
+	// Search has year/price/km filters — targeted fetch should pass them all.
+	sr := storage.Search{
+		ID: 1, Manufacturer: 27, Model: 10332,
+		YearMin: 2020, YearMax: 2024, PriceMax: 150000,
+		MaxKm: 130000, MaxHand: 3, EngineMinCC: 1600,
+	}
+	key := paramKeyStr(model.SourceParamsFromSearch(&sr))
+
 	f := &paramAwareFetcher{
-		results: map[paramKey][]model.RawListing{
-			{0, 0}: {{Token: "g1", ManufacturerID: 99, ModelID: 999}},
-			{27, 10332}: {
+		results: map[string][]model.RawListing{
+			key: {
 				{Token: "t1", ManufacturerID: 27, ModelID: 10332},
 				{Token: "t2", ManufacturerID: 27, ModelID: 10332},
 			},
@@ -76,11 +90,8 @@ func TestFetchTargetedListings_FetchesUncoveredPair(t *testing.T) {
 	}
 	s := newTestSchedulerWithFetcher(f)
 
-	searches := []storage.Search{
-		{ID: 1, Manufacturer: 27, Model: 10332},
-	}
 	global := []model.RawListing{{Token: "g1", ManufacturerID: 99, ModelID: 999}}
-	result := s.fetchTargetedListings(context.Background(), searches, global, f)
+	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr}, global, f)
 
 	if len(result) != 3 {
 		t.Errorf("expected 3 listings (1 global + 2 targeted), got %d", len(result))
@@ -91,44 +102,61 @@ func TestFetchTargetedListings_FetchesUncoveredPair(t *testing.T) {
 	if len(f.calls) != 1 {
 		t.Fatalf("expected 1 targeted fetch call, got %d", len(f.calls))
 	}
-	if f.calls[0].Manufacturer != 27 || f.calls[0].Model != 10332 {
-		t.Errorf("targeted fetch used wrong params: %+v", f.calls[0])
+	c := f.calls[0]
+	if c.Manufacturer != 27 || c.Model != 10332 {
+		t.Errorf("wrong manufacturer/model: %+v", c)
+	}
+	if c.YearMin != 2020 || c.YearMax != 2024 {
+		t.Errorf("expected year range 2020-2024, got %d-%d", c.YearMin, c.YearMax)
+	}
+	if c.PriceMax != 150000 {
+		t.Errorf("expected PriceMax=150000, got %d", c.PriceMax)
+	}
+	if c.MaxKm != 130000 {
+		t.Errorf("expected MaxKm=130000, got %d", c.MaxKm)
 	}
 }
 
-func TestFetchTargetedListings_SkipsWellCoveredPair(t *testing.T) {
-	f := &paramAwareFetcher{}
+func TestFetchTargetedListings_AlwaysFetchesRegardlessOfCoverage(t *testing.T) {
+	// Even with many global-feed listings for a model, a targeted fetch
+	// should still run to ensure full filter coverage.
+	sr := storage.Search{ID: 1, Manufacturer: 27, Model: 10332, YearMin: 2020}
+	key := paramKeyStr(model.SourceParamsFromSearch(&sr))
+	f := &paramAwareFetcher{
+		results: map[string][]model.RawListing{
+			key: {{Token: "targeted1", ManufacturerID: 27, ModelID: 10332}},
+		},
+	}
 	s := newTestSchedulerWithFetcher(f)
 
-	searches := []storage.Search{
-		{ID: 1, Manufacturer: 27, Model: 10332},
-	}
-	// Global feed already has 5 listings for this pair.
-	global := make([]model.RawListing, 5)
+	// Global feed already has 10 listings for this model.
+	global := make([]model.RawListing, 10)
 	for i := range global {
 		global[i] = model.RawListing{
-			Token:          "g" + string(rune('0'+i)),
+			Token:          fmt.Sprintf("g%d", i),
 			ManufacturerID: 27,
 			ModelID:        10332,
 		}
 	}
 
-	result := s.fetchTargetedListings(context.Background(), searches, global, f)
+	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr}, global, f)
 
-	if len(result) != 5 {
-		t.Errorf("expected 5 listings (no targeted fetch), got %d", len(result))
-	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if len(f.calls) != 0 {
-		t.Errorf("expected 0 fetch calls (pair well-covered), got %d", len(f.calls))
+	if len(f.calls) != 1 {
+		t.Errorf("expected 1 fetch call (no coverage threshold), got %d", len(f.calls))
+	}
+	if len(result) != 11 {
+		t.Errorf("expected 11 listings (10 global + 1 targeted), got %d", len(result))
 	}
 }
 
 func TestFetchTargetedListings_DeduplicatesTokens(t *testing.T) {
+	sr := storage.Search{ID: 1, Manufacturer: 17, Model: 10182}
+	key := paramKeyStr(model.SourceParamsFromSearch(&sr))
 	f := &paramAwareFetcher{
-		results: map[paramKey][]model.RawListing{
-			{17, 10182}: {
+		results: map[string][]model.RawListing{
+			key: {
 				{Token: "shared", ManufacturerID: 17, ModelID: 10182},
 				{Token: "new1", ManufacturerID: 17, ModelID: 10182},
 			},
@@ -136,12 +164,8 @@ func TestFetchTargetedListings_DeduplicatesTokens(t *testing.T) {
 	}
 	s := newTestSchedulerWithFetcher(f)
 
-	searches := []storage.Search{
-		{ID: 1, Manufacturer: 17, Model: 10182},
-	}
 	global := []model.RawListing{{Token: "shared", ManufacturerID: 17, ModelID: 10182}}
-
-	result := s.fetchTargetedListings(context.Background(), searches, global, f)
+	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr}, global, f)
 
 	if len(result) != 2 {
 		t.Errorf("expected 2 listings (1 shared deduped + 1 new), got %d", len(result))
@@ -159,25 +183,23 @@ func TestFetchTargetedListings_DeduplicatesTokens(t *testing.T) {
 }
 
 func TestFetchTargetedListings_FetchErrorContinues(t *testing.T) {
+	sr1 := storage.Search{ID: 1, Manufacturer: 27, Model: 10332}
+	sr2 := storage.Search{ID: 2, Manufacturer: 19, Model: 10222}
+	key2 := paramKeyStr(model.SourceParamsFromSearch(&sr2))
+
 	f := &paramAwareFetcher{
-		results: map[paramKey][]model.RawListing{
-			{19, 10222}: {{Token: "ok1", ManufacturerID: 19, ModelID: 10222}},
+		results: map[string][]model.RawListing{
+			key2: {{Token: "ok1", ManufacturerID: 19, ModelID: 10222}},
 		},
-		errors: map[paramKey]error{
-			{27, 10332}: fetcher.ErrChallenge,
+		errors: map[string]error{
+			paramKeyStr(model.SourceParamsFromSearch(&sr1)): fetcher.ErrChallenge,
 		},
 	}
 	s := newTestSchedulerWithFetcher(f)
 
-	searches := []storage.Search{
-		{ID: 1, Manufacturer: 27, Model: 10332},
-		{ID: 2, Manufacturer: 19, Model: 10222},
-	}
 	global := []model.RawListing{{Token: "g1"}}
+	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr1, sr2}, global, f)
 
-	result := s.fetchTargetedListings(context.Background(), searches, global, f)
-
-	// Should have global + successful targeted fetch, despite first pair failing.
 	hasOk1 := false
 	for _, l := range result {
 		if l.Token == "ok1" {
@@ -185,66 +207,84 @@ func TestFetchTargetedListings_FetchErrorContinues(t *testing.T) {
 		}
 	}
 	if !hasOk1 {
-		t.Error("expected targeted listing 'ok1' from successful pair, not found")
+		t.Error("expected targeted listing 'ok1' from successful search, not found")
 	}
 }
 
-func TestFetchTargetedListings_SharedPairFetchedOnce(t *testing.T) {
+func TestFetchTargetedListings_IdenticalParamsFetchedOnce(t *testing.T) {
+	// Two searches with the same model AND same filters → one fetch.
+	sr1 := storage.Search{ID: 1, ChatID: 100, Manufacturer: 27, Model: 10332, YearMin: 2020}
+	sr2 := storage.Search{ID: 2, ChatID: 200, Manufacturer: 27, Model: 10332, YearMin: 2020}
+	key := paramKeyStr(model.SourceParamsFromSearch(&sr1))
+
 	f := &paramAwareFetcher{
-		results: map[paramKey][]model.RawListing{
-			{27, 10332}: {{Token: "t1", ManufacturerID: 27, ModelID: 10332}},
+		results: map[string][]model.RawListing{
+			key: {{Token: "t1", ManufacturerID: 27, ModelID: 10332}},
 		},
 	}
 	s := newTestSchedulerWithFetcher(f)
 
-	// Two searches for the same manufacturer/model pair.
-	searches := []storage.Search{
-		{ID: 1, ChatID: 100, Manufacturer: 27, Model: 10332},
-		{ID: 2, ChatID: 200, Manufacturer: 27, Model: 10332},
-	}
 	global := []model.RawListing{{Token: "g1"}}
-
-	result := s.fetchTargetedListings(context.Background(), searches, global, f)
+	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr1, sr2}, global, f)
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
-
-	targetedCalls := 0
-	for _, c := range f.calls {
-		if c.Manufacturer == 27 && c.Model == 10332 {
-			targetedCalls++
-		}
-	}
-	if targetedCalls != 1 {
-		t.Errorf("expected 1 targeted fetch for shared pair, got %d", targetedCalls)
+	if len(f.calls) != 1 {
+		t.Errorf("expected 1 targeted fetch for identical params, got %d", len(f.calls))
 	}
 	if len(result) != 2 {
 		t.Errorf("expected 2 listings (1 global + 1 targeted), got %d", len(result))
 	}
 }
 
-func TestFetchTargetedListings_ContextCanceled(t *testing.T) {
+func TestFetchTargetedListings_DifferentFiltersFetchSeparately(t *testing.T) {
+	// Two searches for same model with different year ranges → two fetches.
+	sr1 := storage.Search{ID: 1, Manufacturer: 27, Model: 10332, YearMin: 2018, YearMax: 2020}
+	sr2 := storage.Search{ID: 2, Manufacturer: 27, Model: 10332, YearMin: 2021, YearMax: 2024}
+	key1 := paramKeyStr(model.SourceParamsFromSearch(&sr1))
+	key2 := paramKeyStr(model.SourceParamsFromSearch(&sr2))
+
 	f := &paramAwareFetcher{
-		results: map[paramKey][]model.RawListing{
-			{27, 10332}: {{Token: "t1"}},
-			{19, 10222}: {{Token: "t2"}},
+		results: map[string][]model.RawListing{
+			key1: {{Token: "old1", ManufacturerID: 27, ModelID: 10332}},
+			key2: {{Token: "new1", ManufacturerID: 27, ModelID: 10332}},
 		},
 	}
 	s := newTestSchedulerWithFetcher(f)
 
-	searches := []storage.Search{
-		{ID: 1, Manufacturer: 27, Model: 10332},
-		{ID: 2, Manufacturer: 19, Model: 10222},
+	global := []model.RawListing{{Token: "g1"}}
+	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr1, sr2}, global, f)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.calls) != 2 {
+		t.Errorf("expected 2 targeted fetches for different filters, got %d", len(f.calls))
 	}
+	if len(result) != 3 {
+		t.Errorf("expected 3 listings (1 global + 2 targeted), got %d", len(result))
+	}
+}
+
+func TestFetchTargetedListings_ContextCanceled(t *testing.T) {
+	sr1 := storage.Search{ID: 1, Manufacturer: 27, Model: 10332}
+	sr2 := storage.Search{ID: 2, Manufacturer: 19, Model: 10222}
+	key1 := paramKeyStr(model.SourceParamsFromSearch(&sr1))
+	key2 := paramKeyStr(model.SourceParamsFromSearch(&sr2))
+
+	f := &paramAwareFetcher{
+		results: map[string][]model.RawListing{
+			key1: {{Token: "t1"}},
+			key2: {{Token: "t2"}},
+		},
+	}
+	s := newTestSchedulerWithFetcher(f)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately.
+	cancel()
 
 	global := []model.RawListing{{Token: "g1"}}
-	result := s.fetchTargetedListings(ctx, searches, global, f)
+	result := s.fetchTargetedListings(ctx, []storage.Search{sr1, sr2}, global, f)
 
-	// With context already cancelled, the method should return early.
-	// Only global listings should be present — no targeted tokens.
 	if len(result) != len(global) {
 		t.Errorf("expected %d listings (global only), got %d", len(global), len(result))
 	}
@@ -252,9 +292,6 @@ func TestFetchTargetedListings_ContextCanceled(t *testing.T) {
 		if l.Token == "t1" || l.Token == "t2" {
 			t.Errorf("targeted token %q should not appear after context cancellation", l.Token)
 		}
-	}
-	if result[0].Token != "g1" {
-		t.Error("global listing 'g1' missing from result after context cancellation")
 	}
 
 	f.mu.Lock()
