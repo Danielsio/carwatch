@@ -69,6 +69,37 @@ func TestCachingFetcher_FallsBackOnError(t *testing.T) {
 	}
 }
 
+func TestCacheKeyFor_IncludesAllFilterFields(t *testing.T) {
+	base := model.SourceParams{Manufacturer: 27, Model: 10332, YearMin: 2020}
+
+	// Changing MaxKm should produce a different key.
+	withKm := base
+	withKm.MaxKm = 130000
+	if CacheKeyFor(base) == CacheKeyFor(withKm) {
+		t.Error("different MaxKm should produce different cache keys")
+	}
+
+	// Changing MaxHand should produce a different key.
+	withHand := base
+	withHand.MaxHand = 3
+	if CacheKeyFor(base) == CacheKeyFor(withHand) {
+		t.Error("different MaxHand should produce different cache keys")
+	}
+
+	// Changing EngineMinCC should produce a different key.
+	withCC := base
+	withCC.EngineMinCC = 1600
+	if CacheKeyFor(base) == CacheKeyFor(withCC) {
+		t.Error("different EngineMinCC should produce different cache keys")
+	}
+
+	// Identical params should produce the same key.
+	same := base
+	if CacheKeyFor(base) != CacheKeyFor(same) {
+		t.Error("identical params should produce the same cache key")
+	}
+}
+
 func TestCachingFetcher_EvictsOldest(t *testing.T) {
 	inner := &countingFetcher{
 		listings: []model.RawListing{{Token: "x"}},
