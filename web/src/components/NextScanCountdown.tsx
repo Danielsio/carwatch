@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Timer, Loader2, CheckCircle2 } from "lucide-react";
+import { Timer, Loader2, CheckCircle2, Eye, Filter, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSchedulerStatus } from "@/hooks/useSchedulerStatus";
 
@@ -31,6 +31,8 @@ export function NextScanCountdown() {
 
   const mins = Math.max(0, Math.floor(remaining / 60_000));
   const secs = Math.max(0, Math.floor((remaining % 60_000) / 1000));
+
+  const hasStats = status.last_cycle_at && status.listings_fetched > 0;
 
   return (
     <div
@@ -76,6 +78,26 @@ export function NextScanCountdown() {
             {isOverdue ? "סורק עכשיו..." : "סריקה הבאה"}
           </p>
         </div>
+
+        {/* Last cycle stats */}
+        {hasStats && !isOverdue && (
+          <div className="hidden sm:flex items-center gap-3 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1" title="מודעות שנסרקו">
+              <Eye className="h-3 w-3" />
+              <span className="tabular-nums">{status.listings_fetched.toLocaleString()}</span>
+            </span>
+            <span className="flex items-center gap-1" title="התאמות">
+              <Filter className="h-3 w-3" />
+              <span className="tabular-nums">{status.listings_matched}</span>
+            </span>
+            {status.notifications > 0 && (
+              <span className="flex items-center gap-1 text-primary" title="התראות שנשלחו">
+                <Bell className="h-3 w-3" />
+                <span className="tabular-nums">{status.notifications}</span>
+              </span>
+            )}
+          </div>
+        )}
 
         {!isOverdue && (
           <p className="text-sm font-semibold tabular-nums text-foreground tracking-tight">

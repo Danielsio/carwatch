@@ -765,6 +765,10 @@ type schedulerStatusResponse struct {
 	LastCycleStatus     string  `json:"last_cycle_status"`
 	NextCycleAt         *string `json:"next_cycle_at"`
 	PollingIntervalSec  int     `json:"polling_interval_seconds"`
+	Searches            int     `json:"searches"`
+	ListingsFetched     int     `json:"listings_fetched"`
+	ListingsMatched     int     `json:"listings_matched"`
+	Notifications       int     `json:"notifications"`
 }
 
 func (s *Server) schedulerStatus(w http.ResponseWriter, r *http.Request) {
@@ -787,6 +791,10 @@ func (s *Server) schedulerStatus(w http.ResponseWriter, r *http.Request) {
 		resp.LastCycleAt = &ts
 		resp.LastCycleDurationMs = last.DurationMs
 		resp.LastCycleStatus = last.Status
+		resp.Searches = last.Searches
+		resp.ListingsFetched = last.ListingsFetched
+		resp.ListingsMatched = last.ListingsMatched
+		resp.Notifications = last.Notifications
 
 		next := last.StartedAt.Add(time.Duration(last.DurationMs)*time.Millisecond + s.pollingInterval)
 		nextStr := next.UTC().Format(time.RFC3339)
