@@ -53,8 +53,10 @@ func TestFetchTargetedListings_NoPairsNoFetch(t *testing.T) {
 	f := &paramAwareFetcher{}
 	s := newTestSchedulerWithFetcher(f)
 
+	// Wildcard searches (Manufacturer=0 or Model=0) should not trigger targeted fetches.
 	searches := []storage.Search{
 		{ID: 1, Manufacturer: 0, Model: 0},
+		{ID: 2, Manufacturer: 27, Model: 0},
 	}
 	global := []model.RawListing{{Token: "g1"}}
 	result := s.fetchTargetedListings(context.Background(), searches, global, f)
@@ -65,7 +67,7 @@ func TestFetchTargetedListings_NoPairsNoFetch(t *testing.T) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if len(f.calls) != 0 {
-		t.Errorf("expected 0 fetch calls for wildcard-only searches, got %d", len(f.calls))
+		t.Errorf("expected 0 fetch calls for wildcard searches, got %d", len(f.calls))
 	}
 }
 

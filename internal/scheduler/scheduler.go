@@ -619,7 +619,7 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 
 	var fetched, added int
 	for _, sr := range searches {
-		if sr.Manufacturer == 0 {
+		if sr.Manufacturer == 0 || sr.Model == 0 {
 			continue
 		}
 
