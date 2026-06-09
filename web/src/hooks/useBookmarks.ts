@@ -184,9 +184,9 @@ export function useRemoveBookmark() {
   });
 }
 
-export function useHistory(limit = 20, offset = 0) {
+export function useHistory(limit = 20, offset = 0, sort?: string) {
   return useQuery({
-    queryKey: ["history", { limit, offset }],
-    queryFn: () => api.history({ limit, offset }),
+    queryKey: ["history", { limit, offset, sort }],
+    queryFn: () => api.history({ limit, offset, sort }),
   });
 }

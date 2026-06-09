@@ -241,6 +241,7 @@ export const api = {
     const query = new URLSearchParams();
     if (params?.limit !== undefined) query.set("limit", String(params.limit));
     if (params?.offset !== undefined) query.set("offset", String(params.offset));
+    if (params?.sort) query.set("sort", params.sort);
     const qs = query.toString();
     return fetchAPI<ListingsResponse>(`/history${qs ? `?${qs}` : ""}`);
   },

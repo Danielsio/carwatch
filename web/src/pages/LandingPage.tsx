@@ -34,13 +34,25 @@ export function LandingPage() {
     >
       <LandingNav />
       <HeroSection />
-      <Suspense>
+      <Suspense fallback={<div className="min-h-[200px]" />}>
         <ProblemSolution />
+      </Suspense>
+      <Suspense fallback={<div className="min-h-[200px]" />}>
         <FeaturesSection />
+      </Suspense>
+      <Suspense fallback={<div className="min-h-[200px]" />}>
         <SmartScoreSection />
+      </Suspense>
+      <Suspense fallback={<div className="min-h-[200px]" />}>
         <HowItWorks />
+      </Suspense>
+      <Suspense fallback={<div className="min-h-[200px]" />}>
         <StatsSection />
+      </Suspense>
+      <Suspense fallback={<div className="min-h-[200px]" />}>
         <FinalCTA />
+      </Suspense>
+      <Suspense fallback={<div className="min-h-[200px]" />}>
         <LandingFooter version={version} />
       </Suspense>
     </div>

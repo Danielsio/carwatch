@@ -97,7 +97,7 @@ export function FeaturesSection() {
           </div>
         </FadeUp>
 
-        <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-4">
           {features.map((f, i) => {
             const Icon = f.icon;
             return (

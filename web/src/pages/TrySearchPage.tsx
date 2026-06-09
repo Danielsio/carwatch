@@ -11,6 +11,12 @@ import {
 } from "@/lib/api";
 import { formatPrice, safeHref } from "@/lib/utils";
 import { ChipButton } from "@/components/ui/ChipButton";
+
+const GEARBOX_OPTIONS = [
+  { value: "", label: "הכל" },
+  { value: "אוטומט", label: "אוטומט" },
+  { value: "ידני", label: "ידני" },
+];
 import { Input } from "@/components/ui/Input";
 import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Select } from "@/components/ui/Select";
@@ -66,6 +72,7 @@ interface GuestFormData {
   priceMax: number;
   maxKm: number;
   maxHand: number;
+  gearBox: string;
 }
 
 const INITIAL_FORM: GuestFormData = {
@@ -77,6 +84,7 @@ const INITIAL_FORM: GuestFormData = {
   priceMax: 0,
   maxKm: 0,
   maxHand: 0,
+  gearBox: "",
 };
 
 const STORAGE_KEY = "carwatch_try_search_form";
@@ -134,6 +142,7 @@ export default function TrySearchPage() {
         price_max: form.priceMax || undefined,
         max_km: form.maxKm || undefined,
         max_hand: form.maxHand || undefined,
+        gear_box: form.gearBox || undefined,
       });
     },
     onError: (err) => {
@@ -332,6 +341,20 @@ export default function TrySearchPage() {
               </div>
             </FormField>
           </div>
+
+          <FormField label="תיבת הילוכים">
+            <div className="flex flex-wrap gap-2">
+              {GEARBOX_OPTIONS.map((opt) => (
+                <ChipButton
+                  key={opt.value}
+                  selected={form.gearBox === opt.value}
+                  onClick={() => set("gearBox", opt.value)}
+                >
+                  {opt.label}
+                </ChipButton>
+              ))}
+            </div>
+          </FormField>
         </SectionCard>
 
         {/* Submit */}
@@ -390,8 +413,17 @@ export default function TrySearchPage() {
       {search.isSuccess && results && results.length > 0 && (
         <div className="mt-10">
           <h2 className="mb-4 text-sm font-semibold text-muted-foreground">
-            נמצאו {total.toLocaleString("he-IL")} תוצאות
+            {total > results.length ? (
+              <>מציג {results.length.toLocaleString("he-IL")} מתוך {total.toLocaleString("he-IL")} תוצאות</>
+            ) : (
+              <>נמצאו {total.toLocaleString("he-IL")} תוצאות</>
+            )}
           </h2>
+          {total > results.length && (
+            <p className="mb-4 text-xs text-muted-foreground">
+              הירשם בחינם כדי לראות את כל {total.toLocaleString("he-IL")} התוצאות ולקבל התראות על מודעות חדשות
+            </p>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             {results.map((listing) => {
