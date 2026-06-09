@@ -84,7 +84,7 @@ export function NextScanCountdown() {
 
         {/* Last cycle stats */}
         {hasStats && !isOverdue && (
-          <div className="hidden sm:flex items-center gap-3 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-2 sm:gap-3 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1" aria-label={`${fetched.toLocaleString()} מודעות נסרקו`}>
               <Eye className="h-3 w-3" aria-hidden="true" />
               <span className="tabular-nums">{fetched.toLocaleString()}</span>

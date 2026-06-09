@@ -285,7 +285,9 @@ export function SettingsPage() {
       <section className="rounded-2xl border border-border/50 bg-card p-5">
         <Button
           variant="ghost"
-          onClick={() => void signOut()}
+          onClick={() => {
+            if (window.confirm("האם לצאת מהחשבון?")) void signOut();
+          }}
           className="w-full text-destructive hover:bg-destructive/5 hover:text-destructive"
         >
           <LogOut className="h-4 w-4" />

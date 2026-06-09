@@ -181,6 +181,12 @@ export default function TrySearchPage() {
         >
           <ShieldAlert className="mx-auto mb-1 h-5 w-5" aria-hidden />
           הגעת למגבלת חיפושים. הירשם לחיפושים ללא הגבלה
+          <Link
+            to="/signup"
+            className="mt-2 inline-block rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-white shadow-lg"
+          >
+            הירשם כדי להמשיך
+          </Link>
         </div>
       )}
 
