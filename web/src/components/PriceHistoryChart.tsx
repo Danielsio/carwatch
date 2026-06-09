@@ -145,7 +145,7 @@ export function PriceHistoryChart({
         </span>
       </div>
 
-      <div className="h-44 w-full" dir="ltr">
+      <div className="h-44 w-full" dir="ltr" role="img" aria-label="גרף היסטוריית מחירים">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}

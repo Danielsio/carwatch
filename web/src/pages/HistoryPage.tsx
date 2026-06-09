@@ -11,8 +11,8 @@ import {
   PageHeader,
   PageShell,
   Pagination,
-  Skeleton,
 } from "@/components/ui";
+import { ListingCardSkeleton } from "@/components/ListingCardSkeleton";
 import { Select } from "@/components/ui/Select";
 import type { Listing } from "@/lib/api";
 
@@ -43,7 +43,7 @@ export function HistoryPage() {
         <PageHeader title="היסטוריה" />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-72 rounded-2xl" />
+            <ListingCardSkeleton key={i} />
           ))}
         </div>
       </PageShell>
