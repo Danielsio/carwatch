@@ -48,7 +48,7 @@ export function SettingsPage() {
   });
 
   return (
-    <div className="space-y-6 pb-24 md:pb-8">
+    <div className="max-w-xl space-y-6 pb-24 md:pb-8">
       <PageHeader title="הגדרות" subtitle="ניהול חשבון וחיבורים" />
 
       {/* Account */}
