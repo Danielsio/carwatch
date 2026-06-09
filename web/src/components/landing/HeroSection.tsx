@@ -15,6 +15,7 @@ function FloatingCard({
     <div
       className={`glass-card absolute rounded-2xl p-3.5 shadow-xl animate-slide-up motion-reduce:animate-none ${className ?? ""}`}
       style={delay > 0 ? { animationDelay: `${delay}s`, animationFillMode: "backwards" } : undefined}
+      aria-hidden="true"
     >
       {children}
     </div>
@@ -24,13 +25,13 @@ function FloatingCard({
 export function HeroSection() {
   return (
     <section className="relative flex min-h-screen items-center justify-center pt-16">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden will-change-transform" style={{ transform: "translateZ(0)" }}>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden will-change-transform" aria-hidden="true" style={{ transform: "translateZ(0)" }}>
         <div className="absolute top-1/4 end-1/4 h-96 w-96 rounded-full bg-primary/10 blur-[100px]" />
         <div className="absolute bottom-1/3 start-1/4 h-72 w-72 rounded-full bg-purple-500/8 blur-[80px]" />
         <div className="absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[120px]" />
       </div>
 
-      <div className="landing-grid-bg pointer-events-none absolute inset-0 opacity-[0.03]" />
+      <div className="landing-grid-bg pointer-events-none absolute inset-0 opacity-[0.03]" aria-hidden="true" />
 
       <div className="relative z-10 mx-auto max-w-5xl px-4 text-center sm:px-6">
         <div
@@ -229,6 +230,7 @@ export function HeroSection() {
       <div
         className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5 animate-fade-in motion-reduce:animate-none"
         style={{ animationDelay: "1.5s", animationFillMode: "backwards" }}
+        aria-hidden="true"
       >
         <span className="text-xs text-muted-foreground/50">גלול למטה</span>
         <div className="flex h-8 w-5 items-start justify-center rounded-full border-2 border-border/50 p-1">

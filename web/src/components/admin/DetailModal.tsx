@@ -89,6 +89,7 @@ export function DetailModal({
             ref={closeRef}
             type="button"
             onClick={onClose}
+            aria-label="סגור"
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="h-4 w-4" />
