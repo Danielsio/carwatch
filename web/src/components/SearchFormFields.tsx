@@ -249,6 +249,7 @@ export function BudgetFields({
           <Input
             id="yearMin"
             type="number"
+            inputMode="numeric"
             value={form.yearMin}
             onChange={(e) => set("yearMin", Number(e.target.value))}
             min={1990}
@@ -262,6 +263,7 @@ export function BudgetFields({
           <Input
             id="yearMax"
             type="number"
+            inputMode="numeric"
             value={form.yearMax}
             onChange={(e) => set("yearMax", Number(e.target.value))}
             min={1990}
@@ -280,6 +282,7 @@ export function BudgetFields({
           <Input
             id="priceMin"
             type="number"
+            inputMode="numeric"
             value={form.priceMin || ""}
             onChange={(e) => set("priceMin", Number(e.target.value))}
             placeholder="ללא הגבלה"
@@ -295,6 +298,7 @@ export function BudgetFields({
           <Input
             id="priceMax"
             type="number"
+            inputMode="numeric"
             value={form.priceMax || ""}
             onChange={(e) => set("priceMax", Number(e.target.value))}
             placeholder="ללא הגבלה"
@@ -365,6 +369,7 @@ export function AdvancedFields({
         <Input
           id="engineMinCC"
           type="number"
+          inputMode="numeric"
           value={form.engineMinCC || ""}
           onChange={(e) => set("engineMinCC", Number(e.target.value))}
           placeholder="ללא הגבלה"

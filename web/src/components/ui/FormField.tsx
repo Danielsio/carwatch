@@ -18,8 +18,12 @@ export function FormField({
   children,
   className,
 }: FormFieldProps) {
+  const errorId = htmlFor ? `${htmlFor}-error` : undefined;
+  const hintId = htmlFor ? `${htmlFor}-hint` : undefined;
+  const describedBy = [error && errorId, hint && hintId].filter(Boolean).join(" ") || undefined;
+
   return (
-    <div className={cn("dir-rtl", className)}>
+    <div className={cn("dir-rtl", className)} data-describedby={describedBy}>
       <label
         htmlFor={htmlFor}
         className="mb-1.5 block text-sm font-medium text-foreground"
@@ -28,12 +32,12 @@ export function FormField({
       </label>
       {children}
       {error ? (
-        <p className="mt-1.5 text-xs text-destructive" role="alert">
+        <p id={errorId} className="mt-1.5 text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}
-      {hint ? (
-        <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>
+      {hint && !error ? (
+        <p id={hintId} className="mt-1.5 text-xs text-muted-foreground">{hint}</p>
       ) : null}
     </div>
   );

@@ -17,21 +17,20 @@ export function Pagination({
 }: PaginationProps) {
   if (total <= pageSize && offset === 0) return null;
 
+  const isFirst = offset <= 0;
+  const isLast = offset + pageSize >= total;
+
   return (
     <nav aria-label="ניווט עמודים" className="flex items-center justify-center gap-3 pt-4">
-      {offset > 0 && (
-        <Button variant="secondary" size="sm" onClick={onPrev}>
-          הקודם
-        </Button>
-      )}
+      <Button variant="secondary" size="sm" onClick={onPrev} disabled={isFirst}>
+        הקודם
+      </Button>
       <span className="text-sm text-muted-foreground tabular-nums">
         {offset + 1}–{Math.min(offset + pageSize, total)} מתוך {total}
       </span>
-      {offset + pageSize < total && (
-        <Button variant="secondary" size="sm" onClick={onNext}>
-          הבא
-        </Button>
-      )}
+      <Button variant="secondary" size="sm" onClick={onNext} disabled={isLast}>
+        הבא
+      </Button>
     </nav>
   );
 }

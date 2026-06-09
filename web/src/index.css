@@ -44,9 +44,9 @@
   --color-price-foreground: #92400E;
 
   /* ─── Score Tiers ─── */
-  --color-score-great: #34D399;
-  --color-score-good: #FBBF24;
-  --color-score-low: #EF4444;
+  --color-score-great: var(--score-great);
+  --color-score-good: var(--score-good);
+  --color-score-low: var(--score-low);
 
   /* ─── Chart ─── */
   --color-chart-2: #22C55E;
@@ -122,6 +122,10 @@
   --sidebar-muted: #8896A8;
 
   --glow-primary: rgba(29, 78, 216, 0.12);
+
+  --score-great: #047857;
+  --score-good: #B45309;
+  --score-low: #DC2626;
 }
 
 /* ═══ Dark Mode — Deep, immersive, cinematic ═══ */
@@ -154,6 +158,10 @@
   --sidebar-muted: #4A5568;
 
   --glow-primary: rgba(59, 130, 246, 0.18);
+
+  --score-great: #34D399;
+  --score-good: #FBBF24;
+  --score-low: #F87171;
 }
 
 /* ═══ Keyframes ═══ */
@@ -302,7 +310,7 @@ textarea:focus-visible {
 .range-slider {
   -webkit-appearance: none;
   appearance: none;
-  height: 4px;
+  height: 8px;
   border-radius: 999px;
   background: linear-gradient(
     to left,
@@ -316,8 +324,8 @@ textarea:focus-visible {
 .range-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: var(--color-primary);
   border: 3px solid var(--color-card);
@@ -332,8 +340,8 @@ textarea:focus-visible {
 }
 
 .range-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: var(--color-primary);
   border: 3px solid var(--color-card);
@@ -342,13 +350,13 @@ textarea:focus-visible {
 }
 
 .range-slider::-moz-range-track {
-  height: 4px;
+  height: 8px;
   border-radius: 999px;
   background: var(--color-border);
 }
 
 .range-slider::-moz-range-progress {
-  height: 4px;
+  height: 8px;
   border-radius: 999px;
   background: var(--color-primary);
 }

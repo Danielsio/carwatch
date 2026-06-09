@@ -17,26 +17,26 @@ describe("Pagination", () => {
     expect(screen.getByText(/1–20 מתוך 50/)).toBeInTheDocument();
   });
 
-  it("shows next button on first page", () => {
+  it("shows next button enabled on first page", () => {
     render(<Pagination {...defaults} />);
-    expect(screen.getByRole("button", { name: "הבא" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "הבא" })).toBeEnabled();
   });
 
-  it("does not show prev button on first page", () => {
+  it("disables prev button on first page", () => {
     render(<Pagination {...defaults} />);
-    expect(screen.queryByRole("button", { name: "הקודם" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "הקודם" })).toBeDisabled();
   });
 
-  it("shows both buttons on middle page", () => {
+  it("shows both buttons enabled on middle page", () => {
     render(<Pagination {...defaults} offset={20} />);
-    expect(screen.getByRole("button", { name: "הבא" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "הקודם" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "הבא" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "הקודם" })).toBeEnabled();
   });
 
-  it("does not show next button on last page", () => {
+  it("disables next button on last page", () => {
     render(<Pagination {...defaults} offset={40} />);
-    expect(screen.queryByRole("button", { name: "הבא" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "הקודם" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "הבא" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "הקודם" })).toBeEnabled();
   });
 
   it("calls onNext when next button is clicked", async () => {
@@ -69,9 +69,9 @@ describe("Pagination", () => {
     expect(screen.getByText(/41–50 מתוך 50/)).toBeInTheDocument();
   });
 
-  it("handles exact page boundary", () => {
+  it("disables next on exact page boundary", () => {
     render(<Pagination {...defaults} total={40} offset={20} />);
     expect(screen.getByText(/21–40 מתוך 40/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "הבא" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "הבא" })).toBeDisabled();
   });
 });

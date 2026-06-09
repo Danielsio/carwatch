@@ -34,7 +34,11 @@ export function showGlobalToast(message: string, type: ToastType = "info") {
 }
 
 const EXIT_MS = 220;
-const AUTO_DISMISS_MS = 3000;
+const DISMISS_MS: Record<ToastType, number> = {
+  info: 3000,
+  success: 4000,
+  error: 6000,
+};
 
 type ToastContextValue = {
   toast: (message: string, type?: ToastType) => void;
@@ -80,8 +84,8 @@ function ToastItem({
 
   return (
     <div
-      role="status"
-      aria-live="polite"
+      role={item.type === "error" ? "alert" : "status"}
+      aria-live={item.type === "error" ? "assertive" : "polite"}
       className={cn(
         "pointer-events-auto w-full max-w-md rounded-lg border px-4 py-3 text-right text-sm shadow-lg dir-rtl",
         toastTypeClass(item.type),
@@ -130,7 +134,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
       const timer = window.setTimeout(() => {
         timersRef.current.delete(timer);
         beginExit(id);
-      }, AUTO_DISMISS_MS);
+      }, DISMISS_MS[type]);
       timersRef.current.add(timer);
     },
     [beginExit],

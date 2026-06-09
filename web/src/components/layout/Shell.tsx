@@ -99,7 +99,7 @@ function SidebarNavItem({
     >
       <span
         className={cn(
-          "pointer-events-none absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full transition-all duration-150",
+          "pointer-events-none absolute start-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full transition-all duration-150",
           active
             ? "bg-primary shadow-[0_0_10px_var(--color-glow-primary)]"
             : "bg-transparent group-hover:bg-primary/40",
@@ -124,7 +124,7 @@ function SidebarNavItem({
         ) : null}
       </span>
       {active ? (
-        <div className="relative z-[1] mr-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_2px_var(--color-glow-primary)]" />
+        <div className="relative z-[1] ms-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_2px_var(--color-glow-primary)]" />
       ) : null}
     </Link>
   );
@@ -242,7 +242,7 @@ export function Shell() {
               <span className="text-xs font-medium text-primary">
                 התראות חדשות
               </span>
-              <span className="mr-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-xs font-bold text-white shadow-sm">
+              <span className="ms-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-xs font-bold text-white shadow-sm">
                 {unread > 99 ? "99+" : unread}
               </span>
             </Link>
@@ -302,7 +302,7 @@ export function Shell() {
       </aside>
 
       {/* ── Main Content ── */}
-      <main id="main-content" className="h-[100dvh] overflow-y-auto scroll-smooth pb-[var(--bottom-nav-h)] landscape:pb-16 md:mr-60 md:pb-0">
+      <main id="main-content" className="h-[100dvh] overflow-y-auto scroll-smooth pb-[var(--bottom-nav-h)] landscape:pb-16 md:me-60 md:pb-0">
         <div className="mx-auto max-w-5xl px-4 py-6 landscape:py-4 sm:px-6 md:py-8 lg:px-8">
           <div key={location.pathname} className="animate-fade-in">
             <Outlet />
@@ -344,6 +344,7 @@ export function Shell() {
               <Link
                 key={item.path}
                 to={item.path}
+                aria-label={item.label}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "group flex min-w-0 flex-1 flex-col items-center gap-0.5 px-1 py-1.5 landscape:py-0.5 text-[10px] font-medium transition-all duration-150",
