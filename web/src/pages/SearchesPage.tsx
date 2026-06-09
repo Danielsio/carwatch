@@ -135,7 +135,7 @@ export function SearchesPage() {
           {
             icon: Car,
             label: "מודעות שנמצאו",
-            value: recentListings?.total ?? 0,
+            value: searches?.reduce((sum, s) => sum + (s.listings_count ?? 0), 0) ?? 0,
             color: "text-primary",
             bg: "bg-primary/12",
             glow: "shadow-[0_4px_20px_-4px_var(--color-glow-primary)]",

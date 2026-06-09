@@ -25,7 +25,7 @@ export function FinalCTA() {
               <span className="gradient-text">הרכב שלך?</span>
             </h2>
             <p className="mx-auto mb-10 max-w-md text-base leading-relaxed text-muted-foreground">
-              הצטרף לאלפי קונים שחוסכים זמן וכסף עם CarWatch. הגדרה תוך 2 דקות,
+              חסוך זמן וכסף עם CarWatch — מעקב חכם אחרי רכבים. הגדרה תוך 2 דקות,
               בלי כרטיס אשראי.
             </p>
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">

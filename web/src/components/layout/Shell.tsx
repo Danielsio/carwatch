@@ -64,6 +64,7 @@ const mobileNav: MobileNavItem[] = [
   { path: "/dashboard", label: "ראשי", icon: LayoutDashboard, authOnly: true },
   { path: "/saved", label: "מועדפים", icon: Bookmark, authOnly: true },
   { path: "/searches/new", label: "חדש", icon: Plus, fab: true, authOnly: true },
+  { path: "/history", label: "היסטוריה", icon: History, authOnly: true },
   { path: "/notifications", label: "התראות", icon: Bell, badge: true, authOnly: true },
   { path: "/settings", label: "הגדרות", icon: Settings, authOnly: true },
 ];
@@ -275,7 +276,9 @@ export function Shell() {
           {user ? (
             <button
               type="button"
-              onClick={() => void signOut()}
+              onClick={() => {
+                if (window.confirm("האם לצאת מהחשבון?")) void signOut();
+              }}
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent px-3 py-2 text-sm font-medium text-sidebar-foreground transition-all duration-150 hover:bg-sidebar-accent-hover hover:text-foreground dark:hover:text-white active:scale-[0.99] motion-reduce:active:scale-100"
             >
               <LogOut className="h-3.5 w-3.5" aria-hidden />
@@ -311,6 +314,7 @@ export function Shell() {
       </main>
 
       {/* ── Mobile Bottom Nav ── */}
+      {user && (
       <nav
         aria-label="ניווט"
         className="fixed inset-x-0 bottom-0 z-50 border-t border-border/50 bg-card/90 shadow-[0_-2px_16px_-6px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.4)] backdrop-blur-xl backdrop-saturate-150 pb-[env(safe-area-inset-bottom,0px)] md:hidden"
@@ -374,6 +378,7 @@ export function Shell() {
           })}
         </div>
       </nav>
+      )}
     </div>
   );
 }

@@ -33,7 +33,7 @@ export function HistoryPage() {
     return (
       <PageShell>
         <PageHeader title="היסטוריה" />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-72 rounded-2xl" />
           ))}
@@ -81,7 +81,7 @@ export function HistoryPage() {
         />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {data.items.map((listing) => (
               <HistoryCard key={listing.token} listing={listing} />
             ))}

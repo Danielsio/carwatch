@@ -237,7 +237,10 @@ export function SearchCard({
       </Link>
 
       {isConfirmingDelete ? (
-        <div className="border-border/60 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3" role="alertdialog" aria-label="אישור מחיקת חיפוש">
+        <div className="border-border/60 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3" role="alertdialog" aria-label="אישור מחיקה" aria-describedby={`delete-desc-${search.id}`}>
+          <p id={`delete-desc-${search.id}`} className="sr-only">
+            האם אתה בטוח שברצונך למחוק את החיפוש &quot;{search.name}&quot;? פעולה זו לא ניתנת לביטול.
+          </p>
           <Button
             ref={confirmRef}
             type="button"

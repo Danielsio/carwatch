@@ -260,7 +260,7 @@ export function ListingsPage() {
 
       {/* Grid */}
       {showSkeletons ? (
-        <div className="grid gap-5 sm:gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <motion.div
               key={`skel-${i}`}
@@ -285,7 +285,7 @@ export function ListingsPage() {
         />
       ) : (
         <>
-          <div className="grid gap-5 sm:gap-4 sm:grid-cols-2">
+          <div className="grid gap-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <AnimatePresence mode="popLayout">
               {allListings.map((listing, i) => (
                 <motion.div

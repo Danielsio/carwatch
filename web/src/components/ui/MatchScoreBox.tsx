@@ -32,6 +32,7 @@ export function MatchScoreBox({ score, size = "md", className }: MatchScoreBoxPr
         boxShadow: `0 0 16px -4px ${scoreHslAlpha(normalized, 0.3)}, inset 0 0 0 1.5px ${scoreHslAlpha(normalized, 0.25)}`,
       }}
       aria-label={`ציון ${formatted} מתוך 10`}
+      title="ציון התאמה - ככל שהציון גבוה יותר, הרכב מתאים יותר לחיפוש שלך"
     >
       <span className="tabular-nums">{formatted}</span>
       <span className="denom font-bold opacity-50">/10</span>

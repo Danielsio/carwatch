@@ -59,7 +59,17 @@ export function PriceHistoryChart({
   }
 
   if (error || records.length === 0) {
-    return null;
+    return (
+      <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-2">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Minus className="h-4 w-4 text-muted-foreground" />
+          היסטוריית מחירים
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          אין היסטוריית מחירים
+        </p>
+      </div>
+    );
   }
 
   // Single data point: show static message
