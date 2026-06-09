@@ -85,7 +85,7 @@ function DemoCard({
       ref={ref}
       className={cn(
         "flex items-center gap-4 rounded-2xl border border-border bg-card p-4 transition-all duration-500 ease-out motion-reduce:transition-none",
-        inView ? "opacity-100 translate-x-0" : "opacity-0 translate-x-5",
+        inView ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-5",
       )}
       style={delay > 0 ? { transitionDelay: `${delay}s` } : undefined}
     >
@@ -126,8 +126,8 @@ function DemoCard({
 export function SmartScoreSection() {
   return (
     <section className="relative overflow-hidden px-4 py-24 sm:px-6">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-1/2 start-1/2 h-[300px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/6 blur-[100px]" />
+      <div className="pointer-events-none absolute inset-0 will-change-transform" style={{ transform: "translateZ(0)" }}>
+        <div className="absolute top-1/2 start-1/2 h-[300px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/6 blur-[80px]" />
       </div>
 
       <div className="relative mx-auto max-w-5xl">

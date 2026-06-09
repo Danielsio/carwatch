@@ -13,14 +13,22 @@ import {
   Pagination,
   Skeleton,
 } from "@/components/ui";
+import { Select } from "@/components/ui/Select";
 import type { Listing } from "@/lib/api";
 
 const PAGE_SIZE = 20;
 
+const SORT_OPTIONS = [
+  { value: "newest", label: "חדש ביותר" },
+  { value: "price_asc", label: "מחיר: נמוך לגבוה" },
+  { value: "price_desc", label: "מחיר: גבוה לנמוך" },
+];
+
 export function HistoryPage() {
   usePageTitle("היסטוריה");
   const [offset, setOffset] = useState(0);
-  const { data, isLoading, isError } = useHistory(PAGE_SIZE, offset);
+  const [sort, setSort] = useState("newest");
+  const { data, isLoading, isError } = useHistory(PAGE_SIZE, offset, sort);
 
   useEffect(() => {
     if (!data || data.total === 0) return;
@@ -61,9 +69,26 @@ export function HistoryPage() {
         title="היסטוריה"
         action={
           data ? (
-            <span className="text-sm text-muted-foreground tabular-nums">
-              ({data.total} מודעות)
-            </span>
+            <div className="flex items-center gap-3">
+              <Select
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value);
+                  setOffset(0);
+                }}
+                className="w-auto text-sm"
+                aria-label="מיון תוצאות"
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                ({data.total} מודעות)
+              </span>
+            </div>
           ) : null
         }
       />

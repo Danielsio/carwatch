@@ -209,62 +209,71 @@ export function NewSearchPage() {
         </section>
       )}
 
-      {/* Step content */}
-      <div className="min-h-[300px]">
-        {step === 0 && <VehicleFields form={form} set={set} />}
-        {step === 1 && <BudgetFields form={form} set={set} />}
-        {step === 2 && <AdvancedFields form={form} set={set} />}
-      </div>
-
-      {/* Navigation */}
-      <div className="sticky bottom-[var(--bottom-nav-h)] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0">
-        <div className="flex items-center gap-3">
-          {step > 0 && (
-            <button
-              type="button"
-              onClick={() => setStep((s) => s - 1)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary"
-            >
-              <ArrowRight className="h-4 w-4" />
-              הקודם
-            </button>
-          )}
-
-          {isLastStep ? (
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-              className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-primary rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-4px_var(--color-glow-primary)] transition-all duration-150 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {createSearch.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4" />
-              )}
-              צור חיפוש
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setStep((s) => s + 1)}
-              className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-primary rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-4px_var(--color-glow-primary)] transition-all duration-150 hover:opacity-95"
-            >
-              הבא
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-          )}
-
-          {step === 0 && (
-            <Link
-              to="/dashboard"
-              className="inline-flex items-center justify-center rounded-xl border border-border px-5 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary"
-            >
-              ביטול
-            </Link>
-          )}
+      {/* Step content + Navigation wrapped in form for Enter key submission */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (isLastStep) {
+            handleSubmit();
+          } else {
+            setStep((s) => s + 1);
+          }
+        }}
+      >
+        <div className="min-h-[300px]">
+          {step === 0 && <VehicleFields form={form} set={set} />}
+          {step === 1 && <BudgetFields form={form} set={set} />}
+          {step === 2 && <AdvancedFields form={form} set={set} />}
         </div>
-      </div>
+
+        {/* Navigation */}
+        <div className="sticky bottom-[var(--bottom-nav-h)] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0 mt-5">
+          <div className="flex items-center gap-3">
+            {step > 0 && (
+              <button
+                type="button"
+                onClick={() => setStep((s) => s - 1)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary"
+              >
+                <ArrowRight className="h-4 w-4" />
+                הקודם
+              </button>
+            )}
+
+            {isLastStep ? (
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-primary rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-4px_var(--color-glow-primary)] transition-all duration-150 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {createSearch.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+                צור חיפוש
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-primary rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-4px_var(--color-glow-primary)] transition-all duration-150 hover:opacity-95"
+              >
+                הבא
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            )}
+
+            {step === 0 && (
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center justify-center rounded-xl border border-border px-5 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary"
+              >
+                ביטול
+              </Link>
+            )}
+          </div>
+        </div>
+      </form>
     </div>
   );
 }
