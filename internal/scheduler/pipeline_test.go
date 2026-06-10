@@ -112,6 +112,143 @@ func TestPipeline_WithPrefill(t *testing.T) {
 	}
 }
 
+type backfillTrackingStore struct {
+	prefillTrackingStore
+	backfillCalls   atomic.Int32
+	backfillRecords []storage.ListingRecord
+}
+
+func (s *backfillTrackingStore) BackfillListings(_ context.Context, records []storage.ListingRecord) error {
+	s.backfillCalls.Add(1)
+	s.backfillRecords = append(s.backfillRecords, records...)
+	return nil
+}
+
+func TestPipeline_InlineEnrichment_FillsMissingKm(t *testing.T) {
+	store := &backfillTrackingStore{}
+	p := NewListingPipeline(store, nil, pipelineTestLogger())
+	p.SetInlineEnricher(func(_ context.Context, listings []model.RawListing) int {
+		enriched := 0
+		for i := range listings {
+			if listings[i].Km <= 0 {
+				listings[i].Km = 36900
+				listings[i].City = "Tel Aviv"
+				listings[i].ImageURL = "https://img.example.com/car.jpg"
+				enriched++
+			}
+		}
+		return enriched
+	})
+
+	raw := []model.RawListing{
+		{Token: "t1", Price: 100000, Year: 2019, Manufacturer: "Honda", Model: "Civic", Km: 0},
+	}
+	params := ProcessParams{
+		ChatID: 1, SearchID: 1, SearchName: "test",
+		SkipPrefill: true, PriceMax: 150000,
+	}
+
+	result := p.Process(context.Background(), raw, params)
+
+	if len(result.Records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(result.Records))
+	}
+	if result.Records[0].Km != 36900 {
+		t.Errorf("expected km=36900 after inline enrichment, got %d", result.Records[0].Km)
+	}
+	if result.Records[0].City != "Tel Aviv" {
+		t.Errorf("expected city=Tel Aviv, got %q", result.Records[0].City)
+	}
+	if store.backfillCalls.Load() != 1 {
+		t.Errorf("expected 1 BackfillListings call, got %d", store.backfillCalls.Load())
+	}
+	if len(store.backfillRecords) != 1 || store.backfillRecords[0].Token != "t1" {
+		t.Errorf("expected backfill for token t1, got %v", store.backfillRecords)
+	}
+}
+
+func TestPipeline_InlineEnrichment_ScoresReflectEnrichedData(t *testing.T) {
+	p := NewListingPipeline(nil, nil, pipelineTestLogger())
+
+	raw := []model.RawListing{
+		{Token: "t1", Price: 100000, Year: 2019, Manufacturer: "Honda", Model: "Civic", Km: 0, Hand: 2},
+	}
+	params := ProcessParams{
+		ChatID: 1, SearchID: 1, SearchName: "test",
+		SkipPrefill: true, PriceMax: 150000,
+	}
+
+	resultNoEnrich := p.Process(context.Background(), raw, params)
+	scoreWithoutKm := *resultNoEnrich.Records[0].FitnessScore
+
+	raw[0].Km = 0
+	p.SetInlineEnricher(func(_ context.Context, listings []model.RawListing) int {
+		for i := range listings {
+			if listings[i].Km <= 0 {
+				listings[i].Km = 36900
+			}
+		}
+		return 1
+	})
+	resultEnriched := p.Process(context.Background(), raw, params)
+	scoreWithKm := *resultEnriched.Records[0].FitnessScore
+
+	if scoreWithKm <= scoreWithoutKm {
+		t.Errorf("score with low km (%v) should be higher than without km (%v)", scoreWithKm, scoreWithoutKm)
+	}
+}
+
+func TestPipeline_InlineEnrichment_NilEnricher_Skips(t *testing.T) {
+	store := &backfillTrackingStore{}
+	p := NewListingPipeline(store, nil, pipelineTestLogger())
+
+	raw := []model.RawListing{
+		{Token: "t1", Price: 100000, Year: 2019, Manufacturer: "Honda", Model: "Civic", Km: 0},
+	}
+	params := ProcessParams{
+		ChatID: 1, SearchID: 1, SearchName: "test",
+		SkipPrefill: true, PriceMax: 150000,
+	}
+
+	result := p.Process(context.Background(), raw, params)
+
+	if result.Records[0].Km != 0 {
+		t.Errorf("expected km=0 without enricher, got %d", result.Records[0].Km)
+	}
+	if store.backfillCalls.Load() != 0 {
+		t.Errorf("expected 0 BackfillListings calls without enricher, got %d", store.backfillCalls.Load())
+	}
+}
+
+func TestPipeline_InlineEnrichment_AllEnriched_NoBackfill(t *testing.T) {
+	store := &backfillTrackingStore{}
+	p := NewListingPipeline(store, nil, pipelineTestLogger())
+
+	enricherCalled := false
+	p.SetInlineEnricher(func(_ context.Context, _ []model.RawListing) int {
+		enricherCalled = true
+		return 0
+	})
+
+	raw := []model.RawListing{
+		{Token: "t1", Price: 100000, Year: 2019, Manufacturer: "Honda", Model: "Civic",
+			Km: 50000, City: "Haifa", ImageURL: "https://img.example.com/a.jpg"},
+	}
+	params := ProcessParams{
+		ChatID: 1, SearchID: 1, SearchName: "test",
+		SkipPrefill: true, PriceMax: 150000,
+	}
+
+	p.Process(context.Background(), raw, params)
+
+	if enricherCalled {
+		t.Error("enricher should not be called when all listings already have data")
+	}
+	if store.backfillCalls.Load() != 0 {
+		t.Errorf("expected 0 BackfillListings calls, got %d", store.backfillCalls.Load())
+	}
+}
+
 func TestPipeline_NilListingStore_NoPrefill(t *testing.T) {
 	p := NewListingPipeline(nil, nil, pipelineTestLogger())
 

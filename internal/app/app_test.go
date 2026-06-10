@@ -235,7 +235,7 @@ func TestBuildAPIRejectsMissingFirebaseOnNonLocalBind(t *testing.T) {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	apiServer, err := BuildAPI(cfg, nil, nil, logger, nil, nil, nil, nil)
+	apiServer, err := BuildAPI(cfg, nil, nil, logger, nil, nil, nil, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error, got nil (server=%v)", apiServer)
 	}
@@ -271,7 +271,7 @@ func TestBuildAPIFirebaseRequirementByBind(t *testing.T) {
 					AuthToken: "telemetry-secret",
 				},
 			}
-			apiServer, err := BuildAPI(cfg, nil, nil, logger, nil, nil, nil, nil)
+			apiServer, err := BuildAPI(cfg, nil, nil, logger, nil, nil, nil, nil, nil)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got nil (server=%v)", apiServer)
@@ -297,7 +297,7 @@ func TestBuildAPIRejectsMissingTelemetryAuthOnNonLocalBind(t *testing.T) {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	apiServer, err := BuildAPI(cfg, nil, nil, logger, nil, nil, nil, nil)
+	apiServer, err := BuildAPI(cfg, nil, nil, logger, nil, nil, nil, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error, got nil (server=%v)", apiServer)
 	}

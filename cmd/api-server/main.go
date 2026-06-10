@@ -127,7 +127,7 @@ func run(configPath string, skipMigrate bool, logger *slog.Logger) error {
 	}
 	defer plCleanup()
 
-	apiServer, err := app.BuildAPI(cfg, store, dynCatalog, logger, fb.Factory, plSvc, logHub, logLevelVar)
+	apiServer, err := app.BuildAPI(cfg, store, dynCatalog, logger, fb.Factory, fb.Yad2, plSvc, logHub, logLevelVar)
 	if err != nil {
 		return err
 	}
