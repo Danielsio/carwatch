@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router";
 import {
   Play,
@@ -7,9 +7,10 @@ import {
   Trash2,
   Car,
   ChevronLeft,
+  ChevronDown,
 } from "lucide-react";
 import { cn, formatKm, formatPrice, relativeTime } from "@/lib/utils";
-import type { Search } from "@/lib/api";
+import type { Search, SearchCycleStatsItem } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import {
   manufacturerLogoSrc,
@@ -24,6 +25,7 @@ export type SearchCardProps = {
   onDelete: () => void;
   isConfirmingDelete: boolean;
   onCancelDelete: () => void;
+  cycleStats?: SearchCycleStatsItem;
 };
 
 export function SearchCard({
@@ -34,9 +36,11 @@ export function SearchCard({
   onDelete,
   isConfirmingDelete,
   onCancelDelete,
+  cycleStats,
 }: SearchCardProps) {
   const navigate = useNavigate();
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
   const isActive = search.active;
   const listingsPath = `/searches/${search.id}/listings`;
   const stats = search.stats;
@@ -235,6 +239,53 @@ export function SearchCard({
           />
         </div>
       </Link>
+
+      {cycleStats && (
+        <div className="border-t border-border/30 pt-3 mt-3">
+          <button
+            type="button"
+            onClick={() => setStatsOpen(prev => !prev)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+            aria-expanded={statsOpen}
+          >
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", statsOpen && "rotate-180")} />
+            <span>סריקה אחרונה</span>
+            <span className="ms-auto text-[11px] tabular-nums opacity-60">{relativeTime(cycleStats.cycle_at)}</span>
+          </button>
+          {statsOpen && (
+            <div className="mt-2.5 space-y-2 animate-fade-in">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className="tabular-nums font-medium text-foreground">{cycleStats.feed_size.toLocaleString()}</span>
+                <span>נסרקו</span>
+                <span className="text-border">&#8594;</span>
+                <span className="tabular-nums font-medium text-foreground">{cycleStats.matched.toLocaleString()}</span>
+                <span>התאמות</span>
+                <span className="text-border">&#8594;</span>
+                <span className="tabular-nums font-medium text-primary">{cycleStats.delivered.toLocaleString()}</span>
+                <span>חדשות</span>
+              </div>
+              {/* Match rate progress bar */}
+              <div className="h-1.5 rounded-full bg-border/30 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary transition-all duration-500"
+                  style={{ width: `${cycleStats.feed_size > 0 ? Math.min(100, (cycleStats.matched / cycleStats.feed_size) * 100) : 0}%` }}
+                />
+              </div>
+              <div className="flex gap-3 text-[11px] text-muted-foreground">
+                {cycleStats.km_filtered > 0 && (
+                  <span>{cycleStats.km_filtered} סוננו (ק״מ)</span>
+                )}
+                {cycleStats.price_drops > 0 && (
+                  <span className="text-score-good">{cycleStats.price_drops} ירידות מחיר</span>
+                )}
+                {cycleStats.matched > 0 && (
+                  <span className="ms-auto opacity-60">{((cycleStats.matched / cycleStats.feed_size) * 100).toFixed(1)}% match</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {isConfirmingDelete ? (
         <div className="border-border/60 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3" role="alertdialog" aria-label="אישור מחיקה" aria-describedby={`delete-desc-${search.id}`}>

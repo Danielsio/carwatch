@@ -72,10 +72,11 @@ type Server struct {
 	pollingInterval  time.Duration
 	fetchSem         chan struct{}
 
-	logHub   *logstream.Hub
-	logLevel *slog.LevelVar
-	cycleLog storage.CycleLogStore
-	vitals   *vitalsRing
+	logHub     *logstream.Hub
+	logLevel   *slog.LevelVar
+	cycleLog   storage.CycleLogStore
+	cycleStats storage.SearchCycleStatsStore
+	vitals     *vitalsRing
 
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
 	httpReqTotal   atomic.Uint64
@@ -102,30 +103,31 @@ func (s *Server) Shutdown() {
 }
 
 type Config struct {
-	Catalog         catalog.Catalog
-	Searches        storage.SearchStore
-	Listings        storage.ListingStore
-	Users           storage.UserStore
-	LinkTokens      storage.LinkTokenStore
-	Prices          storage.PriceTracker
-	Admin           storage.AdminStore
-	Saved           storage.SavedListingStore
-	Hidden          storage.HiddenListingStore
-	Notifs          storage.NotificationStore
-	PushSubs        storage.PushSubscriptionStore
-	Logger          *slog.Logger
-	API             config.APIConfig
-	Push            config.PushConfig
-	FirebaseAuth    TokenVerifier
-	BotUsername     string
-	Fetchers        *fetcher.Factory
-	Yad2Fetcher     *yad2.Yad2Fetcher // optional; enables inline enrichment during refresh
-	LogHub          *logstream.Hub
-	LogLevel        *slog.LevelVar
-	CycleLog        storage.CycleLogStore
-	PriceListSvc    *pricelist.Service
-	PollingInterval time.Duration
-	Bind            string
+	Catalog          catalog.Catalog
+	Searches         storage.SearchStore
+	Listings         storage.ListingStore
+	Users            storage.UserStore
+	LinkTokens       storage.LinkTokenStore
+	Prices           storage.PriceTracker
+	Admin            storage.AdminStore
+	Saved            storage.SavedListingStore
+	Hidden           storage.HiddenListingStore
+	Notifs           storage.NotificationStore
+	PushSubs         storage.PushSubscriptionStore
+	Logger           *slog.Logger
+	API              config.APIConfig
+	Push             config.PushConfig
+	FirebaseAuth     TokenVerifier
+	BotUsername      string
+	Fetchers         *fetcher.Factory
+	Yad2Fetcher      *yad2.Yad2Fetcher
+	LogHub           *logstream.Hub
+	LogLevel         *slog.LevelVar
+	CycleLog         storage.CycleLogStore
+	SearchCycleStats storage.SearchCycleStatsStore
+	PriceListSvc     *pricelist.Service
+	PollingInterval  time.Duration
+	Bind             string
 }
 
 func New(c Config) *Server {
@@ -179,6 +181,7 @@ func New(c Config) *Server {
 		logHub:          c.LogHub,
 		logLevel:        c.LogLevel,
 		cycleLog:        c.CycleLog,
+		cycleStats:      c.SearchCycleStats,
 		pollingInterval: c.PollingInterval,
 		vitals:          newVitalsRing(),
 		fetchSem:        make(chan struct{}, fetchCap),
@@ -244,6 +247,10 @@ func (s *Server) Routes() http.Handler {
 	authMux.HandleFunc("POST /api/v1/searches/{id}/refresh", s.refreshListings)
 	authMux.HandleFunc("GET /api/v1/listings/{token}", s.getListing)
 	authMux.HandleFunc("GET /api/v1/listings/{token}/price-history", s.listingPriceHistory)
+
+	if s.cycleStats != nil {
+		authMux.HandleFunc("GET /api/v1/searches/cycle-stats", s.listSearchCycleStats)
+	}
 
 	if s.admin != nil {
 		authMux.HandleFunc("GET /api/v1/admin/stats", s.requireAdmin(s.adminStats))

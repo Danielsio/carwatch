@@ -13,6 +13,7 @@ import {
   useNotificationCount,
   useNotifications,
 } from "@/hooks/useNotifications";
+import { useSearchCycleStats } from "@/hooks/useSearchCycleStats";
 import { formatPrice, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -33,6 +34,8 @@ export function SearchesPage() {
   const { data: searches, isLoading, isError } = useSearches(!!user);
   const { data: notifCount } = useNotificationCount(!!user);
   const { data: recentListings } = useNotifications(5, 0, !!user);
+  const { data: cycleStats } = useSearchCycleStats(!!user);
+  const cycleStatsMap = new Map(cycleStats?.map(s => [s.search_id, s]) ?? []);
   const deleteSearch = useDeleteSearch();
   const pauseSearch = usePauseSearch();
   const resumeSearch = useResumeSearch();
@@ -258,6 +261,7 @@ export function SearchesPage() {
                 <SearchCard
                   search={search}
                   disabled={isMutating}
+                  cycleStats={cycleStatsMap.get(search.id)}
                   onPause={() =>
                     pauseSearch.mutate(search.id, {
                       onSuccess: () => toast("החיפוש הושהה", "info"),
