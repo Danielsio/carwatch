@@ -121,6 +121,7 @@ type Config struct {
 	BotUsername      string
 	Fetchers         *fetcher.Factory
 	Yad2Fetcher      *yad2.Yad2Fetcher
+	EnricherConfig   config.EnricherConfig
 	LogHub           *logstream.Hub
 	LogLevel         *slog.LevelVar
 	CycleLog         storage.CycleLogStore
@@ -148,8 +149,8 @@ func New(c Config) *Server {
 		enricher := yad2.NewEnricher(c.Yad2Fetcher,
 			c.Logger.With("component", "inline-enricher"),
 			yad2.EnricherConfig{
-				Delay:       500 * time.Millisecond,
-				MaxPerCycle: 15,
+				Delay:       c.EnricherConfig.BaseDelay,
+				MaxPerCycle: c.EnricherConfig.InlineMaxPerCycle,
 			})
 		pipeline.SetInlineEnricher(enricher.Enrich)
 	}

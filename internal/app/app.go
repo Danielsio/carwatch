@@ -237,6 +237,7 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		PollingInterval:  cfg.Polling.Interval,
 		Fetchers:         fetcherFactory,
 		Yad2Fetcher:      yad2Fetcher,
+		EnricherConfig:   cfg.Enricher,
 		PriceListSvc:     plSvc,
 		Bind:             cfg.HTTP.Bind,
 	})

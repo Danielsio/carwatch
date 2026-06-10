@@ -34,6 +34,7 @@ type EnricherConfig struct {
 	MaxPerMinute        int           `yaml:"max_per_minute"`
 	MaxAttemptsPerToken int           `yaml:"max_attempts_per_token"`
 	BackfillInterval    time.Duration `yaml:"backfill_interval"`
+	InlineMaxPerCycle   int           `yaml:"inline_max_per_cycle"`
 }
 
 type RedisConfig struct {
@@ -222,6 +223,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Enricher.BackfillInterval == 0 {
 		cfg.Enricher.BackfillInterval = 5 * time.Minute
+	}
+	if cfg.Enricher.InlineMaxPerCycle == 0 {
+		cfg.Enricher.InlineMaxPerCycle = 15
 	}
 	if cfg.API.MaxConcurrentFetches <= 0 {
 		cfg.API.MaxConcurrentFetches = 10
