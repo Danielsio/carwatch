@@ -194,7 +194,7 @@ func BuildDynamicCatalog(ctx context.Context, yad2Fetcher *yad2.Yad2Fetcher, log
 }
 
 // BuildAPI creates the API server with all REST endpoints.
-func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, logger *slog.Logger, fetcherFactory *fetcher.Factory, plSvc *pricelist.Service, logHub *logstream.Hub, logLevel *slog.LevelVar) (*api.Server, error) {
+func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, logger *slog.Logger, fetcherFactory *fetcher.Factory, yad2Fetcher *yad2.Yad2Fetcher, plSvc *pricelist.Service, logHub *logstream.Hub, logLevel *slog.LevelVar) (*api.Server, error) {
 	if api.IsNonLocalBind(cfg.HTTP.Bind) && cfg.Telemetry.AuthToken == "" {
 		return nil, fmt.Errorf("telemetry.auth_token must be configured for non-local bind address %q", cfg.HTTP.Bind)
 	}
@@ -235,6 +235,7 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		CycleLog:        store,
 		PollingInterval: cfg.Polling.Interval,
 		Fetchers:        fetcherFactory,
+		Yad2Fetcher:     yad2Fetcher,
 		PriceListSvc:    plSvc,
 		Bind:            cfg.HTTP.Bind,
 	})

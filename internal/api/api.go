@@ -22,6 +22,7 @@ import (
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/cwlog"
 	"github.com/dsionov/carwatch/internal/fetcher"
+	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/pricelist"
 	"github.com/dsionov/carwatch/internal/scheduler"
@@ -118,6 +119,7 @@ type Config struct {
 	FirebaseAuth    TokenVerifier
 	BotUsername     string
 	Fetchers        *fetcher.Factory
+	Yad2Fetcher     *yad2.Yad2Fetcher // optional; enables inline enrichment during refresh
 	LogHub          *logstream.Hub
 	LogLevel        *slog.LevelVar
 	CycleLog        storage.CycleLogStore
@@ -137,6 +139,17 @@ func New(c Config) *Server {
 	fetchCap := c.API.MaxConcurrentFetches
 	if fetchCap <= 0 {
 		fetchCap = 10
+	}
+
+	pipeline := scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger)
+	if c.Yad2Fetcher != nil {
+		enricher := yad2.NewEnricher(c.Yad2Fetcher,
+			c.Logger.With("component", "inline-enricher"),
+			yad2.EnricherConfig{
+				Delay:       500 * time.Millisecond,
+				MaxPerCycle: 15,
+			})
+		pipeline.SetInlineEnricher(enricher.Enrich)
 	}
 
 	return &Server{
@@ -162,7 +175,7 @@ func New(c Config) *Server {
 		guestRL:         newIPRateLimiter(15, 3*time.Minute, c.API.TrustForwardedFor),
 		fetchers:        c.Fetchers,
 		priceListSvc:    c.PriceListSvc,
-		pipeline:        scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger),
+		pipeline:        pipeline,
 		logHub:          c.LogHub,
 		logLevel:        c.LogLevel,
 		cycleLog:        c.CycleLog,

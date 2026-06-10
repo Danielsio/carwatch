@@ -11,15 +11,21 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
+// InlineEnricher enriches a batch of raw listings in place by fetching
+// individual listing pages for items missing km/city/image data.
+// Returns the number of successfully enriched listings.
+type InlineEnricher func(ctx context.Context, listings []model.RawListing) int
+
 // ListingPipeline encapsulates the shared processing steps for converting
 // raw listings into scored, enriched ListingRecords. Both the scheduler
 // and the API refresh handler use this pipeline so that users always get
 // fitness scores, deal scores, suspicious-listing detection, and base
 // price enrichment regardless of how the listing was fetched.
 type ListingPipeline struct {
-	listings     storage.ListingStore // for prefill (LookupEnrichmentData); may be nil
-	priceListSvc *pricelist.Service   // for base price enrichment; may be nil
-	logger       *slog.Logger
+	listings       storage.ListingStore // for prefill (LookupEnrichmentData); may be nil
+	priceListSvc   *pricelist.Service   // for base price enrichment; may be nil
+	inlineEnricher InlineEnricher       // optional; fetches missing data inline before scoring
+	logger         *slog.Logger
 }
 
 // NewListingPipeline creates a ListingPipeline. Both listings and priceListSvc
@@ -30,6 +36,14 @@ func NewListingPipeline(listings storage.ListingStore, priceListSvc *pricelist.S
 		priceListSvc: priceListSvc,
 		logger:       logger,
 	}
+}
+
+// SetInlineEnricher configures an optional inline enricher that fetches
+// missing km/city/image data from listing pages before scoring. This is
+// used by the API refresh handler so users see accurate fitness scores
+// without waiting for the background enricher.
+func (p *ListingPipeline) SetInlineEnricher(fn InlineEnricher) {
+	p.inlineEnricher = fn
 }
 
 // ProcessParams holds the per-call parameters for a pipeline invocation.
@@ -60,16 +74,21 @@ type ProcessResult struct {
 //
 // Steps performed:
 //  1. Prefill km/city/image from DB (if listings store is available)
-//  2. Compute fitness score
-//  3. Compute deal score (if market cache is available)
-//  4. Detect suspicious listings (if market cache is available)
-//  5. Enrich with base price (if pricelist service is available)
-//  6. Build ListingRecords
+//  2. Inline enrichment — fetch missing data from source (if inline enricher is set)
+//  3. Compute fitness score
+//  4. Compute deal score (if market cache is available)
+//  5. Detect suspicious listings (if market cache is available)
+//  6. Enrich with base price (if pricelist service is available)
+//  7. Build ListingRecords
 func (p *ListingPipeline) Process(ctx context.Context, raw []model.RawListing, params ProcessParams) ProcessResult {
 	log := p.logger.With("op", "pipeline", "search_id", params.SearchID, "chat_id", params.ChatID, "search_name", params.SearchName)
 
 	if !params.SkipPrefill {
 		p.prefillFromDB(ctx, raw, log)
+	}
+
+	if p.inlineEnricher != nil {
+		p.inlineEnrich(ctx, raw, log)
 	}
 
 	result := ProcessResult{
@@ -238,6 +257,67 @@ func (p *ListingPipeline) prefillFromDB(ctx context.Context, listings []model.Ra
 	if filled > 0 {
 		log.InfoContext(ctx, "prefilled listing data from database to supplement missing fields",
 			"filled", filled, "looked_up", len(tokens))
+	}
+}
+
+const inlineEnrichTimeout = 20 * time.Second
+
+// inlineEnrich fetches missing km/city/image from the source for listings
+// that are still unenriched after DB prefill. Results are persisted back to
+// the DB so the background enricher skips them.
+func (p *ListingPipeline) inlineEnrich(ctx context.Context, listings []model.RawListing, log *slog.Logger) {
+	needed := 0
+	for i := range listings {
+		if listings[i].Km <= 0 || listings[i].City == "" || listings[i].ImageURL == "" {
+			needed++
+		}
+	}
+	if needed == 0 {
+		return
+	}
+
+	type snapshot struct {
+		km    int
+		city  string
+		image string
+	}
+	before := make([]snapshot, len(listings))
+	for i := range listings {
+		before[i] = snapshot{listings[i].Km, listings[i].City, listings[i].ImageURL}
+	}
+
+	log.InfoContext(ctx, "starting inline enrichment",
+		"needed", needed, "total_listings", len(listings), "timeout", inlineEnrichTimeout)
+
+	enrichCtx, cancel := context.WithTimeout(ctx, inlineEnrichTimeout)
+	defer cancel()
+
+	start := time.Now()
+	enriched := p.inlineEnricher(enrichCtx, listings)
+	elapsed := time.Since(start)
+	log.InfoContext(ctx, "inline enrichment completed",
+		"needed", needed, "enriched", enriched, "elapsed", elapsed.Round(time.Millisecond))
+
+	if enriched == 0 || p.listings == nil {
+		return
+	}
+
+	var backfill []storage.ListingRecord
+	for i := range listings {
+		if listings[i].Km != before[i].km || listings[i].City != before[i].city || listings[i].ImageURL != before[i].image {
+			backfill = append(backfill, storage.ListingRecord{
+				Token:    listings[i].Token,
+				Km:       listings[i].Km,
+				City:     listings[i].City,
+				ImageURL: listings[i].ImageURL,
+			})
+		}
+	}
+	if len(backfill) > 0 {
+		if err := p.listings.BackfillListings(ctx, backfill); err != nil {
+			log.WarnContext(ctx, "failed to persist inline enrichment to DB",
+				"error", err.Error(), "records", len(backfill))
+		}
 	}
 }
 

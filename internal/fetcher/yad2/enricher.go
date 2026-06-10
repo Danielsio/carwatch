@@ -86,6 +86,10 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 	consecutiveFailures := 0
 	challengeRetries := 0
 
+	e.logger.InfoContext(ctx, "enrichment pass started",
+		"candidates", len(candidates), "delay", e.cfg.Delay, "max_per_cycle", e.cfg.MaxPerCycle)
+	passStart := time.Now()
+
 	for _, i := range candidates {
 		if e.cfg.MaxPerCycle > 0 && enriched >= e.cfg.MaxPerCycle {
 			e.logger.DebugContext(ctx, "reached per-cycle enrichment limit, deferring remaining listings",
@@ -112,8 +116,10 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 		}
 
 		attempts++
+		fetchStart := time.Now()
 		details, err := e.fetcher.FetchItem(ctx, listings[i].Token)
 		if err != nil {
+			fetchElapsed := time.Since(fetchStart)
 			if errors.Is(err, fetcher.ErrChallenge) {
 				challengeRetries++
 				if challengeRetries >= maxChallengeRetries {
@@ -121,6 +127,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 						"token", listings[i].Token,
 						"car", listings[i].Manufacturer+" "+listings[i].Model,
 						"challenges", challengeRetries,
+						"fetch_ms", fetchElapsed.Milliseconds(),
 						"impact", fmt.Sprintf("%d remaining listings will not be enriched this cycle", len(candidates)-attempts),
 						"action_taken", "aborting enrichment, will retry unenriched listings next cycle",
 						"enriched_so_far", enriched,
@@ -132,6 +139,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 					"token", listings[i].Token,
 					"car", listings[i].Manufacturer+" "+listings[i].Model,
 					"challenge_count", challengeRetries,
+					"fetch_ms", fetchElapsed.Milliseconds(),
 					"backoff", e.cfg.ChallengeBackoff,
 				)
 				select {
@@ -146,6 +154,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 				"token", listings[i].Token,
 				"car", listings[i].Manufacturer+" "+listings[i].Model,
 				"error", err.Error(),
+				"fetch_ms", fetchElapsed.Milliseconds(),
 				"impact", "listing will appear without km/city data until next cycle",
 				"action_taken", "continuing with remaining candidates",
 				"consecutive_failures", consecutiveFailures,
@@ -164,6 +173,7 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			continue
 		}
 
+		fetchElapsed := time.Since(fetchStart)
 		consecutiveFailures = 0
 		challengeRetries = 0
 		changed := false
@@ -185,14 +195,20 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 		}
 		if changed {
 			enriched++
-			e.logger.DebugContext(ctx, "successfully enriched listing with mileage and location data",
+			e.logger.InfoContext(ctx, "enriched listing",
 				"token", listings[i].Token,
 				"car", listings[i].Manufacturer+" "+listings[i].Model,
 				"km", details.Km,
 				"city", details.City,
 				"has_image", details.ImageURL != "",
+				"fetch_ms", fetchElapsed.Milliseconds(),
+				"progress", fmt.Sprintf("%d/%d", enriched, len(candidates)),
 			)
 		}
 	}
+
+	e.logger.InfoContext(ctx, "enrichment pass completed",
+		"enriched", enriched, "attempts", attempts, "candidates", len(candidates),
+		"elapsed", time.Since(passStart).Round(time.Millisecond))
 	return enriched
 }
