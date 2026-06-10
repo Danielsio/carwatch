@@ -112,6 +112,8 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 	}
 	sources := strings.Split(source, ",")
 	var allRaw []model.RawListing
+	var fetchSucceeded bool
+	var lastFetchErr error
 	for _, src := range sources {
 		src = strings.TrimSpace(src)
 		f, ok := s.fetchers.Get(src)
@@ -141,9 +143,18 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if fetchErr != nil {
+			lastFetchErr = fetchErr
 			continue
 		}
+		fetchSucceeded = true
 		allRaw = append(allRaw, raw...)
+	}
+
+	if !fetchSucceeded {
+		log.Error("all fetch attempts failed, keeping existing listings",
+			"sources", source, "error", lastFetchErr)
+		writeError(w, http.StatusBadGateway, "failed to fetch listings from source")
+		return
 	}
 
 	s.refreshMu.Store(cooldownKey, time.Now())
