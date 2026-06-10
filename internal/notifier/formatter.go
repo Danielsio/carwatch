@@ -111,11 +111,12 @@ func FormatPriceDrop(l model.Listing, oldPrice int, lang locale.Lang) string {
 	}
 
 	drop := oldPrice - l.Price
+	ltr := "\u200e"
 	b.WriteString(locale.Tf(lang, "fmt_price_drop",
 		title,
-		format.Number(oldPrice),
-		format.Number(l.Price),
-		format.Number(drop),
+		ltr+format.Number(oldPrice),
+		ltr+format.Number(l.Price),
+		ltr+format.Number(drop),
 	))
 
 	var inlineParts []string

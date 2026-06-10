@@ -505,3 +505,66 @@ func TestMatch_CombinedFilters(t *testing.T) {
 		t.Errorf("excluded keyword: expected 0, got %d", len(m))
 	}
 }
+
+func TestClassifyRejection_PrimaryReason(t *testing.T) {
+	s := storage.Search{
+		ID: 1, Manufacturer: 27, Model: 10332,
+		YearMin: 2016, YearMax: 2021, PriceMax: 85000, MaxKm: 200000, MaxHand: 3,
+	}
+
+	tests := []struct {
+		name   string
+		l      model.RawListing
+		expect RejectReason
+	}{
+		{"match", model.RawListing{ManufacturerID: 27, ModelID: 10332, Year: 2019, Price: 70000}, ""},
+		{"wrong manufacturer", model.RawListing{ManufacturerID: 99, ModelID: 10332, Year: 2019, Price: 70000}, RejectWrongModel},
+		{"wrong model", model.RawListing{ManufacturerID: 27, ModelID: 999, Year: 2019, Price: 70000}, RejectWrongModel},
+		{"year too old", model.RawListing{ManufacturerID: 27, ModelID: 10332, Year: 2014, Price: 70000}, RejectYearOut},
+		{"year too new", model.RawListing{ManufacturerID: 27, ModelID: 10332, Year: 2025, Price: 70000}, RejectYearOut},
+		{"price over", model.RawListing{ManufacturerID: 27, ModelID: 10332, Year: 2019, Price: 90000}, RejectPriceOut},
+		{"km over", model.RawListing{ManufacturerID: 27, ModelID: 10332, Year: 2019, Price: 70000, Km: 250000}, RejectKmOver},
+		{"hand over", model.RawListing{ManufacturerID: 27, ModelID: 10332, Year: 2019, Price: 70000, Hand: 5}, RejectHandOver},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := classifyRejection(tt.l, s)
+			if got != tt.expect {
+				t.Errorf("got %q, want %q", got, tt.expect)
+			}
+		})
+	}
+}
+
+func TestCountRejections_Integration(t *testing.T) {
+	p := New()
+	p.Load([]storage.Search{
+		{ID: 1, ChatID: 100, Manufacturer: 27, Model: 10332, YearMin: 2016, YearMax: 2021, PriceMax: 85000},
+	})
+
+	listings := []model.RawListing{
+		{ManufacturerID: 27, ModelID: 10332, Year: 2019, Price: 70000},  // match
+		{ManufacturerID: 99, ModelID: 999, Year: 2019, Price: 70000},    // wrong_model
+		{ManufacturerID: 27, ModelID: 10332, Year: 2014, Price: 70000},  // year_out
+		{ManufacturerID: 27, ModelID: 10332, Year: 2019, Price: 100000}, // price_out
+		{ManufacturerID: 19, ModelID: 10378, Year: 2020, Price: 50000},  // wrong_model
+	}
+
+	result := p.CountRejections(listings)
+	counts := result[1]
+	if counts[RejectWrongModel] != 2 {
+		t.Errorf("wrong_model: got %d, want 2", counts[RejectWrongModel])
+	}
+	if counts[RejectYearOut] != 1 {
+		t.Errorf("year_out: got %d, want 1", counts[RejectYearOut])
+	}
+	if counts[RejectPriceOut] != 1 {
+		t.Errorf("price_out: got %d, want 1", counts[RejectPriceOut])
+	}
+	total := counts[RejectWrongModel] + counts[RejectYearOut] + counts[RejectPriceOut] +
+		counts[RejectKmOver] + counts[RejectHandOver] + counts[RejectOtherFilter]
+	if total != 4 {
+		t.Errorf("total rejections: got %d, want 4 (1 match + 4 rejections = 5 listings)", total)
+	}
+}

@@ -60,6 +60,110 @@ func (p *Percolator) Match(listing model.RawListing) []MatchResult {
 	return matches
 }
 
+// RejectReason identifies why a listing did not match a search.
+type RejectReason string
+
+const (
+	RejectWrongModel  RejectReason = "wrong_model"
+	RejectYearOut     RejectReason = "year_out"
+	RejectPriceOut    RejectReason = "price_out"
+	RejectKmOver      RejectReason = "km_over"
+	RejectHandOver    RejectReason = "hand_over"
+	RejectOtherFilter RejectReason = "other_filter"
+)
+
+// CountRejections returns per-search rejection counts for all listings.
+// Each non-matching listing is counted under its primary rejection reason
+// (the first filter it fails). Matched listings are not counted.
+func (p *Percolator) CountRejections(listings []model.RawListing) map[int64]map[RejectReason]int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	result := make(map[int64]map[RejectReason]int, len(p.rules))
+	for _, s := range p.rules {
+		counts := make(map[RejectReason]int)
+		for i := range listings {
+			if reason := classifyRejection(listings[i], s); reason != "" {
+				counts[reason]++
+			}
+		}
+		result[s.ID] = counts
+	}
+	return result
+}
+
+// classifyRejection returns the primary reason a listing does not match a
+// search, or "" if it matches. The check order mirrors matchesSearch.
+func classifyRejection(l model.RawListing, s storage.Search) RejectReason {
+	if s.Manufacturer > 0 && l.ManufacturerID != s.Manufacturer {
+		return RejectWrongModel
+	}
+	if s.Model > 0 && l.ModelID != s.Model {
+		return RejectWrongModel
+	}
+	if s.YearMin > 0 && l.Year < s.YearMin {
+		return RejectYearOut
+	}
+	if s.YearMax > 0 && l.Year > s.YearMax {
+		return RejectYearOut
+	}
+	if s.PriceMin > 0 && l.Price > 0 && l.Price < s.PriceMin {
+		return RejectPriceOut
+	}
+	if s.PriceMax > 0 && l.Price > s.PriceMax {
+		return RejectPriceOut
+	}
+	if s.MaxKm > 0 && l.Km > 0 && l.Km > s.MaxKm {
+		return RejectKmOver
+	}
+	if s.MaxHand > 0 && l.Hand > s.MaxHand {
+		return RejectHandOver
+	}
+	if s.EngineMinCC > 0 && int(l.EngineVolume) < s.EngineMinCC {
+		return RejectOtherFilter
+	}
+	if s.GearBox != "" && l.GearBox != "" {
+		if !strings.EqualFold(s.GearBox, l.GearBox) {
+			return RejectOtherFilter
+		}
+	}
+	sf := strings.ToLower(strings.TrimSpace(s.SellerFilter))
+	if sf != "" && sf != "any" && l.Commercial != nil {
+		isCommercial := *l.Commercial
+		if sf == "private" && isCommercial {
+			return RejectOtherFilter
+		}
+		if (sf == "commercial" || sf == "dealer" || sf == "dealership") && !isCommercial {
+			return RejectOtherFilter
+		}
+	}
+	if s.PriceOnly && l.Price <= 0 {
+		return RejectOtherFilter
+	}
+	if s.PhotoOnly && l.ImageURL == "" {
+		return RejectOtherFilter
+	}
+	if s.Keywords != "" {
+		desc := strings.ToLower(l.Description + " " + l.SubModel)
+		for _, kw := range strings.Split(s.Keywords, ",") {
+			kw = strings.TrimSpace(strings.ToLower(kw))
+			if kw != "" && !strings.Contains(desc, kw) {
+				return RejectOtherFilter
+			}
+		}
+	}
+	if s.ExcludeKeys != "" {
+		desc := strings.ToLower(l.Description + " " + l.SubModel)
+		for _, kw := range strings.Split(s.ExcludeKeys, ",") {
+			kw = strings.TrimSpace(strings.ToLower(kw))
+			if kw != "" && strings.Contains(desc, kw) {
+				return RejectOtherFilter
+			}
+		}
+	}
+	return ""
+}
+
 // matchesSearch checks whether a single listing satisfies the filter
 // criteria of a search.  The logic mirrors filter.Apply but operates on
 // a storage.Search directly rather than on FilterCriteria, so the

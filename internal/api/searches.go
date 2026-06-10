@@ -573,15 +573,26 @@ func (s *Server) listSearchCycleStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type item struct {
-		SearchID    int64  `json:"search_id"`
-		SearchName  string `json:"search_name"`
-		CycleAt     string `json:"cycle_at"`
-		FeedSize    int    `json:"feed_size"`
-		Matched     int    `json:"matched"`
-		NewListings int    `json:"new_listings"`
-		KmFiltered  int    `json:"km_filtered"`
-		Delivered   int    `json:"delivered"`
-		PriceDrops  int    `json:"price_drops"`
+		SearchID    int64    `json:"search_id"`
+		SearchName  string   `json:"search_name"`
+		CycleAt     string   `json:"cycle_at"`
+		FeedSize    int      `json:"feed_size"`
+		Matched     int      `json:"matched"`
+		NewListings int      `json:"new_listings"`
+		KmFiltered  int      `json:"km_filtered"`
+		Delivered   int      `json:"delivered"`
+		PriceDrops  int      `json:"price_drops"`
+		WrongModel  int      `json:"wrong_model"`
+		YearOut     int      `json:"year_out"`
+		PriceOut    int      `json:"price_out"`
+		KmOver      int      `json:"km_over"`
+		HandOver    int      `json:"hand_over"`
+		OtherFilter int      `json:"other_filter"`
+		ScoreMin    *float64 `json:"score_min"`
+		ScoreMax    *float64 `json:"score_max"`
+		ScoreAvg    *float64 `json:"score_avg"`
+		PriceMin    *int     `json:"price_min"`
+		PriceMax    *int     `json:"price_max"`
 	}
 
 	items := make([]item, 0, len(stats))
@@ -596,6 +607,17 @@ func (s *Server) listSearchCycleStats(w http.ResponseWriter, r *http.Request) {
 			KmFiltered:  st.KmFiltered,
 			Delivered:   st.Delivered,
 			PriceDrops:  st.PriceDrops,
+			WrongModel:  st.WrongModel,
+			YearOut:     st.YearOut,
+			PriceOut:    st.PriceOut,
+			KmOver:      st.KmOver,
+			HandOver:    st.HandOver,
+			OtherFilter: st.OtherFilter,
+			ScoreMin:    st.ScoreMin,
+			ScoreMax:    st.ScoreMax,
+			ScoreAvg:    st.ScoreAvg,
+			PriceMin:    st.PriceMin,
+			PriceMax:    st.PriceMax,
 		})
 	}
 

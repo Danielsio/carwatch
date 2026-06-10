@@ -566,6 +566,17 @@ export interface SearchCycleStatsItem {
   km_filtered: number;
   delivered: number;
   price_drops: number;
+  wrong_model: number;
+  year_out: number;
+  price_out: number;
+  km_over: number;
+  hand_over: number;
+  other_filter: number;
+  score_min: number | null;
+  score_max: number | null;
+  score_avg: number | null;
+  price_min: number | null;
+  price_max: number | null;
 }
 
 export const cycleStatsApi = {
