@@ -171,6 +171,9 @@ export function ListingCardBody({
                   </span>
                 ) : null}
               </div>
+              {listing.sub_model ? (
+                <p className="text-[11px] text-white/60 truncate">{listing.sub_model}</p>
+              ) : null}
               <p className="text-xs text-white/70 mt-0.5">
                 {listing.year} · {listing.city || "—"}
               </p>
