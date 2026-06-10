@@ -12,9 +12,9 @@ import {
   PageHeader,
   PageShell,
   Pagination,
-  Skeleton,
   useToast,
 } from "@/components/ui";
+import { ListingCardSkeleton } from "@/components/ListingCardSkeleton";
 import type { Listing } from "@/lib/api";
 
 const PAGE_SIZE = 20;
@@ -40,7 +40,7 @@ export function SavedPage() {
         <PageHeader title="שמורים" />
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2].map((i) => (
-            <Skeleton key={i} className="h-72 rounded-2xl" />
+            <ListingCardSkeleton key={i} />
           ))}
         </div>
       </PageShell>

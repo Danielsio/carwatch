@@ -306,6 +306,18 @@ textarea:focus-visible {
   background: var(--color-muted-foreground);
 }
 
+.dark {
+  scrollbar-color: #2a3040 transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #2a3040;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #3a4558;
+}
+
 /* ═══ Range Slider ═══ */
 .range-slider {
   -webkit-appearance: none;
