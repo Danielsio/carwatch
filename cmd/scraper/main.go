@@ -159,7 +159,8 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 		PriceListStore:   store,
 		PriceListSvc:     plSvc,
 		DailyDigestStore: store,
-		CycleLogStore:    store,
+		CycleLogStore:         store,
+		SearchCycleStatsStore: store,
 		Publisher:        pub,
 		EnrichPublisher:  enrichPub,
 	})

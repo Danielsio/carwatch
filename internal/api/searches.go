@@ -559,6 +559,49 @@ func (s *Server) resumeSearch(w http.ResponseWriter, r *http.Request) {
 	s.setSearchActive(w, r, true)
 }
 
+func (s *Server) listSearchCycleStats(w http.ResponseWriter, r *http.Request) {
+	chatID, ok := s.requireResolvedChatID(w, r)
+	if !ok {
+		return
+	}
+
+	stats, err := s.cycleStats.ListSearchCycleStats(r.Context(), chatID)
+	if err != nil {
+		s.handlerLogger(r, "op", "search_cycle_stats").Error("failed to list search cycle stats", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get cycle stats")
+		return
+	}
+
+	type item struct {
+		SearchID    int64  `json:"search_id"`
+		SearchName  string `json:"search_name"`
+		CycleAt     string `json:"cycle_at"`
+		FeedSize    int    `json:"feed_size"`
+		Matched     int    `json:"matched"`
+		NewListings int    `json:"new_listings"`
+		KmFiltered  int    `json:"km_filtered"`
+		Delivered   int    `json:"delivered"`
+		PriceDrops  int    `json:"price_drops"`
+	}
+
+	items := make([]item, 0, len(stats))
+	for _, st := range stats {
+		items = append(items, item{
+			SearchID:    st.SearchID,
+			SearchName:  st.SearchName,
+			CycleAt:     st.CycleAt.UTC().Format("2006-01-02T15:04:05Z"),
+			FeedSize:    st.FeedSize,
+			Matched:     st.Matched,
+			NewListings: st.NewListings,
+			KmFiltered:  st.KmFiltered,
+			Delivered:   st.Delivered,
+			PriceDrops:  st.PriceDrops,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
 func (s *Server) setSearchActive(w http.ResponseWriter, r *http.Request, active bool) {
 	chatID, okChat := s.requireResolvedChatID(w, r)
 	if !okChat {

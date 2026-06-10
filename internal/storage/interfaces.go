@@ -355,6 +355,24 @@ type CycleLogStore interface {
 	ListCycleLogs(ctx context.Context, limit int) ([]CycleLogEntry, error)
 }
 
+type SearchCycleStats struct {
+	SearchID    int64
+	ChatID      int64
+	SearchName  string
+	CycleAt     time.Time
+	FeedSize    int
+	Matched     int
+	NewListings int
+	KmFiltered  int
+	Delivered   int
+	PriceDrops  int
+}
+
+type SearchCycleStatsStore interface {
+	UpsertSearchCycleStats(ctx context.Context, stats []SearchCycleStats) error
+	ListSearchCycleStats(ctx context.Context, chatID int64) ([]SearchCycleStats, error)
+}
+
 type AdminStore interface {
 	DBFileSize() (int64, error)
 	CountAllListings(ctx context.Context) (int64, error)

@@ -92,17 +92,18 @@ const digestCacheTTL = 5 * time.Minute
 
 // Stores groups all storage interfaces the scheduler depends on.
 type Stores struct {
-	Dedup        storage.DedupStore
-	Prices       storage.PriceTracker
-	Listings     storage.ListingStore
-	Searches     storage.SearchStore
-	Users        storage.UserStore
-	Digests      storage.DigestStore
-	Hidden       storage.HiddenListingStore
-	Market       storage.MarketStore
-	PriceList    storage.PriceListStore
-	DailyDigests storage.DailyDigestStore
-	CycleLog     storage.CycleLogStore
+	Dedup            storage.DedupStore
+	Prices           storage.PriceTracker
+	Listings         storage.ListingStore
+	Searches         storage.SearchStore
+	Users            storage.UserStore
+	Digests          storage.DigestStore
+	Hidden           storage.HiddenListingStore
+	Market           storage.MarketStore
+	PriceList        storage.PriceListStore
+	DailyDigests     storage.DailyDigestStore
+	CycleLog         storage.CycleLogStore
+	SearchCycleStats storage.SearchCycleStatsStore
 }
 
 type searchResult struct {
@@ -117,27 +118,28 @@ type searchResult struct {
 }
 
 type Options struct {
-	Observer         CycleObserver
-	Prices           storage.PriceTracker
-	ConfigPath       string
-	FetcherFactory   *fetcher.Factory
-	TargetedFetcher  fetcher.Fetcher // bypasses circuit breaker for per-model fetches
-	ListingStore     storage.ListingStore
-	SearchStore      storage.SearchStore
-	UserStore        storage.UserStore
-	DigestStore      storage.DigestStore
-	HiddenStore      storage.HiddenListingStore
-	CatalogIngester  CatalogIngester
-	CarNames         CarNameResolver
-	MarketStore      storage.MarketStore
-	PriceListStore   storage.PriceListStore
-	PriceListHTTP    pricelist.HTTPDoer
-	PriceListSvc     *pricelist.Service
-	DailyDigestStore storage.DailyDigestStore
-	CycleLogStore    storage.CycleLogStore
-	MarketCacheTTL   time.Duration
-	Publisher        *broker.Publisher
-	EnrichPublisher  *broker.EnrichPublisher
+	Observer              CycleObserver
+	Prices                storage.PriceTracker
+	ConfigPath            string
+	FetcherFactory        *fetcher.Factory
+	TargetedFetcher       fetcher.Fetcher // bypasses circuit breaker for per-model fetches
+	ListingStore          storage.ListingStore
+	SearchStore           storage.SearchStore
+	UserStore             storage.UserStore
+	DigestStore           storage.DigestStore
+	HiddenStore           storage.HiddenListingStore
+	CatalogIngester       CatalogIngester
+	CarNames              CarNameResolver
+	MarketStore           storage.MarketStore
+	PriceListStore        storage.PriceListStore
+	PriceListHTTP         pricelist.HTTPDoer
+	PriceListSvc          *pricelist.Service
+	DailyDigestStore      storage.DailyDigestStore
+	CycleLogStore         storage.CycleLogStore
+	SearchCycleStatsStore storage.SearchCycleStatsStore
+	MarketCacheTTL        time.Duration
+	Publisher             *broker.Publisher
+	EnrichPublisher       *broker.EnrichPublisher
 }
 
 func New(
@@ -189,17 +191,18 @@ func NewWithOptions(
 		fetcher:         f,
 		targetedFetcher: tf,
 		stores: Stores{
-			Dedup:        d,
-			Prices:       opts.Prices,
-			Listings:     opts.ListingStore,
-			Searches:     opts.SearchStore,
-			Users:        opts.UserStore,
-			Digests:      opts.DigestStore,
-			Hidden:       opts.HiddenStore,
-			Market:       opts.MarketStore,
-			PriceList:    opts.PriceListStore,
-			DailyDigests: opts.DailyDigestStore,
-			CycleLog:     opts.CycleLogStore,
+			Dedup:            d,
+			Prices:           opts.Prices,
+			Listings:         opts.ListingStore,
+			Searches:         opts.SearchStore,
+			Users:            opts.UserStore,
+			Digests:          opts.DigestStore,
+			Hidden:           opts.HiddenStore,
+			Market:           opts.MarketStore,
+			PriceList:        opts.PriceListStore,
+			DailyDigests:     opts.DailyDigestStore,
+			CycleLog:         opts.CycleLogStore,
+			SearchCycleStats: opts.SearchCycleStatsStore,
 		},
 		notifier:        n,
 		logger:          logger,
@@ -761,6 +764,13 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	}
 	accums := make(map[int64]*searchAccum, len(searches))
 
+	// Per-search cycle stats for observability.
+	type searchCycleCounter struct {
+		matched    int // percolator hits before dedup
+		kmFiltered int // held back by km filter
+	}
+	searchCounters := make(map[int64]*searchCycleCounter)
+
 	// Deferred price drop candidates: we record prices during matching
 	// (to detect changes) but defer notification formatting until after
 	// enrichment so messages include enriched km/city data.
@@ -804,6 +814,13 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				}
 				accums[m.SearchID] = acc
 			}
+
+			ctr, ok := searchCounters[m.SearchID]
+			if !ok {
+				ctr = &searchCycleCounter{}
+				searchCounters[m.SearchID] = ctr
+			}
+			ctr.matched++
 
 			// Per-user hidden listing check (cached per chatID per cycle).
 			hidden, cached := hiddenCache[m.ChatID]
@@ -986,6 +1003,9 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 							"token", r.Token, "reason", reason,
 							"listing_km", r.Km, "max_km", acc.search.MaxKm,
 						)
+						if ctr := searchCounters[acc.search.ID]; ctr != nil {
+							ctr.kmFiltered++
+						}
 						continue
 					}
 					filtered = append(filtered, r)
@@ -1042,6 +1062,35 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 		delivered := s.deliverResults(searchCtx, acc.search, acc.lang, acc.result, searchLog)
 		if delivered {
 			stats.notificationsSent++
+		}
+	}
+
+	// Write per-search cycle stats for dashboard observability.
+	if s.stores.SearchCycleStats != nil && len(accums) > 0 {
+		cycleStats := make([]storage.SearchCycleStats, 0, len(accums))
+		for _, acc := range accums {
+			ctr := searchCounters[acc.search.ID]
+			matched := 0
+			kmFiltered := 0
+			if ctr != nil {
+				matched = ctr.matched
+				kmFiltered = ctr.kmFiltered
+			}
+			cycleStats = append(cycleStats, storage.SearchCycleStats{
+				SearchID:    acc.search.ID,
+				ChatID:      acc.search.ChatID,
+				SearchName:  acc.search.Name,
+				CycleAt:     time.Now(),
+				FeedSize:    len(raw),
+				Matched:     matched,
+				NewListings: len(acc.result.newListings),
+				KmFiltered:  kmFiltered,
+				Delivered:   len(acc.result.newListings),
+				PriceDrops:  len(acc.result.priceDropMessages),
+			})
+		}
+		if err := s.stores.SearchCycleStats.UpsertSearchCycleStats(ctx, cycleStats); err != nil {
+			s.logger.Error("failed to write per-search cycle stats", "error", err)
 		}
 	}
 

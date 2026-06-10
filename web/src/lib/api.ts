@@ -556,6 +556,22 @@ export const schedulerApi = {
   status: () => fetchAPI<SchedulerStatus>("/scheduler/status"),
 };
 
+export interface SearchCycleStatsItem {
+  search_id: number;
+  search_name: string;
+  cycle_at: string;
+  feed_size: number;
+  matched: number;
+  new_listings: number;
+  km_filtered: number;
+  delivered: number;
+  price_drops: number;
+}
+
+export const cycleStatsApi = {
+  list: () => fetchAPI<{ items: SearchCycleStatsItem[] }>("/searches/cycle-stats"),
+};
+
 export interface TelegramLinkResponse {
   link: string;
   expires_in_seconds: number;
