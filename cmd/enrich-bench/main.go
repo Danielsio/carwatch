@@ -2,6 +2,13 @@
 // to find the optimal rate limiting sweet spot. Uses the same config, user agents,
 // and proxy settings as production.
 //
+// Limitations (see ADV review):
+//   - Runs in isolation; production has 3 concurrent Yad2 sources (enricher,
+//     inline enricher, scheduler) sharing the same proxy IPs. Apply a safety
+//     buffer on top of bench results.
+//   - Time-of-day effects are not controlled. Run during peak hours for
+//     conservative results.
+//
 // Usage:
 //
 //	enrich-bench --config config.yaml --ramp
@@ -10,6 +17,8 @@ package main
 
 import (
 	"context"
+	crand "crypto/rand"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -36,6 +45,10 @@ var searches = []searchSpec{
 	{"Honda Civic", 17, 10236},
 	{"Toyota Corolla", 19, 10378},
 	{"Hyundai i30", 21, 10271},
+	{"Kia Sportage", 48, 10497},
+	{"Nissan Qashqai", 32, 10350},
+	{"VW Golf", 41, 10428},
+	{"Skoda Octavia", 40, 10417},
 }
 
 func main() {
@@ -60,13 +73,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "collecting tokens from %d searches...\n", len(searches))
+	fmt.Fprintf(os.Stderr, "collecting tokens from %d searches (with 2s delay between pages)...\n", len(searches))
 	tokens := collectTokens(ctx, fb.Yad2, *count)
 	if len(tokens) == 0 {
 		fmt.Fprintln(os.Stderr, "no tokens collected, aborting")
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "collected %d unique tokens\n\n", len(tokens))
+	fmt.Fprintf(os.Stderr, "collected %d unique tokens\n", len(tokens))
+
+	// ADV-006: cooldown after token collection to reset any rate-limit
+	// state before the measurement phase begins.
+	fmt.Fprintf(os.Stderr, "cooling down 10s before measurement...\n\n")
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(10 * time.Second):
+	}
 
 	if *ramp {
 		runRamp(ctx, fb.Yad2, tokens)
@@ -79,13 +101,34 @@ func main() {
 	}
 }
 
+// jitteredDelay matches the production AdaptiveRateLimiter jitter pattern:
+// delay + random(0, delay/4).
+func jitteredDelay(base time.Duration) time.Duration {
+	if base <= 0 {
+		return 0
+	}
+	var buf [8]byte
+	_, _ = crand.Read(buf[:])
+	jitter := time.Duration(int64(binary.LittleEndian.Uint64(buf[:])) % int64(base/4+1))
+	return base + jitter
+}
+
 func collectTokens(ctx context.Context, f *yad2.Yad2Fetcher, target int) []string {
 	seen := make(map[string]bool)
 	var tokens []string
 
-	for _, s := range searches {
+	for i, s := range searches {
 		if len(tokens) >= target {
 			break
+		}
+		// ADV-006: delay between search page fetches to avoid
+		// pre-triggering bot detection before measurement.
+		if i > 0 {
+			select {
+			case <-ctx.Done():
+				return tokens
+			case <-time.After(2 * time.Second):
+			}
 		}
 		raw, err := f.Fetch(ctx, model.SourceParams{
 			Manufacturer: s.manufacturer,
@@ -125,7 +168,7 @@ type fetchResult struct {
 
 func runSustained(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, delay time.Duration) []fetchResult {
 	fmt.Printf("=== Sustained Benchmark ===\n")
-	fmt.Printf("Delay: %v  Count: %d\n\n", delay, len(tokens))
+	fmt.Printf("Delay: %v (with jitter)  Count: %d\n\n", delay, len(tokens))
 
 	results := make([]fetchResult, 0, len(tokens))
 	start := time.Now()
@@ -139,11 +182,15 @@ func runSustained(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, del
 			break
 		}
 
-		if i > 0 && delay > 0 {
-			select {
-			case <-ctx.Done():
-				return results
-			case <-time.After(delay):
+		// ADV-002: use jittered delay matching production pattern.
+		if i > 0 {
+			wait := jitteredDelay(delay)
+			if wait > 0 {
+				select {
+				case <-ctx.Done():
+					return results
+				case <-time.After(wait):
+				}
 			}
 		}
 
@@ -211,9 +258,11 @@ func runRamp(ctx context.Context, f *yad2.Yad2Fetcher, allTokens []string) {
 		0,
 	}
 
-	tokensPerStep := 30
+	// ADV-003: increased from 30 to 50 tokens per step to better detect
+	// sliding-window rate limits that trigger after sustained load.
+	tokensPerStep := 50
 	fmt.Printf("=== Ramp-Down Test ===\n")
-	fmt.Printf("Tokens per step: %d  Steps: %d\n\n", tokensPerStep, len(delays))
+	fmt.Printf("Tokens per step: %d  Steps: %d  (jittered delays)\n\n", tokensPerStep, len(delays))
 
 	offset := 0
 	var sweetSpot time.Duration
@@ -222,7 +271,8 @@ func runRamp(ctx context.Context, f *yad2.Yad2Fetcher, allTokens []string) {
 			break
 		}
 		if offset+tokensPerStep > len(allTokens) {
-			fmt.Printf("--- not enough unique tokens for delay=%v, stopping ---\n", d)
+			fmt.Printf("--- not enough unique tokens for delay=%v (need %d, have %d), stopping ---\n",
+				d, offset+tokensPerStep, len(allTokens))
 			break
 		}
 
@@ -258,6 +308,8 @@ func runRamp(ctx context.Context, f *yad2.Yad2Fetcher, allTokens []string) {
 		recommended = 100 * time.Millisecond
 	}
 	fmt.Printf("Recommended base_delay:          %v (with safety buffer)\n", recommended)
+	fmt.Printf("Note: bench runs in isolation. Production has 3 concurrent\n")
+	fmt.Printf("      Yad2 sources — apply additional buffer if needed.\n")
 	fmt.Printf("\nNext step: run sustained test at the recommended delay:\n")
 	fmt.Printf("  enrich-bench --config config.yaml --delay %v --count 200\n", recommended)
 }
@@ -269,11 +321,15 @@ func fetchBatch(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, delay
 		if ctx.Err() != nil {
 			break
 		}
-		if i > 0 && delay > 0 {
-			select {
-			case <-ctx.Done():
-				return results
-			case <-time.After(delay):
+		// ADV-002: jittered delay matching production.
+		if i > 0 {
+			wait := jitteredDelay(delay)
+			if wait > 0 {
+				select {
+				case <-ctx.Done():
+					return results
+				case <-time.After(wait):
+				}
 			}
 		}
 
@@ -353,6 +409,8 @@ func printTotal(results []fetchResult, delay time.Duration) {
 	} else {
 		fmt.Printf("\n✓ No challenges — delay %v is safe\n", delay)
 	}
+	fmt.Println("\nNote: bench runs in isolation. Production has 3 concurrent")
+	fmt.Println("      Yad2 sources — apply additional buffer if needed.")
 }
 
 func discardLogger() *slog.Logger {
