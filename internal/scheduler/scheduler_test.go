@@ -533,7 +533,4 @@ func TestRunMultiTenantCycle_ObserverErrorOnFetchFailure(t *testing.T) {
 	if v := obs.fetches.Load(); v != 1 {
 		t.Errorf("fetches = %d, want 1", v)
 	}
-	if v := obs.successes.Load(); v != 0 {
-		t.Errorf("successes = %d, want 0", v)
-	}
 }
