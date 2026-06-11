@@ -67,9 +67,9 @@ func TestFormatPriceDrop(t *testing.T) {
 	checks := []string{
 		"Price Drop!",
 		"Mazda 3 2021",
-		"₪95,000",
-		"₪89,000",
-		"-₪6,000",
+		"₪\u200e95,000",
+		"₪\u200e89,000",
+		"-₪\u200e6,000",
 		"85,000 km",
 		"Hand 2",
 		"https://www.yad2.co.il/item/abc123",
@@ -98,7 +98,7 @@ func TestFormatPriceDrop_MinimalFields(t *testing.T) {
 	if !strings.Contains(msg, "Toyota Corolla GLi") {
 		t.Errorf("should include submodel in title:\n%s", msg)
 	}
-	if !strings.Contains(msg, "-₪10,000") {
+	if !strings.Contains(msg, "-₪\u200e10,000") {
 		t.Errorf("should show correct drop amount:\n%s", msg)
 	}
 	if !strings.Contains(msg, "N/A") {
@@ -394,7 +394,7 @@ func TestIsMalformedMessage(t *testing.T) {
 		{"sprintf error prefix", "%!s(MISSING) value", true},
 		{"sprintf error mid-string", "Hello %!s(MISSING) world", true},
 		{"valid notification", "🚗 New listing found: Toyota Corolla 2021", false},
-		{"valid price drop", "📉 Price Drop! Toyota Corolla: ₪95,000 → ₪89,000", false},
+		{"valid price drop", "📉 Price Drop! Toyota Corolla: ₪\u200e95,000 → ₪\u200e89,000", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

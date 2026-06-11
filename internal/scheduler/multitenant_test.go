@@ -229,7 +229,7 @@ func TestProcessGroup_PriceDropNotification(t *testing.T) {
 	if !strings.Contains(msg, "ירידת מחיר") {
 		t.Errorf("price drop message should contain 'ירידת מחיר', got:\n%s", msg)
 	}
-	if !strings.Contains(msg, "₪95,000") || !strings.Contains(msg, "₪89,000") {
+	if !strings.Contains(msg, "₪\u200e95,000") || !strings.Contains(msg, "₪\u200e89,000") {
 		t.Errorf("message should contain old and new prices, got:\n%s", msg)
 	}
 }
