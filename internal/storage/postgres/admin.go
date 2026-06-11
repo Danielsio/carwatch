@@ -90,6 +90,45 @@ func (s *Store) PurgeTable(ctx context.Context, table string) (int64, error) {
 	return result.RowsAffected()
 }
 
+var resetTables = []string{
+	"search_cycle_stats",
+	"listing_user_seen",
+	"saved_listings",
+	"hidden_listings",
+	"seen_listings",
+	"pending_digest",
+	"listing_history",
+	"price_history",
+	"price_list_cache",
+	"cycle_log",
+	"link_tokens",
+}
+
+func (s *Store) ResetAllData(ctx context.Context) (map[string]int64, error) {
+	counts := make(map[string]int64, len(resetTables))
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("reset begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for _, table := range resetTables {
+		var count int64
+		if err := tx.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", quoteIdent(table))).Scan(&count); err != nil {
+			return nil, fmt.Errorf("count %s: %w", table, err)
+		}
+		counts[table] = count
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf("TRUNCATE %s CASCADE", quoteIdent(table))); err != nil {
+			return nil, fmt.Errorf("truncate %s: %w", table, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("reset commit: %w", err)
+	}
+	return counts, nil
+}
+
 func (s *Store) AdminListListings(ctx context.Context, limit, offset int, searchID int64) ([]storage.ListingRecord, int64, error) {
 	var total int64
 	if searchID > 0 {
@@ -109,7 +148,7 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
 				km, hand, city, page_link, image_url,
 				engine_volume, horse_power, engine_type, gear_box, description,
-				is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, removed_at
+				is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, posted_at, removed_at
 			FROM listing_history
 			WHERE search_id = $1
 			ORDER BY first_seen_at DESC
@@ -119,7 +158,7 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
 				km, hand, city, page_link, image_url,
 				engine_volume, horse_power, engine_type, gear_box, description,
-				is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, removed_at
+				is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, posted_at, removed_at
 			FROM listing_history
 			ORDER BY first_seen_at DESC
 			LIMIT $1 OFFSET $2`, limit, offset)

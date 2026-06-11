@@ -263,6 +263,7 @@ func (s *Server) Routes() http.Handler {
 		authMux.HandleFunc("PATCH /api/v1/admin/users/{chatID}", s.requireAdmin(s.adminSetUserActive))
 		authMux.HandleFunc("DELETE /api/v1/admin/users/{chatID}", s.requireAdmin(s.adminDeleteUser))
 		authMux.HandleFunc("POST /api/v1/admin/purge", s.requireAdmin(s.adminPurgeTable))
+		authMux.HandleFunc("POST /api/v1/admin/reset-all", s.requireAdmin(s.adminResetAll))
 		authMux.HandleFunc("POST /api/v1/admin/vacuum", s.requireAdmin(s.adminVacuum))
 		authMux.HandleFunc("POST /api/v1/admin/sync-user-status", s.requireAdmin(s.adminSyncUserStatus))
 		authMux.HandleFunc("GET /api/v1/admin/activity", s.requireAdmin(s.adminActivity))

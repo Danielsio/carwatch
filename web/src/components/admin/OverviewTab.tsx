@@ -21,29 +21,27 @@ const TABLE_LABELS: Record<string, string> = {
   searches: "חיפושים",
   listing_history: "היסטוריית מודעות",
   price_history: "היסטוריית מחירים",
-  dedup_seen: "סינון כפילויות",
   seen_listings: "מודעות שנצפו",
   listing_user_seen: "מודעות סומנו כנצפו",
-  notifications: "התראות",
-  pending_notifications: "התראות ממתינות",
-  catalog: "קטלוג",
   saved_listings: "מודעות שמורות",
   hidden_listings: "מודעות מוסתרות",
   pending_digest: "תקצירים ממתינים",
+  cycle_log: "לוג סריקות",
+  search_cycle_stats: "סטטיסטיקות חיפוש",
+  price_list_cache: "מחירון מטמון",
   link_tokens: "טוקנים לקישור",
 };
 
 const PURGEABLE = new Set([
   "listing_history",
   "price_history",
-  "dedup_seen",
   "seen_listings",
   "listing_user_seen",
-  "notifications",
-  "pending_notifications",
   "saved_listings",
   "hidden_listings",
   "pending_digest",
+  "cycle_log",
+  "search_cycle_stats",
 ]);
 
 function StorageIndicator({ sizeBytes }: { sizeBytes: number }) {
@@ -116,6 +114,20 @@ export function OverviewTab({
     },
   });
 
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const resetMutation = useMutation({
+    mutationFn: () => adminApi.resetAll(),
+    meta: { suppressToast: true },
+    onSuccess: (result) => {
+      toast(`איפוס הושלם — ${result.total.toLocaleString("he-IL")} שורות נמחקו`, "success");
+      void queryClient.invalidateQueries({ queryKey: ["admin"] });
+      onRefresh();
+    },
+    onError: () => {
+      toast("שגיאה באיפוס המערכת", "error");
+    },
+  });
+
   const mb = data.db.file_size_bytes / (1024 * 1024);
 
   return (
@@ -136,19 +148,34 @@ export function OverviewTab({
               </div>
               <h2 className="text-base font-semibold">אחסון</h2>
             </div>
-            <button
-              type="button"
-              onClick={() => void vacuumMutation.mutate()}
-              disabled={vacuumMutation.isPending}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50"
-            >
-              {vacuumMutation.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <HardDrive className="h-3.5 w-3.5" />
-              )}
-              דחיסת DB
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(true)}
+                disabled={resetMutation.isPending}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50"
+              >
+                {resetMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                איפוס מערכת
+              </button>
+              <button
+                type="button"
+                onClick={() => void vacuumMutation.mutate()}
+                disabled={vacuumMutation.isPending}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50"
+              >
+                {vacuumMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <HardDrive className="h-3.5 w-3.5" />
+                )}
+                דחיסת DB
+              </button>
+            </div>
           </div>
           <div className="flex items-baseline gap-2.5 mb-3">
             <span className="text-4xl font-bold tabular-nums">
@@ -333,6 +360,37 @@ export function OverviewTab({
             })}
         </div>
       </div>
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-destructive mb-2">איפוס מערכת</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              כל הנתונים יימחקו — היסטוריית מודעות, מחירים, סטטיסטיקות, ומועדפים.
+              <br />
+              <strong>משתמשים וחיפושים יישמרו.</strong>
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(false)}
+                className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowResetConfirm(false);
+                  void resetMutation.mutate();
+                }}
+                className="rounded-xl bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
+              >
+                איפוס הכל
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

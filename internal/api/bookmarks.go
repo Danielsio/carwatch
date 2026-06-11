@@ -263,6 +263,9 @@ func toListingResponses(records []storage.ListingRecord, saved, seen map[string]
 			Seen:         seenFlag,
 			IsCommercial: l.IsCommercial,
 		}
+		if l.PostedAt != nil {
+			resp.PostedAt = l.PostedAt.UTC().Format("2006-01-02T15:04:05Z")
+		}
 		if l.RemovedAt != nil {
 			s := l.RemovedAt.UTC().Format("2006-01-02T15:04:05Z")
 			resp.RemovedAt = &s

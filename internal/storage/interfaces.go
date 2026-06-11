@@ -152,6 +152,7 @@ type ListingRecord struct {
 	DealScore    *int
 	BasePrice    *int
 	FirstSeenAt  time.Time
+	PostedAt     *time.Time
 	// RemovedAt: non-nil when the listing disappeared from the source but was
 	// preserved because it is bookmarked ("likely sold").
 	RemovedAt *time.Time
@@ -383,6 +384,7 @@ type AdminStore interface {
 	VacuumDB(ctx context.Context) error
 	SyncUserActiveStatus(ctx context.Context) (activated, deactivated int64, err error)
 	AdminActivityStats(ctx context.Context, days int) ([]AdminDayActivity, error)
+	ResetAllData(ctx context.Context) (map[string]int64, error)
 	DBPoolStats() *DBPoolStats
 }
 

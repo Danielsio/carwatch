@@ -349,6 +349,10 @@ func (p *ListingPipeline) buildRecord(listing model.Listing, params ProcessParam
 		BasePrice:    listing.BasePrice,
 		FirstSeenAt:  time.Now(),
 	}
+	if !listing.CreatedAt.IsZero() {
+		t := listing.CreatedAt
+		rec.PostedAt = &t
+	}
 	if listing.DealScore != nil {
 		rec.MedianPrice = &listing.DealScore.MedianPrice
 		rec.CohortSize = &listing.DealScore.CohortSize
