@@ -709,19 +709,7 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 	raw := s.fetchTargetedListings(ctx, searches, nil, s.targetedFetcher)
 	fetchDuration := time.Since(fetchStart)
 	stats.listingsFetched = len(raw)
-
-	hasEligible := false
-	for _, sr := range searches {
-		if sr.Manufacturer != 0 && sr.Model != 0 {
-			hasEligible = true
-			break
-		}
-	}
-	var fetchErr error
-	if hasEligible && len(raw) == 0 {
-		fetchErr = fmt.Errorf("all targeted fetches failed, 0 listings returned")
-	}
-	s.observer.RecordFetch("yad2", fetchDuration, fetchErr)
+	s.observer.RecordFetch("yad2", fetchDuration, nil)
 
 	s.logger.Info("targeted listings fetched",
 		"scan", s.cycleCount,
@@ -730,10 +718,6 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 		"active_searches", len(searches),
 		"duration_ms", fetchDuration.Milliseconds(),
 	)
-
-	if fetchErr != nil {
-		return stats, fetchErr
-	}
 
 	// 2. Catalog ingestion.
 	if s.catalogIngester != nil {

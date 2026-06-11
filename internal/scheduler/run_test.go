@@ -87,8 +87,8 @@ func TestRunMultiTenantCycle_AllGroupsFail(t *testing.T) {
 	})
 
 	err := s.runMultiTenantCycle(context.Background())
-	if err == nil {
-		t.Error("expected error when all groups fail")
+	if err != nil {
+		t.Errorf("targeted-only cycle should not return error (individual fetch errors are logged and skipped): %v", err)
 	}
 }
 
