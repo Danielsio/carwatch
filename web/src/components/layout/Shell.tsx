@@ -295,7 +295,7 @@ export function Shell() {
           )}
           {appVersion ? (
             <p
-              className="mt-1.5 text-center text-[10px] text-sidebar-muted/50 tabular-nums"
+              className="mt-1.5 text-center text-[10px] text-sidebar-muted tabular-nums"
               title={`v${appVersion}`}
             >
               v{appVersion}
