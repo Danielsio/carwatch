@@ -524,16 +524,13 @@ func TestRunMultiTenantCycle_ObserverErrorOnFetchFailure(t *testing.T) {
 		t.Fatalf("NewWithOptions: %v", err)
 	}
 
-	if err := s.runMultiTenantCycle(ctx); err == nil {
-		t.Fatal("expected error when all fetch groups fail")
+	if err := s.runMultiTenantCycle(ctx); err != nil {
+		t.Fatalf("targeted-only cycle should not return error (individual failures are logged): %v", err)
 	}
-	if v := obs.errors.Load(); v != 1 {
-		t.Errorf("errors = %d, want 1", v)
+	if v := obs.successes.Load(); v != 1 {
+		t.Errorf("successes = %d, want 1 (cycle completes even when fetches fail)", v)
 	}
 	if v := obs.fetches.Load(); v != 1 {
 		t.Errorf("fetches = %d, want 1", v)
-	}
-	if v := obs.successes.Load(); v != 0 {
-		t.Errorf("successes = %d, want 0", v)
 	}
 }

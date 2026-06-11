@@ -389,7 +389,7 @@ func (s *Scheduler) fetchWithRetryUsing(ctx context.Context, f fetcher.Fetcher, 
 
 		if attempt < maxRetries-1 {
 			delay := retryBaseDelay * (1 << attempt)
-			log.WarnContext(ctx, "global feed fetch attempt failed, retrying with exponential backoff",
+			log.WarnContext(ctx, "fetch attempt failed, retrying with exponential backoff",
 				"car", s.carName(params.Manufacturer, params.Model),
 				"attempt", fmt.Sprintf("%d/%d", attempt+1, maxRetries),
 				"retry_in", delay.String(),
@@ -547,8 +547,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		"db_duration_ms", searchLoadMs,
 	)
 
-	// Fetch the global feed (empty SourceParams = no manufacturer/model filter).
-	stats, fetchErr := s.fetchGlobalAndMatch(ctx, searches, marketCache)
+	stats, fetchErr := s.fetchAndMatch(ctx, searches, marketCache)
 
 	if s.catalogIngester != nil {
 		s.catalogIngester.Flush(ctx)
@@ -699,49 +698,26 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 	return raw
 }
 
-// fetchGlobalAndMatch fetches the global Yad2 feed once, matches each listing
-// against all active searches via the percolator, then enriches only the
-// matched listings to minimize API calls. Per-user dedup, pipeline processing,
+// fetchAndMatch fetches listings for each active search via targeted
+// per-model API calls, then matches each listing against all active
+// searches via the percolator. Per-user dedup, pipeline processing,
 // and notification delivery happen per match.
-func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.Search, marketCache *scoring.MarketCache) (cycleStats, error) {
+func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search, marketCache *scoring.MarketCache) (cycleStats, error) {
 	var stats cycleStats
 
-	// 1. Fetch global feed (empty SourceParams).
-	globalParams := model.SourceParams{}
-	activeFetcher := s.fetcherForSource("yad2")
-
-	fetchCtx, cancelFetch := context.WithTimeout(ctx, fetchTimeout)
-	defer cancelFetch()
-
 	fetchStart := time.Now()
-	raw, err := s.fetchWithRetryUsing(fetchCtx, activeFetcher, globalParams, s.logger)
+	raw := s.fetchTargetedListings(ctx, searches, nil, s.targetedFetcher)
 	fetchDuration := time.Since(fetchStart)
-	s.observer.RecordFetch("yad2", fetchDuration, err)
-	if err != nil {
-		return stats, fmt.Errorf("global feed fetch failed: %w", err)
-	}
 	stats.listingsFetched = len(raw)
+	s.observer.RecordFetch("yad2", fetchDuration, nil)
 
-	s.logger.Info("global feed fetched",
+	s.logger.Info("targeted listings fetched",
 		"scan", s.cycleCount,
 		"source", "yad2",
 		"listings", len(raw),
 		"active_searches", len(searches),
 		"duration_ms", fetchDuration.Milliseconds(),
 	)
-
-	// Cooldown after global feed before targeted fetches to let
-	// Yad2's rate limiter reset.
-	select {
-	case <-ctx.Done():
-		return stats, ctx.Err()
-	case <-time.After(5 * time.Second):
-	}
-
-	// 1b. Targeted fetches for specific manufacturer/model pairs that
-	// are unlikely to appear in the global feed's 200 most recent listings.
-	raw = s.fetchTargetedListings(ctx, searches, raw, s.targetedFetcher)
-	stats.listingsFetched = len(raw)
 
 	// 2. Catalog ingestion.
 	if s.catalogIngester != nil {

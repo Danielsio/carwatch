@@ -87,13 +87,15 @@ func TestRunMultiTenantCycle_AllGroupsFail(t *testing.T) {
 	})
 
 	err := s.runMultiTenantCycle(context.Background())
-	if err == nil {
-		t.Error("expected error when all groups fail")
+	if err != nil {
+		t.Errorf("targeted-only cycle should not return error (individual fetch errors are logged and skipped): %v", err)
 	}
 }
 
 func TestRunMultiTenantCycle_PrunesOldListings(t *testing.T) {
-	f := &mockFetcher{listings: []model.RawListing{}}
+	f := &mockFetcher{listings: []model.RawListing{
+		{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 100000, Year: 2020},
+	}}
 	d := newMockDedup()
 	n := &mockNotifier{}
 	cfg := testConfig()

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	DefaultMaxPages  = 5
+	DefaultMaxPages  = 2
 	defaultPageDelay = 1500 * time.Millisecond
 	pageDelayJitter  = 1000 * time.Millisecond
 )
