@@ -768,8 +768,6 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	type searchCycleCounter struct {
 		matched    int // percolator hits before dedup
 		kmFiltered int // held back by km filter
-		priceMin   int // cheapest matched listing
-		priceMax   int // most expensive matched listing
 	}
 	searchCounters := make(map[int64]*searchCycleCounter)
 
@@ -823,14 +821,6 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 				searchCounters[m.SearchID] = ctr
 			}
 			ctr.matched++
-			if p := raw[i].Price; p > 0 {
-				if ctr.priceMin == 0 || p < ctr.priceMin {
-					ctr.priceMin = p
-				}
-				if p > ctr.priceMax {
-					ctr.priceMax = p
-				}
-			}
 
 			// Per-user hidden listing check (cached per chatID per cycle).
 			hidden, cached := hiddenCache[m.ChatID]
@@ -1076,29 +1066,31 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 	}
 
 	// Write per-search cycle stats for dashboard observability.
-	if s.stores.SearchCycleStats != nil && len(accums) > 0 {
+	if s.stores.SearchCycleStats != nil && len(searches) > 0 {
 		rejections := s.percolator.CountRejections(raw)
+		now := time.Now()
 
-		cycleStats := make([]storage.SearchCycleStats, 0, len(accums))
-		for _, acc := range accums {
-			ctr := searchCounters[acc.search.ID]
+		cycleStats := make([]storage.SearchCycleStats, 0, len(searches))
+		for _, search := range searches {
+			acc := accums[search.ID]
+			ctr := searchCounters[search.ID]
 			matched := 0
 			kmFiltered := 0
-			var priceMin, priceMax *int
 			if ctr != nil {
 				matched = ctr.matched
 				kmFiltered = ctr.kmFiltered
-				if ctr.priceMin > 0 {
-					priceMin = &ctr.priceMin
-					priceMax = &ctr.priceMax
-				}
 			}
 
-			rej := rejections[acc.search.ID]
+			rej := rejections[search.ID]
 
+			var newListingCount, priceDropCount int
 			var scoreMin, scoreMax, scoreAvg *float64
-			if len(acc.result.newListings) > 0 {
+			var priceMin, priceMax *int
+			if acc != nil && len(acc.result.newListings) > 0 {
+				newListingCount = len(acc.result.newListings)
+				priceDropCount = len(acc.result.priceDropMessages)
 				mn, mx, sum := acc.result.newListings[0].FitnessScore, acc.result.newListings[0].FitnessScore, 0.0
+				pMin, pMax := acc.result.newListings[0].Price, acc.result.newListings[0].Price
 				for _, l := range acc.result.newListings {
 					if l.FitnessScore < mn {
 						mn = l.FitnessScore
@@ -1107,24 +1099,38 @@ func (s *Scheduler) fetchGlobalAndMatch(ctx context.Context, searches []storage.
 						mx = l.FitnessScore
 					}
 					sum += l.FitnessScore
+					if l.Price > 0 {
+						if pMin == 0 || l.Price < pMin {
+							pMin = l.Price
+						}
+						if l.Price > pMax {
+							pMax = l.Price
+						}
+					}
 				}
 				avg := sum / float64(len(acc.result.newListings))
 				scoreMin = &mn
 				scoreMax = &mx
 				scoreAvg = &avg
+				if pMin > 0 {
+					priceMin = &pMin
+					priceMax = &pMax
+				}
+			} else if acc != nil {
+				priceDropCount = len(acc.result.priceDropMessages)
 			}
 
 			cycleStats = append(cycleStats, storage.SearchCycleStats{
-				SearchID:    acc.search.ID,
-				ChatID:      acc.search.ChatID,
-				SearchName:  acc.search.Name,
-				CycleAt:     time.Now(),
+				SearchID:    search.ID,
+				ChatID:      search.ChatID,
+				SearchName:  search.Name,
+				CycleAt:     now,
 				FeedSize:    len(raw),
 				Matched:     matched,
-				NewListings: len(acc.result.newListings),
+				NewListings: newListingCount,
 				KmFiltered:  kmFiltered,
-				Delivered:   len(acc.result.newListings),
-				PriceDrops:  len(acc.result.priceDropMessages),
+				Delivered:   newListingCount,
+				PriceDrops:  priceDropCount,
 				WrongModel:  rej[percolator.RejectWrongModel],
 				YearOut:     rej[percolator.RejectYearOut],
 				PriceOut:    rej[percolator.RejectPriceOut],
