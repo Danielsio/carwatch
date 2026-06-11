@@ -28,10 +28,10 @@ describe("MatchScoreBox", () => {
     expect(screen.getByText("/10")).toBeInTheDocument();
   });
 
-  it("has correct aria-label", () => {
+  it("has correct screen reader text", () => {
     render(<MatchScoreBox score={9.2} />);
     expect(
-      screen.getByLabelText("ציון 9.2 מתוך 10"),
+      screen.getByText("ציון התאמה: 9.2 מתוך 10"),
     ).toBeInTheDocument();
   });
 
