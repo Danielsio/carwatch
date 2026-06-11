@@ -1,0 +1,1 @@
+ALTER TABLE listing_history ADD COLUMN IF NOT EXISTS posted_at TIMESTAMPTZ;

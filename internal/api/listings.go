@@ -36,6 +36,7 @@ type listingResponse struct {
 	DealScore    *int     `json:"deal_score,omitempty"`
 	BasePrice    *int     `json:"base_price,omitempty"`
 	FirstSeenAt  string   `json:"first_seen_at"`
+	PostedAt     string   `json:"posted_at,omitempty"`
 	Saved        bool     `json:"saved,omitempty"`
 	// Seen: user dismissed this listing from the new-items feed (notifications).
 	Seen bool `json:"seen,omitempty"`
@@ -281,6 +282,9 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		Saved:        savedFlag,
 		Seen:         seenFlag,
 		IsCommercial: l.IsCommercial,
+	}
+	if l.PostedAt != nil {
+		resp.PostedAt = l.PostedAt.UTC().Format("2006-01-02T15:04:05Z")
 	}
 	if l.RemovedAt != nil {
 		s := l.RemovedAt.UTC().Format("2006-01-02T15:04:05Z")

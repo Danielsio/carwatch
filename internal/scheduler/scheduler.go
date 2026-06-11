@@ -928,6 +928,10 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 				IsCommercial: l.Commercial,
 				FitnessScore: &listing.FitnessScore, FirstSeenAt: time.Now(),
 			}
+			if !l.CreatedAt.IsZero() {
+				t := l.CreatedAt
+				rec.PostedAt = &t
+			}
 			if marketCache != nil {
 				if median, medKm, cohort, ok := marketCache.Lookup(l.Manufacturer, l.Model, l.Year); ok {
 					ds := scoring.ScoreWithKm(l.Price, l.Km, median, medKm)
@@ -1107,7 +1111,7 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 				ChatID:      search.ChatID,
 				SearchName:  search.Name,
 				CycleAt:     now,
-				FeedSize:    len(raw),
+				FeedSize:    matched + rej[percolator.RejectWrongModel] + rej[percolator.RejectYearOut] + rej[percolator.RejectPriceOut] + rej[percolator.RejectKmOver] + rej[percolator.RejectHandOver] + rej[percolator.RejectOtherFilter],
 				Matched:     matched,
 				NewListings: newListingCount,
 				KmFiltered:  kmFiltered,

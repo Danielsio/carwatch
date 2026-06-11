@@ -137,6 +137,7 @@ export interface Listing {
   cohort_size?: number;
   deal_score?: number;
   first_seen_at: string;
+  posted_at?: string;
   /** Present when API includes bookmark state */
   saved?: boolean;
   /** User dismissed this listing from the new / notifications feed */
@@ -469,6 +470,8 @@ export const adminApi = {
     }),
   vacuum: () =>
     fetchAPI<VacuumResult>("/admin/vacuum", { method: "POST" }),
+  resetAll: () =>
+    fetchAPI<{ tables: Record<string, number>; total: number }>("/admin/reset-all", { method: "POST" }),
   activity: (days?: number) =>
     fetchAPI<AdminActivityResponse>(`/admin/activity${days ? `?days=${days}` : ""}`),
   cycles: (limit?: number) =>

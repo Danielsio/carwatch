@@ -50,9 +50,10 @@ function dealInfo(listing: Listing): {
 
 type Freshness = "hot" | "today" | "week" | "older";
 
-function listingFreshness(firstSeenAt: string): Freshness {
-  if (!firstSeenAt) return "older";
-  const posted = new Date(firstSeenAt).getTime();
+function listingFreshness(postedAt: string | undefined, firstSeenAt: string): Freshness {
+  const ts = postedAt || firstSeenAt;
+  if (!ts) return "older";
+  const posted = new Date(ts).getTime();
   const hoursAgo = Math.max(0, Date.now() - posted) / (1000 * 60 * 60);
   if (hoursAgo < 1) return "hot";
   if (hoursAgo < 24) return "today";
@@ -84,7 +85,7 @@ export function ListingCardBody({
   const source = listingSource(listing.page_link);
   const deal = dealInfo(listing);
   const isNew = listing.seen === false;
-  const freshness = listingFreshness(listing.first_seen_at);
+  const freshness = listingFreshness(listing.posted_at, listing.first_seen_at);
 
   return (
     <>

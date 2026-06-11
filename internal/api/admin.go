@@ -191,6 +191,21 @@ func (s *Server) adminPurgeTable(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"table": body.Table, "deleted": deleted})
 }
 
+func (s *Server) adminResetAll(w http.ResponseWriter, r *http.Request) {
+	counts, err := s.admin.ResetAllData(r.Context())
+	if err != nil {
+		s.logger.Error("admin: reset all data", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to reset data")
+		return
+	}
+	var total int64
+	for _, n := range counts {
+		total += n
+	}
+	s.logger.Info("admin: reset all data", "tables", len(counts), "total_rows", total)
+	writeJSON(w, http.StatusOK, map[string]any{"tables": counts, "total": total})
+}
+
 func (s *Server) adminListListings(w http.ResponseWriter, r *http.Request) {
 	limit, ok := parseIntParam(w, r, "limit", 50)
 	if !ok {

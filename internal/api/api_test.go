@@ -744,6 +744,9 @@ func (f *failingAdminStore) AdminActivityStats(_ context.Context, _ int) ([]stor
 func (f *failingAdminStore) DBPoolStats() *storage.DBPoolStats {
 	return &storage.DBPoolStats{}
 }
+func (f *failingAdminStore) ResetAllData(_ context.Context) (map[string]int64, error) {
+	return nil, nil
+}
 
 func TestAdminStats_DBFileSizeError(t *testing.T) {
 	srv, _ := setupTestServer(t)

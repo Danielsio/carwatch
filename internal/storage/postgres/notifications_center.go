@@ -27,7 +27,7 @@ func (s *Store) NewListingsSince(ctx context.Context, chatID int64, since time.T
 		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.sub_model, lh.sub_model_id, lh.year, lh.price,
 			lh.km, lh.hand, lh.city, lh.page_link, lh.image_url,
 			lh.engine_volume, lh.horse_power, lh.engine_type, lh.gear_box, lh.description,
-			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at, lh.removed_at
+			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at, lh.posted_at, lh.removed_at
 		FROM listing_history lh
 		JOIN searches s ON s.id = lh.search_id AND s.chat_id = lh.chat_id
 		WHERE lh.chat_id = $1 AND lh.first_seen_at > $2
