@@ -93,7 +93,9 @@ func TestRunMultiTenantCycle_AllGroupsFail(t *testing.T) {
 }
 
 func TestRunMultiTenantCycle_PrunesOldListings(t *testing.T) {
-	f := &mockFetcher{listings: []model.RawListing{}}
+	f := &mockFetcher{listings: []model.RawListing{
+		{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 100000, Year: 2020},
+	}}
 	d := newMockDedup()
 	n := &mockNotifier{}
 	cfg := testConfig()

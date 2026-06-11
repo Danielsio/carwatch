@@ -426,7 +426,9 @@ func TestRunMultiTenantCycle_SearchStoreError(t *testing.T) {
 }
 
 func TestRunMultiTenantCycle_PruneError(t *testing.T) {
-	f := &mockFetcher{listings: []model.RawListing{}}
+	f := &mockFetcher{listings: []model.RawListing{
+		{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 100000, Year: 2020},
+	}}
 	d := newErrDedup()
 	d.pruneErr = errors.New("prune failed")
 	n := &mockNotifier{}
