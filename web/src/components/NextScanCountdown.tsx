@@ -35,7 +35,7 @@ export function NextScanCountdown() {
   const fetched = status.listings_fetched ?? 0;
   const matched = status.listings_matched ?? 0;
   const notifs = status.notifications ?? 0;
-  const hasStats = !!status.last_cycle_at && fetched > 0;
+  const hasStats = !!status.last_cycle_at;
 
   return (
     <div

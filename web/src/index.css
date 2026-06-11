@@ -307,15 +307,15 @@ textarea:focus-visible {
 }
 
 .dark {
-  scrollbar-color: #2a3040 transparent;
+  scrollbar-color: var(--color-border) transparent;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background-color: #2a3040;
+  background-color: var(--color-border);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background-color: #3a4558;
+  background-color: var(--color-muted-foreground);
 }
 
 /* ═══ Range Slider ═══ */
