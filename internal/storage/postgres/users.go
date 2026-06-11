@@ -157,6 +157,17 @@ func (s *Store) SetUserActive(ctx context.Context, chatID int64, active bool) er
 	return err
 }
 
+func (s *Store) ReactivateUsersWithSearches(ctx context.Context) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE users SET active = true
+		WHERE active = false
+		  AND chat_id IN (SELECT DISTINCT chat_id FROM searches WHERE active = true)`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (s *Store) CountUsers(ctx context.Context) (int64, error) {
 	var count int64
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE active = true`).Scan(&count)

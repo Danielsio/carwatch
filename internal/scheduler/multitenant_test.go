@@ -171,6 +171,35 @@ func TestRunMultiTenantCycle_SharedScraping(t *testing.T) {
 	}
 }
 
+func TestRunMultiTenantCycle_CallsReactivateUsers(t *testing.T) {
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "a", ManufacturerID: 27, ModelID: 10332, Price: 100000, Year: 2020, EngineVolume: 2000},
+		},
+	}
+	d := newMockDedup()
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	us := newMockUserStore()
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "test", Source: "yad2", Manufacturer: 27, Model: 10332,
+				YearMin: 2018, YearMax: 2024, PriceMax: 200000, Active: true},
+		},
+	}
+
+	s, _ := NewWithOptions(cfg, f, d, n, testLogger(), Options{SearchStore: ss, UserStore: us})
+
+	if err := s.runMultiTenantCycle(context.Background()); err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
+	if us.reactivateCalls != 1 {
+		t.Errorf("expected ReactivateUsersWithSearches called once, got %d", us.reactivateCalls)
+	}
+}
+
 func TestProcessGroup_PriceDropNotification(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{
@@ -235,7 +264,10 @@ func TestProcessGroup_PriceDropNotification(t *testing.T) {
 }
 
 type mockUserStore struct {
-	users map[int64]*storage.User
+	users            map[int64]*storage.User
+	reactivateCalls  int
+	reactivateResult int64
+	reactivateErr    error
 }
 
 func newMockUserStore() *mockUserStore {
@@ -286,6 +318,10 @@ func (m *mockUserStore) UpsertWhatsAppUser(_ context.Context, _ string) (int64, 
 func (m *mockUserStore) UpsertWebUser(_ context.Context, _, _ string) (int64, error) { return 0, nil }
 func (m *mockUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error           { return nil }
 func (m *mockUserStore) LinkTelegramToWeb(_ context.Context, _, _ int64) error       { return nil }
+func (m *mockUserStore) ReactivateUsersWithSearches(_ context.Context) (int64, error) {
+	m.reactivateCalls++
+	return m.reactivateResult, m.reactivateErr
+}
 func (m *mockUserStore) GetLinkedTelegramUser(_ context.Context, _ int64) (*storage.User, error) {
 	return nil, nil
 }

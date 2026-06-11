@@ -512,6 +512,14 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 		s.priceListSvc.ResetCycleCounter()
 	}
 
+	if s.stores.Users != nil {
+		if n, err := s.stores.Users.ReactivateUsersWithSearches(ctx); err != nil {
+			s.logger.WarnContext(ctx, "failed to reactivate users with active searches", "error", err)
+		} else if n > 0 {
+			s.logger.InfoContext(ctx, "reactivated users who had active searches but were inactive", "count", n)
+		}
+	}
+
 	dbStart := time.Now()
 	searches, err := s.stores.Searches.ListAllActiveSearches(ctx)
 	if err != nil {

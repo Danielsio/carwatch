@@ -4,7 +4,6 @@ import {
   Car,
   Database,
   FileSearch,
-  History,
   RefreshCw,
   RotateCw,
   ScrollText,
@@ -21,12 +20,11 @@ import {
   ListingsTab,
   SearchesTab,
   UsersTab,
-  PriceHistoryTab,
   CyclesTab,
   LogsTab,
 } from "@/components/admin";
 
-type TabKey = "overview" | "cycles" | "logs" | "listings" | "searches" | "users" | "priceHistory";
+type TabKey = "overview" | "cycles" | "logs" | "listings" | "searches" | "users";
 
 const TABS: { key: TabKey; label: string; icon: typeof Car }[] = [
   { key: "overview", label: "סקירה כללית", icon: Database },
@@ -35,7 +33,6 @@ const TABS: { key: TabKey; label: string; icon: typeof Car }[] = [
   { key: "listings", label: "מודעות", icon: Car },
   { key: "searches", label: "חיפושים", icon: FileSearch },
   { key: "users", label: "משתמשים", icon: Users },
-  { key: "priceHistory", label: "היסטוריית מחירים", icon: History },
 ];
 
 function AdminHeader({ action }: { action?: React.ReactNode }) {
@@ -202,7 +199,6 @@ export function AdminPage() {
             <SearchesTab onViewListings={viewListingsForSearch} />
           )}
           {activeTab === "users" && <UsersTab />}
-          {activeTab === "priceHistory" && <PriceHistoryTab />}
         </motion.div>
       </AnimatePresence>
     </div>
