@@ -282,6 +282,47 @@ export function SearchCard({
                   <span className="ms-auto opacity-60">{((cycleStats.matched / cycleStats.feed_size) * 100).toFixed(1)}% match</span>
                 )}
               </div>
+
+              {/* Filter rejection breakdown */}
+              {(() => {
+                const rejections = [
+                  { label: "דגם אחר", count: cycleStats.wrong_model },
+                  { label: "מחיר", count: cycleStats.price_out },
+                  { label: "שנה", count: cycleStats.year_out },
+                  { label: "ק״מ", count: cycleStats.km_over },
+                  { label: "יד", count: cycleStats.hand_over },
+                  { label: "אחר", count: cycleStats.other_filter },
+                ].filter(r => r.count > 0).sort((a, b) => b.count - a.count);
+                if (rejections.length === 0) return null;
+                return (
+                  <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground/70">
+                    <span>סוננו:</span>
+                    {rejections.map((r, i) => (
+                      <span key={r.label}>
+                        {i > 0 && <span className="mx-0.5 opacity-40">·</span>}
+                        <span className="tabular-nums">{r.count}</span>{" "}{r.label}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* Score & price range */}
+              {cycleStats.score_min != null && cycleStats.score_max != null && cycleStats.score_avg != null && (
+                <div className="text-[11px] text-muted-foreground/70">
+                  <span>ציון: </span>
+                  <span className="tabular-nums font-medium text-foreground">
+                    {cycleStats.score_min.toFixed(1)}–{cycleStats.score_max.toFixed(1)}
+                  </span>
+                  <span> (ממוצע {cycleStats.score_avg.toFixed(1)})</span>
+                  {cycleStats.price_min != null && cycleStats.price_max != null && (
+                    <>
+                      <span className="mx-1 opacity-40">·</span>
+                      <span className="tabular-nums">{formatPrice(cycleStats.price_min)}–{formatPrice(cycleStats.price_max)}</span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

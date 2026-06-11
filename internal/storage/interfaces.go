@@ -366,6 +366,17 @@ type SearchCycleStats struct {
 	KmFiltered  int
 	Delivered   int
 	PriceDrops  int
+	WrongModel  int
+	YearOut     int
+	PriceOut    int
+	KmOver      int
+	HandOver    int
+	OtherFilter int
+	ScoreMin    *float64
+	ScoreMax    *float64
+	ScoreAvg    *float64
+	PriceMin    *int
+	PriceMax    *int
 }
 
 type SearchCycleStatsStore interface {
