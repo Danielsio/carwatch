@@ -965,48 +965,9 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 				}
 			}
 
-			// Post-enrichment MaxKm filter: drop listings whose km
-			// exceeds this search's cap OR whose km is still unknown
-			// (pending enrichment). Release dedup claims so they can
-			// be re-evaluated in future cycles once enriched.
-			if acc.search.MaxKm > 0 {
-				filtered := make([]model.RawListing, 0, len(rawForPipeline))
-				for _, r := range rawForPipeline {
-					if r.Km <= 0 || r.Km > acc.search.MaxKm {
-						reason := "km_exceeded"
-						if r.Km <= 0 {
-							reason = "km_pending_enrichment"
-						}
-						if relErr := s.stores.Dedup.ReleaseClaim(ctx, r.Token, acc.search.ChatID, acc.search.ID); relErr != nil {
-							s.logger.ErrorContext(searchCtx,
-								"failed to release dedup claim for km-filtered listing",
-								"token", r.Token, "reason", reason, "error", relErr.Error())
-						}
-						s.logger.InfoContext(searchCtx,
-							"holding back listing from notification pending km data",
-							"token", r.Token, "reason", reason,
-							"listing_km", r.Km, "max_km", acc.search.MaxKm,
-						)
-						if ctr := searchCounters[acc.search.ID]; ctr != nil {
-							ctr.kmFiltered++
-						}
-						continue
-					}
-					filtered = append(filtered, r)
-				}
-				if len(filtered) < len(rawForPipeline) {
-					s.logger.InfoContext(searchCtx,
-						"filtered listings by km limit after enrichment",
-						"search_name", acc.search.Name,
-						"chat_id", acc.search.ChatID,
-						"before", len(rawForPipeline),
-						"after", len(filtered),
-						"max_km", acc.search.MaxKm,
-					)
-					rawForPipeline = filtered
-				}
-			}
-
+			// Process ALL matched listings through the pipeline so they
+			// get persisted to listing_history. The enricher needs the
+			// rows to exist before it can backfill km/city data.
 			if len(rawForPipeline) == 0 {
 				acc.result.newListings = nil
 			} else {
@@ -1015,6 +976,43 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 				pr := s.pipeline.Process(searchCtx, rawForPipeline, params)
 				acc.result.newListings = pr.Listings
 				acc.result.listingRecords = pr.Records
+			}
+
+			// Post-enrichment MaxKm filter: suppress notifications for
+			// listings whose km exceeds the search cap or is still
+			// unknown (pending enrichment). Listings are still persisted
+			// above so the enricher can backfill km data.
+			if acc.search.MaxKm > 0 && len(acc.result.newListings) > 0 {
+				var deliverable []model.Listing
+				for _, l := range acc.result.newListings {
+					if l.Km <= 0 || l.Km > acc.search.MaxKm {
+						reason := "km_exceeded"
+						if l.Km <= 0 {
+							reason = "km_pending_enrichment"
+						}
+						if relErr := s.stores.Dedup.ReleaseClaim(ctx, l.Token, acc.search.ChatID, acc.search.ID); relErr != nil {
+							s.logger.ErrorContext(searchCtx,
+								"failed to release dedup claim for km-filtered listing",
+								"token", l.Token, "reason", reason, "error", relErr.Error())
+						}
+						if ctr := searchCounters[acc.search.ID]; ctr != nil {
+							ctr.kmFiltered++
+						}
+						continue
+					}
+					deliverable = append(deliverable, l)
+				}
+				if len(deliverable) < len(acc.result.newListings) {
+					s.logger.InfoContext(searchCtx,
+						"filtered listings by km limit after enrichment",
+						"search_name", acc.search.Name,
+						"chat_id", acc.search.ChatID,
+						"before", len(acc.result.newListings),
+						"after", len(deliverable),
+						"max_km", acc.search.MaxKm,
+					)
+					acc.result.newListings = deliverable
+				}
 			}
 		}
 
