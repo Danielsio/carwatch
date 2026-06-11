@@ -737,14 +737,6 @@ func (f *failingAdminStore) SyncUserActiveStatus(_ context.Context) (int64, int6
 	return 0, 0, nil
 }
 
-func (f *failingAdminStore) AdminListPriceHistory(_ context.Context, _, _ int, _ string) ([]storage.AdminPriceRecord, int64, error) {
-	return nil, 0, nil
-}
-
-func (f *failingAdminStore) AdminListSeenListings(_ context.Context, _, _ int, _ int64) ([]storage.AdminSeenRecord, int64, error) {
-	return nil, 0, nil
-}
-
 func (f *failingAdminStore) AdminActivityStats(_ context.Context, _ int) ([]storage.AdminDayActivity, error) {
 	return nil, nil
 }

@@ -59,50 +59,6 @@ func TestAdminSetUserActive_BadID(t *testing.T) {
 	}
 }
 
-// --- adminListPriceHistory ---
-
-func TestAdminListPriceHistory(t *testing.T) {
-	srv, store := setupTestServer(t)
-	ctx := context.Background()
-
-	db := store.DB()
-	if _, err := db.ExecContext(ctx, "INSERT INTO price_history (token, price) VALUES ('ph-1', 100000)"); err != nil {
-		t.Fatal(err)
-	}
-
-	w := doRequest(t, srv, "GET", "/api/v1/admin/price-history", nil)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-	var resp map[string]any
-	mustUnmarshal(t, w.Body.Bytes(), &resp)
-	if resp["total"].(float64) < 1 {
-		t.Error("expected at least 1 price record")
-	}
-}
-
-// --- adminListSeenListings ---
-
-func TestAdminListSeenListings(t *testing.T) {
-	srv, store := setupTestServer(t)
-	ctx := context.Background()
-
-	searchID, err := store.CreateSearch(ctx, storage.Search{
-		ChatID: 999, Name: "seen-admin", Manufacturer: 1, Model: 1,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.ClaimNew(ctx, "admin-seen-tok", 999, searchID); err != nil {
-		t.Fatal(err)
-	}
-
-	w := doRequest(t, srv, "GET", "/api/v1/admin/seen-listings", nil)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
 // --- adminActivity ---
 
 func TestAdminActivity(t *testing.T) {

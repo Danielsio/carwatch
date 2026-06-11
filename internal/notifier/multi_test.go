@@ -83,6 +83,9 @@ func (f *fakeUserStore) GetUser(_ context.Context, chatID int64) (*storage.User,
 
 func (f *fakeUserStore) LinkTelegramToWeb(_ context.Context, _, _ int64) error { return nil }
 
+func (f *fakeUserStore) ReactivateUsersWithSearches(_ context.Context) (int64, error) {
+	return 0, nil
+}
 func (f *fakeUserStore) GetLinkedTelegramUser(_ context.Context, webChatID int64) (*storage.User, error) {
 	if f.linkedTgUsers == nil {
 		return nil, nil

@@ -335,36 +335,6 @@ export interface AdminListingsResponse {
   offset: number;
 }
 
-export interface AdminPriceRecord {
-  token: string;
-  price: number;
-  observed_at: string;
-  manufacturer?: string;
-  model?: string;
-  year?: number;
-}
-
-export interface AdminPriceHistoryResponse {
-  items: AdminPriceRecord[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export interface AdminSeenRecord {
-  token: string;
-  chat_id: number;
-  search_id: number;
-  first_seen_at: string;
-}
-
-export interface AdminSeenListingsResponse {
-  items: AdminSeenRecord[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
 export interface AdminDayActivity {
   date: string;
   new_listings: number;
@@ -499,22 +469,6 @@ export const adminApi = {
     }),
   vacuum: () =>
     fetchAPI<VacuumResult>("/admin/vacuum", { method: "POST" }),
-  priceHistory: (params?: { limit?: number; offset?: number; token?: string }) => {
-    const query = new URLSearchParams();
-    if (params?.limit !== undefined) query.set("limit", String(params.limit));
-    if (params?.offset !== undefined) query.set("offset", String(params.offset));
-    if (params?.token) query.set("token", params.token);
-    const qs = query.toString();
-    return fetchAPI<AdminPriceHistoryResponse>(`/admin/price-history${qs ? `?${qs}` : ""}`);
-  },
-  seenListings: (params?: { limit?: number; offset?: number; search_id?: number }) => {
-    const query = new URLSearchParams();
-    if (params?.limit !== undefined) query.set("limit", String(params.limit));
-    if (params?.offset !== undefined) query.set("offset", String(params.offset));
-    if (params?.search_id) query.set("search_id", String(params.search_id));
-    const qs = query.toString();
-    return fetchAPI<AdminSeenListingsResponse>(`/admin/seen-listings${qs ? `?${qs}` : ""}`);
-  },
   activity: (days?: number) =>
     fetchAPI<AdminActivityResponse>(`/admin/activity${days ? `?days=${days}` : ""}`),
   cycles: (limit?: number) =>

@@ -283,9 +283,10 @@ func (m *mockUserStore) GetUserByChannelID(_ context.Context, _, _ string) (*sto
 func (m *mockUserStore) UpsertWhatsAppUser(_ context.Context, _ string) (int64, error) {
 	return 0, nil
 }
-func (m *mockUserStore) UpsertWebUser(_ context.Context, _, _ string) (int64, error) { return 0, nil }
-func (m *mockUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error           { return nil }
-func (m *mockUserStore) LinkTelegramToWeb(_ context.Context, _, _ int64) error       { return nil }
+func (m *mockUserStore) UpsertWebUser(_ context.Context, _, _ string) (int64, error)  { return 0, nil }
+func (m *mockUserStore) UpdateLastSeenAt(_ context.Context, _ int64) error            { return nil }
+func (m *mockUserStore) LinkTelegramToWeb(_ context.Context, _, _ int64) error        { return nil }
+func (m *mockUserStore) ReactivateUsersWithSearches(_ context.Context) (int64, error) { return 0, nil }
 func (m *mockUserStore) GetLinkedTelegramUser(_ context.Context, _ int64) (*storage.User, error) {
 	return nil, nil
 }

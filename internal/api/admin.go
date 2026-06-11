@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -473,99 +472,6 @@ func (s *Server) adminVacuum(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) adminListPriceHistory(w http.ResponseWriter, r *http.Request) {
-	limit, ok := parseIntParam(w, r, "limit", 50)
-	if !ok {
-		return
-	}
-	if limit > 100 {
-		limit = 100
-	}
-	offset, ok := parseIntParam(w, r, "offset", 0)
-	if !ok {
-		return
-	}
-	if offset < 0 {
-		offset = 0
-	}
-	token := r.URL.Query().Get("token")
-
-	items, total, err := s.admin.AdminListPriceHistory(r.Context(), limit, offset, token)
-	if err != nil {
-		s.logger.Error("admin: list price history", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to list price history")
-		return
-	}
-
-	type priceResp struct {
-		Token        string `json:"token"`
-		Price        int    `json:"price"`
-		ObservedAt   string `json:"observed_at"`
-		Manufacturer string `json:"manufacturer,omitempty"`
-		Model        string `json:"model,omitempty"`
-		Year         int    `json:"year,omitempty"`
-	}
-
-	resp := make([]priceResp, 0, len(items))
-	for _, p := range items {
-		resp = append(resp, priceResp{
-			Token:        p.Token,
-			Price:        p.Price,
-			ObservedAt:   p.ObservedAt.UTC().Format("2006-01-02T15:04:05Z"),
-			Manufacturer: p.Manufacturer,
-			Model:        p.Model,
-			Year:         p.Year,
-		})
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": resp, "total": total, "limit": limit, "offset": offset})
-}
-
-func (s *Server) adminListSeenListings(w http.ResponseWriter, r *http.Request) {
-	limit, ok := parseIntParam(w, r, "limit", 50)
-	if !ok {
-		return
-	}
-	if limit > 100 {
-		limit = 100
-	}
-	offset, ok := parseIntParam(w, r, "offset", 0)
-	if !ok {
-		return
-	}
-	if offset < 0 {
-		offset = 0
-	}
-	searchIDVal, ok := parseIntParam(w, r, "search_id", 0)
-	if !ok {
-		return
-	}
-
-	items, total, err := s.admin.AdminListSeenListings(r.Context(), limit, offset, int64(searchIDVal))
-	if err != nil {
-		s.logger.Error("admin: list seen listings", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to list seen listings")
-		return
-	}
-
-	type seenResp struct {
-		Token       string `json:"token"`
-		ChatID      int64  `json:"chat_id"`
-		SearchID    int64  `json:"search_id"`
-		FirstSeenAt string `json:"first_seen_at"`
-	}
-
-	resp := make([]seenResp, 0, len(items))
-	for _, sr := range items {
-		resp = append(resp, seenResp{
-			Token:       sr.Token,
-			ChatID:      sr.ChatID,
-			SearchID:    sr.SearchID,
-			FirstSeenAt: sr.FirstSeenAt.UTC().Format("2006-01-02T15:04:05Z"),
-		})
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": resp, "total": total, "limit": limit, "offset": offset})
-}
-
 func (s *Server) adminActivity(w http.ResponseWriter, r *http.Request) {
 	days, ok := parseIntParam(w, r, "days", 30)
 	if !ok {
@@ -725,38 +631,6 @@ func (s *Server) adminSetLogLevel(w http.ResponseWriter, r *http.Request) {
 	s.logLevel.Set(lvl)
 	s.logger.Info("log level changed", "level", body.Level)
 	writeJSON(w, http.StatusOK, map[string]string{"level": s.logLevel.Level().String()})
-}
-
-func (s *Server) adminEnrichmentStatus(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	unenriched, err := s.listings.CountUnenrichedTokens(ctx)
-	if err != nil {
-		s.logger.Error("admin: count unenriched tokens", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to count unenriched tokens")
-		return
-	}
-	resp := map[string]any{
-		"unenriched_count": unenriched, // actionable now
-	}
-
-	type enrichmentDiagnosticsCounter interface {
-		CountUnenrichedCooldownTokens(context.Context) (int64, error)
-		CountUnenrichedExhaustedTokens(context.Context) (int64, error)
-	}
-	if diagStore, ok := s.listings.(enrichmentDiagnosticsCounter); ok {
-		if cooldown, diagErr := diagStore.CountUnenrichedCooldownTokens(ctx); diagErr != nil {
-			s.logger.Warn("admin: count unenriched cooldown tokens", "error", diagErr)
-		} else {
-			resp["cooldown_count"] = cooldown
-		}
-		if exhausted, diagErr := diagStore.CountUnenrichedExhaustedTokens(ctx); diagErr != nil {
-			s.logger.Warn("admin: count unenriched exhausted tokens", "error", diagErr)
-		} else {
-			resp["exhausted_count"] = exhausted
-		}
-	}
-
-	writeJSON(w, http.StatusOK, resp)
 }
 
 type schedulerStatusResponse struct {

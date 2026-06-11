@@ -74,6 +74,7 @@ type UserStore interface {
 	ListExpiredPremium(ctx context.Context) ([]User, error)
 	LinkTelegramToWeb(ctx context.Context, telegramChatID, webChatID int64) error
 	GetLinkedTelegramUser(ctx context.Context, webChatID int64) (*User, error)
+	ReactivateUsersWithSearches(ctx context.Context) (int64, error)
 }
 
 type LinkTokenStore interface {
@@ -159,22 +160,6 @@ type ListingRecord struct {
 type PricePoint struct {
 	Price      int
 	ObservedAt time.Time
-}
-
-type AdminPriceRecord struct {
-	Token        string
-	Price        int
-	ObservedAt   time.Time
-	Manufacturer string
-	Model        string
-	Year         int
-}
-
-type AdminSeenRecord struct {
-	Token       string
-	ChatID      int64
-	SearchID    int64
-	FirstSeenAt time.Time
 }
 
 type AdminDayActivity struct {
@@ -397,8 +382,6 @@ type AdminStore interface {
 	AdminDeleteUser(ctx context.Context, chatID int64) error
 	VacuumDB(ctx context.Context) error
 	SyncUserActiveStatus(ctx context.Context) (activated, deactivated int64, err error)
-	AdminListPriceHistory(ctx context.Context, limit, offset int, token string) ([]AdminPriceRecord, int64, error)
-	AdminListSeenListings(ctx context.Context, limit, offset int, searchID int64) ([]AdminSeenRecord, int64, error)
 	AdminActivityStats(ctx context.Context, days int) ([]AdminDayActivity, error)
 	DBPoolStats() *DBPoolStats
 }
