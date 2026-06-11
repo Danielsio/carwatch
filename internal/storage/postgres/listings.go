@@ -683,7 +683,7 @@ func (s *Store) ListSaved(ctx context.Context, chatID int64, limit, offset int) 
 		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.sub_model, lh.sub_model_id, lh.year, lh.price,
 			lh.km, lh.hand, lh.city, lh.page_link, lh.image_url,
 			lh.engine_volume, lh.horse_power, lh.engine_type, lh.gear_box, lh.description,
-			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at, lh.removed_at
+			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at, lh.posted_at, lh.removed_at
 		FROM saved_listings sl
 		JOIN listing_history lh ON sl.token = lh.token AND sl.chat_id = lh.chat_id
 		WHERE sl.chat_id = $1
