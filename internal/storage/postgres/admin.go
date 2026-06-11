@@ -173,17 +173,20 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 		var r storage.ListingRecord
 		var fs sql.NullFloat64
 		var ic, mp, cs, ds, bp sql.NullInt64
-		var removedAt sql.NullTime
+		var postedAt, removedAt sql.NullTime
 		if err := rows.Scan(
 			&r.Token, &r.ChatID, &r.SearchID, &r.SearchName,
 			&r.Manufacturer, &r.Model, &r.SubModel, &r.SubModelID, &r.Year, &r.Price,
 			&r.Km, &r.Hand, &r.City, &r.PageLink, &r.ImageURL,
 			&r.EngineVolume, &r.HorsePower, &r.EngineType, &r.GearBox, &r.Description,
-			&ic, &fs, &mp, &cs, &ds, &bp, &r.FirstSeenAt, &removedAt,
+			&ic, &fs, &mp, &cs, &ds, &bp, &r.FirstSeenAt, &postedAt, &removedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan listing: %w", err)
 		}
 		r.IsCommercial = storage.ListingCommercialFromSQL(ic)
+		if postedAt.Valid {
+			r.PostedAt = &postedAt.Time
+		}
 		if fs.Valid {
 			r.FitnessScore = &fs.Float64
 		}
