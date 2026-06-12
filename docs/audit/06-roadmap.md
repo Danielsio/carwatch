@@ -15,7 +15,7 @@ Every merge to main auto-deploys to production (`release.yml`), so Phase-9 execu
 | 5 | `fix: add backpressure check to enrichment backfill` | F5 | Uses existing `XLen` helper; isolated to maintenance.go |
 | 6 | `feat: alert on listing persistence failures` | F10 | Observability lands **before** the behavioral change in PR 7 |
 | 7 | `fix: record listing prices only after successful persist` | F4 | Highest behavioral risk; protected by PRs 1 & 6; merge in a low-activity window |
-| 8 | `fix: bump x/net and x/crypto to patch vulnerabilities` | F12 | `go get golang.org/x/net@latest golang.org/x/crypto@latest && go mod tidy` |
+| 8 | `fix: bump x/net and x/crypto to patch vulnerabilities` | F12 | `go get golang.org/x/net@v0.55.0 golang.org/x/crypto@v0.52.0 && go mod tidy` (pin to the fixed versions, not `@latest`) |
 
 ## Short-term (1–2 weeks, filed as issues)
 

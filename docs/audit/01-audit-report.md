@@ -1,7 +1,7 @@
 # CarWatch Engineering Audit — June 2026
 
 **Scope:** full repository (Go backend ~41K LOC across 205 files, React SPA ~135 TS/TSX files, 22 migrations, CI/CD, deployment).
-**Method:** three independent exploration passes, followed by a file-level verification pass in which every candidate finding was re-read in code. Findings that could not be confirmed with `file:line` evidence were discarded (one was falsified outright — see [02-findings.md](02-findings.md)).
+**Method:** three independent exploration passes, followed by a file-level verification pass in which every candidate finding was re-read in code. Findings that could not be confirmed with `file:line` evidence were discarded (five candidates were falsified outright — see the falsified-candidates table in [02-findings.md](02-findings.md)).
 **Companions:** [02-findings.md](02-findings.md) (verified findings register), [03-product-ux-review.md](03-product-ux-review.md), [04-testing-strategy.md](04-testing-strategy.md), [05-tech-debt-register.md](05-tech-debt-register.md), [06-roadmap.md](06-roadmap.md).
 
 ---
