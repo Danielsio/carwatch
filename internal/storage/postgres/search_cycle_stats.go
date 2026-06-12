@@ -13,12 +13,12 @@ func (s *Store) UpsertSearchCycleStats(ctx context.Context, stats []storage.Sear
 		return nil
 	}
 
-	const cols = 21
+	const cols = 23
 	var b strings.Builder
 	b.WriteString(`INSERT INTO search_cycle_stats
 		(search_id, chat_id, search_name, cycle_at,
 		 feed_size, matched, new_listings, km_filtered, delivered, price_drops,
-		 wrong_model, year_out, price_out, km_over, hand_over, other_filter,
+		 wrong_model, year_out, price_out, km_over, hand_over, engine_cc, seller, other_filter,
 		 score_min, score_max, score_avg, price_min, price_max,
 		 updated_at)
 	VALUES `)
@@ -39,7 +39,7 @@ func (s *Store) UpsertSearchCycleStats(ctx context.Context, stats []storage.Sear
 		b.WriteString(",NOW())")
 		args = append(args, st.SearchID, st.ChatID, st.SearchName, st.CycleAt,
 			st.FeedSize, st.Matched, st.NewListings, st.KmFiltered, st.Delivered, st.PriceDrops,
-			st.WrongModel, st.YearOut, st.PriceOut, st.KmOver, st.HandOver, st.OtherFilter,
+			st.WrongModel, st.YearOut, st.PriceOut, st.KmOver, st.HandOver, st.EngineCC, st.Seller, st.OtherFilter,
 			st.ScoreMin, st.ScoreMax, st.ScoreAvg, st.PriceMin, st.PriceMax)
 	}
 
@@ -58,6 +58,8 @@ func (s *Store) UpsertSearchCycleStats(ctx context.Context, stats []storage.Sear
 		price_out = EXCLUDED.price_out,
 		km_over = EXCLUDED.km_over,
 		hand_over = EXCLUDED.hand_over,
+		engine_cc = EXCLUDED.engine_cc,
+		seller = EXCLUDED.seller,
 		other_filter = EXCLUDED.other_filter,
 		score_min = EXCLUDED.score_min,
 		score_max = EXCLUDED.score_max,
@@ -77,7 +79,7 @@ func (s *Store) ListSearchCycleStats(ctx context.Context, chatID int64) ([]stora
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT search_id, chat_id, search_name, cycle_at,
 		       feed_size, matched, new_listings, km_filtered, delivered, price_drops,
-		       wrong_model, year_out, price_out, km_over, hand_over, other_filter,
+		       wrong_model, year_out, price_out, km_over, hand_over, engine_cc, seller, other_filter,
 		       score_min, score_max, score_avg, price_min, price_max
 		FROM search_cycle_stats
 		WHERE chat_id = $1
@@ -92,7 +94,7 @@ func (s *Store) ListSearchCycleStats(ctx context.Context, chatID int64) ([]stora
 		var st storage.SearchCycleStats
 		if err := rows.Scan(&st.SearchID, &st.ChatID, &st.SearchName, &st.CycleAt,
 			&st.FeedSize, &st.Matched, &st.NewListings, &st.KmFiltered, &st.Delivered, &st.PriceDrops,
-			&st.WrongModel, &st.YearOut, &st.PriceOut, &st.KmOver, &st.HandOver, &st.OtherFilter,
+			&st.WrongModel, &st.YearOut, &st.PriceOut, &st.KmOver, &st.HandOver, &st.EngineCC, &st.Seller, &st.OtherFilter,
 			&st.ScoreMin, &st.ScoreMax, &st.ScoreAvg, &st.PriceMin, &st.PriceMax); err != nil {
 			return nil, fmt.Errorf("scan search cycle stats: %w", err)
 		}

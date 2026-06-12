@@ -528,6 +528,8 @@ export interface SearchCycleStatsItem {
   price_out: number;
   km_over: number;
   hand_over: number;
+  engine_cc: number;
+  seller: number;
   other_filter: number;
   score_min: number | null;
   score_max: number | null;

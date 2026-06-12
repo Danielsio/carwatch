@@ -255,14 +255,10 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 		updatedAt = item.VehicleDates.UpdatedAt
 	}
 	if createdAt != "" {
-		if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
-			listing.CreatedAt = t
-		}
+		listing.CreatedAt = parseFlexTime(createdAt)
 	}
 	if updatedAt != "" {
-		if t, err := time.Parse(time.RFC3339, updatedAt); err == nil {
-			listing.UpdatedAt = t
-		}
+		listing.UpdatedAt = parseFlexTime(updatedAt)
 	}
 	listing.Commercial = commercial
 	return listing, nil
@@ -303,6 +299,29 @@ func parseHand(raw json.RawMessage) int {
 		return f.ID
 	}
 	return 0
+}
+
+var israelTZ = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Jerusalem")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}()
+
+func parseFlexTime(s string) time.Time {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t
+	}
+	for _, layout := range []string{
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05",
+	} {
+		if t, err := time.ParseInLocation(layout, s, israelTZ); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
 }
 
 func textFromField(f field) string {
