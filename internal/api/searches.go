@@ -587,6 +587,8 @@ func (s *Server) listSearchCycleStats(w http.ResponseWriter, r *http.Request) {
 		PriceOut    int      `json:"price_out"`
 		KmOver      int      `json:"km_over"`
 		HandOver    int      `json:"hand_over"`
+		EngineCC    int      `json:"engine_cc"`
+		Seller      int      `json:"seller"`
 		OtherFilter int      `json:"other_filter"`
 		ScoreMin    *float64 `json:"score_min"`
 		ScoreMax    *float64 `json:"score_max"`
@@ -612,6 +614,8 @@ func (s *Server) listSearchCycleStats(w http.ResponseWriter, r *http.Request) {
 			PriceOut:    st.PriceOut,
 			KmOver:      st.KmOver,
 			HandOver:    st.HandOver,
+			EngineCC:    st.EngineCC,
+			Seller:      st.Seller,
 			OtherFilter: st.OtherFilter,
 			ScoreMin:    st.ScoreMin,
 			ScoreMax:    st.ScoreMax,

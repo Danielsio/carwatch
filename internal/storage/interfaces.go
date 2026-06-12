@@ -357,6 +357,8 @@ type SearchCycleStats struct {
 	PriceOut    int
 	KmOver      int
 	HandOver    int
+	EngineCC    int
+	Seller      int
 	OtherFilter int
 	ScoreMin    *float64
 	ScoreMax    *float64

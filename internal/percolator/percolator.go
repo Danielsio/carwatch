@@ -69,6 +69,8 @@ const (
 	RejectPriceOut    RejectReason = "price_out"
 	RejectKmOver      RejectReason = "km_over"
 	RejectHandOver    RejectReason = "hand_over"
+	RejectEngineCC    RejectReason = "engine_cc"
+	RejectSeller      RejectReason = "seller"
 	RejectOtherFilter RejectReason = "other_filter"
 )
 
@@ -120,7 +122,7 @@ func classifyRejection(l model.RawListing, s storage.Search) RejectReason {
 		return RejectHandOver
 	}
 	if s.EngineMinCC > 0 && int(l.EngineVolume) < s.EngineMinCC {
-		return RejectOtherFilter
+		return RejectEngineCC
 	}
 	if s.GearBox != "" && l.GearBox != "" {
 		if !strings.EqualFold(s.GearBox, l.GearBox) {
@@ -131,10 +133,10 @@ func classifyRejection(l model.RawListing, s storage.Search) RejectReason {
 	if sf != "" && sf != "any" && l.Commercial != nil {
 		isCommercial := *l.Commercial
 		if sf == "private" && isCommercial {
-			return RejectOtherFilter
+			return RejectSeller
 		}
 		if (sf == "commercial" || sf == "dealer" || sf == "dealership") && !isCommercial {
-			return RejectOtherFilter
+			return RejectSeller
 		}
 	}
 	if s.PriceOnly && l.Price <= 0 {

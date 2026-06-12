@@ -284,7 +284,9 @@ export function SearchCard({
               {(() => {
                 const rejections = [
                   { label: "יד גבוהה מדי", count: cycleStats.hand_over },
-                  { label: "מנוע / מוכר / אחר", count: cycleStats.other_filter },
+                  { label: "נפח מנוע", count: cycleStats.engine_cc },
+                  { label: "מוכר מסחרי", count: cycleStats.seller },
+                  { label: "אחר", count: cycleStats.other_filter },
                   { label: "ק״מ גבוה", count: cycleStats.km_over },
                   { label: "מחיר מחוץ לטווח", count: cycleStats.price_out },
                   { label: "שנה מחוץ לטווח", count: cycleStats.year_out },
