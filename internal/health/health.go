@@ -39,8 +39,8 @@ type SourceMetrics struct {
 }
 
 type Status struct {
-	startTime         time.Time
-	version           string
+	startTime            time.Time
+	version              string
 	cycleCount           atomic.Int64
 	errorCount           atomic.Int64
 	lastSuccessUnixNs    atomic.Int64
@@ -48,9 +48,9 @@ type Status struct {
 	notificationsSent    atomic.Int64
 	persistFailures      atomic.Int64
 	claimReleaseFailures atomic.Int64
-	schedulerExpected atomic.Bool
-	schedulerStarted  atomic.Bool
-	botPollingAlive   atomic.Bool
+	schedulerExpected    atomic.Bool
+	schedulerStarted     atomic.Bool
+	botPollingAlive      atomic.Bool
 
 	sourceMu sync.RWMutex
 	sources  map[string]*SourceMetrics
