@@ -256,10 +256,10 @@ export function SearchCard({
             <div className="mt-2.5 space-y-2 animate-fade-in">
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <span className="tabular-nums font-medium text-foreground">{cycleStats.feed_size.toLocaleString()}</span>
-                <span>נסרקו</span>
+                <span>מודעות מתאימות</span>
                 <span className="text-border">&#8594;</span>
                 <span className="tabular-nums font-medium text-foreground">{cycleStats.matched.toLocaleString()}</span>
-                <span>התאמות</span>
+                <span>עברו סינון</span>
                 <span className="text-border">&#8594;</span>
                 <span className="tabular-nums font-medium text-primary">{cycleStats.delivered.toLocaleString()}</span>
                 <span>חדשות</span>
@@ -273,30 +273,27 @@ export function SearchCard({
               </div>
               <div className="flex gap-3 text-[11px] text-muted-foreground">
                 {cycleStats.km_filtered > 0 && (
-                  <span>{cycleStats.km_filtered} סוננו (ק״מ)</span>
+                  <span>{cycleStats.km_filtered} ממתינות לנתוני ק״מ</span>
                 )}
                 {cycleStats.price_drops > 0 && (
                   <span className="text-score-good">{cycleStats.price_drops} ירידות מחיר</span>
-                )}
-                {cycleStats.matched > 0 && (
-                  <span className="ms-auto opacity-60">{((cycleStats.matched / cycleStats.feed_size) * 100).toFixed(1)}% match</span>
                 )}
               </div>
 
               {/* Filter rejection breakdown */}
               {(() => {
                 const rejections = [
-                  { label: "דגם אחר", count: cycleStats.wrong_model },
-                  { label: "מחיר", count: cycleStats.price_out },
-                  { label: "שנה", count: cycleStats.year_out },
-                  { label: "ק״מ", count: cycleStats.km_over },
-                  { label: "יד", count: cycleStats.hand_over },
-                  { label: "אחר", count: cycleStats.other_filter },
+                  { label: "יד גבוהה מדי", count: cycleStats.hand_over },
+                  { label: "מנוע / מוכר / אחר", count: cycleStats.other_filter },
+                  { label: "ק״מ גבוה", count: cycleStats.km_over },
+                  { label: "מחיר מחוץ לטווח", count: cycleStats.price_out },
+                  { label: "שנה מחוץ לטווח", count: cycleStats.year_out },
                 ].filter(r => r.count > 0).sort((a, b) => b.count - a.count);
                 if (rejections.length === 0) return null;
+                const totalFiltered = rejections.reduce((s, r) => s + r.count, 0);
                 return (
                   <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground/70">
-                    <span>סוננו:</span>
+                    <span>{totalFiltered} סוננו:</span>
                     {rejections.map((r, i) => (
                       <span key={r.label}>
                         {i > 0 && <span className="mx-0.5 opacity-40">·</span>}

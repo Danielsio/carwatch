@@ -1111,7 +1111,7 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 				ChatID:      search.ChatID,
 				SearchName:  search.Name,
 				CycleAt:     now,
-				FeedSize:    matched + rej[percolator.RejectWrongModel] + rej[percolator.RejectYearOut] + rej[percolator.RejectPriceOut] + rej[percolator.RejectKmOver] + rej[percolator.RejectHandOver] + rej[percolator.RejectOtherFilter],
+				FeedSize:    matched + rej[percolator.RejectYearOut] + rej[percolator.RejectPriceOut] + rej[percolator.RejectKmOver] + rej[percolator.RejectHandOver] + rej[percolator.RejectOtherFilter],
 				Matched:     matched,
 				NewListings: newListingCount,
 				KmFiltered:  kmFiltered,
