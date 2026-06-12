@@ -41,8 +41,29 @@ func (s *Scheduler) pruneOldData(ctx context.Context) {
 	s.lastPruneTime = time.Now()
 }
 
+// enrichBackfillWatermark is the enrich-stream depth above which backfill
+// publishing is skipped. The stream is XAdd-trimmed at broker.EnrichStreamMaxLen,
+// so publishing into a near-full stream silently evicts the oldest in-flight
+// work; backing off at 80% lets the consumer drain instead.
+const enrichBackfillWatermark = broker.EnrichStreamMaxLen * 8 / 10
+
 func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 	if s.enrichPublisher == nil || s.stores.Listings == nil {
+		return
+	}
+
+	depth, err := s.enrichPublisher.EnrichQueueLen(ctx)
+	if err != nil {
+		s.logger.Warn("could not check enrich stream depth, skipping backfill this cycle",
+			"error", err)
+		return
+	}
+	if depth >= enrichBackfillWatermark {
+		s.logger.Warn("enrich stream above backfill watermark, skipping backfill so the consumer can drain",
+			"depth", depth,
+			"watermark", enrichBackfillWatermark,
+			"impact", "unenriched listings stay queued for a later cycle instead of evicting in-flight work",
+		)
 		return
 	}
 

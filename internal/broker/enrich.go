@@ -17,7 +17,11 @@ const EnrichGroupName = "enricher-workers"
 // EnrichDeadLetterStream holds messages that exceeded retry limits.
 const EnrichDeadLetterStream = "carwatch:enrich:dead"
 
-const enrichStreamMaxLen = 50000
+// EnrichStreamMaxLen caps the enrichment stream via approximate XAdd trimming.
+// When the stream exceeds this, the OLDEST entries are silently evicted —
+// producers must therefore check EnrichQueueLen before bulk publishing (see the
+// scheduler backfill watermark).
+const EnrichStreamMaxLen = 50000
 
 // EnrichRequest represents a request to enrich a listing with km/city data.
 type EnrichRequest struct {
@@ -49,7 +53,7 @@ func (p *EnrichPublisher) PublishEnrich(ctx context.Context, req EnrichRequest) 
 	}
 	return p.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: EnrichStreamName,
-		MaxLen: enrichStreamMaxLen,
+		MaxLen: EnrichStreamMaxLen,
 		Approx: true,
 		Values: map[string]any{"data": string(data)},
 	}).Err()
