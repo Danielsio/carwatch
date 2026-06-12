@@ -301,13 +301,23 @@ func parseHand(raw json.RawMessage) int {
 	return 0
 }
 
+var israelTZ = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Jerusalem")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}()
+
 func parseFlexTime(s string) time.Time {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t
+	}
 	for _, layout := range []string{
-		time.RFC3339,
 		"2006-01-02T15:04:05",
 		"2006-01-02 15:04:05",
 	} {
-		if t, err := time.Parse(layout, s); err == nil {
+		if t, err := time.ParseInLocation(layout, s, israelTZ); err == nil {
 			return t
 		}
 	}
