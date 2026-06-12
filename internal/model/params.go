@@ -58,6 +58,8 @@ func SourceParamsFromSearch(s *storage.Search) SourceParams {
 		MaxKm:        s.MaxKm,
 		MaxHand:      s.MaxHand,
 		EngineMinCC:  s.EngineMinCC,
+		SellerFilter: s.SellerFilter,
+		PhotoOnly:    s.PhotoOnly,
 	}
 }
 
@@ -73,6 +75,8 @@ type SourceParams struct {
 	MaxKm        int
 	MaxHand      int
 	EngineMinCC  int
+	SellerFilter string
+	PhotoOnly    bool
 }
 
 // FilterCriteria defines the criteria used to filter raw listings

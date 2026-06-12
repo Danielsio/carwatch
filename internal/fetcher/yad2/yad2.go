@@ -290,6 +290,24 @@ func buildURL(base string, params model.SourceParams) string {
 		}
 		v.Set("price", strconv.Itoa(priceMin)+"-"+strconv.Itoa(priceMax))
 	}
+	if params.MaxKm > 0 {
+		v.Set("km", "-1-"+strconv.Itoa(params.MaxKm))
+	}
+	if params.EngineMinCC > 0 {
+		v.Set("engineval", strconv.Itoa(params.EngineMinCC)+"--1")
+	}
+	if params.MaxHand > 0 {
+		v.Set("hand", "0-"+strconv.Itoa(params.MaxHand))
+	}
+	switch strings.ToLower(strings.TrimSpace(params.SellerFilter)) {
+	case "private":
+		v.Set("ownerID", "1")
+	case "commercial", "dealer", "dealership":
+		v.Set("ownerID", "2")
+	}
+	if params.PhotoOnly {
+		v.Set("imgOnly", "1")
+	}
 	v.Set("Order", "1")
 	if params.Page > 0 {
 		v.Set("page", strconv.Itoa(params.Page))
