@@ -76,6 +76,18 @@ Every PR must be reviewed by the `ce:review` skill agents before merging. Includ
 
 List the agents that ran and their verdict. If any agent flagged P0/P1 issues, they must be fixed before merging.
 
+## CodeRabbit Comments (merge blocker)
+
+PRs are blocked until every CodeRabbit review comment is resolved. For each comment:
+- If it has a valid point, fix it in a follow-up commit on the same branch.
+- If it does not apply, reply to the thread explaining why and resolve it.
+
+Never merge a PR with open/unaddressed CodeRabbit threads. Check with:
+```bash
+gh pr view <N> --comments
+gh api repos/Danielsio/carwatch/pulls/<N>/comments
+```
+
 ## Pre-Push Checks
 
 Always run the linter before pushing:
