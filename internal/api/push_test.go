@@ -52,6 +52,29 @@ func TestPushSubscribe_MissingFields(t *testing.T) {
 	}
 }
 
+func TestPushSubscribe_RejectsNonPushServiceEndpoint(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	// A well-formed HTTPS endpoint pointing anywhere other than a known push
+	// service must be rejected — the notifier POSTs to stored endpoints, so
+	// accepting arbitrary hosts is a stored SSRF.
+	w := doRequest(t, srv, "POST", "/api/v1/push/subscribe", subscribeRequest{
+		Endpoint: "https://attacker.example.com/collect",
+		Keys:     subscribeKeys{P256DH: "key", Auth: "auth"},
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("non-push-service endpoint: expected 400, got %d", w.Code)
+	}
+
+	w = doRequest(t, srv, "POST", "/api/v1/push/subscribe", subscribeRequest{
+		Endpoint: "https://169.254.169.254/latest/meta-data/",
+		Keys:     subscribeKeys{P256DH: "key", Auth: "auth"},
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("metadata IP endpoint: expected 400, got %d", w.Code)
+	}
+}
+
 func TestPushUnsubscribe(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
