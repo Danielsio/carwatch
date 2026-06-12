@@ -12,10 +12,9 @@ import (
 // blockingMarketStore blocks inside RefreshMarketMedians until released, so a
 // test can observe the background refresh goroutine still running at shutdown.
 type blockingMarketStore struct {
-	entered  chan struct{}
-	release  chan struct{}
-	once     sync.Once
-	released bool
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
 }
 
 func (m *blockingMarketStore) RefreshMarketMedians(_ context.Context) error {
