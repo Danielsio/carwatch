@@ -2,6 +2,7 @@ package yad2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -15,6 +16,75 @@ import (
 
 // outstandingGoroutines tracks orphaned azuretls goroutines that outlived their context.
 var outstandingGoroutines atomic.Int64
+
+// maxInFlightStealthFetches bounds the number of concurrent upstream fetches the
+// stealth client will have in flight at once. azuretls has no native context
+// cancellation, so a goroutine started for a request keeps running (holding a
+// connection) until the request actually completes, even after the caller's
+// context is cancelled. Capping in-flight requests means stranded goroutines
+// can accumulate to at most this many before new fetches are refused, turning an
+// unbounded leak into bounded backpressure. The cap is set well above the
+// scheduler's normal fetch concurrency (max_concurrent_fetches defaults to 4) so
+// healthy operation never hits it.
+const maxInFlightStealthFetches = 16
+
+// errTooManyInFlight is returned when the in-flight fetch limit is reached. It is
+// a fail-fast signal: the upstream is hanging and we shed load rather than strand
+// another goroutine.
+var errTooManyInFlight = errors.New("yad2: too many in-flight fetches, refusing to spawn another")
+
+// inFlightLimiter bounds concurrent upstream fetches whose goroutines may outlive
+// a cancelled context. A slot is held until the real request returns, so an
+// orphaned (post-cancellation) request still counts against the limit.
+type inFlightLimiter struct {
+	sem chan struct{}
+}
+
+func newInFlightLimiter(max int) *inFlightLimiter {
+	if max < 1 {
+		max = 1
+	}
+	return &inFlightLimiter{sem: make(chan struct{}, max)}
+}
+
+// run executes fetch in a goroutine and returns its result, or the context error
+// if ctx is cancelled first. The goroutine — and the slot it holds — live until
+// fetch returns, so the number of orphaned in-flight requests can never exceed
+// the limiter's capacity. When no slot is free it returns errTooManyInFlight
+// immediately instead of spawning another goroutine.
+func (l *inFlightLimiter) run(ctx context.Context, fetch func() (*HTTPResult, error)) (*HTTPResult, error) {
+	select {
+	case l.sem <- struct{}{}:
+	default:
+		return nil, errTooManyInFlight
+	}
+
+	type fetchResult struct {
+		resp *HTTPResult
+		err  error
+	}
+	ch := make(chan fetchResult, 1)
+	go func() {
+		r, e := fetch()
+		ch <- fetchResult{r, e}
+		<-l.sem // release only once the real request has finished
+	}()
+
+	select {
+	case <-ctx.Done():
+		n := outstandingGoroutines.Add(1)
+		if n >= int64(cap(l.sem)) {
+			slog.Warn("azuretls orphaned goroutines at capacity", "outstanding", n, "cap", cap(l.sem))
+		}
+		go func() {
+			<-ch
+			outstandingGoroutines.Add(-1)
+		}()
+		return nil, ctx.Err()
+	case result := <-ch:
+		return result.resp, result.err
+	}
+}
 
 // HTTPResult holds the outcome of an HTTP GET request.
 type HTTPResult struct {
@@ -35,6 +105,7 @@ type HTTPDoer interface {
 type stealthClient struct {
 	session    *azuretls.Session
 	userAgents []string
+	limiter    *inFlightLimiter
 }
 
 func newStealthClient(userAgents []string, proxy string) (*stealthClient, error) {
@@ -48,7 +119,11 @@ func newStealthClient(userAgents []string, proxy string) (*stealthClient, error)
 		}
 	}
 
-	return &stealthClient{session: session, userAgents: userAgents}, nil
+	return &stealthClient{
+		session:    session,
+		userAgents: userAgents,
+		limiter:    newInFlightLimiter(maxInFlightStealthFetches),
+	}, nil
 }
 
 func (c *stealthClient) Get(ctx context.Context, reqURL string) (*HTTPResult, error) {
@@ -58,14 +133,11 @@ func (c *stealthClient) Get(ctx context.Context, reqURL string) (*HTTPResult, er
 
 	ua := c.userAgents[rand.IntN(len(c.userAgents))]
 
-	type fetchResult struct {
-		resp *azuretls.Response
-		err  error
-	}
-	ch := make(chan fetchResult, 1)
-	// NOTE: azuretls does not support context cancellation natively; the goroutine may outlive the context.
-	go func() {
-		r, e := c.session.Get(reqURL, azuretls.OrderedHeaders{
+	// azuretls does not support context cancellation natively; the request
+	// goroutine may outlive the context. The limiter bounds how many such
+	// goroutines can be in flight at once (see inFlightLimiter).
+	return c.limiter.run(ctx, func() (*HTTPResult, error) {
+		resp, err := c.session.Get(reqURL, azuretls.OrderedHeaders{
 			{"User-Agent", ua},
 			{"Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"},
 			{"Accept-Language", "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7"},
@@ -78,43 +150,26 @@ func (c *stealthClient) Get(ctx context.Context, reqURL string) (*HTTPResult, er
 			{"Sec-Fetch-User", "?1"},
 			{"Cache-Control", "max-age=0"},
 		})
-		ch <- fetchResult{r, e}
-	}()
-
-	var resp *azuretls.Response
-	select {
-	case <-ctx.Done():
-		n := outstandingGoroutines.Add(1)
-		if n >= 5 {
-			slog.Warn("azuretls orphaned goroutines accumulating", "outstanding", n)
+		if err != nil {
+			return nil, err
 		}
-		go func() {
-			<-ch
-			outstandingGoroutines.Add(-1)
-		}()
-		return nil, ctx.Err()
-	case result := <-ch:
-		if result.err != nil {
-			return nil, result.err
+
+		header := make(http.Header, len(resp.Header))
+		for k, v := range resp.Header {
+			header[k] = v
 		}
-		resp = result.resp
-	}
 
-	header := make(http.Header, len(resp.Header))
-	for k, v := range resp.Header {
-		header[k] = v
-	}
+		body := resp.Body
+		if len(body) > maxResponseSize {
+			body = body[:maxResponseSize]
+		}
 
-	body := resp.Body
-	if len(body) > maxResponseSize {
-		body = body[:maxResponseSize]
-	}
-
-	return &HTTPResult{
-		Body:       body,
-		StatusCode: resp.StatusCode,
-		Header:     header,
-	}, nil
+		return &HTTPResult{
+			Body:       body,
+			StatusCode: resp.StatusCode,
+			Header:     header,
+		}, nil
+	})
 }
 
 func (c *stealthClient) Close() {
