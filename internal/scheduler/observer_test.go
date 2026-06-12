@@ -13,14 +13,18 @@ func TestNopObserver_DoesNotPanic(t *testing.T) {
 	o.RecordListingsFound(10)
 	o.RecordNotificationSent()
 	o.RecordFetch("yad2", time.Second, nil)
+	o.RecordPersistFailure()
+	o.RecordClaimReleaseFailure()
 }
 
 type countingObserver struct {
-	successes     atomic.Int64
-	errors        atomic.Int64
-	listingsFound atomic.Int64
-	notifications atomic.Int64
-	fetches       atomic.Int64
+	successes            atomic.Int64
+	errors               atomic.Int64
+	listingsFound        atomic.Int64
+	notifications        atomic.Int64
+	fetches              atomic.Int64
+	persistFailures      atomic.Int64
+	claimReleaseFailures atomic.Int64
 }
 
 func (o *countingObserver) RecordSuccess()                                 { o.successes.Add(1) }
@@ -28,6 +32,8 @@ func (o *countingObserver) RecordError()                                   { o.e
 func (o *countingObserver) RecordListingsFound(n int)                      { o.listingsFound.Add(int64(n)) }
 func (o *countingObserver) RecordNotificationSent()                        { o.notifications.Add(1) }
 func (o *countingObserver) RecordFetch(_ string, _ time.Duration, _ error) { o.fetches.Add(1) }
+func (o *countingObserver) RecordPersistFailure()                          { o.persistFailures.Add(1) }
+func (o *countingObserver) RecordClaimReleaseFailure()                     { o.claimReleaseFailures.Add(1) }
 
 func TestCycleObserver_Interface(t *testing.T) {
 	var obs CycleObserver = &countingObserver{}

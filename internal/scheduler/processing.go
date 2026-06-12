@@ -9,6 +9,7 @@ import (
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/dsionov/carwatch/internal/telemetry"
 )
 
 func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, lang locale.Lang, sr searchResult, log *slog.Logger) bool {
@@ -83,6 +84,7 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 		defer cleanupCancel()
 		for _, l := range sr.newListings {
 			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, l.Token, search.ChatID, search.ID); relErr != nil {
+				s.recordClaimReleaseFailure(ctx)
 				log.ErrorContext(ctx, "failed to release dedup claim after delivery failure",
 					"token", l.Token,
 					"error", relErr.Error(),
@@ -100,6 +102,7 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 func (s *Scheduler) persistListings(ctx context.Context, records []storage.ListingRecord, log *slog.Logger) error {
 	saveStart := time.Now()
 	if err := s.stores.Listings.SaveListings(ctx, records); err != nil {
+		s.recordPersistFailure(ctx)
 		log.ErrorContext(ctx, "failed to persist matched listings to database, releasing all dedup claims for retry",
 			"batch_size", len(records),
 			"duration_ms", time.Since(saveStart).Milliseconds(),
@@ -111,6 +114,7 @@ func (s *Scheduler) persistListings(ctx context.Context, records []storage.Listi
 		defer cleanupCancel()
 		for _, rec := range records {
 			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, rec.Token, rec.ChatID, rec.SearchID); relErr != nil {
+				s.recordClaimReleaseFailure(ctx)
 				log.ErrorContext(ctx, "failed to release dedup claim after batch save failure, listing may be permanently lost",
 					"token", rec.Token,
 					"error", relErr.Error(),
@@ -121,6 +125,24 @@ func (s *Scheduler) persistListings(ctx context.Context, records []storage.Listi
 		return err
 	}
 	return nil
+}
+
+// recordPersistFailure surfaces a failed listing-batch persist on both the
+// health observer (/healthz, admin dashboard) and the OTel /metrics counter.
+func (s *Scheduler) recordPersistFailure(ctx context.Context) {
+	s.observer.RecordPersistFailure()
+	if telemetry.PersistFailures != nil {
+		telemetry.PersistFailures.Add(ctx, 1)
+	}
+}
+
+// recordClaimReleaseFailure surfaces a failed dedup-claim release — the only
+// permanent listing-loss path — on the health observer and /metrics.
+func (s *Scheduler) recordClaimReleaseFailure(ctx context.Context) {
+	s.observer.RecordClaimReleaseFailure()
+	if telemetry.ClaimReleaseFailures != nil {
+		telemetry.ClaimReleaseFailures.Add(ctx, 1)
+	}
 }
 
 func (s *Scheduler) deduplicateListings(ctx context.Context, token string, chatID, searchID int64, log *slog.Logger) (isNew bool, ok bool) {

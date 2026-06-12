@@ -41,11 +41,13 @@ type SourceMetrics struct {
 type Status struct {
 	startTime         time.Time
 	version           string
-	cycleCount        atomic.Int64
-	errorCount        atomic.Int64
-	lastSuccessUnixNs atomic.Int64
-	listingsFound     atomic.Int64
-	notificationsSent atomic.Int64
+	cycleCount           atomic.Int64
+	errorCount           atomic.Int64
+	lastSuccessUnixNs    atomic.Int64
+	listingsFound        atomic.Int64
+	notificationsSent    atomic.Int64
+	persistFailures      atomic.Int64
+	claimReleaseFailures atomic.Int64
 	schedulerExpected atomic.Bool
 	schedulerStarted  atomic.Bool
 	botPollingAlive   atomic.Bool
@@ -127,6 +129,20 @@ func (s *Status) RecordNotificationSent() {
 	s.notificationsSent.Add(1)
 }
 
+// RecordPersistFailure counts a failed listing-batch persist. Listings are
+// retried next cycle, but a non-zero counter means the DB write path is
+// failing and deserves attention.
+func (s *Status) RecordPersistFailure() {
+	s.persistFailures.Add(1)
+}
+
+// RecordClaimReleaseFailure counts a failed dedup-claim release after a
+// persist/delivery failure. This is the only path where a listing can be
+// permanently lost for a user, so any non-zero value warrants investigation.
+func (s *Status) RecordClaimReleaseFailure() {
+	s.claimReleaseFailures.Add(1)
+}
+
 func (s *Status) RecordFetch(source string, duration time.Duration, err error) {
 	m := s.getSource(source)
 	m.FetchCount.Add(1)
@@ -199,14 +215,16 @@ func (s *Status) coreMetrics() map[string]any {
 	}
 
 	return map[string]any{
-		"status":             status,
-		"uptime":             time.Since(s.startTime).String(),
-		"cycles":             cycles,
-		"errors":             s.errorCount.Load(),
-		"last_success":       lastSuccess,
-		"listings_found":     s.listingsFound.Load(),
-		"notifications_sent": s.notificationsSent.Load(),
-		"bot_polling":        s.botPollingAlive.Load(),
+		"status":                 status,
+		"uptime":                 time.Since(s.startTime).String(),
+		"cycles":                 cycles,
+		"errors":                 s.errorCount.Load(),
+		"last_success":           lastSuccess,
+		"listings_found":         s.listingsFound.Load(),
+		"notifications_sent":     s.notificationsSent.Load(),
+		"persist_failures":       s.persistFailures.Load(),
+		"claim_release_failures": s.claimReleaseFailures.Load(),
+		"bot_polling":            s.botPollingAlive.Load(),
 	}
 }
 
