@@ -32,6 +32,12 @@ var (
 	// EnrichSkipped counts enrichment requests skipped (already enriched).
 	EnrichSkipped metric.Int64Counter
 
+	// PersistFailures counts failed listing-batch persists (retried next cycle).
+	PersistFailures metric.Int64Counter
+	// ClaimReleaseFailures counts failed dedup-claim releases after a persist or
+	// delivery failure — the only permanent listing-loss path.
+	ClaimReleaseFailures metric.Int64Counter
+
 	// QueueDepth reports the current number of messages in the alerts stream.
 	QueueDepth metric.Int64Gauge
 	// QueuePending reports the number of messages claimed but not yet acked.
@@ -108,6 +114,18 @@ func InitMetrics() error {
 
 	EnrichSkipped, err = meter.Int64Counter("carwatch.enrich.skipped",
 		metric.WithDescription("Enrichment requests skipped (already enriched)"))
+	if err != nil {
+		return err
+	}
+
+	PersistFailures, err = meter.Int64Counter("carwatch.listings.persist_failures",
+		metric.WithDescription("Failed listing-batch persists (retried next cycle)"))
+	if err != nil {
+		return err
+	}
+
+	ClaimReleaseFailures, err = meter.Int64Counter("carwatch.dedup.claim_release_failures",
+		metric.WithDescription("Failed dedup-claim releases (permanent listing loss path)"))
 	if err != nil {
 		return err
 	}
