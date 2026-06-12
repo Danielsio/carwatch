@@ -32,17 +32,6 @@ const TABLE_LABELS: Record<string, string> = {
   link_tokens: "טוקנים לקישור",
 };
 
-const PURGEABLE = new Set([
-  "listing_history",
-  "price_history",
-  "seen_listings",
-  "listing_user_seen",
-  "saved_listings",
-  "hidden_listings",
-  "pending_digest",
-  "cycle_log",
-  "search_cycle_stats",
-]);
 
 function StorageIndicator({ sizeBytes }: { sizeBytes: number }) {
   const mb = sizeBytes / (1024 * 1024);
@@ -79,25 +68,6 @@ export function OverviewTab({
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [confirmPurge, setConfirmPurge] = useState<string | null>(null);
-
-  const purgeMutation = useMutation({
-    mutationFn: (table: string) => adminApi.purgeTable(table),
-    meta: { suppressToast: true },
-    onSuccess: (result) => {
-      toast(
-        `נמחקו ${result.deleted} רשומות מ-${TABLE_LABELS[result.table] ?? result.table}`,
-        "success",
-      );
-      setConfirmPurge(null);
-      void queryClient.invalidateQueries({ queryKey: ["admin"] });
-      onRefresh();
-    },
-    onError: () => {
-      toast("שגיאה במחיקת הטבלה", "error");
-    },
-  });
-
   const vacuumMutation = useMutation({
     mutationFn: () => adminApi.vacuum(),
     meta: { suppressToast: true },
@@ -300,14 +270,10 @@ export function OverviewTab({
         <div className="grid gap-2 sm:grid-cols-2">
           {Object.entries(data.tables)
             .sort(([, a], [, b]) => b - a)
-            .map(([table, count]) => {
-              const canPurge = PURGEABLE.has(table) && count > 0;
-              const isConfirming = confirmPurge === table;
-
-              return (
+            .map(([table, count]) => (
                 <div
                   key={table}
-                  className="flex items-center justify-between rounded-xl bg-secondary/50 px-4 py-3 transition-colors duration-200 hover:bg-secondary"
+                  className="flex items-center justify-between rounded-xl bg-secondary/50 px-4 py-3"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
@@ -320,44 +286,11 @@ export function OverviewTab({
                       {TABLE_LABELS[table] ?? table}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-sm font-mono font-semibold tabular-nums text-muted-foreground">
-                      {count.toLocaleString("he-IL")}
-                    </span>
-                    {canPurge && !isConfirming && (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmPurge(table)}
-                        aria-label={`מחק את כל ${TABLE_LABELS[table] ?? table}`}
-                        className="rounded-lg p-1.5 text-muted-foreground/50 transition-colors hover:text-destructive hover:bg-destructive/10"
-                        title={`מחק את כל ${TABLE_LABELS[table] ?? table}`}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    {isConfirming && (
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => purgeMutation.mutate(table)}
-                          disabled={purgeMutation.isPending}
-                          className="rounded-lg bg-destructive px-2.5 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                        >
-                          {purgeMutation.isPending ? "מוחק..." : "אישור"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmPurge(null)}
-                          className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
-                        >
-                          ביטול
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <span className="text-sm font-mono font-semibold tabular-nums text-muted-foreground flex-shrink-0">
+                    {count.toLocaleString("he-IL")}
+                  </span>
                 </div>
-              );
-            })}
+            ))}
         </div>
       </div>
       {showResetConfirm && (
