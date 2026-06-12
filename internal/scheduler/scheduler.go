@@ -76,6 +76,12 @@ type Scheduler struct {
 	digestFailures sync.Map // chatID (int64) -> time.Time of last flush failure
 	cycleCount     uint64
 
+	// bgWG tracks long-lived background goroutines (e.g. the market-cache
+	// refresh loop) so Run can wait for them to exit before returning. Without
+	// this, a returning Run lets the caller close the store while a refresh is
+	// still mid-query.
+	bgWG sync.WaitGroup
+
 	marketCacheMu      sync.RWMutex
 	marketCache        *scoring.MarketCache
 	marketCacheBuiltAt time.Time
@@ -242,21 +248,10 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	signal.Notify(sighup, syscall.SIGHUP)
 	defer signal.Stop(sighup)
 
-	if s.stores.Market != nil {
-		go func() {
-			s.refreshMarketView(ctx)
-			ticker := time.NewTicker(s.marketCacheTTL)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					s.refreshMarketView(ctx)
-				}
-			}
-		}()
-	}
+	// Wait for background goroutines (market-cache refresh) to exit before
+	// returning, so the caller does not close the store out from under them.
+	defer s.bgWG.Wait()
+	s.startBackgroundTasks(ctx)
 
 	cycle := s.runMultiTenantCycle
 
@@ -320,6 +315,36 @@ func (s *Scheduler) Run(ctx context.Context) error {
 				return err
 			}
 			s.logger.Error("scheduler cycle failed, will retry on next interval", "error", err)
+		}
+	}
+}
+
+// startBackgroundTasks launches long-lived background goroutines tracked by
+// bgWG. Currently this is the periodic market-cache refresh. It is a no-op when
+// no market store is configured.
+func (s *Scheduler) startBackgroundTasks(ctx context.Context) {
+	if s.stores.Market == nil {
+		return
+	}
+	s.bgWG.Add(1)
+	go func() {
+		defer s.bgWG.Done()
+		s.marketRefreshLoop(ctx)
+	}()
+}
+
+// marketRefreshLoop refreshes the market view immediately and then on every
+// marketCacheTTL tick until the context is cancelled.
+func (s *Scheduler) marketRefreshLoop(ctx context.Context) {
+	s.refreshMarketView(ctx)
+	ticker := time.NewTicker(s.marketCacheTTL)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.refreshMarketView(ctx)
 		}
 	}
 }

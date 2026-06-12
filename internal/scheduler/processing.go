@@ -76,7 +76,10 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 				"impact", "user will not see these listings until next successful delivery",
 				"action_taken", "releasing dedup claims so listings are retried next cycle")
 		}
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// Survive the cancellation that may have caused the failure, but keep
+		// the request's trace/log context (WithoutCancel) instead of a bare
+		// Background.
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cleanupCancel()
 		for _, l := range sr.newListings {
 			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, l.Token, search.ChatID, search.ID); relErr != nil {
@@ -103,7 +106,8 @@ func (s *Scheduler) persistListings(ctx context.Context, records []storage.Listi
 			"error", err.Error(),
 			"impact", "listings will not appear in user history until next successful cycle",
 			"action_taken", "releasing dedup claims so listings are retried next cycle")
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// Survive cancellation but preserve trace/log context (WithoutCancel).
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cleanupCancel()
 		for _, rec := range records {
 			if relErr := s.stores.Dedup.ReleaseClaim(cleanupCtx, rec.Token, rec.ChatID, rec.SearchID); relErr != nil {
@@ -139,7 +143,8 @@ func (s *Scheduler) revertPriceRecords(ctx context.Context, tokens []string, log
 	if s.stores.Prices == nil || len(tokens) == 0 {
 		return
 	}
-	cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Survive cancellation but preserve trace/log context (WithoutCancel).
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	for _, token := range tokens {
 		if err := s.stores.Prices.RevertPrice(cleanupCtx, token); err != nil {
