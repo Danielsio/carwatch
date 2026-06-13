@@ -71,8 +71,17 @@ type httpStats struct {
 }
 
 func (s *Server) isAdmin(chatID int64, email string) bool {
-	return (chatID > 0 && s.cfg.AdminChatID != 0 && chatID == s.cfg.AdminChatID) ||
-		(s.cfg.AdminEmail != "" && email != "" && strings.EqualFold(email, s.cfg.AdminEmail))
+	if chatID > 0 && s.cfg.AdminChatID != 0 && chatID == s.cfg.AdminChatID {
+		return true
+	}
+	// s.cfg.AdminEmail is normalized (trimmed + ASCII-lowercased) once in New.
+	// Comparing against an explicitly ASCII-lowercased input — rather than
+	// strings.EqualFold — avoids Unicode case folding treating distinct
+	// characters as equal (e.g. ı/I, ﬀ/ff) in an authorization check.
+	if s.cfg.AdminEmail == "" || email == "" {
+		return false
+	}
+	return strings.ToLower(strings.TrimSpace(email)) == s.cfg.AdminEmail
 }
 
 func (s *Server) getMe(w http.ResponseWriter, r *http.Request) {

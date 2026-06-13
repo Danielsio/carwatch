@@ -64,7 +64,11 @@ func (s *Store) TableSizes(ctx context.Context) (map[string]int64, error) {
 	return sizes, nil
 }
 
-// quoteIdent returns a safely quoted PostgreSQL identifier (table name from information_schema).
+// quoteIdent returns a safely quoted PostgreSQL identifier. It escapes quoting
+// but performs NO validation: callers MUST only pass identifiers from a trusted
+// source — information_schema query results, the `purgeable` allowlist, or the
+// `resetTables` constant — never raw user input. It exists because table names
+// cannot be passed as bind parameters.
 func quoteIdent(ident string) string {
 	return `"` + strings.ReplaceAll(ident, `"`, `""`) + `"`
 }
