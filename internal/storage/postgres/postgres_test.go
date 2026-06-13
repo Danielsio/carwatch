@@ -899,6 +899,44 @@ func TestPostgres_PriceTracking(t *testing.T) {
 	}
 }
 
+func TestPostgres_PeekPrice(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+
+	// Peek on an unknown token: not found, no error.
+	if _, found, err := store.PeekPrice(ctx, "peek-none"); err != nil || found {
+		t.Fatalf("peek unknown: found=%v err=%v, want found=false err=nil", found, err)
+	}
+
+	// Record then peek returns the latest price.
+	if _, _, err := store.RecordPrice(ctx, "peek-tok", 100000); err != nil {
+		t.Fatal(err)
+	}
+	if p, found, err := store.PeekPrice(ctx, "peek-tok"); err != nil || !found || p != 100000 {
+		t.Fatalf("peek after record: p=%d found=%v err=%v, want 100000/true/nil", p, found, err)
+	}
+
+	// After a price change, peek returns the newest row.
+	if _, _, err := store.RecordPrice(ctx, "peek-tok", 90000); err != nil {
+		t.Fatal(err)
+	}
+	if p, _, _ := store.PeekPrice(ctx, "peek-tok"); p != 90000 {
+		t.Fatalf("peek after change = %d, want 90000", p)
+	}
+
+	// Peek is read-only: history length is unchanged by repeated peeks.
+	for i := 0; i < 3; i++ {
+		_, _, _ = store.PeekPrice(ctx, "peek-tok")
+	}
+	points, err := store.GetPriceHistory(ctx, "peek-tok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(points) != 2 {
+		t.Fatalf("history length = %d after peeks, want 2 (peek must not write)", len(points))
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Market medians (materialized view)
 // ---------------------------------------------------------------------------

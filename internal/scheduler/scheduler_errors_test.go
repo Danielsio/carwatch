@@ -81,6 +81,13 @@ func (m *errPriceTracker) RecordPrice(ctx context.Context, token string, price i
 	return m.mockPriceTracker.RecordPrice(ctx, token, price)
 }
 
+func (m *errPriceTracker) PeekPrice(ctx context.Context, token string) (int, bool, error) {
+	if m.err != nil {
+		return 0, false, m.err
+	}
+	return m.mockPriceTracker.PeekPrice(ctx, token)
+}
+
 type errSearchStore struct {
 	mockSearchStore
 	listErr error
