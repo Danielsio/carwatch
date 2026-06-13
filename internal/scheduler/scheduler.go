@@ -116,11 +116,6 @@ type searchResult struct {
 	newListings       []model.Listing
 	priceDropMessages []string
 	listingRecords    []storage.ListingRecord
-	// recordedTokens tracks tokens whose prices were recorded via
-	// RecordPrice during this processing pass.  When persistListings
-	// fails the scheduler reverts these records so the next cycle does
-	// not see stale prices and fire spurious price-drop notifications.
-	recordedTokens []string
 }
 
 type Options struct {
@@ -780,7 +775,7 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 	}
 	searchCounters := make(map[int64]*searchCycleCounter)
 
-	// Deferred price drop candidates: we record prices during matching
+	// Deferred price drop candidates: we read prices during matching
 	// (to detect changes) but defer notification formatting until after
 	// enrichment so messages include enriched km/city data.
 	type priceDropCandidate struct {
@@ -789,6 +784,14 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 		oldPrice int
 	}
 	var priceDropCandidates []priceDropCandidate
+
+	// Price observations are staged here during matching and durably
+	// recorded only after the listing outcome is settled (see
+	// flushPendingPrices). persistedTokens / persistFailedTokens track
+	// per-token persist outcomes across all searches in this cycle.
+	pendingPrices := make(map[string]int)
+	persistedTokens := make(map[string]bool)
+	persistFailedTokens := make(map[string]bool)
 
 	// 5. Percolator match: for each listing, find matching searches.
 	hiddenCache := make(map[int64]map[string]bool)
@@ -848,21 +851,22 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 				continue
 			}
 
-			// Record price to detect changes. Cache per token so
-			// subsequent matches for the same listing see the
-			// original price, not the just-recorded one.
+			// Read the last recorded price to detect changes; the durable
+			// write is staged and flushed only after the listing outcome
+			// is settled (flushPendingPrices). Cache per token so
+			// subsequent matches for the same listing reuse the read.
 			if s.stores.Prices != nil && raw[i].Price > 0 {
 				pr, cached := priceCache[raw[i].Token]
 				if !cached {
-					oldPrice, changed, err := s.stores.Prices.RecordPrice(ctx, raw[i].Token, raw[i].Price)
+					prevPrice, found, err := s.stores.Prices.PeekPrice(ctx, raw[i].Token)
 					if err != nil {
-						matchLog.ErrorContext(ctx, "failed to record listing price in price tracker",
+						matchLog.ErrorContext(ctx, "failed to read last recorded listing price",
 							"token", raw[i].Token, "error", err.Error())
 						pr = priceResult{err: true}
 					} else {
-						pr = priceResult{oldPrice: oldPrice, changed: changed}
-						if changed || oldPrice == 0 {
-							acc.result.recordedTokens = append(acc.result.recordedTokens, raw[i].Token)
+						pr = priceResult{oldPrice: prevPrice, changed: found && raw[i].Price != prevPrice}
+						if !found || pr.changed {
+							pendingPrices[raw[i].Token] = raw[i].Price
 						}
 					}
 					priceCache[raw[i].Token] = pr
@@ -1045,20 +1049,27 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 			}
 		}
 
-		// Persist listings.
+		// Persist listings. Per-token outcomes feed flushPendingPrices: a
+		// staged price is only written durably once its listing made it
+		// into history somewhere.
 		searchLog := s.logger.With("chat_id", acc.search.ChatID, "search_name", acc.search.Name)
 		persistOK := true
 		if s.stores.Listings != nil && len(acc.result.listingRecords) > 0 {
 			if err := s.persistListings(searchCtx, acc.result.listingRecords, searchLog); err != nil {
 				persistOK = false
+				for _, rec := range acc.result.listingRecords {
+					persistFailedTokens[rec.Token] = true
+				}
 			} else {
 				s.invalidateMarketCache()
+				for _, rec := range acc.result.listingRecords {
+					persistedTokens[rec.Token] = true
+				}
 			}
 		}
 		if !persistOK {
 			acc.result.newListings = nil
 			acc.result.listingRecords = nil
-			s.revertPriceRecords(searchCtx, acc.result.recordedTokens, searchLog)
 		}
 
 		stats.newListings += len(acc.result.newListings)
@@ -1075,6 +1086,10 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 			stats.notificationsSent++
 		}
 	}
+
+	// Durably record staged price observations now that listing outcomes
+	// are settled.
+	s.flushPendingPrices(ctx, pendingPrices, persistedTokens, persistFailedTokens)
 
 	// Write per-search cycle stats for dashboard observability.
 	if s.stores.SearchCycleStats != nil && len(searches) > 0 {

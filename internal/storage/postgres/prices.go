@@ -58,14 +58,18 @@ func (s *Store) RecordPrice(ctx context.Context, token string, price int) (oldPr
 	return prev, false, nil
 }
 
-func (s *Store) RevertPrice(ctx context.Context, token string) error {
-	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM price_history WHERE id = (SELECT id FROM price_history WHERE token = $1 ORDER BY observed_at DESC, id DESC LIMIT 1)`,
+func (s *Store) PeekPrice(ctx context.Context, token string) (int, bool, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT price FROM price_history WHERE token = $1 ORDER BY observed_at DESC, id DESC LIMIT 1`,
 		token)
-	if err != nil {
-		return fmt.Errorf("revert price: %w", err)
+	var price int
+	switch err := row.Scan(&price); {
+	case err == sql.ErrNoRows:
+		return 0, false, nil
+	case err != nil:
+		return 0, false, fmt.Errorf("peek price: %w", err)
 	}
-	return nil
+	return price, true, nil
 }
 
 func (s *Store) GetPriceHistory(ctx context.Context, token string) ([]storage.PricePoint, error) {

@@ -104,11 +104,13 @@ type DedupStore interface {
 
 type PriceTracker interface {
 	RecordPrice(ctx context.Context, token string, price int) (oldPrice int, changed bool, err error)
-	// RevertPrice removes the most recent price_history row for the given
-	// token.  It is used to undo a RecordPrice call when downstream
-	// persistence (e.g. listing save) fails, preventing spurious price-drop
-	// notifications on the next scheduler cycle.
-	RevertPrice(ctx context.Context, token string) error
+	// PeekPrice returns the most recently recorded price for the token
+	// without writing anything. found is false when no price has been
+	// recorded yet. The scheduler uses it to detect price changes during
+	// matching and defers the durable RecordPrice until the listing
+	// outcome (persist) is settled, so a persist failure leaves no stale
+	// price row behind.
+	PeekPrice(ctx context.Context, token string) (price int, found bool, err error)
 	PrunePrices(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetPriceHistory(ctx context.Context, token string) ([]PricePoint, error)
 }

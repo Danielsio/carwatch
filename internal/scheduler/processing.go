@@ -158,24 +158,41 @@ func (s *Scheduler) deduplicateListings(ctx context.Context, token string, chatI
 	return isNew, true
 }
 
-// revertPriceRecords undoes RecordPrice calls for the given tokens.
-// Called when persistListings fails to avoid stale price records that
-// would cause spurious price-drop notifications on the next cycle.
-func (s *Scheduler) revertPriceRecords(ctx context.Context, tokens []string, log *slog.Logger) {
-	if s.stores.Prices == nil || len(tokens) == 0 {
+// flushPendingPrices durably records price observations staged during the
+// match pass. Prices are written only after listing outcomes are settled: a
+// token observed solely in searches whose persist failed is skipped, so the
+// next cycle re-detects the same change and the price-drop notification is
+// not swallowed (previously a best-effort revert could fail and leave a
+// stale row). A failed flush is only logged — PeekPrice still sees the old
+// value next cycle, so the write self-corrects.
+func (s *Scheduler) flushPendingPrices(ctx context.Context, pending map[string]int, persisted, persistFailed map[string]bool) {
+	if s.stores.Prices == nil || len(pending) == 0 {
 		return
 	}
 	// Survive cancellation but preserve trace/log context (WithoutCancel).
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	for _, token := range tokens {
-		if err := s.stores.Prices.RevertPrice(cleanupCtx, token); err != nil {
-			log.ErrorContext(ctx, "failed to revert price record after persist failure, may cause spurious price-drop notification",
+	flushed, skipped := 0, 0
+	for token, price := range pending {
+		if persistFailed[token] && !persisted[token] {
+			// The listing made it into history nowhere; leave no price row
+			// behind so the next cycle re-detects the change from scratch.
+			skipped++
+			continue
+		}
+		if _, _, err := s.stores.Prices.RecordPrice(flushCtx, token, price); err != nil {
+			s.logger.ErrorContext(ctx, "failed to flush staged price record",
 				"token", token,
 				"error", err.Error(),
-				"impact", "stale price record may trigger a false price-drop notification on next cycle",
-				"action_taken", "continuing with remaining reverts")
+				"impact", "price change will be re-detected and re-staged next cycle",
+				"action_taken", "continuing with remaining flushes")
+			continue
 		}
+		flushed++
+	}
+	if skipped > 0 {
+		s.logger.WarnContext(ctx, "skipped staged price records for unpersisted listings",
+			"skipped", skipped, "flushed", flushed)
 	}
 }
 
