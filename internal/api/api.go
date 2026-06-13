@@ -133,9 +133,12 @@ type Config struct {
 
 func New(c Config) *Server {
 	if c.FirebaseAuth == nil && IsNonLocalBind(c.Bind) {
+		// Reaching here on a non-local bind requires the explicit
+		// api.allow_insecure_dev_auth opt-in (BuildAPI refuses otherwise).
 		if c.Logger != nil {
-			c.Logger.Warn("firebase auth not configured — using dev auth mode on non-localhost bind address",
-				"bind", c.Bind)
+			c.Logger.Warn("firebase auth not configured — using insecure dev auth mode on non-localhost bind address",
+				"bind", c.Bind,
+				"impact", "all API access is unauthenticated; for local development only")
 		}
 	}
 

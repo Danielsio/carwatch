@@ -245,6 +245,32 @@ func TestBuildAPIRejectsMissingFirebaseOnNonLocalBind(t *testing.T) {
 	if !strings.Contains(err.Error(), "0.0.0.0:8080") {
 		t.Fatalf("error should include bind address, got: %v", err)
 	}
+	if !strings.Contains(err.Error(), "allow_insecure_dev_auth") {
+		t.Fatalf("error should mention the override flag, got: %v", err)
+	}
+}
+
+func TestBuildAPIAllowsInsecureDevAuthOptIn(t *testing.T) {
+	cfg := &config.Config{
+		HTTP: config.HTTPConfig{
+			Bind: "0.0.0.0:8080",
+		},
+		Telemetry: config.TelemetryConfig{
+			AuthToken: "telemetry-secret",
+		},
+	}
+	cfg.API.AllowInsecureDevAuth = true
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	// With the explicit opt-in, the non-local bind without Firebase is
+	// permitted (dangerous, for local dev only) instead of erroring.
+	apiServer, err := BuildAPI(cfg, nil, nil, logger, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("expected dev-auth opt-in to permit startup, got error: %v", err)
+	}
+	if apiServer == nil {
+		t.Fatal("expected a server when dev-auth opt-in is set")
+	}
 }
 
 func TestBuildAPIFirebaseRequirementByBind(t *testing.T) {
