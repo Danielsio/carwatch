@@ -73,6 +73,12 @@ type APIConfig struct {
 	AdminEmail           string `yaml:"admin_email"`
 	MaxSearches          int    `yaml:"-"` // derived from telegram.max_searches at startup
 	MaxConcurrentFetches int    `yaml:"max_concurrent_fetches"`
+	// AllowInsecureDevAuth permits the API to start with the unauthenticated
+	// dev-auth fallback on a non-localhost bind address (no Firebase verifier).
+	// This is an explicit, dangerous opt-in for local container development;
+	// production must never set it. Without it, a non-local bind without a
+	// configured verifier is a hard startup error.
+	AllowInsecureDevAuth bool `yaml:"allow_insecure_dev_auth"`
 }
 
 type PollingConfig struct {

@@ -208,7 +208,14 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		firebaseAuth = v
 	}
 	if firebaseAuth == nil && api.IsNonLocalBind(cfg.HTTP.Bind) {
-		return nil, fmt.Errorf("firebase auth must be configured for non-local bind address %q", cfg.HTTP.Bind)
+		if !cfg.API.AllowInsecureDevAuth {
+			return nil, fmt.Errorf("firebase auth must be configured for non-local bind address %q "+
+				"(set api.allow_insecure_dev_auth: true to override for local development only)", cfg.HTTP.Bind)
+		}
+		logger.Warn("SECURITY: starting API with unauthenticated dev-auth on a non-local bind address",
+			"bind", cfg.HTTP.Bind,
+			"reason", "api.allow_insecure_dev_auth is enabled",
+			"impact", "anyone who can reach this address has full API access — never enable in production")
 	}
 
 	cfg.API.AdminChatID = cfg.Telegram.AdminChatID
