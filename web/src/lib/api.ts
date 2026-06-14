@@ -531,6 +531,7 @@ export interface SearchCycleStatsItem {
   engine_cc: number;
   seller: number;
   other_filter: number;
+  dropped: number;
   score_min: number | null;
   score_max: number | null;
   score_avg: number | null;

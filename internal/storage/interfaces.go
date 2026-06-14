@@ -367,6 +367,7 @@ type SearchCycleStats struct {
 	EngineCC    int
 	Seller      int
 	OtherFilter int
+	Dropped     int
 	ScoreMin    *float64
 	ScoreMax    *float64
 	ScoreAvg    *float64
