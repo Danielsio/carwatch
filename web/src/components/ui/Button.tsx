@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- buttonVariants exported for composition */
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
@@ -31,6 +32,8 @@ const buttonVariants = cva(
 
 type ButtonOwnProps = VariantProps<typeof buttonVariants> & {
   asChild?: boolean;
+  /** Shows a leading spinner, sets aria-busy, and disables the button. */
+  loading?: boolean;
 };
 
 export type ButtonProps<T extends React.ElementType = "button"> =
@@ -53,10 +56,16 @@ function ButtonRender(
     size,
     type,
     children,
+    loading = false,
+    disabled,
     ...rest
-  } = props as ButtonProps<"button"> & { as?: React.ElementType };
+  } = props as ButtonProps<"button"> & {
+    as?: React.ElementType;
+    loading?: boolean;
+  };
 
   const classes = cn(buttonVariants({ variant, size }), className);
+  const isDisabled = disabled || loading;
 
   if (asChild) {
     if (!React.isValidElement(children)) {
@@ -67,6 +76,8 @@ function ButtonRender(
       children as React.ReactElement<Record<string, unknown>>,
       {
         ...rest,
+        ...(disabled != null ? { disabled } : {}),
+        "aria-busy": loading || undefined,
         className: cn(classes, childProps.className),
         ref,
       },
@@ -79,8 +90,13 @@ function ButtonRender(
       ref={ref}
       className={classes}
       type={Comp === "button" ? (type ?? "button") : undefined}
+      disabled={Comp === "button" ? isDisabled : undefined}
+      aria-busy={loading || undefined}
       {...rest}
     >
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+      ) : null}
       {children}
     </Comp>
   );
