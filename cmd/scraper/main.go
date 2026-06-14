@@ -147,18 +147,18 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 	// on what it uses. The concrete *postgres.Store satisfies all of
 	// them, but typing the slots makes the dependency graph explicit.
 	var (
-		dedup         storage.DedupStore            = store
-		prices        storage.PriceTracker          = store
-		listings      storage.ListingStore          = store
-		searches      storage.SearchStore           = store
-		users         storage.UserStore             = store
-		digests       storage.DigestStore            = store
-		hidden        storage.HiddenListingStore    = store
-		market        storage.MarketStore           = store
-		priceList     storage.PriceListStore        = store
-		dailyDigests  storage.DailyDigestStore      = store
-		cycleLog      storage.CycleLogStore         = store
-		cycleStats    storage.SearchCycleStatsStore  = store
+		dedup        storage.DedupStore            = store
+		prices       storage.PriceTracker          = store
+		listings     storage.ListingStore          = store
+		searches     storage.SearchStore           = store
+		users        storage.UserStore             = store
+		digests      storage.DigestStore           = store
+		hidden       storage.HiddenListingStore    = store
+		market       storage.MarketStore           = store
+		priceList    storage.PriceListStore        = store
+		dailyDigests storage.DailyDigestStore      = store
+		cycleLog     storage.CycleLogStore         = store
+		cycleStats   storage.SearchCycleStatsStore = store
 	)
 	sched, err := scheduler.NewWithOptions(cfg, fb.Caching, dedup, n, logger.With("component", "scheduler"), scheduler.Options{
 		Observer:              h,
