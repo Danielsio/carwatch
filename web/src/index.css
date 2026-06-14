@@ -447,6 +447,14 @@
   will-change: transform;
 }
 
+/* ─── Perf: skip rendering/layout/paint for off-screen cards ───
+   Browser-native render virtualization for long, variable-height grids.
+   The reserved intrinsic size keeps the scrollbar stable. */
+@utility cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 480px;
+}
+
 /* Respect reduced-motion: freeze ambient signature motion. */
 @media (prefers-reduced-motion: reduce) {
   .glow-border::before,
