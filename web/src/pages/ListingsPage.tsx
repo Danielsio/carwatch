@@ -9,12 +9,20 @@ import {
   RefreshCw,
   ArrowUp,
   Loader2,
+  FilterX,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useInfiniteListings } from "@/hooks/useInfiniteListings";
 import { useListingActions } from "@/hooks/useListingActions";
 import { useSpotlight } from "@/hooks/useSpotlight";
+import {
+  useListingFilters,
+  deriveFacets,
+  activeFilterCount,
+  EMPTY_FILTERS,
+  type ListingFilters,
+} from "@/hooks/useListingFilters";
+import { ListingsFilterBar } from "@/components/ListingsFilterBar";
 import { safeHref, cn, formatPrice } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Listing, RefreshResponse } from "@/lib/api";
@@ -175,6 +183,19 @@ export function ListingsPage() {
   );
   const total = data?.pages[0]?.total ?? 0;
 
+  const [filters, setFilters] = useState<ListingFilters>(EMPTY_FILTERS);
+  const facets = useMemo(() => deriveFacets(allListings), [allListings]);
+  const visible = useListingFilters(allListings, filters);
+  const hasFilters = activeFilterCount(filters) > 0;
+
+  const unenrichedCount = useMemo(
+    () =>
+      allListings.filter(
+        (l) => l.km <= 0 || !l.horse_power || !l.gear_box || !l.engine_type,
+      ).length,
+    [allListings],
+  );
+
   if (!searchId || Number.isNaN(searchId)) {
     return (
       <PageShell gap="sm">
@@ -234,9 +255,21 @@ export function ListingsPage() {
         </div>
       </div>
 
+      {/* Filter bar */}
+      {!showSkeletons && allListings.length > 0 ? (
+        <ListingsFilterBar
+          filters={filters}
+          onChange={setFilters}
+          onClear={() => setFilters(EMPTY_FILTERS)}
+          facets={facets}
+          resultCount={visible.length}
+          totalCount={allListings.length}
+        />
+      ) : null}
+
       {/* Enrichment progress banner */}
       {!showSkeletons && allListings.length > 0 && (() => {
-        const unenriched = allListings.filter(l => l.km <= 0 || !l.horse_power || !l.gear_box || !l.engine_type).length;
+        const unenriched = unenrichedCount;
         if (unenriched === 0) return null;
         const pct = Math.round(((allListings.length - unenriched) / allListings.length) * 100);
         return (
@@ -265,14 +298,13 @@ export function ListingsPage() {
       {showSkeletons ? (
         <div className="grid gap-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <motion.div
+            <div
               key={`skel-${i}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06, duration: 0.4, ease: "easeOut" }}
+              className="animate-slide-up motion-reduce:animate-none"
+              style={{ animationDelay: `${i * 60}ms`, animationFillMode: "backwards" }}
             >
               <ListingCardSkeleton />
-            </motion.div>
+            </div>
           ))}
         </div>
       ) : allListings.length === 0 ? (
@@ -291,31 +323,35 @@ export function ListingsPage() {
             </div>
           }
         />
+      ) : visible.length === 0 ? (
+        <EmptyState
+          icon={FilterX}
+          title="אין תוצאות לסינון"
+          description="אף מודעה לא תואמת את הסינון הנוכחי. נסה להרחיב או לאפס את המסננים."
+          action={
+            <Button variant="secondary" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
+              נקה מסננים
+            </Button>
+          }
+        />
       ) : (
         <>
           <div className="grid gap-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <AnimatePresence mode="popLayout">
-              {allListings.map((listing, i) => (
-                <motion.div
-                  key={listing.token}
-                  layout
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{
-                    delay: Math.min(i, 6) * 0.04,
-                    duration: 0.3,
-                    ease: "easeOut",
-                    layout: { duration: 0.25 },
-                  }}
-                >
-                  <ListingCard listing={listing} />
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            {visible.map((listing, i) => (
+              <div
+                key={listing.token}
+                className="cv-auto animate-slide-up motion-reduce:animate-none"
+                style={{
+                  animationDelay: `${Math.min(i, 8) * 40}ms`,
+                  animationFillMode: "backwards",
+                }}
+              >
+                <ListingCard listing={listing} />
+              </div>
+            ))}
           </div>
 
-          {/* Infinite scroll trigger */}
+          {/* Infinite scroll trigger — keeps loading more raw results to filter */}
           <div ref={loadMoreRef} className="flex justify-center py-6">
             {isFetchingNextPage ? (
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -327,11 +363,13 @@ export function ListingsPage() {
               >
                 טען עוד
               </button>
-            ) : allListings.length > 0 ? (
+            ) : (
               <p className="text-xs text-muted-foreground">
-                הצגת כל {total.toLocaleString("he-IL")} המודעות
+                {hasFilters
+                  ? `${visible.length.toLocaleString("he-IL")} תוצאות מסוננות`
+                  : `הצגת כל ${total.toLocaleString("he-IL")} המודעות`}
               </p>
-            ) : null}
+            )}
           </div>
         </>
       )}
