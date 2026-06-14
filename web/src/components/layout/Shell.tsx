@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router";
 import {
   LayoutDashboard,
@@ -25,6 +26,7 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { ConnectionBanner } from "@/components/ui/ConnectionBanner";
 import { AuroraBackground } from "@/components/ui/AuroraBackground";
 import { AppCommandPalette } from "@/components/AppCommandPalette";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -176,6 +178,7 @@ function SidebarSection({
 export function Shell() {
   const location = useLocation();
   const { user, signOut } = useAuth();
+  const [signOutOpen, setSignOutOpen] = useState(false);
   const { data: notifCount } = useNotificationCount(!!user);
   const unread = notifCount?.count ?? 0;
   const { theme, toggle: toggleTheme } = useTheme();
@@ -191,6 +194,18 @@ export function Shell() {
     <div className="min-h-screen">
       <AuroraBackground />
       <AppCommandPalette />
+      <ConfirmDialog
+        open={signOutOpen}
+        title="האם לצאת מהחשבון?"
+        description="תוכל להתחבר מחדש בכל עת."
+        confirmLabel="התנתק"
+        variant="destructive"
+        onConfirm={() => {
+          setSignOutOpen(false);
+          void signOut();
+        }}
+        onCancel={() => setSignOutOpen(false)}
+      />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:right-4 focus:z-[60] focus:rounded-xl focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg"
@@ -294,9 +309,7 @@ export function Shell() {
           {user ? (
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm("האם לצאת מהחשבון?")) void signOut();
-              }}
+              onClick={() => setSignOutOpen(true)}
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent px-3 py-2 text-sm font-medium text-sidebar-foreground transition-all duration-150 hover:bg-sidebar-accent-hover hover:text-foreground dark:hover:text-white active:scale-[0.99] motion-reduce:active:scale-100"
             >
               <LogOut className="h-3.5 w-3.5" aria-hidden />
