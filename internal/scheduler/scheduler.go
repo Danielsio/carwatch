@@ -636,7 +636,7 @@ func (s *Scheduler) writeCycleLog(ctx context.Context, entry storage.CycleLogEnt
 // search's full filter set (manufacturer, model, year, price, km, etc.).
 // This ensures Yad2 pre-filters results so every page contains relevant
 // listings, giving much better coverage than the unfiltered global feed.
-func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storage.Search, raw []model.RawListing, f fetcher.Fetcher) []model.RawListing {
+func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storage.Search, raw []model.RawListing, f fetcher.Fetcher) ([]model.RawListing, map[string][]string) {
 	// Build the dedup set from existing tokens.
 	seen := make(map[string]struct{}, len(raw))
 	for _, l := range raw {
@@ -646,6 +646,9 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 	// Track which param combinations we've already fetched so searches
 	// with identical filters don't produce redundant API calls.
 	fetchedKeys := make(map[string]struct{})
+	// feedTokensByKey tracks all tokens returned by each successful fetch,
+	// keyed by the param cache key. Used to detect stale listings.
+	feedTokensByKey := make(map[string][]string)
 
 	var fetched, added int
 	for _, sr := range searches {
@@ -655,7 +658,7 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 
 		select {
 		case <-ctx.Done():
-			return raw
+			return raw, feedTokensByKey
 		default:
 		}
 
@@ -672,7 +675,7 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
-				return raw
+				return raw, feedTokensByKey
 			}
 			delay := 3 * time.Second
 			if errors.Is(err, fetcher.ErrRateLimited) {
@@ -684,14 +687,16 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 				"error", err, "cooldown", delay.String())
 			select {
 			case <-ctx.Done():
-				return raw
+				return raw, feedTokensByKey
 			case <-time.After(delay):
 			}
 			continue
 		}
 		fetched++
 
+		tokens := make([]string, 0, len(targeted))
 		for _, l := range targeted {
+			tokens = append(tokens, l.Token)
 			if _, dup := seen[l.Token]; dup {
 				continue
 			}
@@ -699,11 +704,12 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 			raw = append(raw, l)
 			added++
 		}
+		feedTokensByKey[key] = tokens
 
 		// Pause between targeted fetches to avoid Yad2 rate limiting.
 		select {
 		case <-ctx.Done():
-			return raw
+			return raw, feedTokensByKey
 		case <-time.After(3 * time.Second):
 		}
 	}
@@ -715,7 +721,7 @@ func (s *Scheduler) fetchTargetedListings(ctx context.Context, searches []storag
 			"new_listings_added", added,
 		)
 	}
-	return raw
+	return raw, feedTokensByKey
 }
 
 // fetchAndMatch fetches listings for each active search via targeted
@@ -726,7 +732,7 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 	var stats cycleStats
 
 	fetchStart := time.Now()
-	raw := s.fetchTargetedListings(ctx, searches, nil, s.targetedFetcher)
+	raw, feedTokensByKey := s.fetchTargetedListings(ctx, searches, nil, s.targetedFetcher)
 	fetchDuration := time.Since(fetchStart)
 	stats.listingsFetched = len(raw)
 	s.observer.RecordFetch("yad2", fetchDuration, nil)
@@ -1091,6 +1097,31 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 	// are settled.
 	s.flushPendingPrices(ctx, pendingPrices, persistedTokens, persistFailedTokens)
 
+	// Drop stale listings that no longer appear in the source feed.
+	droppedBySearch := make(map[int64]int64)
+	if s.stores.Listings != nil && len(feedTokensByKey) > 0 {
+		for _, search := range searches {
+			params := model.SourceParamsFromSearch(&search)
+			key := fetcher.CacheKeyFor(params)
+			feedTokens, ok := feedTokensByKey[key]
+			if !ok {
+				continue
+			}
+			dropped, err := s.stores.Listings.DeleteStaleListings(ctx, search.ChatID, search.ID, feedTokens)
+			if err != nil {
+				s.logger.WarnContext(ctx, "failed to drop stale listings",
+					"search_id", search.ID, "chat_id", search.ChatID, "error", err)
+				continue
+			}
+			if dropped > 0 {
+				droppedBySearch[search.ID] = dropped
+				s.logger.InfoContext(ctx, "dropped stale listings",
+					"search_id", search.ID, "search_name", search.Name,
+					"chat_id", search.ChatID, "dropped", dropped)
+			}
+		}
+	}
+
 	// Write per-search cycle stats for dashboard observability.
 	if s.stores.SearchCycleStats != nil && len(searches) > 0 {
 		rejections := s.percolator.CountRejections(raw)
@@ -1165,6 +1196,7 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 				EngineCC:    rej[percolator.RejectEngineCC],
 				Seller:      rej[percolator.RejectSeller],
 				OtherFilter: rej[percolator.RejectOtherFilter],
+				Dropped:     int(droppedBySearch[search.ID]),
 				ScoreMin:    scoreMin,
 				ScoreMax:    scoreMax,
 				ScoreAvg:    scoreAvg,
