@@ -276,11 +276,16 @@ export function ListingsPage() {
         <EmptyState
           icon={Car}
           title="אין תוצאות עדיין"
-          description="רכבים חדשים יופיעו כאן כשהם ימצאו"
+          description="רכבים חדשים יופיעו כאן כשהם ימצאו. נסה להרחיב את טווח המחיר או השנים, או להסיר מסננים כמו ק״מ מקסימלי."
           action={
-            <Button asChild variant="secondary" size="sm">
-              <Link to="/dashboard">חזרה ללוח הבקרה</Link>
-            </Button>
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Button asChild variant="secondary" size="sm">
+                <Link to={`/searches/${searchId}/edit`}>ערוך מסננים</Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/dashboard">חזרה ללוח הבקרה</Link>
+              </Button>
+            </div>
           }
         />
       ) : (

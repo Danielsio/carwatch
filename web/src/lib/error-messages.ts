@@ -3,6 +3,26 @@ import { ApiError } from "./api";
 const knownMessages: Record<string, string> = {
   "search limit reached": "הגעת למגבלת החיפושים — מחק חיפוש קיים כדי ליצור חדש",
   "search name already exists": "שם החיפוש כבר קיים — בחר שם אחר",
+  "search not found": "החיפוש לא נמצא",
+  "listing not found": "המודעה לא נמצאה",
+  "invalid JSON": "בקשה לא תקינה",
+  "invalid JSON body": "בקשה לא תקינה",
+  "invalid request body": "בקשה לא תקינה",
+  "invalid search id": "מזהה חיפוש לא תקין",
+  "invalid source": "מקור לא תקין",
+  "invalid manufacturer id": "מזהה יצרן לא תקין",
+  "missing token": "מזהה מודעה חסר",
+  "token is required": "מזהה מודעה חסר",
+  "endpoint is required": "כתובת התראה חסרה",
+  "endpoint, keys.p256dh, and keys.auth are required": "פרטי מנוי התראות חסרים",
+  "chat_id is required in body": "מזהה משתמש חסר",
+  "valid chat_id is required": "מזהה משתמש לא תקין",
+  "valid search id is required": "מזהה חיפוש לא תקין",
+  "table is required": "שם טבלה חסר",
+  "manufacturer is required for instant search": "יש לבחור יצרן לחיפוש מהיר",
+  "saved listings limit reached": "הגעת למגבלת המודעות השמורות",
+  "hidden listings limit reached": "הגעת למגבלת המודעות המוסתרות",
+  "vacuum already in progress": "תחזוקת מסד הנתונים כבר רצה",
 };
 
 export function errorToHebrew(error: unknown): string {
@@ -23,7 +43,7 @@ export function errorToHebrew(error: unknown): string {
     if (error.status >= 500) {
       return "שגיאת שרת — נסה שוב מאוחר יותר";
     }
-    return error.message || "שגיאה בלתי צפויה";
+    return "שגיאה בלתי צפויה";
   }
 
   if (
