@@ -1085,7 +1085,7 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 			deferred := 0
 			for _, l := range acc.result.newListings {
 				unenriched := l.Km <= 0 || l.City == "" || l.ImageURL == ""
-				justSeen := l.CreatedAt.IsZero() || time.Since(l.CreatedAt) < time.Duration(graceSec)*time.Second
+				justSeen := !l.CreatedAt.IsZero() && time.Since(l.CreatedAt) < time.Duration(graceSec)*time.Second
 				if unenriched && justSeen {
 					deferred++
 					continue
