@@ -40,12 +40,12 @@ type priceResult struct {
 }
 
 type matchState struct {
-	raw             []model.RawListing
-	feedTokensByKey map[string][]string
-	prefilled       bool
-	accums          map[int64]*searchAccum
-	searchCounters  map[int64]*searchCycleCounter
-	matchedIndices  map[int][]int64
+	raw                 []model.RawListing
+	feedTokensByKey     map[string][]string
+	prefilled           bool
+	accums              map[int64]*searchAccum
+	searchCounters      map[int64]*searchCycleCounter
+	matchedIndices      map[int][]int64
 	priceDropCandidates []priceDropCandidate
 	pendingPrices       map[string]int
 	persistedTokens     map[string]bool
@@ -227,7 +227,7 @@ func (s *Scheduler) processPriceDrops(ctx context.Context, ms *matchState, marke
 				Token: l.Token, ChatID: acc.search.ChatID, SearchID: acc.search.ID, SearchName: acc.search.Name,
 				Manufacturer: l.Manufacturer, Model: l.Model, SubModel: l.SubModel,
 				SubModelID: l.SubModelID,
-				Year: l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
+				Year:       l.Year, Price: l.Price, Km: l.Km, Hand: l.Hand,
 				City: l.City, PageLink: l.PageLink, ImageURL: l.ImageURL,
 				EngineVolume: l.EngineVolume, HorsePower: l.HorsePower,
 				EngineType: l.EngineType, GearBox: l.GearBox, Description: l.Description,
