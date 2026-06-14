@@ -1804,10 +1804,10 @@ func TestPostgres_DigestWorkflow(t *testing.T) {
 		t.Fatalf("expected 2 payloads, got %d", len(payloads))
 	}
 
-	// DigestLastFlushed before ack
+	// DigestLastFlushed before ack (Postgres default is epoch, not Go zero)
 	flushed, _ := store.DigestLastFlushed(ctx, 3100)
-	if !flushed.IsZero() {
-		t.Error("expected zero time before ack")
+	if flushed.Year() > 2000 {
+		t.Errorf("expected epoch/zero before ack, got %v", flushed)
 	}
 
 	// Ack
@@ -1839,7 +1839,7 @@ func TestPostgres_DailyDigest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if enabled || digestTime != "09:00" || !lastSent.IsZero() {
+	if enabled || digestTime != "09:00" || lastSent.Year() > 2000 {
 		t.Errorf("defaults: enabled=%v time=%q lastSent=%v", enabled, digestTime, lastSent)
 	}
 
@@ -2008,9 +2008,9 @@ func TestPostgres_CycleLog(t *testing.T) {
 		t.Errorf("limit 0: got %d (should default to 50, return all 3)", len(entries))
 	}
 
-	// Error message roundtrip
+	// Error message roundtrip — use a future timestamp to guarantee it sorts first
 	if err := store.WriteCycleLog(ctx, storage.CycleLogEntry{
-		StartedAt:    time.Now(),
+		StartedAt:    time.Now().Add(10 * time.Minute),
 		DurationMs:   500,
 		ErrorMessage: "context deadline exceeded",
 		Status:       "error",
