@@ -33,7 +33,8 @@ func testStore(t *testing.T) *Store {
 			"listing_user_seen", "pending_digest",
 			"saved_listings", "hidden_listings", "listing_history",
 			"seen_listings", "price_history", "push_subscriptions", "link_tokens",
-			"daily_digest", "searches", "price_list_cache", "users",
+			"daily_digest", "search_cycle_stats", "cycle_log",
+			"searches", "price_list_cache", "users",
 		}
 		for _, tbl := range tables {
 			_, _ = db.Exec("DELETE FROM " + tbl)
@@ -1727,5 +1728,423 @@ func TestPostgres_AdminDeleteUserCompleteness(t *testing.T) {
 	_ = store.DB().QueryRowContext(ctx, `SELECT count(*) FROM users WHERE chat_id = $1`, chatID).Scan(&count)
 	if count != 0 {
 		t.Errorf("users should be empty, got %d rows", count)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Digest store
+// ---------------------------------------------------------------------------
+
+func TestPostgres_DigestMode(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+
+	// Default for unknown user
+	mode, interval, err := store.GetDigestMode(ctx, 999)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode != "instant" || interval != "6h" {
+		t.Errorf("defaults = %q/%q, want instant/6h", mode, interval)
+	}
+
+	seedPgUser(t, store, 3000)
+
+	// Set and get
+	if err := store.SetDigestMode(ctx, 3000, "batch", "12h"); err != nil {
+		t.Fatal(err)
+	}
+	mode, interval, err = store.GetDigestMode(ctx, 3000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode != "batch" || interval != "12h" {
+		t.Errorf("got %q/%q, want batch/12h", mode, interval)
+	}
+}
+
+func TestPostgres_DigestWorkflow(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 3100)
+	seedPgUser(t, store, 3101)
+
+	// Add items
+	if err := store.AddDigestItem(ctx, 3100, `{"token":"a"}`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddDigestItem(ctx, 3100, `{"token":"b"}`); err != nil {
+		t.Fatal(err)
+	}
+
+	// PendingDigestUsers
+	users, err := store.PendingDigestUsers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, id := range users {
+		if id == 3100 {
+			found = true
+		}
+		if id == 3101 {
+			t.Error("user 3101 should not have pending items")
+		}
+	}
+	if !found {
+		t.Error("user 3100 should be in pending list")
+	}
+
+	// Peek
+	payloads, cutoff, err := store.PeekDigest(ctx, 3100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payloads) != 2 {
+		t.Fatalf("expected 2 payloads, got %d", len(payloads))
+	}
+
+	// DigestLastFlushed before ack (Postgres default is epoch, not Go zero)
+	flushed, _ := store.DigestLastFlushed(ctx, 3100)
+	if flushed.Year() > 2000 {
+		t.Errorf("expected epoch/zero before ack, got %v", flushed)
+	}
+
+	// Ack
+	if err := store.AckDigest(ctx, 3100, cutoff); err != nil {
+		t.Fatal(err)
+	}
+
+	// After ack: empty
+	payloads, _, _ = store.PeekDigest(ctx, 3100)
+	if len(payloads) != 0 {
+		t.Errorf("expected 0 after ack, got %d", len(payloads))
+	}
+
+	// DigestLastFlushed updated
+	flushed, _ = store.DigestLastFlushed(ctx, 3100)
+	if time.Since(flushed) > 5*time.Second {
+		t.Error("digest_last_flushed should be recent")
+	}
+}
+
+func TestPostgres_DailyDigest(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 3200)
+	seedPgUser(t, store, 3201)
+
+	// Defaults
+	enabled, digestTime, lastSent, err := store.GetDailyDigest(ctx, 3200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if enabled || digestTime != "09:00" || lastSent.Year() > 2000 {
+		t.Errorf("defaults: enabled=%v time=%q lastSent=%v", enabled, digestTime, lastSent)
+	}
+
+	// Enable
+	if err := store.SetDailyDigest(ctx, 3200, true, "18:00"); err != nil {
+		t.Fatal(err)
+	}
+	enabled, digestTime, _, _ = store.GetDailyDigest(ctx, 3200)
+	if !enabled || digestTime != "18:00" {
+		t.Errorf("after set: enabled=%v time=%q", enabled, digestTime)
+	}
+
+	// UpdateDailyDigestLastSent
+	if err := store.UpdateDailyDigestLastSent(ctx, 3200); err != nil {
+		t.Fatal(err)
+	}
+	_, _, lastSent, _ = store.GetDailyDigest(ctx, 3200)
+	if time.Since(lastSent) > 5*time.Second {
+		t.Error("last_sent should be recent")
+	}
+
+	// ListDailyDigestUsers: only active with daily_digest=true
+	users, err := store.ListDailyDigestUsers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, u := range users {
+		if u.ChatID == 3200 {
+			found = true
+		}
+		if u.ChatID == 3201 {
+			t.Error("user 3201 (daily_digest=false) should not appear")
+		}
+	}
+	if !found {
+		t.Error("user 3200 should be in daily digest list")
+	}
+
+	// Disable excludes from list
+	if err := store.SetDailyDigest(ctx, 3200, false, "18:00"); err != nil {
+		t.Fatal(err)
+	}
+	users, _ = store.ListDailyDigestUsers(ctx)
+	for _, u := range users {
+		if u.ChatID == 3200 {
+			t.Error("disabled user should not appear")
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Push subscriptions
+// ---------------------------------------------------------------------------
+
+func TestPostgres_PushSubscriptions(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 4000)
+	seedPgUser(t, store, 4001)
+
+	// Save
+	sub := storage.PushSubscription{
+		ChatID:   4000,
+		Endpoint: "https://fcm.googleapis.com/sub/abc",
+		P256DH:   "key1",
+		Auth:     "auth1",
+	}
+	if err := store.SavePushSubscription(ctx, sub); err != nil {
+		t.Fatal(err)
+	}
+
+	// List
+	subs, err := store.ListPushSubscriptions(ctx, 4000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 1 || subs[0].Endpoint != sub.Endpoint {
+		t.Errorf("list = %+v", subs)
+	}
+
+	// Upsert: same endpoint updates auth
+	sub.Auth = "auth2"
+	if err := store.SavePushSubscription(ctx, sub); err != nil {
+		t.Fatal(err)
+	}
+	subs, _ = store.ListPushSubscriptions(ctx, 4000)
+	if len(subs) != 1 || subs[0].Auth != "auth2" {
+		t.Errorf("after upsert: %+v", subs)
+	}
+
+	// Cross-user isolation
+	sub2 := storage.PushSubscription{
+		ChatID:   4001,
+		Endpoint: "https://fcm.googleapis.com/sub/def",
+		P256DH:   "key2",
+		Auth:     "auth2",
+	}
+	_ = store.SavePushSubscription(ctx, sub2)
+	subs, _ = store.ListPushSubscriptions(ctx, 4000)
+	if len(subs) != 1 {
+		t.Errorf("cross-user: user 4000 sees %d subs, want 1", len(subs))
+	}
+
+	// Delete
+	if err := store.DeletePushSubscription(ctx, 4000, sub.Endpoint); err != nil {
+		t.Fatal(err)
+	}
+	subs, _ = store.ListPushSubscriptions(ctx, 4000)
+	if len(subs) != 0 {
+		t.Errorf("after delete: %d subs remain", len(subs))
+	}
+
+	// User 4001 unaffected
+	subs, _ = store.ListPushSubscriptions(ctx, 4001)
+	if len(subs) != 1 {
+		t.Errorf("user 4001 should still have 1 sub, got %d", len(subs))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Cycle log
+// ---------------------------------------------------------------------------
+
+func TestPostgres_CycleLog(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+
+	// Write entries
+	for i := range 3 {
+		if err := store.WriteCycleLog(ctx, storage.CycleLogEntry{
+			StartedAt:       time.Now().Add(time.Duration(i) * time.Minute),
+			DurationMs:      1000 + i*100,
+			Searches:        5,
+			ListingsFetched: 50 + i*10,
+			ListingsMatched: 10 + i,
+			Notifications:   i,
+			ErrorMessage:    "",
+			Status:          "ok",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// List returns DESC order
+	entries, err := store.ListCycleLogs(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 3 {
+		t.Fatalf("expected 3, got %d", len(entries))
+	}
+	if entries[0].DurationMs < entries[2].DurationMs {
+		t.Error("should be DESC by started_at (most recent first)")
+	}
+
+	// Limit respected
+	entries, _ = store.ListCycleLogs(ctx, 2)
+	if len(entries) != 2 {
+		t.Errorf("limit 2: got %d", len(entries))
+	}
+
+	// Zero/negative limit defaults to 50
+	entries, _ = store.ListCycleLogs(ctx, 0)
+	if len(entries) != 3 {
+		t.Errorf("limit 0: got %d (should default to 50, return all 3)", len(entries))
+	}
+
+	// Error message roundtrip — use a future timestamp to guarantee it sorts first
+	if err := store.WriteCycleLog(ctx, storage.CycleLogEntry{
+		StartedAt:    time.Now().Add(10 * time.Minute),
+		DurationMs:   500,
+		ErrorMessage: "context deadline exceeded",
+		Status:       "error",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ = store.ListCycleLogs(ctx, 1)
+	if entries[0].ErrorMessage != "context deadline exceeded" || entries[0].Status != "error" {
+		t.Errorf("error entry = %+v", entries[0])
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Search cycle stats
+// ---------------------------------------------------------------------------
+
+func TestPostgres_SearchCycleStats(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 6000)
+	seedPgUser(t, store, 6001)
+
+	id1, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 6000, Name: "stats-search-1", Manufacturer: 27, Model: 10332,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 6000, Name: "stats-search-2", Manufacturer: 8, Model: 10061,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id3, err := store.CreateSearch(ctx, storage.Search{
+		ChatID: 6001, Name: "other-user", Manufacturer: 17, Model: 10182,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Empty slice is no-op
+	if err := store.UpsertSearchCycleStats(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	scoreMin := 45.0
+	scoreMax := 92.5
+	scoreAvg := 68.3
+	priceMin := 80000
+	priceMax := 120000
+
+	// Insert
+	stats := []storage.SearchCycleStats{{
+		SearchID:    id1,
+		ChatID:      6000,
+		SearchName:  "stats-search-1",
+		CycleAt:     now,
+		FeedSize:    50,
+		Matched:     12,
+		NewListings: 5,
+		KmFiltered:  3,
+		Delivered:   5,
+		PriceDrops:  1,
+		WrongModel:  2,
+		YearOut:     1,
+		PriceOut:    4,
+		KmOver:      3,
+		HandOver:    1,
+		EngineCC:    0,
+		Seller:      0,
+		OtherFilter: 0,
+		ScoreMin:    &scoreMin,
+		ScoreMax:    &scoreMax,
+		ScoreAvg:    &scoreAvg,
+		PriceMin:    &priceMin,
+		PriceMax:    &priceMax,
+	}}
+	if err := store.UpsertSearchCycleStats(ctx, stats); err != nil {
+		t.Fatal(err)
+	}
+
+	// List
+	got, err := store.ListSearchCycleStats(ctx, 6000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 stat, got %d", len(got))
+	}
+	if got[0].FeedSize != 50 || got[0].Matched != 12 {
+		t.Errorf("stats = %+v", got[0])
+	}
+	if got[0].ScoreMin == nil || *got[0].ScoreMin != 45.0 {
+		t.Errorf("ScoreMin = %v, want 45.0", got[0].ScoreMin)
+	}
+
+	// Upsert: updates existing
+	stats[0].FeedSize = 75
+	stats[0].NewListings = 10
+	if err := store.UpsertSearchCycleStats(ctx, stats); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = store.ListSearchCycleStats(ctx, 6000)
+	if len(got) != 1 || got[0].FeedSize != 75 || got[0].NewListings != 10 {
+		t.Errorf("after upsert: %+v", got)
+	}
+
+	// Batch: insert for both searches
+	batch := []storage.SearchCycleStats{
+		{SearchID: id1, ChatID: 6000, SearchName: "stats-search-1", CycleAt: now, FeedSize: 100, Matched: 20},
+		{SearchID: id2, ChatID: 6000, SearchName: "stats-search-2", CycleAt: now, FeedSize: 30, Matched: 8},
+	}
+	if err := store.UpsertSearchCycleStats(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = store.ListSearchCycleStats(ctx, 6000)
+	if len(got) != 2 {
+		t.Fatalf("batch: expected 2, got %d", len(got))
+	}
+
+	// Cross-user isolation
+	otherStats := []storage.SearchCycleStats{{
+		SearchID: id3, ChatID: 6001, SearchName: "other-user", CycleAt: now, FeedSize: 15,
+	}}
+	_ = store.UpsertSearchCycleStats(ctx, otherStats)
+
+	got6000, _ := store.ListSearchCycleStats(ctx, 6000)
+	got6001, _ := store.ListSearchCycleStats(ctx, 6001)
+	if len(got6000) != 2 {
+		t.Errorf("user 6000: expected 2, got %d", len(got6000))
+	}
+	if len(got6001) != 1 {
+		t.Errorf("user 6001: expected 1, got %d", len(got6001))
 	}
 }
