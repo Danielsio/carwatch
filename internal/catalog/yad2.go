@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"regexp"
-	"strings"
+
+	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 )
 
 // CatalogResult holds manufacturers and models parsed from a Yad2 page.
@@ -24,8 +24,6 @@ type Yad2PageFetcher interface {
 
 const defaultCatalogURL = "https://www.yad2.co.il/vehicles/cars"
 
-var nextDataRe = regexp.MustCompile(`(?s)<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>`)
-
 // FetchCatalogFromYad2 fetches the Yad2 cars page and extracts
 // manufacturer/model entries from listings in __NEXT_DATA__.
 func FetchCatalogFromYad2(ctx context.Context, fetcher Yad2PageFetcher) (*CatalogResult, error) {
@@ -39,16 +37,11 @@ func FetchCatalogFromYad2(ctx context.Context, fetcher Yad2PageFetcher) (*Catalo
 // ParseCatalogFromHTML extracts manufacturer/model catalog entries from
 // Yad2 HTML containing a __NEXT_DATA__ script tag.
 func ParseCatalogFromHTML(html []byte) (*CatalogResult, error) {
-	if strings.Contains(string(html), "Are you for real") {
-		return nil, fmt.Errorf("yad2: anti-bot challenge detected")
+	data, err := yad2.ExtractNextDataJSON(bytes.NewReader(html))
+	if err != nil {
+		return nil, err
 	}
-
-	matches := nextDataRe.FindSubmatch(html)
-	if len(matches) < 2 || len(matches[1]) == 0 {
-		return nil, fmt.Errorf("__NEXT_DATA__ script tag not found")
-	}
-
-	return parseCatalogFromNextData(matches[1])
+	return parseCatalogFromNextData(data)
 }
 
 func parseCatalogFromNextData(data []byte) (*CatalogResult, error) {
