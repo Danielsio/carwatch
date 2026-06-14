@@ -21,6 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useHealthCheck } from "@/hooks/useHealthCheck";
 import { useMe } from "@/hooks/useMe";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { ConnectionBanner } from "@/components/ui/ConnectionBanner";
 import { cn } from "@/lib/utils";
 
@@ -179,6 +180,7 @@ export function Shell() {
   const appVersion = useAppVersion();
   const connectionStatus = useHealthCheck();
   const { data: me } = useMe(!!user);
+  useKeyboardShortcuts();
   const isAdmin = me?.is_admin ?? false;
   const emailInitial =
     user?.email?.trim().charAt(0)?.toLocaleUpperCase("he-IL") || "?";
@@ -223,7 +225,19 @@ export function Shell() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-5 overflow-y-auto px-2.5 py-4">
+        <nav
+          className="flex-1 space-y-5 overflow-y-auto px-2.5 py-4"
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+            e.preventDefault();
+            const links = Array.from(
+              e.currentTarget.querySelectorAll<HTMLAnchorElement>("a[href]"),
+            );
+            const idx = links.indexOf(document.activeElement as HTMLAnchorElement);
+            const next = e.key === "ArrowDown" ? idx + 1 : idx - 1;
+            links[((next % links.length) + links.length) % links.length]?.focus();
+          }}
+        >
           <SidebarSection label="ראשי" items={mainNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} isAuthenticated={!!user} />
           <SidebarSection label="ספריה" items={libraryNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} isAuthenticated={!!user} />
           <SidebarSection label="מערכת" items={systemNav} pathname={location.pathname} unread={unread} isAdmin={isAdmin} isAuthenticated={!!user} />
