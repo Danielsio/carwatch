@@ -4,13 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
-
-	"github.com/dsionov/carwatch/internal/fetcher"
 )
-
-var itemNextDataRe = regexp.MustCompile(`(?is)<script[^>]*\bid=["']__NEXT_DATA__["'][^>]*>(.*?)</script>`)
 
 // ItemDetails holds enrichment data parsed from an individual listing page.
 type ItemDetails struct {
@@ -22,22 +17,11 @@ type ItemDetails struct {
 
 // ParseItemPage extracts listing details (primarily km) from a Yad2 item page.
 func ParseItemPage(body io.Reader) (ItemDetails, error) {
-	raw, err := io.ReadAll(body)
+	data, err := ExtractNextDataJSON(body)
 	if err != nil {
-		return ItemDetails{}, fmt.Errorf("read item page body: %w", err)
+		return ItemDetails{}, err
 	}
-	html := string(raw)
-
-	if strings.Contains(html, challengeMarker) {
-		return ItemDetails{}, fetcher.ErrChallenge
-	}
-
-	matches := itemNextDataRe.FindStringSubmatch(html)
-	if len(matches) < 2 || matches[1] == "" {
-		return ItemDetails{}, fmt.Errorf("item page: __NEXT_DATA__ not found")
-	}
-
-	return parseItemNextData([]byte(matches[1]))
+	return parseItemNextData(data)
 }
 
 func parseItemNextData(data []byte) (ItemDetails, error) {

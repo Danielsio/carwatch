@@ -17,7 +17,7 @@ import (
 
 const challengeMarker = "Are you for real"
 
-var nextDataRe = regexp.MustCompile(`(?s)<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>`)
+var nextDataRe = regexp.MustCompile(`(?is)<script[^>]*\bid=["']__NEXT_DATA__["'][^>]*>(.*?)</script>`)
 
 // subModelHPRe extracts horsepower from sub-model text like "(165 כ״ס)".
 var subModelHPRe = regexp.MustCompile(`\((\d+)\s*כ״ס\)`)
@@ -25,11 +25,9 @@ var subModelHPRe = regexp.MustCompile(`\((\d+)\s*כ״ס\)`)
 // subModelGearRe detects automatic transmission markers in sub-model text.
 var subModelGearRe = regexp.MustCompile(`אוט[׳']`)
 
-func ParseListingsPage(body io.Reader) ([]model.RawListing, error) {
-	return ParseListingsPageWithLogger(body, nil)
-}
-
-func ParseListingsPageWithLogger(body io.Reader, logger *slog.Logger) ([]model.RawListing, error) {
+// ExtractNextDataJSON reads an HTML page, checks for a bot challenge, and
+// returns the raw JSON content of the __NEXT_DATA__ script tag.
+func ExtractNextDataJSON(body io.Reader) ([]byte, error) {
 	raw, err := io.ReadAll(body)
 	if err != nil {
 		return nil, fmt.Errorf("read response body: %w", err)
@@ -45,7 +43,19 @@ func ParseListingsPageWithLogger(body io.Reader, logger *slog.Logger) ([]model.R
 		return nil, fmt.Errorf("__NEXT_DATA__ script tag not found")
 	}
 
-	return parseNextData([]byte(matches[1]), logger)
+	return []byte(matches[1]), nil
+}
+
+func ParseListingsPage(body io.Reader) ([]model.RawListing, error) {
+	return ParseListingsPageWithLogger(body, nil)
+}
+
+func ParseListingsPageWithLogger(body io.Reader, logger *slog.Logger) ([]model.RawListing, error) {
+	data, err := ExtractNextDataJSON(body)
+	if err != nil {
+		return nil, err
+	}
+	return parseNextData(data, logger)
 }
 
 func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error) {
