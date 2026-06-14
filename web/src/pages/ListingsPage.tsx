@@ -14,6 +14,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useInfiniteListings } from "@/hooks/useInfiniteListings";
 import { useListingActions } from "@/hooks/useListingActions";
+import { useSpotlight } from "@/hooks/useSpotlight";
 import { safeHref, cn, formatPrice } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Listing, RefreshResponse } from "@/lib/api";
@@ -343,13 +344,15 @@ export function ListingsPage() {
 const ListingCard = memo(function ListingCard({ listing }: { listing: Listing }) {
   const { saved, seen, toggleSaved, toggleSeen } = useListingActions(listing);
   const { toast } = useToast();
+  const spotlight = useSpotlight();
 
   return (
     <Link
       to={`/listings/${listing.token}`}
       state={{ listing }}
       aria-label={`${listing.manufacturer} ${listing.model} ${listing.year} - ${formatPrice(listing.price)}`}
-      className="group block rounded-2xl border border-border/40 bg-card overflow-hidden shadow-sm transition-all duration-300 ease-out hover:border-primary/20 hover:shadow-[0_16px_48px_-12px_var(--color-glow-primary)] hover:-translate-y-1 dir-rtl"
+      {...spotlight}
+      className="spotlight group block rounded-2xl border border-border/40 bg-card overflow-hidden shadow-sm transition-all duration-300 ease-out hover:border-primary/20 hover:shadow-[0_16px_48px_-12px_var(--color-glow-primary)] hover:-translate-y-1 dir-rtl"
     >
       <ListingCardBody
         listing={listing}

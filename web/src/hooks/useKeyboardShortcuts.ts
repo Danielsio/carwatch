@@ -18,13 +18,10 @@ export function useKeyboardShortcuts() {
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-      if (e.key === "/" || e.key === "k") {
-        e.preventDefault();
-        navigate("/searches/new");
-        return;
-      }
-
+      // "/" and "⌘K" are owned by the command palette — don't compete.
       if (e.key === "Escape") {
+        // Let an open overlay (command palette, dialog) handle its own Escape.
+        if (document.querySelector('[role="dialog"]')) return;
         const main = document.querySelector("main");
         if (main) main.scrollTo({ top: 0, behavior: "smooth" });
         return;

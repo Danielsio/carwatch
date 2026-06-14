@@ -23,6 +23,8 @@ import { useHealthCheck } from "@/hooks/useHealthCheck";
 import { useMe } from "@/hooks/useMe";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { ConnectionBanner } from "@/components/ui/ConnectionBanner";
+import { AuroraBackground } from "@/components/ui/AuroraBackground";
+import { AppCommandPalette } from "@/components/AppCommandPalette";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -186,7 +188,9 @@ export function Shell() {
     user?.email?.trim().charAt(0)?.toLocaleUpperCase("he-IL") || "?";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
+      <AuroraBackground />
+      <AppCommandPalette />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:right-4 focus:z-[60] focus:rounded-xl focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg"
@@ -198,7 +202,7 @@ export function Shell() {
       {/* ── Desktop Sidebar ── */}
       <aside
         aria-label="ניווט ראשי"
-        className="fixed inset-y-0 right-0 z-40 hidden h-full w-60 flex-col border-l border-sidebar-border bg-sidebar md:flex"
+        className="fixed inset-y-0 right-0 z-40 hidden h-full w-60 flex-col border-l border-sidebar-border bg-sidebar/85 backdrop-blur-xl backdrop-saturate-150 md:flex"
       >
         {/* Brand */}
         <div className="flex items-center gap-3 border-b border-sidebar-border px-4 py-5">

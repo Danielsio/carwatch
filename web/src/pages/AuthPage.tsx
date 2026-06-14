@@ -9,6 +9,7 @@ import {
 } from "firebase/auth";
 import { auth, firebaseAuthErrorCode, googleProvider } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { AuroraBackground } from "@/components/ui/AuroraBackground";
 import { cn } from "@/lib/utils";
 
 function mapLoginError(code: string) {
@@ -165,20 +166,21 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
   }
 
   return (
-    <div dir="rtl" className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+    <div dir="rtl" className="relative flex min-h-screen items-center justify-center px-4 py-12">
+      <AuroraBackground variant="hero" />
       <div className="w-full max-w-[420px] animate-fade-in">
         {/* Brand */}
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-white shadow-md">
+          <div className="shine flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-white shadow-[0_8px_28px_-6px_var(--color-glow-primary)]">
             <Car className="h-7 w-7" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-aurora text-2xl font-extrabold tracking-tight">
             CarWatch
           </h1>
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
+        <div className="glass-card glow-border relative rounded-2xl p-6 shadow-2xl sm:p-8">
           {/* Tab toggle */}
           <div className="mb-6 flex rounded-lg bg-secondary p-1">
             <button

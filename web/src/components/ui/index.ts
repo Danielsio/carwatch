@@ -6,6 +6,10 @@ export {
   buttonVariants,
   type ButtonProps,
 } from "./Button";
+export {
+  AuroraBackground,
+  type AuroraBackgroundProps,
+} from "./AuroraBackground";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { ErrorState, type ErrorStateProps } from "./ErrorState";
 export { FormField, type FormFieldProps } from "./FormField";
