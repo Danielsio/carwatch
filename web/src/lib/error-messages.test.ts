@@ -33,9 +33,9 @@ describe("errorToHebrew", () => {
     expect(msg).toContain("שרת");
   });
 
-  it("returns generic ApiError message for other status codes", () => {
+  it("returns Hebrew fallback for unknown ApiError status codes", () => {
     const msg = errorToHebrew(new ApiError(422, "custom error"));
-    expect(msg).toBe("custom error");
+    expect(msg).toContain("שגיאה");
   });
 
   it("returns network error for TypeError with 'failed to fetch'", () => {
