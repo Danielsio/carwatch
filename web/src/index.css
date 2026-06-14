@@ -74,6 +74,14 @@
   --color-glow-chart-purple: rgba(167, 139, 250, 0.20);
   --color-glow-violet: rgba(139, 92, 246, 0.15);
 
+  /* ─── Deal / Freshness (semantic, theme-aware — no raw palette in components) ─── */
+  --color-deal-good: var(--deal-good);
+  --color-deal-bad: var(--deal-bad);
+  --color-deal-neutral: var(--muted-fg);
+  --color-fresh-hot: var(--fresh-hot);
+  --color-fresh-today: var(--fresh-today);
+  --color-aurora-cyan: #06B6D4;
+
   /* ─── Radius ─── */
   --radius-lg: 0.75rem;
   --radius-md: 0.5rem;
@@ -85,6 +93,11 @@
   --animate-slide-up: slide-up 0.4s cubic-bezier(0, 0, 0.2, 1);
   --animate-pulse-soft: pulse-soft 2.5s ease-in-out infinite;
   --animate-pulse-glow: pulse-glow 2.5s ease-in-out infinite;
+  --animate-aurora-a: aurora-drift 20s ease-in-out infinite;
+  --animate-aurora-b: aurora-drift 28s ease-in-out infinite reverse;
+  --animate-aurora-c: aurora-drift 34s ease-in-out infinite;
+  --animate-text-shimmer: text-shimmer 6s linear infinite;
+  --animate-scale-in: scale-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ═══ Layout ═══ */
@@ -126,6 +139,17 @@
   --score-great: #047857;
   --score-good: #B45309;
   --score-low: #DC2626;
+
+  --deal-good: #059669;
+  --deal-bad: #DC2626;
+  --fresh-hot: #EA580C;
+  --fresh-today: #059669;
+
+  /* Signature effects */
+  --spot-color: rgba(29, 78, 216, 0.22);
+  --aurora-1: rgba(29, 78, 216, 0.18);
+  --aurora-2: rgba(6, 182, 212, 0.14);
+  --aurora-3: rgba(139, 92, 246, 0.12);
 }
 
 /* ═══ Dark Mode — Deep, immersive, cinematic ═══ */
@@ -162,6 +186,17 @@
   --score-great: #34D399;
   --score-good: #FBBF24;
   --score-low: #F87171;
+
+  --deal-good: #10B981;
+  --deal-bad: #F87171;
+  --fresh-hot: #FB923C;
+  --fresh-today: #34D399;
+
+  /* Signature effects */
+  --spot-color: rgba(99, 165, 255, 0.30);
+  --aurora-1: rgba(59, 130, 246, 0.28);
+  --aurora-2: rgba(6, 182, 212, 0.20);
+  --aurora-3: rgba(139, 92, 246, 0.22);
 }
 
 /* ═══ Keyframes ═══ */
@@ -204,6 +239,37 @@
 @keyframes scroll-dot {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(10px); }
+}
+
+@keyframes aurora-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(4%, -5%, 0) scale(1.12); }
+  66% { transform: translate3d(-4%, 3%, 0) scale(1.06); }
+}
+
+@keyframes text-shimmer {
+  to { background-position: 200% center; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes shine-sweep {
+  0% { transform: translateX(-130%) skewX(-18deg); }
+  100% { transform: translateX(130%) skewX(-18deg); }
+}
+
+/* Registered angle so the conic glow border can animate smoothly */
+@property --glow-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes glow-rotate {
+  to { --glow-angle: 360deg; }
 }
 
 /* ═══ Utilities ═══ */
@@ -256,6 +322,141 @@
     linear-gradient(color-mix(in oklab, var(--fg) 3%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in oklab, var(--fg) 3%, transparent) 1px, transparent 1px);
   background-size: 36px 36px;
+}
+
+/* ─── Signature: cursor-following spotlight sheen ───
+   Set --spot-x / --spot-y (in px, relative to the element) on pointer move. */
+@utility spotlight {
+  position: relative;
+  isolation: isolate;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+      230px circle at var(--spot-x, 50%) var(--spot-y, 0%),
+      var(--spot-color),
+      transparent 65%
+    );
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  &:hover::after,
+  &:focus-within::after {
+    opacity: 1;
+  }
+}
+
+/* ─── Signature: animated conic glow border ───
+   A 1px ring of rotating brand-spectrum light. Put on a rounded element. */
+@utility glow-border {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(
+      from var(--glow-angle),
+      transparent 0deg,
+      var(--color-primary) 70deg,
+      var(--color-aurora-cyan) 140deg,
+      var(--color-violet) 210deg,
+      transparent 320deg
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: glow-rotate 6s linear infinite;
+    pointer-events: none;
+  }
+}
+
+/* ─── Signature: diagonal shine sweep on hover ─── */
+@utility shine {
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 45%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, #fff 22%, transparent),
+      transparent
+    );
+    transform: translateX(-130%) skewX(-18deg);
+    pointer-events: none;
+    z-index: 4;
+  }
+
+  &:hover::before {
+    animation: shine-sweep 1s ease;
+  }
+}
+
+/* ─── Signature: subtle film grain for depth ─── */
+@utility grain {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+}
+
+/* ─── Signature: animated brand-spectrum gradient text ─── */
+@utility text-aurora {
+  background-image: linear-gradient(
+    115deg,
+    var(--color-primary),
+    var(--color-aurora-cyan),
+    var(--color-violet),
+    var(--color-primary)
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: text-shimmer 6s linear infinite;
+}
+
+/* ─── Signature: aurora mesh blob (used by AuroraBackground) ─── */
+@utility aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  will-change: transform;
+}
+
+/* Respect reduced-motion: freeze ambient signature motion. */
+@media (prefers-reduced-motion: reduce) {
+  .glow-border::before,
+  .text-aurora,
+  .aurora-blob {
+    animation: none !important;
+  }
+  .shine::before {
+    display: none;
+  }
 }
 
 /* ═══ Base ═══ */

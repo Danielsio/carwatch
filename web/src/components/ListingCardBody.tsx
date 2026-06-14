@@ -19,16 +19,16 @@ function dealInfo(listing: Listing): {
     return {
       label: `${mc.diffPercent}%−`,
       icon: TrendingDown,
-      badgeClass: "bg-emerald-500 text-white",
-      priceClass: "text-emerald-500",
+      badgeClass: "bg-deal-good text-white",
+      priceClass: "text-deal-good",
     };
   }
   if (mc.diffPercent > 5) {
     return {
       label: `${mc.diffPercent}%−`,
       icon: TrendingDown,
-      badgeClass: "bg-emerald-500/80 text-white",
-      priceClass: "text-emerald-500",
+      badgeClass: "bg-deal-good/80 text-white",
+      priceClass: "text-deal-good",
     };
   }
   if (mc.diffPercent >= -5) {
@@ -43,8 +43,8 @@ function dealInfo(listing: Listing): {
   return {
     label: `+${-mc.diffPercent}%`,
     icon: TrendingUp,
-    badgeClass: "bg-red-500/90 text-white",
-    priceClass: "text-red-400",
+    badgeClass: "bg-deal-bad/90 text-white",
+    priceClass: "text-deal-bad",
   };
 }
 
@@ -123,7 +123,7 @@ export function ListingCardBody({
               </span>
             ) : null}
             {listing.suspicious_reasons && listing.suspicious_reasons.length > 0 ? (
-              <span className="flex items-center gap-1 rounded-full bg-amber-500/90 px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
+              <span className="flex items-center gap-1 rounded-full bg-warning/90 px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
                 <AlertTriangle className="h-3 w-3" />
                 חשוד
               </span>
@@ -157,12 +157,12 @@ export function ListingCardBody({
                   {listing.manufacturer} {listing.model}
                 </h3>
                 {freshness === "hot" ? (
-                  <span className="shrink-0 flex items-center gap-0.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2 py-0.5 text-[9px] font-bold text-white shadow-sm animate-pulse">
+                  <span className="shrink-0 flex items-center gap-0.5 rounded-full bg-gradient-to-r from-fresh-hot to-deal-bad px-2 py-0.5 text-[9px] font-bold text-white shadow-sm animate-pulse">
                     <Flame className="h-2.5 w-2.5" />
                     חם!
                   </span>
                 ) : freshness === "today" ? (
-                  <span className="shrink-0 flex items-center gap-0.5 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-bold text-white shadow-sm">
+                  <span className="shrink-0 flex items-center gap-0.5 rounded-full bg-fresh-today px-2 py-0.5 text-[9px] font-bold text-white shadow-sm">
                     <Clock className="h-2.5 w-2.5" />
                     חדש היום
                   </span>
@@ -187,9 +187,9 @@ export function ListingCardBody({
 
         {/* Freshness glow ring */}
         {freshness === "hot" ? (
-          <div className="pointer-events-none absolute inset-0 rounded-t-[inherit] ring-2 ring-inset ring-orange-500/60 shadow-[inset_0_0_24px_rgba(249,115,22,0.25)] animate-pulse" aria-hidden />
+          <div className="pointer-events-none absolute inset-0 rounded-t-[inherit] ring-2 ring-inset ring-fresh-hot/60 shadow-[inset_0_0_24px_rgba(249,115,22,0.25)] animate-pulse" aria-hidden />
         ) : freshness === "today" ? (
-          <div className="pointer-events-none absolute inset-0 rounded-t-[inherit] ring-2 ring-inset ring-emerald-500/50 shadow-[inset_0_0_20px_rgba(16,185,129,0.15)]" aria-hidden />
+          <div className="pointer-events-none absolute inset-0 rounded-t-[inherit] ring-2 ring-inset ring-fresh-today/50 shadow-[inset_0_0_20px_rgba(16,185,129,0.15)]" aria-hidden />
         ) : isNew ? (
           <div className="pointer-events-none absolute inset-0 rounded-t-[inherit] ring-2 ring-inset ring-primary/50 shadow-[inset_0_0_20px_rgba(59,130,246,0.15)]" aria-hidden />
         ) : null}
@@ -212,8 +212,8 @@ export function ListingCardBody({
           ) : null}
           <span className={cn(
             "ms-auto flex items-center gap-1 text-xs font-medium tabular-nums",
-            freshness === "hot" ? "text-orange-500" :
-            freshness === "today" ? "text-emerald-500" :
+            freshness === "hot" ? "text-fresh-hot" :
+            freshness === "today" ? "text-fresh-today" :
             "text-muted-foreground",
           )}>
             {freshness === "hot" ? <Flame className="h-3 w-3" /> :
