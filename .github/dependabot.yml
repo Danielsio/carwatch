@@ -1,0 +1,42 @@
+version: 2
+updates:
+  # GitHub Actions — keeps pinned action SHAs current (incl. Node runtime bumps).
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        update-types: [minor, patch]
+
+  # Go modules.
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    groups:
+      go-deps:
+        update-types: [minor, patch]
+
+  # Frontend npm dependencies.
+  - package-ecosystem: npm
+    directory: "/web"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    groups:
+      npm-deps:
+        update-types: [minor, patch]
+
+  # Dockerfile base image.
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
