@@ -36,7 +36,7 @@ func TestAuthMatrix_CrossUserDenied(t *testing.T) {
 		Catalog: cat, Searches: store, Listings: store, Users: store,
 		Prices: store, Admin: store, Saved: store, Hidden: store,
 		Notifs: store, PushSubs: store, LinkTokens: store,
-		Logger: slog.Default(),
+		Logger:      slog.Default(),
 		BotUsername: "test_bot",
 		API: config.APIConfig{
 			CORSOrigins: []string{"*"}, DevChatID: 999, AdminChatID: 999,
@@ -48,7 +48,7 @@ func TestAuthMatrix_CrossUserDenied(t *testing.T) {
 		Catalog: cat, Searches: store, Listings: store, Users: store,
 		Prices: store, Admin: store, Saved: store, Hidden: store,
 		Notifs: store, PushSubs: store, LinkTokens: store,
-		Logger: slog.Default(),
+		Logger:      slog.Default(),
 		BotUsername: "test_bot",
 		API: config.APIConfig{
 			CORSOrigins: []string{"*"}, DevChatID: 888, AdminChatID: 999,
@@ -164,18 +164,21 @@ func TestAuthMatrix_UnauthenticatedDenied(t *testing.T) {
 	cat := catalog.NewDynamic(slog.Default())
 	cat.Load(ctx)
 
-	// Server with auth token required (no DevChatID fallback)
+	// Server with auth token required (no DevChatID fallback).
+	// Use permissive rate limits so subtests don't get 429.
 	srv := New(Config{
 		Catalog: cat, Searches: store, Listings: store, Users: store,
 		Prices: store, Admin: store, Saved: store, Hidden: store,
 		Notifs: store, PushSubs: store, LinkTokens: store,
-		Logger: slog.Default(),
+		Logger:      slog.Default(),
 		BotUsername: "test_bot",
 		API: config.APIConfig{
 			CORSOrigins: []string{"*"}, DevChatID: 999, AuthToken: "secret",
 		},
 		Push: config.PushConfig{VAPIDPublicKey: "test"},
 	})
+	srv.ipRL = newIPRateLimiter(10000, time.Millisecond, false)
+	srv.rl = newRateLimiter(10000, time.Millisecond)
 
 	strictRoutes := []struct {
 		method string
