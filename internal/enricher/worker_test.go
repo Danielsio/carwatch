@@ -32,9 +32,11 @@ type mockListingStore struct {
 	enrichmentData map[string]storage.EnrichmentRecord
 	backfilled     []storage.ListingRecord
 	enrichAttempts map[string]int
+	droppedTokens  []string
 	backfillErr    error
 	lookupErr      error
 	incrementErr   error
+	dropErr        error
 }
 
 func newMockListingStore() *mockListingStore {
@@ -113,6 +115,15 @@ func (m *mockListingStore) PruneListings(_ context.Context, _ time.Duration) (in
 }
 func (m *mockListingStore) DeleteStaleListings(_ context.Context, _ int64, _ int64, _ []string) (int64, error) {
 	return 0, nil
+}
+func (m *mockListingStore) DropListingByToken(_ context.Context, token string) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.dropErr != nil {
+		return 0, m.dropErr
+	}
+	m.droppedTokens = append(m.droppedTokens, token)
+	return 1, nil
 }
 func (m *mockListingStore) LookupListingIdentity(_ context.Context, _ string) (*storage.ListingIdentity, error) {
 	return &storage.ListingIdentity{}, nil
@@ -253,6 +264,55 @@ func TestWorker_ChallengeTriggersBackoff(t *testing.T) {
 	defer ls.mu.Unlock()
 	if ls.enrichAttempts["tok-1"] != 1 {
 		t.Errorf("enrich attempts = %d, want 1 (even on failure)", ls.enrichAttempts["tok-1"])
+	}
+}
+
+func TestWorker_ItemGoneDropsListing(t *testing.T) {
+	f := &mockItemFetcher{err: fetcher.ErrItemGone}
+	ls := newMockListingStore()
+	rl := NewAdaptiveRateLimiter(time.Millisecond, time.Second, time.Second)
+	w := NewWorker(f, ls, rl, testWorkerLogger())
+
+	req := broker.EnrichRequest{Token: "gone-1", Priority: 1, Source: "match"}
+	err := w.HandleRequest(context.Background(), req)
+
+	// Permanent so the consumer dead-letters; still wraps the gone sentinel.
+	if !errors.Is(err, broker.ErrPermanent) {
+		t.Errorf("expected ErrPermanent, got %v", err)
+	}
+	if !errors.Is(err, fetcher.ErrItemGone) {
+		t.Errorf("expected ErrItemGone wrapped, got %v", err)
+	}
+
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	if len(ls.droppedTokens) != 1 || ls.droppedTokens[0] != "gone-1" {
+		t.Errorf("expected listing dropped by token, got %v", ls.droppedTokens)
+	}
+	if ls.enrichAttempts["gone-1"] != 1 {
+		t.Errorf("enrich attempts = %d, want 1", ls.enrichAttempts["gone-1"])
+	}
+	if len(ls.backfilled) != 0 {
+		t.Error("should not backfill a listing that is gone")
+	}
+}
+
+func TestWorker_ItemGoneDeadLettersEvenIfDropFails(t *testing.T) {
+	f := &mockItemFetcher{err: fetcher.ErrItemGone}
+	ls := newMockListingStore()
+	ls.dropErr = errors.New("db delete failed")
+	rl := NewAdaptiveRateLimiter(time.Millisecond, time.Second, time.Second)
+	w := NewWorker(f, ls, rl, testWorkerLogger())
+
+	req := broker.EnrichRequest{Token: "gone-1", Priority: 1, Source: "match"}
+	err := w.HandleRequest(context.Background(), req)
+
+	// A best-effort drop failure must not mask the permanent dead-letter.
+	if !errors.Is(err, broker.ErrPermanent) {
+		t.Errorf("expected ErrPermanent despite drop failure, got %v", err)
+	}
+	if !errors.Is(err, fetcher.ErrItemGone) {
+		t.Errorf("expected ErrItemGone wrapped, got %v", err)
 	}
 }
 
