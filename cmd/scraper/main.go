@@ -20,6 +20,7 @@ import (
 	"github.com/dsionov/carwatch/internal/logstream"
 	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/scheduler"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 var (
@@ -142,25 +143,42 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 	defer plCleanup()
 
 	var n notifier.Notifier = multi
-	sched, err := scheduler.NewWithOptions(cfg, fb.Caching, store, n, logger.With("component", "scheduler"), scheduler.Options{
+	// Pass narrow storage interfaces so each subsystem depends only
+	// on what it uses. The concrete *postgres.Store satisfies all of
+	// them, but typing the slots makes the dependency graph explicit.
+	var (
+		dedup         storage.DedupStore            = store
+		prices        storage.PriceTracker          = store
+		listings      storage.ListingStore          = store
+		searches      storage.SearchStore           = store
+		users         storage.UserStore             = store
+		digests       storage.DigestStore            = store
+		hidden        storage.HiddenListingStore    = store
+		market        storage.MarketStore           = store
+		priceList     storage.PriceListStore        = store
+		dailyDigests  storage.DailyDigestStore      = store
+		cycleLog      storage.CycleLogStore         = store
+		cycleStats    storage.SearchCycleStatsStore  = store
+	)
+	sched, err := scheduler.NewWithOptions(cfg, fb.Caching, dedup, n, logger.With("component", "scheduler"), scheduler.Options{
 		Observer:              h,
-		Prices:                store,
+		Prices:                prices,
 		ConfigPath:            configPath,
 		FetcherFactory:        fb.Factory,
 		TargetedFetcher:       fb.Targeted,
-		ListingStore:          store,
-		SearchStore:           store,
-		UserStore:             store,
-		DigestStore:           store,
-		HiddenStore:           store,
+		ListingStore:          listings,
+		SearchStore:           searches,
+		UserStore:             users,
+		DigestStore:           digests,
+		HiddenStore:           hidden,
 		CatalogIngester:       dynCatalog,
 		CarNames:              dynCatalog,
-		MarketStore:           store,
-		PriceListStore:        store,
+		MarketStore:           market,
+		PriceListStore:        priceList,
 		PriceListSvc:          plSvc,
-		DailyDigestStore:      store,
-		CycleLogStore:         store,
-		SearchCycleStatsStore: store,
+		DailyDigestStore:      dailyDigests,
+		CycleLogStore:         cycleLog,
+		SearchCycleStatsStore: cycleStats,
 		Publisher:             pub,
 		EnrichPublisher:       enrichPub,
 	})
