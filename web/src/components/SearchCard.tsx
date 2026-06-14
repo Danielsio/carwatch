@@ -278,6 +278,9 @@ export function SearchCard({
                 {cycleStats.price_drops > 0 && (
                   <span className="text-score-good">{cycleStats.price_drops} ירידות מחיר</span>
                 )}
+                {cycleStats.dropped > 0 && (
+                  <span className="text-muted-foreground/60">{cycleStats.dropped} הוסרו</span>
+                )}
               </div>
 
               {/* Filter rejection breakdown */}

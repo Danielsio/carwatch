@@ -59,7 +59,7 @@ func TestFetchTargetedListings_NoPairsNoFetch(t *testing.T) {
 		{ID: 2, Manufacturer: 27, Model: 0},
 	}
 	global := []model.RawListing{{Token: "g1"}}
-	result := s.fetchTargetedListings(context.Background(), searches, global, f)
+	result, _ := s.fetchTargetedListings(context.Background(), searches, global, f)
 
 	if len(result) != 1 {
 		t.Errorf("expected 1 listing (unchanged), got %d", len(result))
@@ -91,7 +91,7 @@ func TestFetchTargetedListings_FetchesWithFullParams(t *testing.T) {
 	s := newTestSchedulerWithFetcher(f)
 
 	global := []model.RawListing{{Token: "g1", ManufacturerID: 99, ModelID: 999}}
-	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr}, global, f)
+	result, _ := s.fetchTargetedListings(context.Background(), []storage.Search{sr}, global, f)
 
 	if len(result) != 3 {
 		t.Errorf("expected 3 listings (1 global + 2 targeted), got %d", len(result))
@@ -139,7 +139,7 @@ func TestFetchTargetedListings_AlwaysFetchesRegardlessOfCoverage(t *testing.T) {
 		}
 	}
 
-	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr}, global, f)
+	result, _ := s.fetchTargetedListings(context.Background(), []storage.Search{sr}, global, f)
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -165,7 +165,7 @@ func TestFetchTargetedListings_DeduplicatesTokens(t *testing.T) {
 	s := newTestSchedulerWithFetcher(f)
 
 	global := []model.RawListing{{Token: "shared", ManufacturerID: 17, ModelID: 10182}}
-	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr}, global, f)
+	result, _ := s.fetchTargetedListings(context.Background(), []storage.Search{sr}, global, f)
 
 	if len(result) != 2 {
 		t.Errorf("expected 2 listings (1 shared deduped + 1 new), got %d", len(result))
@@ -198,7 +198,7 @@ func TestFetchTargetedListings_FetchErrorContinues(t *testing.T) {
 	s := newTestSchedulerWithFetcher(f)
 
 	global := []model.RawListing{{Token: "g1"}}
-	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr1, sr2}, global, f)
+	result, _ := s.fetchTargetedListings(context.Background(), []storage.Search{sr1, sr2}, global, f)
 
 	hasOk1 := false
 	for _, l := range result {
@@ -225,7 +225,7 @@ func TestFetchTargetedListings_IdenticalParamsFetchedOnce(t *testing.T) {
 	s := newTestSchedulerWithFetcher(f)
 
 	global := []model.RawListing{{Token: "g1"}}
-	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr1, sr2}, global, f)
+	result, _ := s.fetchTargetedListings(context.Background(), []storage.Search{sr1, sr2}, global, f)
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -253,7 +253,7 @@ func TestFetchTargetedListings_DifferentFiltersFetchSeparately(t *testing.T) {
 	s := newTestSchedulerWithFetcher(f)
 
 	global := []model.RawListing{{Token: "g1"}}
-	result := s.fetchTargetedListings(context.Background(), []storage.Search{sr1, sr2}, global, f)
+	result, _ := s.fetchTargetedListings(context.Background(), []storage.Search{sr1, sr2}, global, f)
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -283,7 +283,7 @@ func TestFetchTargetedListings_ContextCanceled(t *testing.T) {
 	cancel()
 
 	global := []model.RawListing{{Token: "g1"}}
-	result := s.fetchTargetedListings(ctx, []storage.Search{sr1, sr2}, global, f)
+	result, _ := s.fetchTargetedListings(ctx, []storage.Search{sr1, sr2}, global, f)
 
 	if len(result) != len(global) {
 		t.Errorf("expected %d listings (global only), got %d", len(global), len(result))
