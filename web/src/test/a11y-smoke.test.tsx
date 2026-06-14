@@ -1,8 +1,20 @@
-import { describe, it, beforeAll, afterAll, afterEach } from "vitest";
+import { describe, it, vi, beforeAll, afterAll, afterEach } from "vitest";
 import { render } from "@testing-library/react";
 import { BrowserRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+
+vi.mock("@/lib/firebase", () => ({
+  auth: {},
+  googleProvider: {},
+}));
+vi.mock("firebase/auth", () => ({
+  onAuthStateChanged: (_a: unknown, cb: (u: null) => void) => { cb(null); return () => {}; },
+  signOut: () => Promise.resolve(),
+  getAuth: () => ({}),
+  GoogleAuthProvider: class {},
+}));
+
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/components/ui/Toast";
 import { server } from "./mocks/server";
