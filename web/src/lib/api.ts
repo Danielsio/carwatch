@@ -86,6 +86,8 @@ export interface Search {
   photo_only?: boolean;
   /** Total listings found for this search; from API when supported. */
   listings_count?: number;
+  /** True when this is the user's first search, prompting push opt-in. */
+  push_prompt?: boolean;
   stats?: {
     total: number;
     new_24h: number;

@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useLocation, Link, Navigate } from "react-router";
-import { Search, Loader2, Car, Zap, Trees, UserRound, ArrowRight, ArrowLeft, Check } from "lucide-react";
+import { Search, Loader2, Car, Zap, Trees, UserRound, ArrowRight, ArrowLeft, Check, Bell } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateSearch } from "@/hooks/useSearches";
+import { usePushSubscription } from "@/hooks/usePushSubscription";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import { errorToHebrew } from "@/lib/error-messages";
@@ -70,6 +71,8 @@ export function NewSearchPage() {
   const location = useLocation();
   const createSearch = useCreateSearch();
   const { toast } = useToast();
+  const { pushState, subscribe: pushSubscribe } = usePushSubscription(!!user);
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
 
@@ -121,15 +124,58 @@ export function NewSearchPage() {
       return;
     }
     createSearch.mutate(formToPayload(form), {
-      onSuccess: () => {
+      onSuccess: (data) => {
         toast("החיפוש נוצר בהצלחה!", "success");
-        navigate("/dashboard");
+        if (data.push_prompt && pushState.supported && !pushState.subscribed && pushState.permission !== "denied") {
+          setShowPushPrompt(true);
+        } else {
+          navigate("/dashboard");
+        }
       },
       onError: (err) => setError(errorToHebrew(err)),
     });
   }
 
   const isLastStep = step === STEPS.length - 1;
+
+  if (showPushPrompt) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <div className="w-full max-w-md space-y-6 text-center animate-fade-in">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+            <Bell className="h-7 w-7 text-primary" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-foreground">רוצה לקבל התראות?</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              הפעל התראות Push כדי לדעת מיד כשרכב חדש שמתאים לחיפוש שלך מתפרסם.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                pushSubscribe.mutate(undefined, {
+                  onSettled: () => navigate("/dashboard"),
+                });
+              }}
+              disabled={pushSubscribe.isPending}
+              className="w-full rounded-xl bg-primary px-6 py-3 text-sm font-bold text-white transition-all hover:bg-primary/90"
+            >
+              {pushSubscribe.isPending ? "מפעיל..." : "הפעל התראות"}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              אולי אחר כך
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 pb-24 md:pb-8 dir-rtl">
