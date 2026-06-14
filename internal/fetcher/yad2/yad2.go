@@ -148,6 +148,10 @@ func (f *Yad2Fetcher) FetchItem(ctx context.Context, token string) (ItemDetails,
 			}
 			return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, fetcher.ErrChallenge)
 		}
+		if result.StatusCode == http.StatusNotFound || result.StatusCode == http.StatusGone {
+			// The listing was removed from Yad2; retrying this token is futile.
+			return ItemDetails{}, fmt.Errorf("fetch item %s: status %d: %w", token, result.StatusCode, fetcher.ErrItemGone)
+		}
 		snippet := string(result.Body)
 		if len(snippet) > 200 {
 			snippet = snippet[:200]

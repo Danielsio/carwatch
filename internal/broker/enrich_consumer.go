@@ -19,8 +19,16 @@ const (
 	enrichOrphanIdleDefault = 5 * time.Minute
 )
 
+// ErrPermanent marks an enrichment failure that retrying cannot fix (e.g. the
+// listing was removed at the source). An EnrichFunc that returns an error
+// wrapping ErrPermanent is dead-lettered immediately instead of being retried
+// up to enrichMaxRetries, saving rate-limit budget and keeping the DLQ
+// meaningful.
+var ErrPermanent = errors.New("permanent enrich failure")
+
 // EnrichFunc processes a single enrichment request. It should return nil
-// on success (or skip), and an error to leave the message pending for retry.
+// on success (or skip), an error wrapping ErrPermanent for a non-retriable
+// failure, or any other error to leave the message pending for retry.
 type EnrichFunc func(ctx context.Context, req EnrichRequest) error
 
 // EnrichConsumer reads enrichment requests from the carwatch:enrich
@@ -144,6 +152,12 @@ func (c *EnrichConsumer) processBatch(ctx context.Context, msgs []redis.XMessage
 			return
 		}
 		if err := c.enrich(ctx, item.req); err != nil {
+			if errors.Is(err, ErrPermanent) {
+				c.logger.Warn("enrich request failed permanently, dead-lettering immediately",
+					"token", item.req.Token, "priority", item.req.Priority, "error", err)
+				c.deadLetter(ctx, item.msg.ID)
+				continue
+			}
 			c.logger.Warn("enrich request failed, will retry",
 				"token", item.req.Token, "priority", item.req.Priority, "error", err)
 			continue
