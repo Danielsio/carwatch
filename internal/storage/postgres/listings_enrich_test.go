@@ -202,3 +202,65 @@ func TestPostgres_ListUserListingsPagination(t *testing.T) {
 		t.Errorf("offset past end = %d rows, want 0", len(page))
 	}
 }
+
+func TestPostgres_DropListingByToken(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 100)
+	seedPgUser(t, store, 200)
+
+	save := func(token string, chatID int64) {
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token: token, ChatID: chatID, SearchName: "s",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 80000,
+			FirstSeenAt: time.Now(),
+		}); err != nil {
+			t.Fatalf("save %s/%d: %v", token, chatID, err)
+		}
+	}
+
+	// "gone-1" is held by two different chats, none bookmarked.
+	save("gone-1", 100)
+	save("gone-1", 200)
+	// "gone-2" is bookmarked by chat 100.
+	save("gone-2", 100)
+	if err := store.SaveBookmark(ctx, 100, "gone-2"); err != nil {
+		t.Fatalf("SaveBookmark: %v", err)
+	}
+
+	// Non-bookmarked copies are hard-deleted across every chat that held them.
+	deleted, err := store.DropListingByToken(ctx, "gone-1")
+	if err != nil {
+		t.Fatalf("DropListingByToken gone-1: %v", err)
+	}
+	if deleted != 2 {
+		t.Errorf("deleted = %d, want 2 (both chats)", deleted)
+	}
+	if l, _ := store.GetListing(ctx, 100, "gone-1"); l != nil {
+		t.Error("gone-1 should be deleted for chat 100")
+	}
+	if l, _ := store.GetListing(ctx, 200, "gone-1"); l != nil {
+		t.Error("gone-1 should be deleted for chat 200")
+	}
+
+	// Bookmarked copies are preserved but flagged removed_at ("likely sold").
+	deleted, err = store.DropListingByToken(ctx, "gone-2")
+	if err != nil {
+		t.Fatalf("DropListingByToken gone-2: %v", err)
+	}
+	if deleted != 0 {
+		t.Errorf("deleted = %d, want 0 (bookmarked is preserved)", deleted)
+	}
+	l, _ := store.GetListing(ctx, 100, "gone-2")
+	if l == nil {
+		t.Fatal("bookmarked gone-2 should be preserved, not deleted")
+	}
+	if l.RemovedAt == nil {
+		t.Error("bookmarked gone-2 should be flagged removed_at")
+	}
+
+	// Unknown token is a no-op.
+	if deleted, err := store.DropListingByToken(ctx, "never-existed"); err != nil || deleted != 0 {
+		t.Errorf("drop unknown token = %d, %v; want 0, nil", deleted, err)
+	}
+}

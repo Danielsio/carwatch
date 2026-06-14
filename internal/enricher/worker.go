@@ -90,10 +90,22 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 		}
 
 		if errors.Is(fetchErr, fetcher.ErrItemGone) {
-			// The listing was removed at the source; mark permanent so the
-			// consumer dead-letters immediately instead of retrying.
-			w.logger.InfoContext(ctx, "listing no longer exists at source, will not retry",
-				append(carAttrs, "error", fetchErr.Error())...)
+			// The listing was removed at the source (404/410). Drop it from the
+			// active set so it stops surfacing in feeds/notifications, then mark
+			// the request permanent so the consumer dead-letters immediately
+			// instead of retrying. A drop failure is best-effort: log it and
+			// still dead-letter (the scrape cycle's stale-sweep is a backstop).
+			removed, dropErr := w.listings.DropListingByToken(ctx, req.Token)
+			if dropErr != nil {
+				w.logger.ErrorContext(ctx, "failed to drop listing gone at source",
+					append(carAttrs, "error", dropErr.Error())...)
+			} else {
+				if telemetry.EnrichItemsGone != nil {
+					telemetry.EnrichItemsGone.Add(ctx, 1)
+				}
+				w.logger.InfoContext(ctx, "dropped listing no longer at source, will not retry",
+					append(carAttrs, "deleted_rows", removed, "error", fetchErr.Error())...)
+			}
 			return fmt.Errorf("%w: %w", broker.ErrPermanent, fetchErr)
 		}
 

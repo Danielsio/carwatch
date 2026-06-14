@@ -495,6 +495,55 @@ func (s *Store) SearchStats(ctx context.Context, chatID int64, searchID int64, f
 	return &st, nil
 }
 
+// DropListingByToken removes a listing whose source page no longer exists
+// (HTTP 404/410). It mirrors DeleteStaleListings but is keyed by token alone,
+// so it removes the listing for every chat/search that holds it: bookmarked
+// copies are flagged removed_at ("likely sold") and kept, all other copies are
+// hard-deleted. Returns the number of rows hard-deleted.
+func (s *Store) DropListingByToken(ctx context.Context, token string) (int64, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("drop listing begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Preserve bookmarked copies as "likely sold".
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE listing_history
+		SET removed_at = NOW()
+		WHERE token = $1
+		  AND removed_at IS NULL
+		  AND EXISTS (
+		    SELECT 1 FROM saved_listings
+		    WHERE saved_listings.token = listing_history.token
+		      AND saved_listings.chat_id = listing_history.chat_id
+		  )`, token); err != nil {
+		return 0, fmt.Errorf("drop listing mark removed_at: %w", err)
+	}
+
+	// Hard-delete every non-bookmarked copy.
+	result, err := tx.ExecContext(ctx, `
+		DELETE FROM listing_history
+		WHERE token = $1
+		  AND NOT EXISTS (
+		    SELECT 1 FROM saved_listings
+		    WHERE saved_listings.token = listing_history.token
+		      AND saved_listings.chat_id = listing_history.chat_id
+		  )`, token)
+	if err != nil {
+		return 0, fmt.Errorf("drop listing delete: %w", err)
+	}
+	removed, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("drop listing commit: %w", err)
+	}
+	return removed, nil
+}
+
 func (s *Store) DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

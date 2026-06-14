@@ -249,6 +249,11 @@ type ListingStore interface {
 	IncrementEnrichAttempt(ctx context.Context, token string) error
 	PruneListings(ctx context.Context, olderThan time.Duration) (int64, error)
 	DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error)
+	// DropListingByToken removes a listing that no longer exists at the source
+	// (e.g. its detail page returns 404/410), across all chats/searches.
+	// Bookmarked copies are kept but flagged removed_at ("likely sold"); all
+	// other copies are hard-deleted. Returns the number of rows hard-deleted.
+	DropListingByToken(ctx context.Context, token string) (int64, error)
 }
 
 type SavedListingStore interface {

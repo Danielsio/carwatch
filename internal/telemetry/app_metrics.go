@@ -31,6 +31,9 @@ var (
 	EnrichChallenges metric.Int64Counter
 	// EnrichSkipped counts enrichment requests skipped (already enriched).
 	EnrichSkipped metric.Int64Counter
+	// EnrichItemsGone counts listings dropped because their source page is gone
+	// (HTTP 404/410) and they no longer exist at the source.
+	EnrichItemsGone metric.Int64Counter
 
 	// PersistFailures counts failed listing-batch persists (retried next cycle).
 	PersistFailures metric.Int64Counter
@@ -114,6 +117,12 @@ func InitMetrics() error {
 
 	EnrichSkipped, err = meter.Int64Counter("carwatch.enrich.skipped",
 		metric.WithDescription("Enrichment requests skipped (already enriched)"))
+	if err != nil {
+		return err
+	}
+
+	EnrichItemsGone, err = meter.Int64Counter("carwatch.enrich.items_gone",
+		metric.WithDescription("Listings dropped because their source page is gone (404/410)"))
 	if err != nil {
 		return err
 	}
