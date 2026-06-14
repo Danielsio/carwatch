@@ -256,6 +256,7 @@ export function ListingsTab({
               type="button"
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
+              aria-label="עמוד הקודם"
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-border transition-colors hover:bg-muted disabled:opacity-30"
             >
               <ChevronRight className="h-4 w-4" />
@@ -269,6 +270,7 @@ export function ListingsTab({
                 setPage((p) => Math.min(totalPages - 1, p + 1))
               }
               disabled={page >= totalPages - 1}
+              aria-label="עמוד הבא"
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-border transition-colors hover:bg-muted disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" />

@@ -103,7 +103,7 @@ export function NextScanCountdown() {
         )}
 
         {!isOverdue && (
-          <p className="text-base font-bold tabular-nums text-foreground tracking-tight" role="timer" aria-live="off">
+          <p className="text-base font-bold tabular-nums text-foreground tracking-tight" role="timer" aria-live="polite">
             {mins}:{String(secs).padStart(2, "0")}
           </p>
         )}
