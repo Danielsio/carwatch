@@ -14,6 +14,7 @@ import {
   useNotifications,
 } from "@/hooks/useNotifications";
 import { useSearchCycleStats } from "@/hooks/useSearchCycleStats";
+import { useSpotlight } from "@/hooks/useSpotlight";
 import { formatPrice, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -355,10 +356,12 @@ function StatCard({
   bg: string;
   glow?: string;
 }) {
+  const spotlight = useSpotlight();
   return (
     <div
+      {...spotlight}
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-b from-card to-card/80 p-4 sm:p-5 backdrop-blur-sm transition-all duration-300",
+        "spotlight group relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-b from-card to-card/80 p-4 sm:p-5 backdrop-blur-sm transition-all duration-300",
         "hover:border-primary/30 hover:shadow-[0_8px_32px_-8px_var(--color-glow-primary)] hover:-translate-y-1 active:scale-[0.98]",
         "dark:from-[#0d1017] dark:to-[#0a0d14] dark:border-white/[0.06]",
         "dark:hover:border-white/[0.12] dark:hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.2)]",
