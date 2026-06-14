@@ -51,7 +51,7 @@ run: build
 test:
 	@mkdir -p $(COVER_DIR)
 	go build ./...
-	go test -count=1 -coverprofile=$(COVER_PROFILE) -covermode=atomic $(TEST_PKGS)
+	go test -count=1 -shuffle=on -coverprofile=$(COVER_PROFILE) -covermode=atomic $(TEST_PKGS)
 	@echo ""
 	@echo "=== Coverage Summary ==="
 	@go tool cover -func=$(COVER_PROFILE) | tail -1
