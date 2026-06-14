@@ -1,0 +1,356 @@
+openapi: 3.1.0
+info:
+  title: CarWatch API
+  version: "1.0"
+  description: |
+    REST API for CarWatch (`/api/v1`). Hand-authored from the route table in
+    `internal/api/api.go` (`Routes()`). Endpoints fall into four auth tiers:
+
+    - **authenticated** — require a Firebase ID token (`bearerAuth`).
+    - **optional-auth** — work for guests (return empty/limited data) and
+      authenticated users.
+    - **guest** — no auth, separate stricter rate limit.
+    - **catalog** — no auth, no rate limit (static data).
+
+    Several endpoint groups are only mounted when their backing store is
+    configured (admin, notifications, push, saved/hidden, scheduler status);
+    they are documented here as the full surface.
+servers:
+  - url: /api/v1
+tags:
+  - name: catalog
+  - name: searches
+  - name: listings
+  - name: saved
+  - name: notifications
+  - name: push
+  - name: telegram
+  - name: account
+  - name: guest
+  - name: admin
+  - name: scheduler
+
+security:
+  - bearerAuth: []
+
+paths:
+  /me:
+    get:
+      tags: [account]
+      summary: Current identity and admin flag (optional auth)
+      security: [{ bearerAuth: [] }, {}]
+      responses:
+        "200":
+          description: Identity
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email: { type: string }
+                  is_admin: { type: boolean }
+
+  /catalog/manufacturers:
+    get:
+      tags: [catalog]
+      summary: List/search vehicle manufacturers
+      security: []
+      parameters:
+        - { name: q, in: query, required: false, schema: { type: string }, description: Fuzzy search term }
+      responses:
+        "200": { description: Manufacturers, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/CatalogEntry' } } } } }
+  /catalog/manufacturers/{id}/models:
+    get:
+      tags: [catalog]
+      summary: List models for a manufacturer
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: q, in: query, required: false, schema: { type: string } }
+      responses:
+        "200": { description: Models, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/CatalogEntry' } } } } }
+
+  /searches:
+    get:
+      tags: [searches]
+      summary: List the caller's searches (optional auth → empty for guests)
+      security: [{ bearerAuth: [] }, {}]
+      responses:
+        "200": { description: Searches, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Search' } } } } }
+    post:
+      tags: [searches]
+      summary: Create a search
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SearchInput' } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Search' } } } }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+  /searches/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: integer, format: int64 } }]
+    get:
+      tags: [searches]
+      summary: Get a search
+      responses:
+        "200": { description: Search, content: { application/json: { schema: { $ref: '#/components/schemas/Search' } } } }
+        "404": { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [searches]
+      summary: Update a search
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SearchInput' } } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Search' } } } }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [searches]
+      summary: Delete a search
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: '#/components/responses/NotFound' }
+  /searches/{id}/pause:
+    post: { tags: [searches], summary: Pause a search, parameters: [{ name: id, in: path, required: true, schema: { type: integer, format: int64 } }], responses: { "204": { description: Paused }, "404": { $ref: '#/components/responses/NotFound' } } }
+  /searches/{id}/resume:
+    post: { tags: [searches], summary: Resume a search, parameters: [{ name: id, in: path, required: true, schema: { type: integer, format: int64 } }], responses: { "204": { description: Resumed }, "404": { $ref: '#/components/responses/NotFound' } } }
+  /searches/{id}/stats:
+    get: { tags: [searches], summary: Search funnel/stat summary, parameters: [{ name: id, in: path, required: true, schema: { type: integer, format: int64 } }], responses: { "200": { description: Stats, content: { application/json: { schema: { type: object, additionalProperties: true } } } }, "404": { $ref: '#/components/responses/NotFound' } } }
+  /searches/{id}/listings:
+    get:
+      tags: [searches, listings]
+      summary: List matched listings for a search
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+        - { name: sort, in: query, required: false, schema: { type: string } }
+      responses:
+        "200": { description: Listings page, content: { application/json: { schema: { $ref: '#/components/schemas/ListingPage' } } } }
+        "404": { $ref: '#/components/responses/NotFound' }
+  /searches/{id}/refresh:
+    post: { tags: [searches], summary: Force-refresh a search's listings from source, parameters: [{ name: id, in: path, required: true, schema: { type: integer, format: int64 } }], responses: { "200": { description: Refreshed }, "404": { $ref: '#/components/responses/NotFound' }, "429": { $ref: '#/components/responses/RateLimited' } } }
+  /searches/cycle-stats:
+    get: { tags: [searches], summary: Per-search cycle stats (when enabled), responses: { "200": { description: Cycle stats, content: { application/json: { schema: { type: array, items: { type: object, additionalProperties: true } } } } } } }
+
+  /listings/{token}:
+    get:
+      tags: [listings]
+      summary: Get a single listing
+      parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: Listing, content: { application/json: { schema: { $ref: '#/components/schemas/Listing' } } } }
+        "404": { $ref: '#/components/responses/NotFound' }
+  /listings/{token}/price-history:
+    get:
+      tags: [listings]
+      summary: Price history for a listing
+      parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: Price points, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PricePoint' } } } } }
+  /listings/{token}/seen:
+    post: { tags: [notifications], summary: Mark a listing as seen, parameters: [{ name: token, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Marked } } }
+    delete: { tags: [notifications], summary: Unmark a listing as seen, parameters: [{ name: token, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Unmarked } } }
+  /listings/{token}/save:
+    post: { tags: [saved], summary: Save (bookmark) a listing, parameters: [{ name: token, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Saved }, "409": { description: Limit reached } } }
+    delete: { tags: [saved], summary: Remove a saved listing, parameters: [{ name: token, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Removed } } }
+  /listings/{token}/hide:
+    post: { tags: [saved], summary: Hide a listing, parameters: [{ name: token, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Hidden } } }
+    delete: { tags: [saved], summary: Unhide a listing, parameters: [{ name: token, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Unhidden } } }
+
+  /saved:
+    get: { tags: [saved], summary: List saved listings, parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }], responses: { "200": { description: Saved listings, content: { application/json: { schema: { $ref: '#/components/schemas/ListingPage' } } } } } }
+  /history:
+    get: { tags: [saved], summary: Historical (removed) listings, parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }], responses: { "200": { description: History, content: { application/json: { schema: { $ref: '#/components/schemas/ListingPage' } } } } } }
+
+  /notifications:
+    get: { tags: [notifications], summary: Notification center list, responses: { "200": { description: Notifications, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Notification' } } } } } } }
+  /notifications/count:
+    get: { tags: [notifications], summary: Unseen notification count (optional auth), security: [{ bearerAuth: [] }, {}], responses: { "200": { description: Count, content: { application/json: { schema: { type: object, properties: { count: { type: integer } } } } } } } }
+  /notifications/seen:
+    post: { tags: [notifications], summary: Mark notifications seen, responses: { "204": { description: Marked } } }
+
+  /push/subscribe:
+    post:
+      tags: [push]
+      summary: Register a Web Push subscription
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PushSubscription' } } } }
+      responses:
+        "204": { description: Subscribed }
+        "400": { $ref: '#/components/responses/BadRequest' }
+    delete:
+      tags: [push]
+      summary: Remove a Web Push subscription
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { endpoint: { type: string } }, required: [endpoint] } } } }
+      responses: { "204": { description: Unsubscribed } }
+  /push/vapid-key:
+    get: { tags: [push], summary: VAPID public key, responses: { "200": { description: Key, content: { application/json: { schema: { type: object, properties: { public_key: { type: string } } } } } } } }
+
+  /telegram/status:
+    get: { tags: [telegram], summary: Telegram link status for the caller, responses: { "200": { description: Status, content: { application/json: { schema: { type: object, additionalProperties: true } } } } } }
+  /telegram/link:
+    post: { tags: [telegram], summary: Generate a one-time Telegram link token, responses: { "200": { description: Link token, content: { application/json: { schema: { type: object, additionalProperties: true } } } } } }
+
+  /guest/instant-search:
+    post:
+      tags: [guest]
+      summary: Run a search live without saving (no auth, stricter rate limit)
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SearchInput' } } } }
+      responses:
+        "200": { description: Scored listings, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Listing' } } } } }
+        "429": { $ref: '#/components/responses/RateLimited' }
+  /vitals:
+    post: { tags: [account], summary: Report web vitals, security: [{ bearerAuth: [] }, {}], requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: true } } } }, responses: { "204": { description: Accepted } } }
+
+  /scheduler/status:
+    get: { tags: [scheduler], summary: Scheduler status (when enabled), responses: { "200": { description: Status, content: { application/json: { schema: { type: object, additionalProperties: true } } } } } }
+
+  /admin/stats:
+    get: { tags: [admin], summary: DB/runtime/HTTP stats, responses: { "200": { description: Stats, content: { application/json: { schema: { type: object, additionalProperties: true } } } }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/listings:
+    get: { tags: [admin], summary: List all listings, parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }, { name: search_id, in: query, schema: { type: integer, format: int64 } }], responses: { "200": { description: Listings }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/listings/{token}:
+    delete: { tags: [admin], summary: Delete a listing, parameters: [{ name: token, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Deleted }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/searches:
+    get: { tags: [admin], summary: List all searches, responses: { "200": { description: Searches }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/searches/{id}:
+    delete: { tags: [admin], summary: Delete a search, parameters: [{ name: id, in: path, required: true, schema: { type: integer, format: int64 } }], responses: { "204": { description: Deleted }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/users:
+    get: { tags: [admin], summary: List users, responses: { "200": { description: Users }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/users/{chatID}:
+    patch: { tags: [admin], summary: Set user active flag, parameters: [{ name: chatID, in: path, required: true, schema: { type: integer, format: int64 } }], responses: { "200": { description: Updated }, "403": { $ref: '#/components/responses/Forbidden' } } }
+    delete: { tags: [admin], summary: Delete a user, parameters: [{ name: chatID, in: path, required: true, schema: { type: integer, format: int64 } }], responses: { "204": { description: Deleted }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/purge:
+    post: { tags: [admin], summary: Purge a whitelisted table, requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { table: { type: string } }, required: [table] } } } }, responses: { "200": { description: Purged }, "400": { $ref: '#/components/responses/BadRequest' }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/reset-all:
+    post: { tags: [admin], summary: Reset all data tables, responses: { "200": { description: Reset }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/vacuum:
+    post: { tags: [admin], summary: VACUUM the database, responses: { "200": { description: Done }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/sync-user-status:
+    post: { tags: [admin], summary: Reconcile user active status, responses: { "200": { description: Synced }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/activity:
+    get: { tags: [admin], summary: Activity time series, responses: { "200": { description: Activity }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/cycles:
+    get: { tags: [admin], summary: Polling cycle log (when enabled), responses: { "200": { description: Cycles }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/logs:
+    get: { tags: [admin], summary: Recent log buffer (when enabled), parameters: [{ $ref: '#/components/parameters/Limit' }], responses: { "200": { description: Logs }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/logs/stream:
+    get: { tags: [admin], summary: Live log stream (SSE), responses: { "200": { description: "text/event-stream" }, "403": { $ref: '#/components/responses/Forbidden' } } }
+  /admin/logs/level:
+    get: { tags: [admin], summary: Current log level, responses: { "200": { description: Level }, "403": { $ref: '#/components/responses/Forbidden' } } }
+    put: { tags: [admin], summary: Set log level, requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { level: { type: string, enum: [DEBUG, INFO, WARN, ERROR] } }, required: [level] } } } }, responses: { "200": { description: Updated }, "403": { $ref: '#/components/responses/Forbidden' } } }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Firebase ID token in `Authorization: Bearer <token>`."
+  parameters:
+    Limit: { name: limit, in: query, required: false, schema: { type: integer, default: 50, maximum: 100 } }
+    Offset: { name: offset, in: query, required: false, schema: { type: integer, default: 0, minimum: 0 } }
+  responses:
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Unauthorized: { description: Missing/invalid token, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Forbidden: { description: Admin access required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    RateLimited: { description: Too many requests, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+    CatalogEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        name_he: { type: string }
+    SearchInput:
+      type: object
+      required: [source]
+      properties:
+        name: { type: string }
+        source: { type: string, example: yad2 }
+        manufacturer: { type: integer }
+        model: { type: integer }
+        year_min: { type: integer }
+        year_max: { type: integer }
+        price_min: { type: integer }
+        price_max: { type: integer }
+        engine_min_cc: { type: integer }
+        max_km: { type: integer }
+        max_hand: { type: integer }
+        keywords: { type: string }
+        exclude_keys: { type: string }
+        seller_filter: { type: string }
+        gear_box: { type: string }
+        price_only: { type: boolean }
+        photo_only: { type: boolean }
+    Search:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        source: { type: string }
+        manufacturer_id: { type: integer }
+        manufacturer_name: { type: string }
+        model_id: { type: integer }
+        model_name: { type: string }
+        year_min: { type: integer }
+        year_max: { type: integer }
+        price_min: { type: integer }
+        price_max: { type: integer }
+        engine_min_cc: { type: integer }
+        max_km: { type: integer }
+        max_hand: { type: integer }
+        active: { type: boolean }
+    Listing:
+      type: object
+      properties:
+        token: { type: string }
+        chat_id: { type: integer, format: int64 }
+        search_id: { type: integer, format: int64 }
+        manufacturer: { type: string }
+        model: { type: string }
+        sub_model: { type: string }
+        year: { type: integer }
+        price: { type: integer }
+        km: { type: integer }
+        hand: { type: integer }
+        city: { type: string }
+        page_link: { type: string }
+        image_url: { type: string }
+        engine_volume: { type: number }
+        horse_power: { type: integer }
+        engine_type: { type: string }
+        gear_box: { type: string }
+        fitness_score: { type: [number, "null"] }
+        deal_score: { type: [integer, "null"] }
+        median_price: { type: [integer, "null"] }
+        first_seen_at: { type: string, format: date-time }
+    ListingPage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Listing' } }
+        total: { type: integer }
+    PricePoint:
+      type: object
+      properties:
+        price: { type: integer }
+        observed_at: { type: string, format: date-time }
+    Notification:
+      type: object
+      additionalProperties: true
+    PushSubscription:
+      type: object
+      required: [endpoint, keys]
+      properties:
+        endpoint: { type: string, description: HTTPS URL of a known push service }
+        keys:
+          type: object
+          required: [p256dh, auth]
+          properties:
+            p256dh: { type: string }
+            auth: { type: string }
