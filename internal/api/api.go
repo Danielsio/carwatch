@@ -37,6 +37,10 @@ const (
 	requestIDKey contextKey = "requestID"
 )
 
+// maxConcurrentFetchesCeiling bounds api.max_concurrent_fetches so a
+// misconfigured value cannot spawn an unbounded number of fetch goroutines.
+const maxConcurrentFetchesCeiling = 64
+
 type PollTrigger interface {
 	TriggerPoll()
 }
@@ -142,9 +146,22 @@ func New(c Config) *Server {
 		}
 	}
 
+	// Normalize the admin email once so isAdmin can compare exactly (no
+	// per-request Unicode case folding).
+	c.API.AdminEmail = strings.ToLower(strings.TrimSpace(c.API.AdminEmail))
+
 	fetchCap := c.API.MaxConcurrentFetches
 	if fetchCap <= 0 {
 		fetchCap = 10
+	}
+	// Clamp to a sane ceiling so a misconfigured value cannot spawn an
+	// unbounded number of concurrent fetch goroutines.
+	if fetchCap > maxConcurrentFetchesCeiling {
+		if c.Logger != nil {
+			c.Logger.Warn("api.max_concurrent_fetches above ceiling, clamping",
+				"configured", fetchCap, "ceiling", maxConcurrentFetchesCeiling)
+		}
+		fetchCap = maxConcurrentFetchesCeiling
 	}
 
 	pipeline := scheduler.NewListingPipeline(c.Listings, c.PriceListSvc, c.Logger)

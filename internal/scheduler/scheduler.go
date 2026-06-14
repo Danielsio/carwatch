@@ -526,8 +526,8 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 
 	s.logger.InfoContext(ctx, "starting scheduler cycle, loading active searches", "scan", cycle)
 
-	s.langCache.Range(func(k, _ any) bool { s.langCache.Delete(k); return true })
-	s.digestCache.Range(func(k, _ any) bool { s.digestCache.Delete(k); return true })
+	s.langCache.Clear()
+	s.digestCache.Clear()
 	if s.priceListSvc != nil {
 		s.priceListSvc.ResetCycleCounter()
 	}
