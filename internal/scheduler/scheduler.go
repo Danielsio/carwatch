@@ -1080,6 +1080,31 @@ func (s *Scheduler) fetchAndMatch(ctx context.Context, searches []storage.Search
 
 		stats.newListings += len(acc.result.newListings)
 
+		// Enrich grace window: defer notification for unenriched listings
+		// that were just seen, giving the enricher time to fill in km/city/image.
+		graceSec := s.cfg.Polling.EnrichGraceSeconds
+		if graceSec <= 0 {
+			graceSec = 60
+		}
+		if graceSec > 0 && len(acc.result.newListings) > 0 {
+			var ready []model.Listing
+			deferred := 0
+			for _, l := range acc.result.newListings {
+				unenriched := l.Km <= 0 || l.City == "" || l.ImageURL == ""
+				justSeen := !l.CreatedAt.IsZero() && time.Since(l.CreatedAt) < time.Duration(graceSec)*time.Second
+				if unenriched && justSeen {
+					deferred++
+					continue
+				}
+				ready = append(ready, l)
+			}
+			if deferred > 0 {
+				searchLog.InfoContext(searchCtx, "deferred unenriched listings for enrich grace window",
+					"deferred", deferred, "ready", len(ready), "grace_seconds", graceSec)
+			}
+			acc.result.newListings = ready
+		}
+
 		// Deliver notifications.
 		if len(acc.result.newListings) > 0 || len(acc.result.priceDropMessages) > 0 {
 			searchLog.InfoContext(searchCtx, "search matched listings, preparing delivery",
