@@ -11,6 +11,10 @@ import (
 var (
 	ErrChallenge   = errors.New("anti-bot challenge detected")
 	ErrRateLimited = errors.New("rate limited")
+	// ErrItemGone indicates the requested item no longer exists at the source
+	// (e.g. HTTP 404/410 — the listing was removed). It is permanent: retrying
+	// the same token will not succeed.
+	ErrItemGone = errors.New("item no longer exists at source")
 )
 
 type Fetcher interface {

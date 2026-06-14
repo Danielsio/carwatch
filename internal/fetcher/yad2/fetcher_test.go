@@ -3,6 +3,7 @@ package yad2
 import (
 	"compress/gzip"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -322,6 +324,27 @@ func TestYad2Fetcher_FetchItem_BotProtection(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "anti-bot challenge") {
 		t.Errorf("error should mention anti-bot challenge: %v", err)
+	}
+}
+
+func TestYad2Fetcher_FetchItem_GoneIsPermanent(t *testing.T) {
+	for _, status := range []int{http.StatusNotFound, http.StatusGone} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(`<html>not found</html>`))
+			}))
+			defer server.Close()
+
+			f := newTestFetcher(t, server.URL)
+			_, err := f.FetchItem(context.Background(), "tok-removed")
+			if err == nil {
+				t.Fatalf("expected error for status %d", status)
+			}
+			if !errors.Is(err, fetcher.ErrItemGone) {
+				t.Errorf("status %d should map to ErrItemGone, got: %v", status, err)
+			}
+		})
 	}
 }
 

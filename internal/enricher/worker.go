@@ -3,6 +3,7 @@ package enricher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/dsionov/carwatch/internal/broker"
@@ -86,6 +87,14 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 			w.logger.WarnContext(ctx, "bot challenge during enrichment, backing off",
 				append(carAttrs, "cooldown", w.limiter.InCooldown(), "current_delay", w.limiter.CurrentDelay())...)
 			return fetchErr
+		}
+
+		if errors.Is(fetchErr, fetcher.ErrItemGone) {
+			// The listing was removed at the source; mark permanent so the
+			// consumer dead-letters immediately instead of retrying.
+			w.logger.InfoContext(ctx, "listing no longer exists at source, will not retry",
+				append(carAttrs, "error", fetchErr.Error())...)
+			return fmt.Errorf("%w: %w", broker.ErrPermanent, fetchErr)
 		}
 
 		w.logger.WarnContext(ctx, "failed to fetch listing detail page",
