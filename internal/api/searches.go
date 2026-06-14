@@ -73,6 +73,7 @@ type searchResponse struct {
 	CreatedAt        string             `json:"created_at"`
 	ListingsCount    int64              `json:"listings_count"`
 	Stats            *searchStatsInline `json:"stats,omitempty"`
+	PushPrompt       bool               `json:"push_prompt,omitempty"`
 }
 
 type searchStatsInline struct {
@@ -333,7 +334,11 @@ func (s *Server) writeCreatedSearch(w http.ResponseWriter, r *http.Request, chat
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, s.searchResponseWithListingCount(r.Context(), chatID, *created))
+	resp := s.searchResponseWithListingCount(r.Context(), chatID, *created)
+	if count, err := s.searches.CountSearches(r.Context(), chatID); err == nil && count == 1 {
+		resp.PushPrompt = true
+	}
+	writeJSON(w, http.StatusCreated, resp)
 
 	if s.poller != nil {
 		s.poller.TriggerPoll()

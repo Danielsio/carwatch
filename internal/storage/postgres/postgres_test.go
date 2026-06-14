@@ -1744,8 +1744,8 @@ func TestPostgres_DigestMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mode != "instant" || interval != "6h" {
-		t.Errorf("defaults = %q/%q, want instant/6h", mode, interval)
+	if mode != "digest" || interval != "6h" {
+		t.Errorf("defaults = %q/%q, want digest/6h", mode, interval)
 	}
 
 	seedPgUser(t, store, 3000)

@@ -63,6 +63,9 @@ func TestE2E_FullPipeline(t *testing.T) {
 	if err := store.UpsertUser(ctx, 100, "testuser"); err != nil {
 		t.Fatalf("upsert user: %v", err)
 	}
+	if err := store.SetDigestMode(ctx, 100, "instant", "6h"); err != nil {
+		t.Fatalf("set digest mode: %v", err)
+	}
 
 	searchID, err := store.CreateSearch(ctx, storage.Search{
 		ChatID:       100,

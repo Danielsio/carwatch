@@ -25,7 +25,7 @@ func (s *Store) GetDigestMode(ctx context.Context, chatID int64) (string, string
 		`SELECT digest_mode, digest_interval FROM users WHERE chat_id = $1`,
 		chatID).Scan(&mode, &interval)
 	if err == sql.ErrNoRows {
-		return "instant", "6h", nil
+		return "digest", "6h", nil
 	}
 	if err != nil {
 		return "", "", fmt.Errorf("get digest mode: %w", err)
