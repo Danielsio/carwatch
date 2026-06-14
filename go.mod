@@ -2,6 +2,8 @@ module github.com/dsionov/carwatch
 
 go 1.25.0
 
+toolchain go1.25.11
+
 require (
 	firebase.google.com/go/v4 v4.19.0
 	github.com/Noooste/azuretls-client v1.13.2
