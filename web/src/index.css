@@ -140,6 +140,10 @@
   --score-good: #B45309;
   --score-low: #DC2626;
 
+  /* Dynamic score colour (hue from JS) — darker + more saturated on light bg */
+  --score-saturation: 78%;
+  --score-lightness: 42%;
+
   --deal-good: #059669;
   --deal-bad: #DC2626;
   --fresh-hot: #EA580C;
@@ -186,6 +190,10 @@
   --score-great: #34D399;
   --score-good: #FBBF24;
   --score-low: #F87171;
+
+  /* Dynamic score colour (hue from JS) — lighter on the dark surfaces */
+  --score-saturation: 75%;
+  --score-lightness: 62%;
 
   --deal-good: #10B981;
   --deal-bad: #F87171;
