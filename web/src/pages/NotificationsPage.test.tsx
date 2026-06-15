@@ -40,6 +40,7 @@ vi.mock("@/hooks/useNotifications", () => ({
     mutate: mockMarkSeenMutate,
     isPending: false,
   }),
+  useNotificationCount: () => ({ data: { count: 1 } }),
 }));
 
 vi.mock("@/hooks/useListingSeen", () => ({
@@ -76,9 +77,9 @@ describe("NotificationsPage", () => {
     };
   });
 
-  it("renders page header", () => {
+  it("renders the inbox tab header", () => {
     renderPage();
-    expect(screen.getByText("התראות")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /התראות/ })).toBeInTheDocument();
   });
 
   it("renders empty state when no notifications", () => {

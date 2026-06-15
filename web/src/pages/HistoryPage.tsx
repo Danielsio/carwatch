@@ -8,10 +8,10 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  PageHeader,
   PageShell,
   Pagination,
 } from "@/components/ui";
+import { InboxTabs } from "@/components/InboxTabs";
 import { ListingCardSkeleton } from "@/components/ListingCardSkeleton";
 import { Select } from "@/components/ui/Select";
 import type { Listing } from "@/lib/api";
@@ -40,7 +40,7 @@ export function HistoryPage() {
   if (isLoading) {
     return (
       <PageShell>
-        <PageHeader title="היסטוריה" />
+        <InboxTabs />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3, 4].map((i) => (
             <ListingCardSkeleton key={i} />
@@ -53,7 +53,7 @@ export function HistoryPage() {
   if (isError) {
     return (
       <PageShell>
-        <PageHeader title="היסטוריה" />
+        <InboxTabs />
         <ErrorState
           title="שגיאה בטעינת ההיסטוריה"
           description="נסה לרענן את הדף"
@@ -65,8 +65,7 @@ export function HistoryPage() {
 
   return (
     <PageShell>
-      <PageHeader
-        title="היסטוריה"
+      <InboxTabs
         action={
           data ? (
             <div className="flex items-center gap-3">

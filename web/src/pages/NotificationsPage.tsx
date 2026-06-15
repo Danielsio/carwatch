@@ -12,11 +12,11 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  PageHeader,
   PageShell,
   Pagination,
   Skeleton,
 } from "@/components/ui";
+import { InboxTabs } from "@/components/InboxTabs";
 import type { Listing } from "@/lib/api";
 
 const PAGE_SIZE = 20;
@@ -37,7 +37,7 @@ export function NotificationsPage() {
   if (isLoading) {
     return (
       <PageShell>
-        <PageHeader title="התראות" />
+        <InboxTabs />
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-72 rounded-2xl" />
@@ -50,7 +50,7 @@ export function NotificationsPage() {
   if (isError) {
     return (
       <PageShell>
-        <PageHeader title="התראות" />
+        <InboxTabs />
         <ErrorState
           title="שגיאה בטעינת ההתראות"
           description="נסה לרענן את הדף"
@@ -62,8 +62,7 @@ export function NotificationsPage() {
 
   return (
     <PageShell>
-      <PageHeader
-        title="התראות"
+      <InboxTabs
         action={
           data && data.total > 0 ? (
             <div className="flex flex-wrap items-center gap-2 justify-end">

@@ -13,11 +13,11 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  PageHeader,
   PageShell,
   Pagination,
   useToast,
 } from "@/components/ui";
+import { InboxTabs } from "@/components/InboxTabs";
 import { ListingCardSkeleton } from "@/components/ListingCardSkeleton";
 import type { Listing } from "@/lib/api";
 
@@ -42,7 +42,7 @@ export function SavedPage() {
   if (isLoading) {
     return (
       <PageShell>
-        <PageHeader title="שמורים" />
+        <InboxTabs />
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2].map((i) => (
             <ListingCardSkeleton key={i} />
@@ -55,7 +55,7 @@ export function SavedPage() {
   if (isError) {
     return (
       <PageShell>
-        <PageHeader title="שמורים" />
+        <InboxTabs />
         <ErrorState
           title="שגיאה בטעינת המודעות"
           description="נסה לרענן את הדף"
@@ -67,8 +67,7 @@ export function SavedPage() {
 
   return (
     <PageShell>
-      <PageHeader
-        title="שמורים"
+      <InboxTabs
         action={
           data ? (
             <span className="text-sm text-muted-foreground tabular-nums">
