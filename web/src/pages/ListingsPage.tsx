@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
-import { useParams, Link } from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
 import {
   ExternalLink,
   Bookmark,
@@ -26,6 +26,9 @@ import {
 } from "@/hooks/useListingFilters";
 import { ListingsFilterBar } from "@/components/ListingsFilterBar";
 import { useListingDensity } from "@/hooks/useListingDensity";
+import { useGridKeyboardNav } from "@/hooks/useGridKeyboardNav";
+import { useSaveBookmark, useRemoveBookmark } from "@/hooks/useBookmarks";
+import { useMarkListingSeen, useUnmarkListingSeen } from "@/hooks/useListingSeen";
 import { CompactListingCard } from "@/components/CompactListingCard";
 import { safeHref, cn, formatPrice } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -192,6 +195,56 @@ export function ListingsPage() {
   const visible = useListingFilters(allListings, filters);
   const hasFilters = activeFilterCount(filters) > 0;
   const [density, setDensity] = useListingDensity();
+
+  // Keyboard navigation (j/k move, o open, s save, e toggle seen)
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const saveBookmark = useSaveBookmark();
+  const removeBookmark = useRemoveBookmark();
+  const markSeen = useMarkListingSeen();
+  const unmarkSeen = useUnmarkListingSeen();
+
+  const openListing = useCallback(
+    (i: number) => {
+      const l = visible[i];
+      if (l) navigate(`/listings/${l.token}`, { state: { listing: l } });
+    },
+    [visible, navigate],
+  );
+  const saveListing = useCallback(
+    (i: number) => {
+      const l = visible[i];
+      if (!l) return;
+      const wasSaved = l.saved ?? false;
+      (wasSaved ? removeBookmark : saveBookmark).mutate(l.token, {
+        onSuccess: () =>
+          toast(wasSaved ? "הוסר מהשמורים" : "נשמר בהצלחה", wasSaved ? "info" : "success"),
+      });
+    },
+    [visible, saveBookmark, removeBookmark, toast],
+  );
+  const seenListing = useCallback(
+    (i: number) => {
+      const l = visible[i];
+      if (!l) return;
+      ((l.seen ?? false) ? unmarkSeen : markSeen).mutate(l.token);
+    },
+    [visible, markSeen, unmarkSeen],
+  );
+
+  const { activeIndex } = useGridKeyboardNav({
+    count: visible.length,
+    onOpen: openListing,
+    onSave: saveListing,
+    onSeen: seenListing,
+  });
+
+  useEffect(() => {
+    if (activeIndex < 0) return;
+    document
+      .querySelector(`[data-kbd="${activeIndex}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
 
   const unenrichedCount = useMemo(
     () =>
@@ -381,7 +434,12 @@ export function ListingsPage() {
             {visible.map((listing, i) => (
               <div
                 key={listing.token}
-                className="cv-auto animate-slide-up motion-reduce:animate-none"
+                data-kbd={i}
+                className={cn(
+                  "cv-auto animate-slide-up motion-reduce:animate-none rounded-2xl",
+                  activeIndex === i &&
+                    "ring-2 ring-primary ring-offset-2 ring-offset-background",
+                )}
                 style={{
                   animationDelay: `${Math.min(i, 8) * 40}ms`,
                   animationFillMode: "backwards",
