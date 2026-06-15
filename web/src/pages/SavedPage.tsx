@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
-import { useSavedListings, useRemoveBookmark } from "@/hooks/useBookmarks";
+import {
+  useSavedListings,
+  useRemoveBookmark,
+  useSaveBookmark,
+} from "@/hooks/useBookmarks";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { safeHref } from "@/lib/utils";
 import { ListingCardBody } from "@/components/ListingCardBody";
@@ -26,6 +30,7 @@ export function SavedPage() {
   const [removingTokens, setRemovingTokens] = useState<Set<string>>(new Set());
   const { data, isLoading, isError } = useSavedListings(PAGE_SIZE, offset);
   const removeBookmark = useRemoveBookmark();
+  const saveBookmark = useSaveBookmark();
 
   useEffect(() => {
     if (!data || data.total === 0) return;
@@ -97,7 +102,12 @@ export function SavedPage() {
                   );
                   removeBookmark.mutate(listing.token, {
                     onSuccess: () => {
-                      toast("הוסר מהשמורים", "info");
+                      toast("הוסר מהשמורים", "info", {
+                        action: {
+                          label: "בטל",
+                          onClick: () => saveBookmark.mutate(listing.token),
+                        },
+                      });
                     },
                     onSettled: () =>
                       setRemovingTokens((prev) => {

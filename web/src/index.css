@@ -272,6 +272,11 @@
   to { --glow-angle: 360deg; }
 }
 
+@keyframes toast-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
 /* ═══ Utilities ═══ */
 @utility shimmer-skeleton {
   background: linear-gradient(
