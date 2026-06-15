@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useLocation, Link, Navigate } from "react-router";
 import { Search, Loader2, Car, Zap, Trees, UserRound, ArrowRight, ArrowLeft, Check, Bell } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,6 +65,38 @@ const STEPS = [
   { key: "filters", label: "פילטרים", shortLabel: "3" },
 ] as const;
 
+const DRAFT_KEY = "new-search-draft";
+
+function getSearchData(state: unknown): Record<string, unknown> | null {
+  if (typeof state === "object" && state !== null && "searchData" in state) {
+    const sd = (state as Record<string, unknown>).searchData;
+    if (typeof sd === "object" && sd !== null) {
+      return sd as Record<string, unknown>;
+    }
+  }
+  return null;
+}
+
+function loadDraft(): { form?: Partial<SearchFormData>; step?: number } | null {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch {
+    /* ignore malformed drafts */
+  }
+  return null;
+}
+
+function clearDraft() {
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function NewSearchPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -74,15 +106,12 @@ export function NewSearchPage() {
   const { pushState, subscribe: pushSubscribe } = usePushSubscription(!!user);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState(0);
 
-  // Pre-fill form from TrySearchPage search data passed via location state
+  // Pre-fill from TrySearchPage data (takes precedence), else restore a saved
+  // draft so navigating away mid-wizard doesn't lose progress.
   const [form, setForm] = useState<SearchFormData>(() => {
-    const locState = typeof location.state === "object" && location.state !== null
-      ? (location.state as Record<string, unknown>)
-      : null;
-    if (locState && "searchData" in locState && typeof locState.searchData === "object" && locState.searchData !== null) {
-      const sd = locState.searchData as Record<string, unknown>;
+    const sd = getSearchData(location.state);
+    if (sd) {
       const base = defaultFormData();
       return {
         ...base,
@@ -96,12 +125,29 @@ export function NewSearchPage() {
         maxHand: typeof sd.maxHand === "number" ? sd.maxHand : base.maxHand,
       };
     }
+    const draft = loadDraft();
+    if (draft?.form) return { ...defaultFormData(), ...draft.form };
     return defaultFormData();
+  });
+
+  const [step, setStep] = useState<number>(() => {
+    if (getSearchData(location.state)) return 0;
+    const s = loadDraft()?.step;
+    return typeof s === "number" && s >= 0 && s < STEPS.length ? s : 0;
   });
 
   const [presetsUsed, setPresetsUsed] = useState(false);
   const presets = useMemo(() => getPresets(), []);
   const showPresets = !presetsUsed && step === 0 && form.manufacturer === 0;
+
+  // Persist a draft so navigating away mid-wizard doesn't lose progress.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ form, step }));
+    } catch {
+      /* ignore storage failures */
+    }
+  }, [form, step]);
 
   if (!loading && !user) {
     return <Navigate to="/try" replace />;
@@ -125,6 +171,7 @@ export function NewSearchPage() {
     }
     createSearch.mutate(formToPayload(form), {
       onSuccess: (data) => {
+        clearDraft();
         toast("החיפוש נוצר בהצלחה!", "success");
         if (data.push_prompt && pushState.supported && !pushState.subscribed && pushState.permission !== "denied") {
           setShowPushPrompt(true);
@@ -134,6 +181,21 @@ export function NewSearchPage() {
       },
       onError: (err) => setError(errorToHebrew(err)),
     });
+  }
+
+  function validateStep(s: number): string | null {
+    if (s === 0 && form.model > 0 && form.manufacturer === 0) {
+      return "יש לבחור יצרן כדי לבחור דגם";
+    }
+    if (
+      s === 1 &&
+      form.yearMin > 0 &&
+      form.yearMax > 0 &&
+      form.yearMin > form.yearMax
+    ) {
+      return "טווח השנים אינו תקין";
+    }
+    return null;
   }
 
   const isLastStep = step === STEPS.length - 1;
@@ -261,9 +323,15 @@ export function NewSearchPage() {
           e.preventDefault();
           if (isLastStep) {
             handleSubmit();
-          } else {
-            setStep((s) => s + 1);
+            return;
           }
+          const stepError = validateStep(step);
+          if (stepError) {
+            setError(stepError);
+            return;
+          }
+          setError(null);
+          setStep((s) => s + 1);
         }}
       >
         <div className="min-h-[300px]">
