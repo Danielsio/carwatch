@@ -37,6 +37,7 @@ let savedReturn: {
 vi.mock("@/hooks/useBookmarks", () => ({
   useSavedListings: () => savedReturn,
   useRemoveBookmark: () => ({ mutate: mockRemoveMutate }),
+  useSaveBookmark: () => ({ mutate: vi.fn() }),
 }));
 
 vi.mock("@/hooks/usePageTitle", () => ({
