@@ -10,6 +10,8 @@ import {
   ArrowUp,
   Loader2,
   FilterX,
+  LayoutGrid,
+  Rows3,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useInfiniteListings } from "@/hooks/useInfiniteListings";
@@ -23,6 +25,8 @@ import {
   type ListingFilters,
 } from "@/hooks/useListingFilters";
 import { ListingsFilterBar } from "@/components/ListingsFilterBar";
+import { useListingDensity } from "@/hooks/useListingDensity";
+import { CompactListingCard } from "@/components/CompactListingCard";
 import { safeHref, cn, formatPrice } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Listing, RefreshResponse } from "@/lib/api";
@@ -187,6 +191,7 @@ export function ListingsPage() {
   const facets = useMemo(() => deriveFacets(allListings), [allListings]);
   const visible = useListingFilters(allListings, filters);
   const hasFilters = activeFilterCount(filters) > 0;
+  const [density, setDensity] = useListingDensity();
 
   const unenrichedCount = useMemo(
     () =>
@@ -250,6 +255,36 @@ export function ListingsPage() {
                 {opt.label}
               </Button>
             ))}
+          </div>
+          <div className="flex shrink-0 items-center rounded-xl border border-border/50 bg-secondary/60 p-0.5" role="group" aria-label="צפיפות תצוגה">
+            <button
+              type="button"
+              onClick={() => setDensity("comfortable")}
+              aria-label="תצוגה מרווחת"
+              aria-pressed={density === "comfortable"}
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
+                density === "comfortable"
+                  ? "bg-card text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setDensity("compact")}
+              aria-label="תצוגה צפופה"
+              aria-pressed={density === "compact"}
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
+                density === "compact"
+                  ? "bg-card text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Rows3 className="h-4 w-4" />
+            </button>
           </div>
           <RefreshButton searchId={searchId} />
         </div>
@@ -336,7 +371,13 @@ export function ListingsPage() {
         />
       ) : (
         <>
-          <div className="grid gap-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div
+            className={cn(
+              density === "compact"
+                ? "space-y-2"
+                : "grid gap-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3",
+            )}
+          >
             {visible.map((listing, i) => (
               <div
                 key={listing.token}
@@ -346,7 +387,11 @@ export function ListingsPage() {
                   animationFillMode: "backwards",
                 }}
               >
-                <ListingCard listing={listing} />
+                {density === "compact" ? (
+                  <CompactListingCard listing={listing} />
+                ) : (
+                  <ListingCard listing={listing} />
+                )}
               </div>
             ))}
           </div>
