@@ -262,7 +262,16 @@ export const api = {
     fetchAPI<RefreshResponse>(`/searches/${searchId}/refresh`, {
       method: "POST",
     }),
+  searchActivity: (searchId: number, days = 14) =>
+    fetchAPI<{ days: DailyListingCount[] }>(
+      `/searches/${searchId}/activity?days=${days}`,
+    ),
 };
+
+export interface DailyListingCount {
+  day: string; // YYYY-MM-DD
+  count: number;
+}
 
 export interface NotificationCount {
   count: number;
