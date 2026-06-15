@@ -145,6 +145,12 @@ describe("scoreHsl", () => {
   it("clamps scores over 10", () => {
     expect(scoreHsl(15)).toContain("hsl(160");
   });
+
+  it("drives saturation/lightness from theme-aware CSS vars", () => {
+    const c = scoreHsl(5);
+    expect(c).toContain("var(--score-saturation");
+    expect(c).toContain("var(--score-lightness");
+  });
 });
 
 describe("scoreHslAlpha", () => {

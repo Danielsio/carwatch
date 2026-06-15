@@ -179,15 +179,20 @@ function scoreHue(score: number): number {
   return Math.round(t * 160);
 }
 
+// Saturation/lightness come from theme-aware CSS vars (see index.css) so score
+// colours stay readable on the bright light-mode cards and the dark surfaces
+// alike; only the hue is computed here. Fallbacks match the original values.
+const SCORE_SL = "var(--score-saturation, 72%) var(--score-lightness, 55%)";
+
 export function scoreHsl(score: number): string {
   const hue = scoreHue(score);
-  return `hsl(${hue} 72% 55%)`;
+  return `hsl(${hue} ${SCORE_SL})`;
 }
 
 export function scoreHslAlpha(score: number, alpha: number): string {
   const hue = scoreHue(score);
   const a = Math.max(0, Math.min(1, alpha));
-  return `hsl(${hue} 72% 55% / ${a})`;
+  return `hsl(${hue} ${SCORE_SL} / ${a})`;
 }
 
 export function scoreLabel(score: number): string {
