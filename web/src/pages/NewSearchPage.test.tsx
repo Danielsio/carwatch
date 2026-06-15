@@ -45,6 +45,7 @@ function renderPage(initialEntries = ["/searches/new"]) {
 describe("NewSearchPage presets", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    sessionStorage.clear();
     authState = { user: { email: "test@example.com" }, loading: false };
   });
 
@@ -85,6 +86,19 @@ describe("NewSearchPage presets", () => {
     const yearMinInput = screen.getByLabelText(/שנה מ-/) as HTMLInputElement;
     const expectedYear = new Date().getFullYear() - 5;
     expect(yearMinInput.value).toBe(String(expectedYear));
+  });
+
+  it("restores an in-progress draft after leaving and returning", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderPage();
+    await user.click(screen.getByText("רכב ראשון").closest("button")!);
+    await user.click(screen.getByText("הבא")); // advance to the budget step
+    unmount();
+
+    renderPage(); // remount as if the user navigated back
+    expect(screen.queryByText("רכב משפחתי")).not.toBeInTheDocument(); // presets hidden (step 1)
+    const priceMaxInput = screen.getByLabelText(/מחיר מקסימום/) as HTMLInputElement;
+    expect(priceMaxInput.value).toBe("80000");
   });
 });
 
