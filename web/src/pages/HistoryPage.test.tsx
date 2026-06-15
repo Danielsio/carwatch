@@ -34,6 +34,10 @@ vi.mock("@/hooks/useBookmarks", () => ({
   useHistory: () => historyReturn,
 }));
 
+vi.mock("@/hooks/useNotifications", () => ({
+  useNotificationCount: () => ({ data: { count: 0 } }),
+}));
+
 vi.mock("@/hooks/usePageTitle", () => ({
   usePageTitle: vi.fn(),
 }));

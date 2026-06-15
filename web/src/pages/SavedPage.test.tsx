@@ -40,6 +40,10 @@ vi.mock("@/hooks/useBookmarks", () => ({
   useSaveBookmark: () => ({ mutate: vi.fn() }),
 }));
 
+vi.mock("@/hooks/useNotifications", () => ({
+  useNotificationCount: () => ({ data: { count: 0 } }),
+}));
+
 vi.mock("@/hooks/usePageTitle", () => ({
   usePageTitle: vi.fn(),
 }));
@@ -69,9 +73,9 @@ describe("SavedPage", () => {
     };
   });
 
-  it("renders page header", () => {
+  it("renders the inbox tab header", () => {
     renderPage();
-    expect(screen.getByText("שמורים")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /מועדפים/ })).toBeInTheDocument();
   });
 
   it("renders empty state when no saved listings", () => {
