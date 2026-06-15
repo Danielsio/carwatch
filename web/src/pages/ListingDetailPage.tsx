@@ -21,6 +21,7 @@ import {
   Shield,
   Store,
   User,
+  TrendingDown,
 } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, safeHref, marketComparison, cn, listingSource } from "@/lib/utils";
 import { api, ApiError } from "@/lib/api";
@@ -29,6 +30,7 @@ import { Button } from "@/components/ui/Button";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
 import { useListingActions } from "@/hooks/useListingActions";
+import { useSpotlight } from "@/hooks/useSpotlight";
 import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -158,6 +160,7 @@ function ListingDetailContent({
   backButton: ReactNode;
 }) {
   const { saved, seen, toggleSaved, toggleSeen, isSaving, isTogglingSeen } = useListingActions(listing);
+  const spotlight = useSpotlight();
 
   const detailLogoSrc = manufacturerLogoSrc(listing.manufacturer);
   const source = listingSource(listing.page_link);
@@ -194,80 +197,114 @@ function ListingDetailContent({
         </div>
       ) : null}
 
-      {/* Hero image */}
-      {listing.image_url ? (
-        <div className="aspect-video w-full overflow-hidden rounded-2xl bg-secondary">
+      {/* Hero — magazine-style with overlaid title, price and badges */}
+      <div
+        {...spotlight}
+        className="spotlight group relative aspect-video w-full overflow-hidden rounded-3xl border border-border/50 bg-secondary shadow-[0_24px_70px_-24px_var(--color-glow-primary)] animate-scale-in motion-reduce:animate-none"
+      >
+        {listing.image_url ? (
           <img
             src={listing.image_url}
             alt={`${listing.manufacturer} ${listing.model}`}
             referrerPolicy="no-referrer"
             width={1280}
             height={720}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03] motion-reduce:transition-none"
           />
-        </div>
-      ) : (
-        <div className="aspect-video w-full rounded-2xl bg-secondary flex items-center justify-center">
-          <span className="text-6xl opacity-15">🚗</span>
-        </div>
-      )}
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-secondary to-muted">
+            <span className="text-7xl opacity-15">🚗</span>
+          </div>
+        )}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
 
-      {/* Title + Score + Price */}
-      <div className="flex items-start gap-4">
-        {detailLogoSrc ? (
-          <img
-            src={detailLogoSrc}
-            alt=""
-            className="mt-1 h-11 w-11 shrink-0 object-contain"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : null}
-        {listing.fitness_score != null ? (
-          <MatchScoreBox score={listing.fitness_score} size="lg" />
-        ) : null}
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-            {listing.manufacturer} {listing.model}
-          </h1>
-          {listing.sub_model && (
-            <p className="mt-0.5 text-sm text-muted-foreground font-medium">
-              {listing.sub_model}
-              {listing.engine_volume ? ` ${listing.engine_volume}` : ""}
-              {listing.horse_power ? ` (${listing.horse_power} כ"ס)` : ""}
-            </p>
-          )}
-          {listing.fitness_score != null ? (
-            <p
-              className="mt-1 text-sm font-medium"
-              style={{ color: scoreHsl(listing.fitness_score) }}
-            >
-              {scoreLabel(listing.fitness_score)}
-            </p>
+        {/* Top badges */}
+        <div className="absolute inset-x-0 top-0 z-[1] flex items-start justify-between gap-2 p-4">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {mc && mc.diffPercent > 5 ? (
+              <span className="flex items-center gap-1 rounded-full bg-deal-good px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                <TrendingDown className="h-3.5 w-3.5" />
+                {mc.diffPercent}%− מתחת לשוק
+              </span>
+            ) : null}
+            {listing.removed_at ? (
+              <span className="rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white/80 backdrop-blur-sm">
+                נמכר
+              </span>
+            ) : null}
+          </div>
+          {source ? (
+            <span className="rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-semibold text-white/90 backdrop-blur-sm">
+              {source}
+            </span>
           ) : null}
         </div>
-        <div className="shrink-0 text-end">
-          <span className="text-xl font-bold tabular-nums text-primary sm:text-2xl">
+
+        {/* Bottom: logo + title + price */}
+        <div className="absolute inset-x-0 bottom-0 z-[1] flex items-end justify-between gap-3 p-5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              {detailLogoSrc ? (
+                <img
+                  src={detailLogoSrc}
+                  alt=""
+                  className="h-8 w-8 shrink-0 object-contain drop-shadow"
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : null}
+              <h1 className="truncate text-2xl font-extrabold tracking-tight text-white drop-shadow sm:text-3xl">
+                {listing.manufacturer} {listing.model}
+              </h1>
+            </div>
+            <p className="mt-1 text-sm text-white/75">
+              {[listing.sub_model, listing.year, listing.city || null]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          </div>
+          <span className="shrink-0 text-2xl font-extrabold tabular-nums text-white drop-shadow sm:text-3xl">
             {formatPrice(listing.price)}
           </span>
-          {mc ? (
-            <p className={cn("text-xs font-medium mt-0.5", mc.color)}>
-              {mc.label}
-            </p>
-          ) : null}
         </div>
       </div>
 
-      {/* Spec pills */}
-      <div className="flex flex-wrap gap-2">
-        <SpecPill icon={Calendar} value={String(listing.year)} />
-        <SpecPill icon={Gauge} value={formatKm(listing.km)} />
-        <SpecPill icon={Hand} value={`יד ${listing.hand > 0 ? listing.hand : "—"}`} />
-        <SpecPill icon={MapPin} value={listing.city || "—"} />
-        {listing.gear_box ? <SpecPill icon={Cog} value={listing.gear_box} /> : null}
-        {listing.engine_type ? <SpecPill icon={Fuel} value={listing.engine_type} /> : null}
-        {listing.engine_volume ? <SpecPill icon={Fuel} value={`${listing.engine_volume} סמ"ק`} /> : null}
-        {listing.horse_power ? <SpecPill icon={Zap} value={`${listing.horse_power} כ"ס`} /> : null}
+      {/* Score + market summary */}
+      {(listing.fitness_score != null || mc) && (
+        <div className="flex flex-wrap items-stretch gap-3">
+          {listing.fitness_score != null ? (
+            <div className="flex items-center gap-2.5 rounded-2xl border border-border/50 bg-card px-3.5 py-2.5">
+              <MatchScoreBox score={listing.fitness_score} size="lg" />
+              <div>
+                <p className="text-xs text-muted-foreground">ציון התאמה</p>
+                <p
+                  className="text-sm font-semibold"
+                  style={{ color: scoreHsl(listing.fitness_score) }}
+                >
+                  {listing.fitness_score.toFixed(1)} · {scoreLabel(listing.fitness_score)}
+                </p>
+              </div>
+            </div>
+          ) : null}
+          {mc ? (
+            <div className="flex flex-col justify-center rounded-2xl border border-border/50 bg-card px-3.5 py-2.5">
+              <p className="text-xs text-muted-foreground">מול מחיר השוק</p>
+              <p className={cn("text-sm font-semibold", mc.color)}>{mc.label}</p>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Spec tiles */}
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+        <SpecPill icon={Calendar} label="שנה" value={String(listing.year)} />
+        <SpecPill icon={Gauge} label="ק״מ" value={formatKm(listing.km)} />
+        <SpecPill icon={Hand} label="יד" value={listing.hand > 0 ? String(listing.hand) : "—"} />
+        <SpecPill icon={MapPin} label="עיר" value={listing.city || "—"} />
+        {listing.gear_box ? <SpecPill icon={Cog} label="הילוכים" value={listing.gear_box} /> : null}
+        {listing.engine_type ? <SpecPill icon={Fuel} label="דלק" value={listing.engine_type} /> : null}
+        {listing.engine_volume ? <SpecPill icon={Fuel} label="נפח" value={`${listing.engine_volume}`} /> : null}
+        {listing.horse_power ? <SpecPill icon={Zap} label="כ״ס" value={String(listing.horse_power)} /> : null}
       </div>
 
       {/* Market value comparison */}
@@ -524,15 +561,26 @@ function MarketValueCard({
 
 function SpecPill({
   icon: Icon,
+  label,
   value,
 }: {
   icon: React.ComponentType<{ className?: string }>;
+  label: string;
   value: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-sm text-muted-foreground">
-      <Icon className="h-3.5 w-3.5 shrink-0" />
-      <span className="tabular-nums">{value}</span>
-    </span>
+    <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-card px-3 py-2.5">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+          {label}
+        </p>
+        <p className="truncate text-sm font-semibold text-foreground tabular-nums">
+          {value}
+        </p>
+      </div>
+    </div>
   );
 }
