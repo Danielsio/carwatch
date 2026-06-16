@@ -130,19 +130,19 @@ export function AdminPage() {
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <StatCard
           label="מודעות"
-          value={listingsCount.toLocaleString("he-IL")}
+          value={listingsCount}
           icon={Car}
           color="bg-primary/10 text-primary"
         />
         <StatCard
           label="חיפושים"
-          value={searchesCount.toLocaleString("he-IL")}
+          value={searchesCount}
           icon={FileSearch}
           color="bg-chart-2/10 text-chart-2"
         />
         <StatCard
           label="משתמשים"
-          value={usersCount.toLocaleString("he-IL")}
+          value={usersCount}
           icon={Users}
           color="bg-chart-4/10 text-chart-4"
         />

@@ -1,6 +1,7 @@
 import type { Car } from "lucide-react";
 import { motion } from "motion/react";
 import { Card, CardContent } from "@/components/ui/card";
+import { NumberTicker } from "@/components/ui/number-ticker";
 import { cn } from "@/lib/utils";
 
 export function StatCard({
@@ -36,8 +37,12 @@ export function StatCard({
               <Icon className="h-[18px] w-[18px]" />
             </div>
           </div>
-          <p className="text-3xl font-bold tabular-nums text-foreground">
-            {value}
+          <p className="text-3xl font-bold text-foreground">
+            {typeof value === "number" ? (
+              <NumberTicker value={value} />
+            ) : (
+              <span className="tabular-nums">{value}</span>
+            )}
           </p>
           {subtitle && (
             <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
