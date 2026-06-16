@@ -18,12 +18,12 @@ type Profile struct {
 // StartProfile begins CPU profiling for the named phase.
 // Call Stop() when the phase completes to flush CPU profile and write a heap snapshot.
 func StartProfile(dir, phase string) (*Profile, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("create profile dir: %w", err)
 	}
 
 	cpuPath := filepath.Join(dir, phase+".cpu.prof")
-	f, err := os.Create(cpuPath)
+	f, err := os.Create(cpuPath) //nolint:gosec // benchmark profile path is not user input
 	if err != nil {
 		return nil, fmt.Errorf("create cpu profile: %w", err)
 	}
@@ -43,7 +43,7 @@ func (p *Profile) Stop() (string, error) {
 
 	runtime.GC()
 	heapPath := filepath.Join(p.dir, p.phase+".heap.prof")
-	f, err := os.Create(heapPath)
+	f, err := os.Create(heapPath) //nolint:gosec // benchmark profile path is not user input
 	if err != nil {
 		return p.dir, fmt.Errorf("create heap profile: %w", err)
 	}

@@ -10,15 +10,15 @@ import (
 
 // Metric holds a single benchmark measurement with optional percentile breakdown.
 type Metric struct {
-	Value float64 `json:"value"`
-	Unit  string  `json:"unit"`
-	P50   float64 `json:"p50,omitempty"`
-	P95   float64 `json:"p95,omitempty"`
-	P99   float64 `json:"p99,omitempty"`
-	Min   float64 `json:"min,omitempty"`
-	Max   float64 `json:"max,omitempty"`
-	Count int     `json:"count,omitempty"`
-	Errors int    `json:"errors,omitempty"`
+	Value  float64 `json:"value"`
+	Unit   string  `json:"unit"`
+	P50    float64 `json:"p50,omitempty"`
+	P95    float64 `json:"p95,omitempty"`
+	P99    float64 `json:"p99,omitempty"`
+	Min    float64 `json:"min,omitempty"`
+	Max    float64 `json:"max,omitempty"`
+	Count  int     `json:"count,omitempty"`
+	Errors int     `json:"errors,omitempty"`
 }
 
 // PhaseResult captures one benchmark phase's output.
@@ -45,7 +45,7 @@ func writeJSON(path string, report *BenchReport) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }
 
 func printTable(report *BenchReport) {

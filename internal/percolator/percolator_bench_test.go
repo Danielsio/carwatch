@@ -2,7 +2,7 @@ package percolator
 
 import (
 	"fmt"
-	"math/rand/v2"
+	"math/rand/v2" //nolint:gosec // deterministic seed for reproducible benchmarks
 	"testing"
 
 	"github.com/dsionov/carwatch/internal/model"

@@ -25,8 +25,8 @@ type BenchEnv struct {
 	ProfileDir     string
 
 	// Populated lazily by phases that need them.
-	DBStore    interface{} // *postgres.Store, set by DB phases
-	DBCleanup  func()
+	DBStore   interface{} // *postgres.Store, set by DB phases
+	DBCleanup func()
 
 	// Cached results passed between phases.
 	CachedListings interface{} // []model.RawListing from Yad2 phase
