@@ -8,10 +8,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { User } from "firebase/auth";
-import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
+import type { Auth, User } from "firebase/auth";
 import { useQueryClient } from "@tanstack/react-query";
-import { auth } from "@/lib/firebase";
 import { setAuthTokenGetter } from "@/lib/auth-token";
 import { reportWebVitals } from "@/lib/webVitals";
 
@@ -29,11 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
   const prevUidRef = useRef<string | null>(null);
+  const authRef = useRef<Auth | null>(null);
   const vitalsStartedRef = useRef(false);
 
+  // Token getter reads the live Firebase instance once it has loaded. Registered
+  // synchronously so any API call made before Firebase finishes loading simply
+  // gets a null token (same as signed-out) rather than throwing.
   useEffect(() => {
     setAuthTokenGetter(async (forceRefresh?: boolean) => {
-      const u = auth.currentUser;
+      const u = authRef.current?.currentUser;
       if (!u) return null;
       return u.getIdToken(forceRefresh);
     });
@@ -46,22 +48,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Firebase Auth (~160KB) is imported lazily so it never blocks first paint on
+  // public routes (landing, /try, auth-less visits). The auth-state subscription
+  // is established as soon as the chunk resolves.
   useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
-      const newUid = u?.uid ?? null;
-      if (prevUidRef.current !== null && prevUidRef.current !== newUid) {
-        queryClient.clear();
-      }
-      prevUidRef.current = newUid;
-      setUser(u);
-      setLoading(false);
-    });
+    let cancelled = false;
+    let unsubscribe = () => {};
+
+    void (async () => {
+      const [{ auth }, { onAuthStateChanged }] = await Promise.all([
+        import("@/lib/firebase"),
+        import("firebase/auth"),
+      ]);
+      if (cancelled) return;
+      authRef.current = auth;
+      unsubscribe = onAuthStateChanged(auth, (u) => {
+        const newUid = u?.uid ?? null;
+        if (prevUidRef.current !== null && prevUidRef.current !== newUid) {
+          queryClient.clear();
+        }
+        prevUidRef.current = newUid;
+        setUser(u);
+        setLoading(false);
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, [queryClient]);
 
-  const signOut = useCallback(() => firebaseSignOut(auth), []);
+  const signOut = useCallback(async () => {
+    const auth = authRef.current;
+    if (!auth) return;
+    const { signOut: firebaseSignOut } = await import("firebase/auth");
+    await firebaseSignOut(auth);
+  }, []);
 
   const getIdToken = useCallback(async (forceRefresh?: boolean) => {
-    const u = auth.currentUser;
+    const u = authRef.current?.currentUser;
     if (!u) return null;
     return u.getIdToken(forceRefresh);
   }, []);
@@ -71,10 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user, loading, signOut, getIdToken],
   );
 
-  // Always render children â public pages (landing, /try, /login, /signup)
-  // should never be blocked by the auth loading spinner. The loading gate
-  // now lives in ProtectedRoute, which shows a spinner only for routes
-  // that actually require authentication.
+  // Always render children — public pages (landing, /try, /login, /signup)
+  // should never be blocked by the auth loading spinner. The loading gate lives
+  // in ProtectedRoute, which shows a spinner only for routes that require auth.
   return (
     <AuthContext.Provider value={value}>
       {children}

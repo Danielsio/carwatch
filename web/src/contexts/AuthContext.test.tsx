@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./AuthContext";
@@ -52,19 +52,29 @@ function renderWithProviders() {
   return { ...result, queryClient };
 }
 
+// Firebase is imported lazily, so the auth-state subscription (and thus
+// authStateCallback) is registered a microtask after render. Wait for it before
+// driving auth-state changes.
+async function flushAuthInit() {
+  await waitFor(() => expect(authStateCallback).not.toBeNull());
+}
+
 describe("AuthContext", () => {
   beforeEach(() => {
     authStateCallback = null;
     mockSignOut.mockClear();
   });
 
-  it("exposes loading=true initially while rendering children", () => {
+  it("stays loading=true until the lazy auth subscription emits", async () => {
     renderWithProviders();
+    await flushAuthInit();
+    // Subscribed, but no auth event yet → still loading.
     expect(screen.getByTestId("loading")).toHaveTextContent("true");
   });
 
   it("sets user after auth resolves with a user", async () => {
     renderWithProviders();
+    await flushAuthInit();
 
     await act(async () => {
       authStateCallback?.({ uid: "u1", email: "test@example.com" });
@@ -76,6 +86,7 @@ describe("AuthContext", () => {
 
   it("sets user to null after auth resolves with null", async () => {
     renderWithProviders();
+    await flushAuthInit();
 
     await act(async () => {
       authStateCallback?.(null);
@@ -88,6 +99,7 @@ describe("AuthContext", () => {
   it("calls firebase signOut on logout", async () => {
     const user = userEvent.setup();
     renderWithProviders();
+    await flushAuthInit();
 
     await act(async () => {
       authStateCallback?.({ uid: "u1", email: "test@example.com" });
@@ -99,6 +111,7 @@ describe("AuthContext", () => {
 
   it("clears query cache when user UID changes (user switch)", async () => {
     const { queryClient } = renderWithProviders();
+    await flushAuthInit();
     const clearSpy = vi.spyOn(queryClient, "clear");
 
     // User A logs in — first auth event, prevUid is null so no clear
@@ -118,6 +131,7 @@ describe("AuthContext", () => {
 
   it("does not clear query cache on initial login", async () => {
     const { queryClient } = renderWithProviders();
+    await flushAuthInit();
     const clearSpy = vi.spyOn(queryClient, "clear");
 
     // First auth event — prevUid starts as null, no clear expected
@@ -129,6 +143,7 @@ describe("AuthContext", () => {
 
   it("clears query cache when switching from a user to signed-out", async () => {
     const { queryClient } = renderWithProviders();
+    await flushAuthInit();
     const clearSpy = vi.spyOn(queryClient, "clear");
 
     // User logs in
