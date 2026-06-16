@@ -113,7 +113,7 @@ export const CompactListingCard = memo(function CompactListingCard({
             toggleSeen();
           }}
           className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+            "flex h-11 w-11 items-center justify-center rounded-lg transition-colors",
             seen
               ? "bg-primary/10 text-primary"
               : "text-muted-foreground hover:bg-primary/5 hover:text-primary",
@@ -134,7 +134,7 @@ export const CompactListingCard = memo(function CompactListingCard({
             });
           }}
           className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+            "flex h-11 w-11 items-center justify-center rounded-lg transition-colors",
             saved
               ? "bg-primary/10 text-primary"
               : "text-muted-foreground hover:bg-primary/5 hover:text-primary",
