@@ -8,6 +8,7 @@ import {
   Layers,
   CalendarSync,
 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { FadeUp } from "./FadeUp";
 
 const features = [
@@ -102,24 +103,26 @@ export function FeaturesSection() {
             const Icon = f.icon;
             return (
               <FadeUp key={f.title} delay={i * 0.05}>
-                <div
-                  className={`card-hover group relative flex h-full flex-col overflow-hidden rounded-2xl border ${f.border} bg-card p-6 ${f.highlight ? "border-primary/40 ring-1 ring-primary/10" : ""}`}
+                <Card
+                  className={`card-hover group relative flex h-full flex-col overflow-hidden ${f.highlight ? "border-primary/40 ring-1 ring-primary/10" : ""}`}
                 >
-                  {f.highlight ? (
+                  {f.highlight && (
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.06] via-transparent to-purple-500/[0.04]" />
-                  ) : null}
-                  <div
-                    className={`relative mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${f.bg} transition-transform duration-300 group-hover:scale-110`}
-                  >
-                    <Icon size={22} className={f.color} aria-hidden />
-                  </div>
-                  <h3 className="relative mb-2 text-base font-bold text-foreground md:text-lg">
-                    {f.title}
-                  </h3>
-                  <p className="relative text-sm leading-relaxed text-muted-foreground">
-                    {f.desc}
-                  </p>
-                </div>
+                  )}
+                  <CardContent className="relative flex h-full flex-col p-6">
+                    <div
+                      className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${f.bg} transition-transform duration-300 group-hover:scale-110`}
+                    >
+                      <Icon size={22} className={f.color} aria-hidden />
+                    </div>
+                    <h3 className="mb-2 text-base font-bold text-foreground md:text-lg">
+                      {f.title}
+                    </h3>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {f.desc}
+                    </p>
+                  </CardContent>
+                </Card>
               </FadeUp>
             );
           })}

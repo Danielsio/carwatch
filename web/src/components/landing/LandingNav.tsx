@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Car, Sun, Moon, Menu, X } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function LandingNav() {
@@ -104,12 +105,9 @@ export function LandingNav() {
           >
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <Link
-            to="/signup"
-            className="hidden items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary/25 ring-1 ring-primary/20 transition-all hover:bg-primary/92 hover:shadow-primary/35 hover:active:translate-y-0 sm:flex sm:hover:-translate-y-px"
-          >
-            התחל עכשיו
-          </Link>
+          <Button asChild className="hidden sm:flex shadow-lg shadow-primary/25">
+            <Link to="/signup">התחל עכשיו</Link>
+          </Button>
           <button
             ref={menuToggleRef}
             type="button"
