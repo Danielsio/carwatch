@@ -1,7 +1,7 @@
 package benchutil
 
 import (
-	"math/rand/v2"
+	"math/rand/v2" //nolint:gosec // deterministic seed for reproducible test data
 	"testing"
 )
 

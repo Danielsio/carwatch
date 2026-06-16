@@ -2,7 +2,7 @@ package benchutil
 
 import (
 	"fmt"
-	"math/rand/v2"
+	"math/rand/v2" //nolint:gosec // deterministic seed for reproducible benchmark data
 	"time"
 
 	"github.com/dsionov/carwatch/internal/model"

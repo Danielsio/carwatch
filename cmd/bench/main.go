@@ -17,7 +17,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
-	"math/rand/v2"
+	"math/rand/v2" //nolint:gosec // deterministic seed for reproducible benchmarks
 	"os"
 	"os/exec"
 	"os/signal"
