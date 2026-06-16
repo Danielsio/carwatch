@@ -1,6 +1,6 @@
 import { formatPrice } from "@/lib/utils";
 import { useManufacturers, useModels } from "@/hooks/useCatalog";
-import { ChipButton } from "@/components/ui/ChipButton";
+import { Toggle } from "@/components/ui/toggle";
 import { Input } from "@/components/ui/input";
 import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Select } from "@/components/ui/NativeSelect";
@@ -162,13 +162,13 @@ export function VehicleFields({
         <span className="text-sm font-medium text-foreground">מקור</span>
         <div className="flex flex-wrap gap-2">
           {SOURCE_OPTIONS.map((src) => (
-            <ChipButton
+            <Toggle variant="outline" size="sm"
               key={src.value}
-              selected={form.source === src.value}
+              pressed={form.source === src.value}
               onClick={() => set("source", src.value)}
             >
               {src.label}
-            </ChipButton>
+            </Toggle>
           ))}
         </div>
       </div>
@@ -323,13 +323,13 @@ export function BudgetFields({
         <FormField label="יד מקסימלית">
           <div className="flex flex-wrap gap-2">
             {HAND_OPTIONS.map((h) => (
-              <ChipButton
+              <Toggle variant="outline" size="sm"
                 key={h}
-                selected={form.maxHand === h}
+                pressed={form.maxHand === h}
                 onClick={() => set("maxHand", h)}
               >
                 {h === 0 ? "כל היידות" : `יד ${h}`}
-              </ChipButton>
+              </Toggle>
             ))}
           </div>
         </FormField>
@@ -350,13 +350,13 @@ export function AdvancedFields({
       <FormField label="תיבת הילוכים">
         <div className="flex flex-wrap gap-2">
           {GEARBOX_OPTIONS.map((opt) => (
-            <ChipButton
+            <Toggle variant="outline" size="sm"
               key={opt.value}
-              selected={form.gearBox === opt.value}
+              pressed={form.gearBox === opt.value}
               onClick={() => set("gearBox", opt.value)}
             >
               {opt.label}
-            </ChipButton>
+            </Toggle>
           ))}
         </div>
       </FormField>
@@ -381,13 +381,13 @@ export function AdvancedFields({
         <span className="text-sm font-medium text-foreground">סוג מוכר</span>
         <div className="flex flex-wrap gap-2">
           {SELLER_FILTER_OPTIONS.map((opt) => (
-            <ChipButton
+            <Toggle variant="outline" size="sm"
               key={opt.value}
-              selected={form.sellerFilter === opt.value}
+              pressed={form.sellerFilter === opt.value}
               onClick={() => set("sellerFilter", opt.value)}
             >
               {opt.label}
-            </ChipButton>
+            </Toggle>
           ))}
         </div>
       </div>
@@ -395,18 +395,18 @@ export function AdvancedFields({
       <div className="space-y-1">
         <span className="text-sm font-medium text-foreground">סינון מודעות</span>
         <div className="flex flex-wrap gap-2">
-          <ChipButton
-            selected={form.priceOnly}
+          <Toggle variant="outline" size="sm"
+            pressed={form.priceOnly}
             onClick={() => set("priceOnly", !form.priceOnly)}
           >
             עם מחיר בלבד
-          </ChipButton>
-          <ChipButton
-            selected={form.photoOnly}
+          </Toggle>
+          <Toggle variant="outline" size="sm"
+            pressed={form.photoOnly}
             onClick={() => set("photoOnly", !form.photoOnly)}
           >
             עם תמונה בלבד
-          </ChipButton>
+          </Toggle>
         </div>
       </div>
 
