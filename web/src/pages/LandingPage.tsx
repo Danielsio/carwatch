@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { useAppVersion } from "@/hooks/useAppVersion";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { LandingNav, HeroSection } from "@/components/landing";
 
 const ProblemSolution = lazy(() =>
@@ -26,6 +27,7 @@ const LandingFooter = lazy(() =>
 
 export function LandingPage() {
   const version = useAppVersion();
+  useDocumentTitle();
 
   return (
     <div

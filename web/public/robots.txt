@@ -12,3 +12,5 @@ Disallow: /history
 Disallow: /notifications
 Disallow: /settings
 Disallow: /api/
+
+Sitemap: https://carwatch.duckdns.org/sitemap.xml

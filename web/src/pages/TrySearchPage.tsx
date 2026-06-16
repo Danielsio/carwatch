@@ -10,6 +10,7 @@ import {
   type Model,
 } from "@/lib/api";
 import { formatPrice, safeHref } from "@/lib/utils";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Toggle } from "@/components/ui/toggle";
 
 const GEARBOX_OPTIONS = [
@@ -94,6 +95,7 @@ const STORAGE_KEY = "carwatch_try_search_form";
 /* ------------------------------------------------------------------ */
 
 export default function TrySearchPage() {
+  useDocumentTitle("נסה חיפוש");
   const [form, setForm] = useState<GuestFormData>(() => {
     try {
       const saved = sessionStorage.getItem(STORAGE_KEY);
