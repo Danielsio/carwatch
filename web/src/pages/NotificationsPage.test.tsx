@@ -115,7 +115,7 @@ describe("NotificationsPage", () => {
     notificationsReturn = { data: undefined, isLoading: true, isError: false };
     const { container } = renderPage();
     const skeletons = container.querySelectorAll(
-      '[class*="shimmer"], [class*="skeleton"], [class*="Skeleton"]',
+      '[data-slot="skeleton"], [class*="shimmer"], [class*="skeleton"]',
     );
     expect(skeletons.length).toBeGreaterThan(0);
   });

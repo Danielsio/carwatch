@@ -49,6 +49,7 @@ function Button({
   size = "default",
   loading,
   asChild = false,
+  type = "button",
   children,
   ...props
 }: React.ComponentPropsWithRef<"button"> &
@@ -56,9 +57,20 @@ function Button({
     loading?: boolean
     asChild?: boolean
   }) {
-  const Comp = asChild ? Slot : "button"
+  if (asChild) {
+    return (
+      <Slot
+        data-slot="button"
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...props}
+      >
+        {children}
+      </Slot>
+    )
+  }
   return (
-    <Comp
+    <button
+      type={type}
       data-slot="button"
       disabled={loading || props.disabled}
       aria-busy={loading || undefined}
@@ -67,7 +79,7 @@ function Button({
     >
       {loading && <Loader2 className="size-4 animate-spin" />}
       {children}
-    </Comp>
+    </button>
   )
 }
 

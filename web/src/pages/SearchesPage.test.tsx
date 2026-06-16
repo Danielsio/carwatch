@@ -105,7 +105,7 @@ describe("SearchesPage", () => {
   it("renders loading skeletons while loading", () => {
     searchesReturn = { data: undefined, isLoading: true, isError: false };
     const { container } = renderPage();
-    const skeletons = container.querySelectorAll('[class*="shimmer"], [class*="skeleton"], [class*="Skeleton"]');
+    const skeletons = container.querySelectorAll('[data-slot="skeleton"], [class*="shimmer"], [class*="skeleton"]');
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
