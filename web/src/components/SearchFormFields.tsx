@@ -2,6 +2,7 @@ import { formatPrice } from "@/lib/utils";
 import { useManufacturers, useModels } from "@/hooks/useCatalog";
 import { Toggle } from "@/components/ui/toggle";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Select } from "@/components/ui/NativeSelect";
 import { FormField } from "@/components/ui/FormField";
@@ -129,12 +130,14 @@ function formatKmLabel(value: number): string {
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-card border border-border rounded-2xl overflow-hidden">
-      <div className="px-5 py-3 border-b border-border bg-secondary/30">
-        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</h2>
-      </div>
-      <div className="p-5 space-y-4">{children}</div>
-    </div>
+    <Card>
+      <CardHeader className="pb-0">
+        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-4">{children}</CardContent>
+    </Card>
   );
 }
 
