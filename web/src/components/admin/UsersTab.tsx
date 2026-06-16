@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { adminApi, type AdminUser } from "@/lib/api";
 import { EmptyState, Skeleton, Badge } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/Toast";
 import { cn, relativeTime } from "@/lib/utils";
 import { ConfirmModal } from "./ConfirmModal";
@@ -65,38 +67,32 @@ export function UsersTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 justify-end">
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => void syncUserStatusMutation.mutate()}
-          disabled={syncUserStatusMutation.isPending}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-card hover:bg-secondary text-sm font-medium text-foreground transition-colors disabled:opacity-50"
+          loading={syncUserStatusMutation.isPending}
         >
-          <RefreshCcw
-            className={`h-3.5 w-3.5 ${syncUserStatusMutation.isPending ? "animate-spin" : ""}`}
-          />
+          <RefreshCcw className="h-3.5 w-3.5" />
           סנכרן סטטוס
-        </button>
-        <button
-          type="button"
-          onClick={() => void refetch()}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 text-sm font-medium text-foreground transition-colors"
-        >
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => void refetch()}>
           <RefreshCw className="h-3.5 w-3.5" />
           רענן
-        </button>
+        </Button>
       </div>
 
-      <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
-          <h2 className="text-base font-semibold">כל המשתמשים</h2>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle className="text-base">כל המשתמשים</CardTitle>
           {data && (
             <span className="text-sm text-muted-foreground tabular-nums">
               {data.total} סה״כ
             </span>
           )}
-        </div>
+        </CardHeader>
 
-        <div className="p-3">
+        <CardContent className="p-3">
           {isLoading ? (
             <div className="space-y-2 p-3">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -186,8 +182,8 @@ export function UsersTab() {
               ))}
             </div>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <AnimatePresence>
         {detailUser && (

@@ -14,6 +14,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { adminApi, type AdminListing } from "@/lib/api";
 import { EmptyState, Skeleton, Badge } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/Toast";
 import { formatKm, formatPrice, relativeTime, safeHref } from "@/lib/utils";
 import { ConfirmModal } from "./ConfirmModal";
@@ -102,38 +105,33 @@ export function ListingsTab({
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <input
+          <Input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="סנן עמוד נוכחי לפי יצרן, דגם, עיר..."
-            className="w-full bg-secondary/50 border border-border rounded-xl pe-10 ps-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
+            className="pe-10 ps-4"
           />
         </div>
-        <button
-          type="button"
-          onClick={() => void refetch()}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 text-sm font-medium text-foreground transition-colors"
-        >
+        <Button variant="outline" size="sm" onClick={() => void refetch()}>
           <RefreshCw className="h-3.5 w-3.5" />
           רענן
-        </button>
+        </Button>
       </div>
 
-      {/* Listings */}
-      <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
-          <h2 className="text-base font-semibold">
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle className="text-base">
             {searchId ? "מודעות לחיפוש" : "כל המודעות"}
-          </h2>
+          </CardTitle>
           {data && (
             <span className="text-sm text-muted-foreground tabular-nums">
               {data.total.toLocaleString("he-IL")} סה״כ
             </span>
           )}
-        </div>
+        </CardHeader>
 
-        <div className="p-3">
+        <CardContent className="p-3">
           {isLoading ? (
             <div className="space-y-2 p-3">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -247,7 +245,7 @@ export function ListingsTab({
               </AnimatePresence>
             </div>
           )}
-        </div>
+        </CardContent>
 
         {/* Pagination */}
         {totalPages > 1 && (
@@ -277,7 +275,7 @@ export function ListingsTab({
             </button>
           </div>
         )}
-      </div>
+      </Card>
 
       <AnimatePresence>
         {confirmDelete && (
