@@ -12,6 +12,8 @@ import {
 import { cn, formatKm, formatPrice, relativeTime } from "@/lib/utils";
 import type { Search, SearchCycleStatsItem } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { useSearchActivity } from "@/hooks/useSearchActivity";
 import {
@@ -80,12 +82,13 @@ export function SearchCard({
     "rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary";
 
   return (
-    <article
+    <Card
       className={cn(
-        "group card-hover rounded-2xl border bg-card p-5 transition-all duration-200",
-        isActive ? "border-border" : "border-border/50 opacity-75",
+        "group card-hover transition-all duration-200",
+        !isActive && "opacity-75",
       )}
     >
+      <CardContent className="p-5">
       <div className="mb-3 flex items-start justify-between gap-2">
         <Link
           to={listingsPath}
@@ -192,12 +195,9 @@ export function SearchCard({
         >
           <div className="flex flex-wrap gap-1.5">
             {filterTags.map((tag, i) => (
-              <span
-                key={i}
-                className="text-secondary-foreground rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium"
-              >
+              <Badge key={i} variant="secondary">
                 {tag}
-              </span>
+              </Badge>
             ))}
           </div>
         </Link>
@@ -372,6 +372,7 @@ export function SearchCard({
           </Button>
         </div>
       ) : null}
-    </article>
+      </CardContent>
+    </Card>
   );
 }
