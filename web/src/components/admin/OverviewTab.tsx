@@ -4,7 +4,6 @@ import {
   Cpu,
   Database,
   HardDrive,
-  Loader2,
   Table,
   Trash2,
 } from "lucide-react";
@@ -14,6 +13,16 @@ import type { useAdminStats } from "@/hooks/useAdmin";
 import { adminApi } from "@/lib/api";
 import { ActivityChart } from "./ActivityChart";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table as ShadcnTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 const TABLE_LABELS: Record<string, string> = {
@@ -52,10 +61,12 @@ function StorageIndicator({ sizeBytes }: { sizeBytes: number }) {
 
 function RuntimeStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border/50 bg-secondary/50 p-4 transition-colors duration-200 hover:border-border">
-      <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className="text-sm font-semibold font-mono tabular-nums">{value}</p>
-    </div>
+    <Card className="transition-colors duration-200 hover:border-border">
+      <CardContent className="p-4">
+        <p className="text-xs text-muted-foreground mb-1">{label}</p>
+        <p className="text-sm font-semibold font-mono tabular-nums">{value}</p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -102,15 +113,20 @@ export function OverviewTab({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-border/50 bg-card p-5">
-        <h3 className="mb-4 text-sm font-semibold">פעילות יומית (30 ימים)</h3>
-        <ActivityChart />
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">פעילות יומית (30 ימים)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ActivityChart />
+        </CardContent>
+      </Card>
 
       {/* DB Storage + Runtime — two-column */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* DB Storage card */}
-        <div className="rounded-2xl border border-border/50 bg-card p-6">
+        <Card>
+          <CardContent className="p-6">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
@@ -119,32 +135,24 @@ export function OverviewTab({
               <h2 className="text-base font-semibold">אחסון</h2>
             </div>
             <div className="flex gap-2">
-              <button
-                type="button"
+              <Button
+                variant="destructive"
+                size="sm"
                 onClick={() => setShowResetConfirm(true)}
-                disabled={resetMutation.isPending}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50"
+                loading={resetMutation.isPending}
               >
-                {resetMutation.isPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="h-3.5 w-3.5" />
-                )}
+                <Trash2 className="h-3.5 w-3.5" />
                 איפוס מערכת
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => void vacuumMutation.mutate()}
-                disabled={vacuumMutation.isPending}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50"
+                loading={vacuumMutation.isPending}
               >
-                {vacuumMutation.isPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <HardDrive className="h-3.5 w-3.5" />
-                )}
+                <HardDrive className="h-3.5 w-3.5" />
                 דחיסת DB
-              </button>
+              </Button>
             </div>
           </div>
           <div className="flex items-baseline gap-2.5 mb-3">
@@ -178,10 +186,11 @@ export function OverviewTab({
           <p className="text-[11px] text-muted-foreground mt-2">
             מתוך ~500 MB מקסימום מומלץ
           </p>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Runtime card */}
-        <div className="rounded-2xl border border-border/50 bg-card p-6">
+        <Card>
+          <CardContent className="p-6">
           <div className="flex items-center gap-2.5 mb-5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-chart-4/10">
               <Cpu className="h-[18px] w-[18px] text-chart-4" />
@@ -203,12 +212,16 @@ export function OverviewTab({
               value={`${data.runtime.mem_sys_mb.toFixed(1)} MB`}
             />
           </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {data.pool && (
-        <div className="rounded-2xl border border-border/50 bg-card p-5">
-          <h3 className="mb-3 text-sm font-semibold">מאגר חיבורים</h3>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">מאגר חיבורים</CardTitle>
+          </CardHeader>
+          <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-secondary/40 p-3">
               <p className="text-xs text-muted-foreground">פעיל</p>
@@ -223,11 +236,12 @@ export function OverviewTab({
               <p className="text-lg font-bold">{data.pool.max_open_connections}</p>
             </div>
           </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* HTTP API aggregates (since server start) */}
-      <div className="rounded-2xl border border-border/50 bg-card p-6">
+      <Card>
+        <CardContent className="p-6">
         <div className="flex items-center gap-2.5 mb-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-chart-3/10">
             <Activity className="h-[18px] w-[18px] text-chart-3" />
@@ -256,10 +270,11 @@ export function OverviewTab({
             value={`${data.http.avg_duration_ms.toFixed(2)} ms`}
           />
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Table sizes */}
-      <div className="rounded-2xl border border-border/50 bg-card p-6">
+      <Card>
+        <CardContent className="p-6">
         <div className="flex items-center gap-2.5 mb-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-chart-2/10">
             <Table className="h-[18px] w-[18px] text-chart-2" />
@@ -267,61 +282,68 @@ export function OverviewTab({
           <h2 className="text-base font-semibold">טבלאות</h2>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2">
-          {Object.entries(data.tables)
-            .sort(([, a], [, b]) => b - a)
-            .map(([table, count]) => (
-                <div
-                  key={table}
-                  className="flex items-center justify-between rounded-xl bg-secondary/50 px-4 py-3"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className={cn(
-                        "h-2 w-2 rounded-full flex-shrink-0",
-                        count > 0 ? "bg-primary" : "bg-muted-foreground/30",
-                      )}
-                    />
-                    <span className="text-sm font-medium truncate">
+        <ShadcnTable>
+          <TableHeader>
+            <TableRow>
+              <TableHead>טבלה</TableHead>
+              <TableHead className="text-left">שורות</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Object.entries(data.tables)
+              .sort(([, a], [, b]) => b - a)
+              .map(([table, count]) => (
+                <TableRow key={table}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={cn(
+                          "h-2 w-2 rounded-full flex-shrink-0",
+                          count > 0 ? "bg-primary" : "bg-muted-foreground/30",
+                        )}
+                      />
                       {TABLE_LABELS[table] ?? table}
-                    </span>
-                  </div>
-                  <span className="text-sm font-mono font-semibold tabular-nums text-muted-foreground flex-shrink-0">
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-left font-mono tabular-nums">
                     {count.toLocaleString("he-IL")}
-                  </span>
-                </div>
-            ))}
-        </div>
-      </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+        </ShadcnTable>
+        </CardContent>
+      </Card>
+
       {showResetConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-destructive mb-2">איפוס מערכת</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              כל הנתונים יימחקו — היסטוריית מודעות, מחירים, סטטיסטיקות, ומועדפים.
-              <br />
-              <strong>משתמשים וחיפושים יישמרו.</strong>
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowResetConfirm(false)}
-                className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
-              >
-                ביטול
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowResetConfirm(false);
-                  void resetMutation.mutate();
-                }}
-                className="rounded-xl bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
-              >
-                איפוס הכל
-              </button>
-            </div>
-          </div>
+          <Card className="w-full max-w-md shadow-xl">
+            <CardContent className="p-6 space-y-4">
+              <h3 className="text-lg font-bold text-destructive">איפוס מערכת</h3>
+              <p className="text-sm text-muted-foreground">
+                כל הנתונים יימחקו — היסטוריית מודעות, מחירים, סטטיסטיקות, ומועדפים.
+                <br />
+                <strong>משתמשים וחיפושים יישמרו.</strong>
+              </p>
+              <div className="flex gap-3 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowResetConfirm(false)}
+                >
+                  ביטול
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setShowResetConfirm(false);
+                    void resetMutation.mutate();
+                  }}
+                >
+                  איפוס הכל
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
