@@ -14,7 +14,7 @@ import {
   EmptyState,
   ErrorState,
   PageShell,
-  Pagination,
+  OffsetPagination as Pagination,
   useToast,
 } from "@/components/ui";
 import { InboxTabs } from "@/components/InboxTabs";

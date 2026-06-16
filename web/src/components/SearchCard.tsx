@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn, formatKm, formatPrice, relativeTime } from "@/lib/utils";
 import type { Search, SearchCycleStatsItem } from "@/lib/api";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { useSearchActivity } from "@/hooks/useSearchActivity";
 import {
@@ -354,7 +354,7 @@ export function SearchCard({
             ref={confirmRef}
             type="button"
             variant="destructive"
-            size="md"
+            size="default"
             onClick={onDelete}
             disabled={disabled}
             aria-label="אישור מחיקת חיפוש"
@@ -364,7 +364,7 @@ export function SearchCard({
           <Button
             type="button"
             variant="secondary"
-            size="md"
+            size="default"
             onClick={onCancelDelete}
             aria-label="ביטול מחיקה"
           >

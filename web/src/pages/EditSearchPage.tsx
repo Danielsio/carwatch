@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router";
 import { Save, Loader2, ArrowRight } from "lucide-react";
 import { useSearch, useUpdateSearch } from "@/hooks/useSearches";
-import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
 import {

@@ -26,13 +26,13 @@ import {
 import { formatPrice, formatKm, relativeTime, safeHref, marketComparison, cn, listingSource } from "@/lib/utils";
 import { api, ApiError } from "@/lib/api";
 import type { Listing } from "@/lib/api";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
 import { useListingActions } from "@/hooks/useListingActions";
 import { useSpotlight } from "@/hooks/useSpotlight";
 import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 const PriceHistoryChart = lazy(() =>
   import("@/components/PriceHistoryChart").then((m) => ({ default: m.PriceHistoryChart })),
@@ -396,16 +396,15 @@ function ListingDetailContent({
           )}
         </Button>
         {safeHref(listing.page_link) ? (
-          <Button
-            as="a"
-            href={safeHref(listing.page_link)!}
-            target="_blank"
-            rel="noopener noreferrer"
-            variant="secondary"
-            size="lg"
-          >
-            <ExternalLink className="h-4 w-4" />
-            צפה במודעה
+          <Button asChild variant="secondary" size="lg">
+            <a
+              href={safeHref(listing.page_link)!}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink className="h-4 w-4" />
+              צפה במודעה
+            </a>
           </Button>
         ) : null}
       </div>
@@ -416,7 +415,7 @@ function ListingDetailContent({
           <Button
             type="button"
             variant={saved ? "secondary" : "primary"}
-            size="md"
+            size="default"
             className="flex-1"
             disabled={isSaving}
             onClick={() => toggleSaved()}
@@ -430,22 +429,21 @@ function ListingDetailContent({
           <Button
             type="button"
             variant="secondary"
-            size="md"
+            size="default"
             disabled={isTogglingSeen}
             onClick={() => toggleSeen()}
           >
             {seen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
           {safeHref(listing.page_link) ? (
-            <Button
-              as="a"
-              href={safeHref(listing.page_link)!}
-              target="_blank"
-              rel="noopener noreferrer"
-              variant="secondary"
-              size="md"
-            >
-              <ExternalLink className="h-4 w-4" />
+            <Button asChild variant="secondary" size="default">
+              <a
+                href={safeHref(listing.page_link)!}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </a>
             </Button>
           ) : null}
         </div>

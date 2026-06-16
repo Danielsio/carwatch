@@ -9,11 +9,11 @@ import {
   EmptyState,
   ErrorState,
   PageShell,
-  Pagination,
+  OffsetPagination as Pagination,
 } from "@/components/ui";
 import { InboxTabs } from "@/components/InboxTabs";
 import { ListingCardSkeleton } from "@/components/ListingCardSkeleton";
-import { Select } from "@/components/ui/Select";
+import { Select } from "@/components/ui/NativeSelect";
 import type { Listing } from "@/lib/api";
 
 const PAGE_SIZE = 20;

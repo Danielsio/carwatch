@@ -13,7 +13,7 @@ import {
   EmptyState,
   ErrorState,
   PageShell,
-  Pagination,
+  OffsetPagination as Pagination,
   Skeleton,
 } from "@/components/ui";
 import { InboxTabs } from "@/components/InboxTabs";

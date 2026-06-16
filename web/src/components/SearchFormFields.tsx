@@ -1,9 +1,9 @@
 import { formatPrice } from "@/lib/utils";
 import { useManufacturers, useModels } from "@/hooks/useCatalog";
 import { ChipButton } from "@/components/ui/ChipButton";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/components/ui/input";
 import { RangeSlider } from "@/components/ui/RangeSlider";
-import { Select } from "@/components/ui/Select";
+import { Select } from "@/components/ui/NativeSelect";
 import { FormField } from "@/components/ui/FormField";
 
 export interface SearchFormData {
