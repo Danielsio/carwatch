@@ -1,3 +1,4 @@
+import { Card, CardContent } from "@/components/ui/card";
 import { FadeUp } from "./FadeUp";
 
 const stats = [
@@ -45,14 +46,16 @@ export function StatsSection() {
         <div className="relative grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           {stats.map((s, i) => (
             <FadeUp key={s.label} delay={i * 0.1}>
-              <div className="group card-hover relative overflow-hidden rounded-2xl border border-border/80 bg-card p-6 text-center">
-                <p className="relative mb-2 text-3xl font-extrabold tabular-nums text-primary md:text-4xl">
-                  {s.value}
-                </p>
-                <p className="relative text-sm leading-relaxed text-muted-foreground">
-                  {s.label}
-                </p>
-              </div>
+              <Card className="card-hover group text-center">
+                <CardContent className="p-6">
+                  <p className="mb-2 text-3xl font-extrabold tabular-nums text-primary md:text-4xl">
+                    {s.value}
+                  </p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {s.label}
+                  </p>
+                </CardContent>
+              </Card>
             </FadeUp>
           ))}
         </div>

@@ -11,6 +11,7 @@ import { TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface PriceHistoryChartProps {
@@ -51,42 +52,48 @@ export function PriceHistoryChart({
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-3">
-        <Skeleton className="h-5 w-32" />
-        <Skeleton className="h-40 w-full rounded-xl" />
-      </div>
+      <Card>
+        <CardContent className="p-5 space-y-3">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-40 w-full rounded-xl" />
+        </CardContent>
+      </Card>
     );
   }
 
   if (error || records.length === 0) {
     return (
-      <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-2">
-        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Minus className="h-4 w-4 text-muted-foreground" />
-          היסטוריית מחירים
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          אין היסטוריית מחירים
-        </p>
-      </div>
+      <Card>
+        <CardContent className="p-5 space-y-2">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Minus className="h-4 w-4 text-muted-foreground" />
+            היסטוריית מחירים
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            אין היסטוריית מחירים
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
   // Single data point: show static message
   if (records.length === 1) {
     return (
-      <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-2">
-        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Minus className="h-4 w-4 text-muted-foreground" />
-          היסטוריית מחירים
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          המחיר לא השתנה מאז שהמודעה הופיעה
-        </p>
-        <p className="text-xs text-muted-foreground">
-          נצפה לראשונה: {formatFullDateHe(records[0].observed_at)}
-        </p>
-      </div>
+      <Card>
+        <CardContent className="p-5 space-y-2">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Minus className="h-4 w-4 text-muted-foreground" />
+            היסטוריית מחירים
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            המחיר לא השתנה מאז שהמודעה הופיעה
+          </p>
+          <p className="text-xs text-muted-foreground">
+            נצפה לראשונה: {formatFullDateHe(records[0].observed_at)}
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -134,7 +141,8 @@ export function PriceHistoryChart({
   const padding = Math.max(Math.round((maxPrice - minPrice) * 0.15), 1000);
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-3">
+    <Card>
+      <CardContent className="p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <TrendIcon className={`h-4 w-4 ${trendColor}`} />
@@ -205,6 +213,7 @@ export function PriceHistoryChart({
           {formatPrice(lastPrice)}
         </span>
       </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
