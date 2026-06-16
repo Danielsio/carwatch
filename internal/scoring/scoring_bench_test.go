@@ -5,6 +5,14 @@ import (
 	"testing"
 )
 
+// Package-level sink variables to prevent compiler dead-code elimination.
+var (
+	benchFitnessSink   FitnessResult
+	benchScoreSink     int
+	benchLookupOKSink  bool
+	benchLookupValSink int
+)
+
 func BenchmarkFitnessScoreDetailed(b *testing.B) {
 	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	params := make([]FitnessParams, 200)
@@ -29,7 +37,7 @@ func BenchmarkFitnessScoreDetailed(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		for i := range params {
-			FitnessScoreDetailed(params[i])
+			benchFitnessSink = FitnessScoreDetailed(params[i])
 		}
 	}
 }
@@ -52,7 +60,7 @@ func BenchmarkScoreWithKm(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		for _, in := range inputs {
-			ScoreWithKm(in.price, in.km, in.medianPrice, in.medianKm)
+			benchScoreSink = ScoreWithKm(in.price, in.km, in.medianPrice, in.medianKm)
 		}
 	}
 }
@@ -78,7 +86,9 @@ func BenchmarkMarketCacheLookup(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		for _, e := range entries {
-			mc.Lookup(e.Manufacturer, e.Model, e.Year)
+			median, medianKm, cohortSize, ok := mc.Lookup(e.Manufacturer, e.Model, e.Year)
+			benchLookupValSink = median + medianKm + cohortSize
+			benchLookupOKSink = ok
 		}
 	}
 }

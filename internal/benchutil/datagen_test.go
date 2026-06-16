@@ -65,3 +65,39 @@ func TestAllSearches(t *testing.T) {
 		t.Errorf("got %d searches, want 20", len(all))
 	}
 }
+
+func TestToListingRecords(t *testing.T) {
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
+	listings := GenerateListings(rng, 3)
+	records := ToListingRecords(listings, 1234, 55, "bench-search")
+	if len(records) != 3 {
+		t.Fatalf("got %d records, want 3", len(records))
+	}
+	for i := range records {
+		if records[i].ChatID != 1234 || records[i].SearchID != 55 || records[i].SearchName != "bench-search" {
+			t.Fatalf("record %d: search metadata mismatch", i)
+		}
+		if records[i].Token != listings[i].Token {
+			t.Fatalf("record %d: token mismatch", i)
+		}
+		if records[i].FitnessScore == nil {
+			t.Fatalf("record %d: nil FitnessScore", i)
+		}
+	}
+}
+
+func TestGenerateMedianEntries(t *testing.T) {
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
+	entries := GenerateMedianEntries(rng, 20)
+	if len(entries) != 20 {
+		t.Fatalf("got %d entries, want 20", len(entries))
+	}
+	for i, e := range entries {
+		if e.Manufacturer == "" || e.Model == "" {
+			t.Fatalf("entry %d: missing manufacturer/model", i)
+		}
+		if e.MedianPrice <= 0 || e.MedianKm <= 0 || e.CohortSize <= 0 {
+			t.Fatalf("entry %d: non-positive numeric field", i)
+		}
+	}
+}

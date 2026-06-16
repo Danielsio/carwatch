@@ -135,12 +135,19 @@ bench-go:
 BENCH_PHASES ?= all
 BENCH_ARGS ?=
 
-vm-bench: vm-check-env
+vm-bench: vm-bench-build vm-bench-upload vm-bench-run vm-bench-fetch
+	@rm -f bench-arm64
+
+vm-bench-build:
 	@echo "=== Cross-compiling bench for linux/arm64..."
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o bench-arm64 ./cmd/bench
+
+vm-bench-upload: vm-check-env
 	@echo "=== Uploading to VM..."
 	$(SCP) bench-arm64 $(VM_USER)@$(VM_IP):$(VM_DIR)/bench
 	$(SSH) "chmod +x $(VM_DIR)/bench && mkdir -p $(VM_DIR)/bench-output"
+
+vm-bench-run: vm-check-env
 	@echo "=== Running benchmark on VM (phases: $(BENCH_PHASES))..."
 	$(SSH) "docker run --rm \
 		--network carwatch-net \
@@ -151,10 +158,11 @@ vm-bench: vm-check-env
 		-v $(VM_DIR)/bench-output:/output \
 		alpine:3.24 \
 		/bench --config /config.yaml --phases $(BENCH_PHASES) --output /output/bench-results.json $(BENCH_ARGS)"
+
+vm-bench-fetch: vm-check-env
 	@echo "=== Fetching results..."
 	$(SCP) $(VM_USER)@$(VM_IP):$(VM_DIR)/bench-output/bench-results.json bench-results.json
 	@echo "=== Results saved to bench-results.json"
-	@rm -f bench-arm64
 
 vm-bench-fast: vm-check-env
 	$(MAKE) vm-bench BENCH_PHASES=percolator,scoring,db-dedup,db-queries,market

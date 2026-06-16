@@ -79,7 +79,7 @@ func BenchmarkMatch(b *testing.B) {
 			p.Load(searches)
 
 			b.ResetTimer()
-			for range b.N {
+			for b.Loop() {
 				p.Match(listing)
 			}
 		})

@@ -42,9 +42,30 @@ func TestMinMax(t *testing.T) {
 	}
 }
 
+func TestMinMaxNil(t *testing.T) {
+	min, max := MinMax(nil)
+	if min != 0 || max != 0 {
+		t.Errorf("expected zeros for nil slice, got min=%v max=%v", min, max)
+	}
+}
+
 func TestThroughput(t *testing.T) {
 	tp := Throughput(100, time.Second)
 	if tp != 100.0 {
 		t.Errorf("throughput = %v, want 100.0", tp)
+	}
+}
+
+func TestThroughputZeroDuration(t *testing.T) {
+	tp := Throughput(100, 0)
+	if tp != 0 {
+		t.Errorf("throughput with zero duration = %v, want 0", tp)
+	}
+}
+
+func TestThroughputNegativeDuration(t *testing.T) {
+	tp := Throughput(100, -time.Second)
+	if tp != 0 {
+		t.Errorf("throughput with negative duration = %v, want 0", tp)
 	}
 }

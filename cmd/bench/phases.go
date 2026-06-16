@@ -74,8 +74,10 @@ func runPhases(ctx context.Context, env *BenchEnv, selected map[string]bool) ([]
 		elapsed := time.Since(start)
 
 		if prof != nil {
-			profDir, _ := prof.Stop()
-			if result != nil {
+			profDir, profErr := prof.Stop()
+			if profErr != nil {
+				fmt.Printf("  ⚠ profile stop failed: %v\n", profErr)
+			} else if result != nil {
 				result.ProfilePath = profDir
 			}
 		}
@@ -87,6 +89,18 @@ func runPhases(ctx context.Context, env *BenchEnv, selected map[string]bool) ([]
 				DurationMs: elapsed.Milliseconds(),
 				Pass:       false,
 				FailReason: err.Error(),
+				Metrics:    map[string]Metric{},
+			})
+			continue
+		}
+
+		if result == nil {
+			fmt.Printf("  ✗ ERROR: phase returned nil result (%.1fs)\n", elapsed.Seconds())
+			results = append(results, PhaseResult{
+				Phase:      p.Name,
+				DurationMs: elapsed.Milliseconds(),
+				Pass:       false,
+				FailReason: "phase returned nil result",
 				Metrics:    map[string]Metric{},
 			})
 			continue

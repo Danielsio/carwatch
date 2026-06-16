@@ -72,7 +72,11 @@ func main() {
 	// Register phases in execution order.
 	registerAllPhases()
 
-	selected := parsePhases(bc.phases)
+	selected, err := parsePhases(bc.phases)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
 
 	env := &BenchEnv{
 		Config:         &bc,
@@ -125,15 +129,32 @@ func run(ctx context.Context, env *BenchEnv, selected map[string]bool, bc benchC
 	return 0
 }
 
-func parsePhases(s string) map[string]bool {
+func parsePhases(s string) (map[string]bool, error) {
 	if s == "all" || s == "" {
-		return nil // nil means run all
+		return nil, nil // nil means run all
 	}
+
+	registered := make(map[string]bool, len(phaseRegistry))
+	for _, p := range phaseRegistry {
+		registered[p.Name] = true
+	}
+
 	m := make(map[string]bool)
 	for _, p := range strings.Split(s, ",") {
-		m[strings.TrimSpace(p)] = true
+		name := strings.TrimSpace(p)
+		if name == "" {
+			continue
+		}
+		if !registered[name] {
+			var names []string
+			for _, rp := range phaseRegistry {
+				names = append(names, rp.Name)
+			}
+			return nil, fmt.Errorf("unknown phase %q; available: %s", name, strings.Join(names, ", "))
+		}
+		m[name] = true
 	}
-	return m
+	return m, nil
 }
 
 func gitCommit() string {
@@ -407,7 +428,11 @@ func phaseDBDedup(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	// Sub-test 2: 4 goroutines contending on same tokens.
 	concurrency := 4
 	concDurations := make([][]time.Duration, concurrency)
-	var wg sync.WaitGroup
+	var (
+		wg       sync.WaitGroup
+		claimErr error
+		errOnce  sync.Once
+	)
 	for g := range concurrency {
 		wg.Add(1)
 		concDurations[g] = make([]time.Duration, len(tokens))
@@ -417,12 +442,18 @@ func phaseDBDedup(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 			s := u.Searches[gIdx%len(u.Searches)]
 			for i, tok := range tokens {
 				start := time.Now()
-				_, _ = store.ClaimNew(ctx, tok, u.ChatID, s.ID)
+				_, err := store.ClaimNew(ctx, tok, u.ChatID, s.ID)
 				concDurations[gIdx][i] = time.Since(start)
+				if err != nil {
+					errOnce.Do(func() { claimErr = fmt.Errorf("concurrent claim: %w", err) })
+				}
 			}
 		}(g)
 	}
 	wg.Wait()
+	if claimErr != nil {
+		return nil, claimErr
+	}
 
 	var allConc []time.Duration
 	for _, d := range concDurations {
@@ -759,8 +790,12 @@ func phaseBroker(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	group := "bench-consumers"
 	consumer := "bench-worker-1"
 
-	client.Del(ctx, testStream)
-	client.XGroupCreateMkStream(ctx, testStream, group, "0")
+	if err := client.Del(ctx, testStream).Err(); err != nil {
+		return nil, fmt.Errorf("del stream: %w", err)
+	}
+	if err := client.XGroupCreateMkStream(ctx, testStream, group, "0").Err(); err != nil {
+		return nil, fmt.Errorf("create consumer group: %w", err)
+	}
 
 	// Sub-test 1: Sequential publish throughput.
 	publishCount := 100
@@ -783,8 +818,12 @@ func phaseBroker(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	pP50, pP95, pP99 := benchutil.Percentiles(pubDurations)
 
 	// Drain published messages before round-trip test.
-	client.Del(ctx, testStream)
-	client.XGroupCreateMkStream(ctx, testStream, group, "0")
+	if err := client.Del(ctx, testStream).Err(); err != nil {
+		return nil, fmt.Errorf("drain stream: %w", err)
+	}
+	if err := client.XGroupCreateMkStream(ctx, testStream, group, "0").Err(); err != nil {
+		return nil, fmt.Errorf("recreate consumer group: %w", err)
+	}
 
 	// Sub-test 2: Round-trip latency (publish → XREAD).
 	rtCount := 50
@@ -811,11 +850,15 @@ func phaseBroker(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 		}
 		if len(res) > 0 && len(res[0].Messages) > 0 {
 			rtDurations = append(rtDurations, recvTime.Sub(pubTime))
-			client.XAck(ctx, testStream, group, res[0].Messages[0].ID)
+			if err := client.XAck(ctx, testStream, group, res[0].Messages[0].ID).Err(); err != nil {
+				return nil, fmt.Errorf("xack: %w", err)
+			}
 		}
 	}
 
-	client.Del(ctx, testStream)
+	if err := client.Del(ctx, testStream).Err(); err != nil {
+		return nil, fmt.Errorf("cleanup stream: %w", err)
+	}
 
 	rtP50, rtP95, rtP99 := benchutil.Percentiles(rtDurations)
 
@@ -914,7 +957,9 @@ func phaseYad2(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 			fmt.Printf("    %s: %d listings in %v\n", spec.name, len(results), elapsed)
 		}
 
-		time.Sleep(3 * time.Second)
+		if err := sleepCtx(ctx, 3*time.Second); err != nil {
+			return nil, err
+		}
 	}
 	sP50, sP95, sP99 := benchutil.Percentiles(searchDurations)
 	metrics["search_page_us"] = Metric{
@@ -945,7 +990,9 @@ func phaseYad2(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 					totalErrors++
 				}
 			}
-			time.Sleep(500 * time.Millisecond)
+			if err := sleepCtx(ctx, 500*time.Millisecond); err != nil {
+				return nil, err
+			}
 		}
 		iP50, iP95, iP99 := benchutil.Percentiles(itemDurations)
 		metrics["item_page_us"] = Metric{
@@ -980,7 +1027,9 @@ func phaseYad2(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 					totalChallenges++
 					break
 				}
-				time.Sleep(delay)
+				if err := sleepCtx(ctx, delay); err != nil {
+					return nil, err
+				}
 			}
 			if challenged {
 				thresholdDelay = delay
@@ -1079,7 +1128,10 @@ func phaseFullCycle(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	claimedCount := 0
 	for _, mp := range matched {
 		for _, m := range mp.matches {
-			claimed, _ := store.ClaimNew(ctx, mp.listing.Token, m.ChatID, m.SearchID)
+			claimed, err := store.ClaimNew(ctx, mp.listing.Token, m.ChatID, m.SearchID)
+			if err != nil {
+				return nil, fmt.Errorf("cycle claim: %w", err)
+			}
 			if claimed {
 				claimedCount++
 			}
@@ -1204,10 +1256,14 @@ func openBenchDB(env *BenchEnv) (*postgres.Store, error) {
 		return nil, fmt.Errorf("open for schema: %w", err)
 	}
 	if _, err := db.Exec("CREATE SCHEMA " + schema); err != nil {
-		_ = db.Close()
+		if cerr := db.Close(); cerr != nil {
+			slog.Warn("close db after schema error", "err", cerr)
+		}
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
-	_ = db.Close()
+	if err := db.Close(); err != nil {
+		return nil, fmt.Errorf("close setup db: %w", err)
+	}
 
 	schemaDSN := dsn
 	if strings.Contains(schemaDSN, "?") {
@@ -1223,16 +1279,31 @@ func openBenchDB(env *BenchEnv) (*postgres.Store, error) {
 
 	env.DBStore = store
 	env.DBCleanup = func() {
-		_ = store.Close()
+		if err := store.Close(); err != nil {
+			slog.Warn("close store", "err", err)
+		}
 		db2, err := sql.Open("pgx", dsn)
 		if err != nil {
+			slog.Warn("open db for cleanup", "err", err)
 			return
 		}
-		defer func() { _ = db2.Close() }()
-		_, _ = db2.Exec("DROP SCHEMA " + schema + " CASCADE")
+		defer func() { _ = db2.Close() }() // deferred Close — safe to ignore
+		if _, err := db2.Exec("DROP SCHEMA " + schema + " CASCADE"); err != nil {
+			slog.Warn("drop bench schema", "schema", schema, "err", err)
+		}
 	}
 
 	return store, nil
+}
+
+// sleepCtx sleeps for the given duration but returns early if the context is cancelled.
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	select {
+	case <-time.After(d):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func loadConfig(path string) (*config.Config, error) {
