@@ -116,7 +116,11 @@
    ═══════════════════════════════════════════════════════════ */
 :root {
   --radius: 0.625rem;
-  --bottom-nav-h: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  /* Offset used by fixed/sticky mobile action bars. There is currently no
+     bottom tab bar rendered, so this is just the iOS home-indicator inset —
+     the bars sit flush at the bottom edge instead of floating ~4.5rem above
+     it. If a bottom nav is added later, restore its height here. */
+  --bottom-nav-h: env(safe-area-inset-bottom, 0px);
 
   /* Core palette */
   --background: #F4F6FA;
@@ -518,6 +522,35 @@
   }
   .shine::before {
     display: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Touch / mobile performance
+   Coarse-pointer devices (phones, tablets) have weaker GPUs and run on
+   battery. The decorative effects below — large blur surfaces, stacked
+   backdrop-filters and never-ending compositor animations — are the main
+   source of scroll jank there, so we make them cheap (or freeze them).
+   The visuals remain; they just stop costing a frame every 16ms.
+   ═══════════════════════════════════════════════════════════ */
+@media (pointer: coarse) {
+  /* Half the blur radius (blur cost scales super-linearly with radius) and
+     stop the drift so the three full-bleed blobs no longer recomposite. */
+  .aurora-blob {
+    filter: blur(40px);
+    will-change: auto;
+    animation: none !important;
+  }
+  /* Lighter frosted glass — backdrop-filter is recomputed on every scroll
+     frame over the content beneath it. */
+  .glass-card {
+    backdrop-filter: blur(10px) saturate(1.1);
+    -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  }
+  /* Purely ambient infinite loops — freeze them on battery devices. */
+  .glow-border::before,
+  .text-aurora {
+    animation: none !important;
   }
 }
 
