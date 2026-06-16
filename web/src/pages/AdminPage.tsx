@@ -13,7 +13,8 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useAdminStats } from "@/hooks/useAdmin";
 import { EmptyState, Skeleton } from "@/components/ui";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   StatCard,
   OverviewTab,
@@ -114,19 +115,18 @@ export function AdminPage() {
             <span className="text-xs text-muted-foreground tabular-nums">
               עדכון: {lastUpdated.toLocaleTimeString("he-IL")}
             </span>
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="icon"
               onClick={() => void refetch()}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-muted-foreground hover:text-foreground transition-colors"
               title="רענן נתונים"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-            </button>
+            </Button>
           </div>
         }
       />
 
-      {/* Stat Cards */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <StatCard
           label="מודעות"
@@ -155,52 +155,52 @@ export function AdminPage() {
         />
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-xl bg-secondary/50 p-1 max-w-full overflow-x-auto scrollbar-hide">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setActiveTab(t.key)}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
-              activeTab === t.key
-                ? "bg-card text-foreground shadow-sm border border-border"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as TabKey)}
+      >
+        <TabsList className="w-full justify-start overflow-x-auto scrollbar-hide">
+          {TABS.map((t) => (
+            <TabsTrigger key={t.key} value={t.key} className="gap-2">
+              <t.icon className="h-4 w-4" />
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      {/* Tab Content */}
-      <AnimatePresence mode="popLayout">
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-        >
-          {activeTab === "overview" && (
-            <OverviewTab data={data} onRefresh={() => void refetch()} />
-          )}
-          {activeTab === "cycles" && <CyclesTab />}
-          {activeTab === "logs" && <LogsTab active={activeTab === "logs"} />}
-          {activeTab === "listings" && (
-            <ListingsTab
-              searchId={listingsSearchId}
-              onClearFilter={() => setListingsSearchId(null)}
-            />
-          )}
-          {activeTab === "searches" && (
-            <SearchesTab onViewListings={viewListingsForSearch} />
-          )}
-          {activeTab === "users" && <UsersTab />}
-        </motion.div>
-      </AnimatePresence>
+        <AnimatePresence mode="popLayout">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="mt-6"
+          >
+            <TabsContent value="overview" className="mt-0">
+              <OverviewTab data={data} onRefresh={() => void refetch()} />
+            </TabsContent>
+            <TabsContent value="cycles" className="mt-0">
+              <CyclesTab />
+            </TabsContent>
+            <TabsContent value="logs" className="mt-0">
+              <LogsTab active={activeTab === "logs"} />
+            </TabsContent>
+            <TabsContent value="listings" className="mt-0">
+              <ListingsTab
+                searchId={listingsSearchId}
+                onClearFilter={() => setListingsSearchId(null)}
+              />
+            </TabsContent>
+            <TabsContent value="searches" className="mt-0">
+              <SearchesTab onViewListings={viewListingsForSearch} />
+            </TabsContent>
+            <TabsContent value="users" className="mt-0">
+              <UsersTab />
+            </TabsContent>
+          </motion.div>
+        </AnimatePresence>
+      </Tabs>
     </div>
   );
 }
