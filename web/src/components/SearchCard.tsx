@@ -12,6 +12,8 @@ import {
 import { cn, formatKm, formatPrice, relativeTime } from "@/lib/utils";
 import type { Search, SearchCycleStatsItem } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
+import { Sparkline } from "@/components/ui/Sparkline";
+import { useSearchActivity } from "@/hooks/useSearchActivity";
 import {
   manufacturerLogoSrc,
   manufacturerLogoSrcFromCatalogId,
@@ -44,6 +46,8 @@ export function SearchCard({
   const isActive = search.active;
   const listingsPath = `/searches/${search.id}/listings`;
   const stats = search.stats;
+  const { data: activity } = useSearchActivity(search.id);
+  const activitySeries = activity?.map((d) => d.count);
 
   useEffect(() => {
     if (isConfirmingDelete) confirmRef.current?.focus();
@@ -239,6 +243,17 @@ export function SearchCard({
           />
         </div>
       </Link>
+
+      {activitySeries && activitySeries.length >= 2 ? (
+        <div className="mt-3 flex items-center gap-2 border-t border-border/30 pt-3">
+          <span className="text-[11px] text-muted-foreground">פעילות (14 ימים)</span>
+          <Sparkline
+            data={activitySeries}
+            className="ms-auto"
+            ariaLabel="מגמת מודעות חדשות ב-14 הימים האחרונים"
+          />
+        </div>
+      ) : null}
 
       {cycleStats && (
         <div className="border-t border-border/30 pt-3 mt-3">

@@ -80,6 +80,7 @@ type Server struct {
 	logLevel   *slog.LevelVar
 	cycleLog   storage.CycleLogStore
 	cycleStats storage.SearchCycleStatsStore
+	activity   storage.SearchActivityStore
 	vitals     *vitalsRing
 
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
@@ -130,6 +131,7 @@ type Config struct {
 	LogLevel         *slog.LevelVar
 	CycleLog         storage.CycleLogStore
 	SearchCycleStats storage.SearchCycleStatsStore
+	Activity         storage.SearchActivityStore
 	PriceListSvc     *pricelist.Service
 	PollingInterval  time.Duration
 	Bind             string
@@ -203,6 +205,7 @@ func New(c Config) *Server {
 		logLevel:        c.LogLevel,
 		cycleLog:        c.CycleLog,
 		cycleStats:      c.SearchCycleStats,
+		activity:        c.Activity,
 		pollingInterval: c.PollingInterval,
 		vitals:          newVitalsRing(),
 		fetchSem:        make(chan struct{}, fetchCap),
@@ -271,6 +274,10 @@ func (s *Server) Routes() http.Handler {
 
 	if s.cycleStats != nil {
 		authMux.HandleFunc("GET /api/v1/searches/cycle-stats", s.listSearchCycleStats)
+	}
+
+	if s.activity != nil {
+		authMux.HandleFunc("GET /api/v1/searches/{id}/activity", s.searchActivity)
 	}
 
 	if s.admin != nil {

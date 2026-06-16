@@ -256,6 +256,19 @@ type ListingStore interface {
 	DropListingByToken(ctx context.Context, token string) (int64, error)
 }
 
+// DailyListingCount is the number of distinct listings first seen on a day.
+type DailyListingCount struct {
+	Day   string `json:"day"` // YYYY-MM-DD day bucket
+	Count int    `json:"count"`
+}
+
+// SearchActivityStore exposes a per-search activity time series (for sparklines).
+type SearchActivityStore interface {
+	// SearchDailyCounts returns distinct listings first seen per day for the
+	// given search over the last `days` days. Dense: includes 0-count days.
+	SearchDailyCounts(ctx context.Context, chatID, searchID int64, days int) ([]DailyListingCount, error)
+}
+
 type SavedListingStore interface {
 	SaveBookmark(ctx context.Context, chatID int64, token string) error
 	RemoveBookmark(ctx context.Context, chatID int64, token string) error
