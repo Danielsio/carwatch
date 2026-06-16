@@ -11,8 +11,10 @@ import (
 // for a search over the last `days` days. Days with no new listings are omitted
 // (callers fill gaps). `days` is clamped to a sane 1..90 window.
 func (s *Store) SearchDailyCounts(ctx context.Context, chatID, searchID int64, days int) ([]storage.DailyListingCount, error) {
-	if days <= 0 || days > 90 {
+	if days <= 0 {
 		days = 14
+	} else if days > 90 {
+		days = 90
 	}
 
 	// Dense, 0-filled series over the last `days` days (server-local day

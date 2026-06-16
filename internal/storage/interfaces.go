@@ -265,7 +265,7 @@ type DailyListingCount struct {
 // SearchActivityStore exposes a per-search activity time series (for sparklines).
 type SearchActivityStore interface {
 	// SearchDailyCounts returns distinct listings first seen per day for the
-	// given search over the last `days` days. Sparse: only days with data.
+	// given search over the last `days` days. Dense: includes 0-count days.
 	SearchDailyCounts(ctx context.Context, chatID, searchID int64, days int) ([]DailyListingCount, error)
 }
 

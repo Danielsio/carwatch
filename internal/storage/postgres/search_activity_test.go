@@ -60,6 +60,9 @@ func TestPostgres_SearchDailyCounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("other: %v", err)
 	}
+	if len(other) != 14 {
+		t.Fatalf("len(other) = %d, want 14 dense buckets", len(other))
+	}
 	otherTotal := 0
 	for _, d := range other {
 		otherTotal += d.Count
@@ -68,8 +71,12 @@ func TestPostgres_SearchDailyCounts(t *testing.T) {
 		t.Fatalf("other search total = %d, want 0", otherTotal)
 	}
 
-	// days is clamped; an absurd value falls back to the default window.
-	if _, err := store.SearchDailyCounts(ctx, 100, searchID, 9999); err != nil {
+	// days is clamped to 90; an absurd value should not error.
+	clamped, err := store.SearchDailyCounts(ctx, 100, searchID, 9999)
+	if err != nil {
 		t.Fatalf("clamped days: %v", err)
+	}
+	if len(clamped) != 90 {
+		t.Fatalf("len(clamped) = %d, want 90 buckets", len(clamped))
 	}
 }

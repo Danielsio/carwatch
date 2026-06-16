@@ -244,7 +244,7 @@ export function SearchCard({
         </div>
       </Link>
 
-      {activitySeries && activitySeries.some((v) => v > 0) ? (
+      {activitySeries && activitySeries.length >= 2 ? (
         <div className="mt-3 flex items-center gap-2 border-t border-border/30 pt-3">
           <span className="text-[11px] text-muted-foreground">פעילות (14 ימים)</span>
           <Sparkline
