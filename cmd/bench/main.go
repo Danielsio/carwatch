@@ -86,14 +86,20 @@ func main() {
 		bc.users, bc.searchesPerUser, bc.listings)
 	fmt.Println("════════════════════════════════════════════════════════════════════")
 
+	exitCode := run(ctx, env, selected, bc)
+
+	// Cleanup runs after all phases (including on error/interrupt).
+	if env.DBCleanup != nil {
+		env.DBCleanup()
+	}
+	os.Exit(exitCode)
+}
+
+func run(ctx context.Context, env *BenchEnv, selected map[string]bool, bc benchConfig) int {
 	results, err := runPhases(ctx, env, selected)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "benchmark aborted: %v\n", err)
-		os.Exit(1)
-	}
-
-	if env.DBCleanup != nil {
-		env.DBCleanup()
+		return 1
 	}
 
 	commit := gitCommit()
@@ -113,9 +119,10 @@ func main() {
 
 	if err := writeJSON(bc.output, report); err != nil {
 		fmt.Fprintf(os.Stderr, "write results: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	fmt.Printf("Results written to %s\n", bc.output)
+	return 0
 }
 
 func parsePhases(s string) map[string]bool {
@@ -490,11 +497,19 @@ func phaseDBQueries(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 		}
 	}
 
-	// Build records: distribute listings across users/searches.
+	// Build records: distribute distinct listings across users/searches.
 	var allRecords []storage.ListingRecord
+	listingIdx := 0
 	for _, u := range users {
 		for _, s := range u.Searches {
-			subset := listings[:min(20, len(listings))]
+			count := min(20, len(listings))
+			subset := make([]model.RawListing, count)
+			for j := range count {
+				l := listings[listingIdx%len(listings)]
+				l.Token = fmt.Sprintf("%s-%d-%d", l.Token, u.ChatID, s.ID)
+				subset[j] = l
+				listingIdx++
+			}
 			records := benchutil.ToListingRecords(subset, u.ChatID, s.ID, s.Name)
 			allRecords = append(allRecords, records...)
 		}
@@ -712,10 +727,12 @@ func phaseMarketCache(ctx context.Context, env *BenchEnv) (*PhaseResult, error) 
 				Count: lookupCount,
 			},
 			"per_op_us": {
-				Unit: "microseconds",
-				P50:  float64(lP50.Nanoseconds()),
-				P95:  float64(lP95.Nanoseconds()),
-				P99:  float64(lP99.Nanoseconds()),
+				Value: float64(lP99.Microseconds()),
+				Unit:  "microseconds",
+				P50:   float64(lP50.Microseconds()),
+				P95:   float64(lP95.Microseconds()),
+				P99:   float64(lP99.Microseconds()),
+				Count: lookupCount,
 			},
 		},
 	}, nil
@@ -735,48 +752,52 @@ func phaseBroker(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	}
 	defer pub.Close()
 
-	// Sub-test 1: Sequential publish.
-	publishCount := 100
-	var pubDurations []time.Duration
-	for i := range publishCount {
-		alert := broker.Alert{
-			ChatID:     int64(100_000 + i),
-			SearchID:   1,
-			SearchName: "bench-search",
-			Tokens:     []string{fmt.Sprintf("bench-pub-%d", i)},
-			Message:    "benchmark alert",
-			Language:   "en",
-			Timestamp:  time.Now().Format(time.RFC3339),
-		}
-		start := time.Now()
-		err := pub.Publish(ctx, alert)
-		pubDurations = append(pubDurations, time.Since(start))
-		if err != nil {
-			return nil, fmt.Errorf("publish: %w", err)
-		}
-	}
-	pP50, pP95, pP99 := benchutil.Percentiles(pubDurations)
-
-	// Sub-test 2: Round-trip latency (publish → XREAD).
+	// All sub-tests use an isolated stream to avoid polluting the
+	// production carwatch:alerts stream.
 	client := pub.Client()
 	testStream := "carwatch:bench-test"
 	group := "bench-consumers"
 	consumer := "bench-worker-1"
 
-	// Create stream and consumer group.
 	client.Del(ctx, testStream)
 	client.XGroupCreateMkStream(ctx, testStream, group, "0")
 
+	// Sub-test 1: Sequential publish throughput.
+	publishCount := 100
+	pubDurations := make([]time.Duration, 0, publishCount)
+	for i := range publishCount {
+		values := map[string]any{
+			"data": fmt.Sprintf(`{"chat_id":%d,"search_name":"bench","message":"bench-%d"}`, 100_000+i, i),
+		}
+		start := time.Now()
+		if err := client.XAdd(ctx, &redis.XAddArgs{
+			Stream: testStream,
+			MaxLen: 100000,
+			Approx: true,
+			Values: values,
+		}).Err(); err != nil {
+			return nil, fmt.Errorf("publish: %w", err)
+		}
+		pubDurations = append(pubDurations, time.Since(start))
+	}
+	pP50, pP95, pP99 := benchutil.Percentiles(pubDurations)
+
+	// Drain published messages before round-trip test.
+	client.Del(ctx, testStream)
+	client.XGroupCreateMkStream(ctx, testStream, group, "0")
+
+	// Sub-test 2: Round-trip latency (publish → XREAD).
 	rtCount := 50
-	var rtDurations []time.Duration
+	rtDurations := make([]time.Duration, 0, rtCount)
 	for i := range rtCount {
 		msg := fmt.Sprintf("rt-msg-%d", i)
 		pubTime := time.Now()
-		client.XAdd(ctx, &redis.XAddArgs{
+		if err := client.XAdd(ctx, &redis.XAddArgs{
 			Stream: testStream,
 			Values: map[string]any{"data": msg, "sent_at": pubTime.UnixNano()},
-		})
-		// Read it back.
+		}).Err(); err != nil {
+			return nil, fmt.Errorf("xadd: %w", err)
+		}
 		res, err := client.XReadGroup(ctx, &redis.XReadGroupArgs{
 			Group:    group,
 			Consumer: consumer,
@@ -794,7 +815,6 @@ func phaseBroker(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 		}
 	}
 
-	// Cleanup test stream.
 	client.Del(ctx, testStream)
 
 	rtP50, rtP95, rtP99 := benchutil.Percentiles(rtDurations)
@@ -939,15 +959,15 @@ func phaseYad2(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 
 		// 7c: Rate limit ramp-down (5 items per delay step).
 		fmt.Println("    7c: Rate limit ramp-down...")
-		delays := []time.Duration{500, 300, 200, 100, 50}
+		delayStepsMs := []int{500, 300, 200, 100, 50}
 		rampTokens := allListings[itemCount:]
 		if len(rampTokens) > 25 {
 			rampTokens = rampTokens[:25]
 		}
 		thresholdDelay := time.Duration(0)
 		tokenIdx := 0
-		for _, delayMs := range delays {
-			delay := delayMs * time.Millisecond
+		for _, ms := range delayStepsMs {
+			delay := time.Duration(ms) * time.Millisecond
 			challenged := false
 			for range 5 {
 				if tokenIdx >= len(rampTokens) {
@@ -964,10 +984,10 @@ func phaseYad2(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 			}
 			if challenged {
 				thresholdDelay = delay
-				fmt.Printf("    Challenge at %vms delay\n", delayMs)
+				fmt.Printf("    Challenge at %dms delay\n", ms)
 				break
 			}
-			fmt.Printf("    %vms delay: OK\n", delayMs)
+			fmt.Printf("    %dms delay: OK\n", ms)
 		}
 		metrics["rate_limit_threshold_ms"] = Metric{
 			Value: float64(thresholdDelay.Milliseconds()),
@@ -1069,6 +1089,7 @@ func phaseFullCycle(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 
 	// Stage 4: Score + persist.
 	persistStart := time.Now()
+	persistErrors := 0
 	for _, mp := range matched {
 		for _, m := range mp.matches {
 			fitness := scoring.FitnessScore(scoring.FitnessParams{
@@ -1097,7 +1118,9 @@ func phaseFullCycle(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 				FitnessScore: &fitness,
 				FirstSeenAt:  time.Now(),
 			}
-			_ = store.SaveListing(ctx, record)
+			if err := store.SaveListing(ctx, record); err != nil {
+				persistErrors++
+			}
 		}
 	}
 	persistDuration := time.Since(persistStart)
@@ -1109,6 +1132,10 @@ func phaseFullCycle(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	if totalCycle > 30*time.Second {
 		pass = false
 		failReason = fmt.Sprintf("cycle %v exceeds 30s", totalCycle)
+	}
+	if persistErrors > 0 && pass {
+		pass = false
+		failReason = fmt.Sprintf("%d persist errors", persistErrors)
 	}
 
 	return &PhaseResult{
@@ -1135,8 +1162,9 @@ func phaseFullCycle(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 				Count: claimedCount,
 			},
 			"persist_ms": {
-				Value: float64(persistDuration.Milliseconds()),
-				Unit:  "ms",
+				Value:  float64(persistDuration.Milliseconds()),
+				Unit:   "ms",
+				Errors: persistErrors,
 			},
 			"matched_listings": {
 				Value: float64(len(matched)),

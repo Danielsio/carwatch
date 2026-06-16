@@ -40,13 +40,25 @@ func registerPhase(p Phase) {
 
 // runPhases executes selected phases serially with cooldowns.
 func runPhases(ctx context.Context, env *BenchEnv, selected map[string]bool) ([]PhaseResult, error) {
-	var results []PhaseResult
+	// Build the list of phases to run so we know which is last.
+	var toRun []struct {
+		index int
+		phase Phase
+	}
 	for i, p := range phaseRegistry {
 		if len(selected) > 0 && !selected[p.Name] {
 			continue
 		}
+		toRun = append(toRun, struct {
+			index int
+			phase Phase
+		}{i, p})
+	}
 
-		fmt.Printf("\n▶ Phase %d: %s — %s\n", i+1, p.Name, p.Description)
+	var results []PhaseResult
+	for runIdx, entry := range toRun {
+		p := entry.phase
+		fmt.Printf("\n▶ Phase %d: %s — %s\n", entry.index+1, p.Name, p.Description)
 
 		var prof *benchutil.Profile
 		if env.ProfileEnabled {
@@ -89,14 +101,16 @@ func runPhases(ctx context.Context, env *BenchEnv, selected map[string]bool) ([]
 
 		results = append(results, *result)
 
-		// Cooldown between phases.
-		cooldown := env.Config.cooldown
-		if p.NeedsYad2 {
-			cooldown = env.Config.yad2Cooldown
-		}
-		if cooldown > 0 && i < len(phaseRegistry)-1 {
-			if err := waitCooldown(ctx, cooldown); err != nil {
-				return results, err
+		// Cooldown between phases (skip after the last selected phase).
+		if runIdx < len(toRun)-1 {
+			cooldown := env.Config.cooldown
+			if p.NeedsYad2 {
+				cooldown = env.Config.yad2Cooldown
+			}
+			if cooldown > 0 {
+				if err := waitCooldown(ctx, cooldown); err != nil {
+					return results, err
+				}
 			}
 		}
 	}
