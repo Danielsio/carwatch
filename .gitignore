@@ -5,6 +5,14 @@ config.yaml
 /api-server
 /scraper
 /notifier-worker
+/bench
+/bench-arm64
+/enricher
+/bot-poller
+/fetch-bench
+/enrich-bench
+bench-results.json
+bench-profiles/
 coverage.out
 .idea/
 .coverage/
