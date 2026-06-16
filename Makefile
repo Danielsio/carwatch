@@ -5,7 +5,8 @@
        vm-backup vm-backup-list vm-pg-shell \
        vm-setup-backup vm-backup-status \
        web-install web-dev web-build \
-       catalog-refresh
+       catalog-refresh \
+       bench bench-fast bench-yad2 bench-profile bench-go
 
 all: build
 
@@ -40,7 +41,10 @@ build-notifier:
 build-enricher:
 	go build $(LDFLAGS) -o enricher ./cmd/enricher
 
-build-all: build build-bot-poller build-scraper build-notifier build-enricher
+build-bench:
+	go build $(LDFLAGS) -o bench ./cmd/bench
+
+build-all: build build-bot-poller build-scraper build-notifier build-enricher build-bench
 
 catalog-refresh:
 	go run ./cmd/catalog-gen -output internal/catalog/catalog_data.json
@@ -70,8 +74,8 @@ lint:
 ci: lint test
 
 clean:
-	rm -f api-server bot-poller scraper notifier-worker
-	rm -rf $(COVER_DIR)
+	rm -f api-server bot-poller scraper notifier-worker bench
+	rm -rf $(COVER_DIR) bench-profiles bench-results.json
 
 web-install:
 	cd web && npm install
@@ -107,6 +111,59 @@ docker-build:
 
 docker-run:
 	docker compose -f docker-compose.dev.yaml up -d
+
+# --- Benchmarks ---
+
+bench: build-bench
+	./bench --config config.yaml --output bench-results.json
+
+bench-fast: build-bench
+	./bench --config config.yaml --phases percolator,scoring,db-dedup,db-queries,market --output bench-results.json
+
+bench-yad2: build-bench
+	./bench --config config.yaml --phases yad2,cycle --yad2-cooldown 60s --output bench-results.json
+
+bench-profile: build-bench
+	./bench --config config.yaml --pprof --output bench-results.json
+
+bench-go:
+	go test -bench=. -benchmem -count=3 -run='^$$' ./internal/percolator/ ./internal/scoring/
+
+# Cross-compile for Oracle ARM VM and run remotely.
+#   make vm-bench              — all phases
+#   make vm-bench BENCH_PHASES=percolator,scoring  — specific phases
+BENCH_PHASES ?= all
+BENCH_ARGS ?=
+
+vm-bench: vm-check-env
+	@echo "=== Cross-compiling bench for linux/arm64..."
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o bench-arm64 ./cmd/bench
+	@echo "=== Uploading to VM..."
+	$(SCP) bench-arm64 $(VM_USER)@$(VM_IP):$(VM_DIR)/bench
+	$(SSH) "chmod +x $(VM_DIR)/bench && mkdir -p $(VM_DIR)/bench-output"
+	@echo "=== Running benchmark on VM (phases: $(BENCH_PHASES))..."
+	$(SSH) "docker run --rm \
+		--network carwatch-net \
+		-v $(VM_DIR)/config.yaml:/config.yaml:ro \
+		-v $(VM_DIR)/bench:/bench:ro \
+		-v $(VM_DIR)/migrations:/migrations:ro \
+		-v $(VM_DIR)/bench-output:/output \
+		alpine:3.24 \
+		/bench --config /config.yaml --phases $(BENCH_PHASES) --output /output/bench-results.json $(BENCH_ARGS)"
+	@echo "=== Fetching results..."
+	$(SCP) $(VM_USER)@$(VM_IP):$(VM_DIR)/bench-output/bench-results.json bench-results.json
+	@echo "=== Results saved to bench-results.json"
+	@rm -f bench-arm64
+
+vm-bench-fast: vm-check-env
+	$(MAKE) vm-bench BENCH_PHASES=percolator,scoring,db-dedup,db-queries,market
+
+vm-bench-yad2: vm-check-env
+	$(MAKE) vm-bench BENCH_PHASES=yad2,cycle BENCH_ARGS="--yad2-cooldown 60s"
+
+vm-bench-results: vm-check-env
+	$(SCP) $(VM_USER)@$(VM_IP):$(VM_DIR)/bench-output/bench-results.json bench-results.json
+	@cat bench-results.json | python3 -m json.tool 2>/dev/null || cat bench-results.json
 
 # --- VM Management ---
 # Set these in your shell profile (~/.bashrc or ~/.zshrc):
