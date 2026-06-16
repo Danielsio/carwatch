@@ -13,17 +13,31 @@ import {
   Moon,
   LogOut,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useMe } from "@/hooks/useMe";
 import { useSearches } from "@/hooks/useSearches";
-import { CommandPalette, type CommandItem } from "@/components/CommandPalette";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
 
-/**
- * App-level wiring for the command palette: builds the command list from the
- * router, theme, auth and saved searches, and owns open state + the global
- * ⌘K / Ctrl+K / "/" hotkey. Mounted once inside the authenticated Shell.
- */
+interface CmdItem {
+  id: string;
+  group: string;
+  label: string;
+  icon: LucideIcon;
+  keywords?: string;
+  hint?: string;
+  perform: () => void;
+}
+
 export function AppCommandPalette() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
@@ -52,18 +66,23 @@ export function AppCommandPalette() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const close = useCallback(() => setOpen(false), []);
+  const run = useCallback(
+    (fn: () => void) => {
+      setOpen(false);
+      fn();
+    },
+    [],
+  );
 
-  const commands = useMemo<CommandItem[]>(() => {
-    const NAV = "ניווט";
+  const commands = useMemo<CmdItem[]>(() => {
     const go = (
       path: string,
       label: string,
-      icon: CommandItem["icon"],
+      icon: LucideIcon,
       hint?: string,
-    ): CommandItem => ({
+    ): CmdItem => ({
       id: `nav:${path}`,
-      group: NAV,
+      group: "ניווט",
       label,
       icon,
       hint,
@@ -71,7 +90,7 @@ export function AppCommandPalette() {
       perform: () => navigate(path),
     });
 
-    const list: CommandItem[] = [
+    const list: CmdItem[] = [
       go("/dashboard", "לוח בקרה", LayoutDashboard, "D"),
       go("/searches/new", "חיפוש חדש", Plus),
       go("/saved", "מועדפים", Bookmark),
@@ -98,9 +117,7 @@ export function AppCommandPalette() {
         label: "התנתק",
         icon: LogOut,
         keywords: "logout sign out יציאה",
-        perform: () => {
-          void signOut();
-        },
+        perform: () => void signOut(),
       });
     }
 
@@ -118,5 +135,47 @@ export function AppCommandPalette() {
     return list;
   }, [navigate, me, theme, toggle, user, signOut, searches]);
 
-  return <CommandPalette open={open} onClose={close} commands={commands} />;
+  const grouped = useMemo(() => {
+    const map = new Map<string, CmdItem[]>();
+    for (const cmd of commands) {
+      const arr = map.get(cmd.group) ?? [];
+      arr.push(cmd);
+      map.set(cmd.group, arr);
+    }
+    return map;
+  }, [commands]);
+
+  return (
+    <CommandDialog open={open} onOpenChange={setOpen}>
+      <CommandInput placeholder="חפש פקודה..." dir="rtl" />
+      <CommandList>
+        <CommandEmpty>לא נמצאו תוצאות</CommandEmpty>
+        {Array.from(grouped.entries()).map(([group, items], i) => (
+          <div key={group}>
+            {i > 0 && <CommandSeparator />}
+            <CommandGroup heading={group}>
+              {items.map((cmd) => {
+                const Icon = cmd.icon;
+                return (
+                  <CommandItem
+                    key={cmd.id}
+                    value={`${cmd.label} ${cmd.keywords ?? ""}`}
+                    onSelect={() => run(cmd.perform)}
+                  >
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                    <span>{cmd.label}</span>
+                    {cmd.hint && (
+                      <kbd className="ms-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                        {cmd.hint}
+                      </kbd>
+                    )}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </div>
+        ))}
+      </CommandList>
+    </CommandDialog>
+  );
 }

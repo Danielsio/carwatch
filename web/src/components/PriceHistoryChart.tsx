@@ -11,7 +11,7 @@ import { TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface PriceHistoryChartProps {
   token: string;

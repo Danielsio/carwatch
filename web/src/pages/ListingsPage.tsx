@@ -37,7 +37,7 @@ import { ListingCardBody } from "@/components/ListingCardBody";
 import { ListingCardSkeleton } from "@/components/ListingCardSkeleton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageShell } from "@/components/ui/PageShell";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useToast } from "@/components/ui/Toast";

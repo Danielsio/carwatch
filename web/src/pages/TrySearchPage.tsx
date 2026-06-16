@@ -17,9 +17,9 @@ const GEARBOX_OPTIONS = [
   { value: "אוטומט", label: "אוטומט" },
   { value: "ידני", label: "ידני" },
 ];
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/components/ui/input";
 import { RangeSlider } from "@/components/ui/RangeSlider";
-import { Select } from "@/components/ui/Select";
+import { Select } from "@/components/ui/NativeSelect";
 import { FormField } from "@/components/ui/FormField";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListingCardBody } from "@/components/ListingCardBody";
