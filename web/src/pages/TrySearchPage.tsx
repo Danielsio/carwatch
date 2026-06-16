@@ -10,7 +10,7 @@ import {
   type Model,
 } from "@/lib/api";
 import { formatPrice, safeHref } from "@/lib/utils";
-import { ChipButton } from "@/components/ui/ChipButton";
+import { Toggle } from "@/components/ui/toggle";
 
 const GEARBOX_OPTIONS = [
   { value: "", label: "הכל" },
@@ -330,13 +330,13 @@ export default function TrySearchPage() {
             <FormField label="יד מקסימלית">
               <div className="flex flex-wrap gap-2">
                 {HAND_OPTIONS.map((h) => (
-                  <ChipButton
+                  <Toggle variant="outline" size="sm"
                     key={h}
-                    selected={form.maxHand === h}
+                    pressed={form.maxHand === h}
                     onClick={() => set("maxHand", h)}
                   >
                     {h === 0 ? "כל היידות" : `יד ${h}`}
-                  </ChipButton>
+                  </Toggle>
                 ))}
               </div>
             </FormField>
@@ -345,13 +345,13 @@ export default function TrySearchPage() {
           <FormField label="תיבת הילוכים">
             <div className="flex flex-wrap gap-2">
               {GEARBOX_OPTIONS.map((opt) => (
-                <ChipButton
+                <Toggle variant="outline" size="sm"
                   key={opt.value}
-                  selected={form.gearBox === opt.value}
+                  pressed={form.gearBox === opt.value}
                   onClick={() => set("gearBox", opt.value)}
                 >
                   {opt.label}
-                </ChipButton>
+                </Toggle>
               ))}
             </div>
           </FormField>

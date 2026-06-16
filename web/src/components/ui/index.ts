@@ -1,6 +1,5 @@
 export { Badge, badgeVariants } from "./badge";
 export { MatchScoreBox, type MatchScoreBoxProps } from "./MatchScoreBox";
-export { ChipButton, type ChipButtonProps } from "./ChipButton";
 export { Button, buttonVariants } from "./button";
 export {
   AuroraBackground,

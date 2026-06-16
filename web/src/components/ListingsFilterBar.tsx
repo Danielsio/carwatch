@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { Search, SlidersHorizontal, X, Flame, EyeOff, Image as ImageIcon } from "lucide-react";
-import { ChipButton } from "@/components/ui/ChipButton";
+import { Toggle } from "@/components/ui/toggle";
 import { RangeSlider } from "@/components/ui/RangeSlider";
 import { formatKm, formatPrice, cn } from "@/lib/utils";
 import {
@@ -88,53 +88,57 @@ export function ListingsFilterBar({
 
       {/* Quick chips */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <ChipButton
-          selected={filters.dealsOnly}
-          onClick={() => set({ dealsOnly: !filters.dealsOnly })}
+        <Toggle
+          variant="outline"
+          size="sm"
+          pressed={filters.dealsOnly}
+          onPressedChange={() => set({ dealsOnly: !filters.dealsOnly })}
         >
-          <span className="flex items-center gap-1">
-            <Flame className="h-3.5 w-3.5" aria-hidden />
-            מציאות
-          </span>
-        </ChipButton>
-        <ChipButton
-          selected={filters.unseenOnly}
-          onClick={() => set({ unseenOnly: !filters.unseenOnly })}
+          <Flame className="h-3.5 w-3.5" aria-hidden />
+          מציאות
+        </Toggle>
+        <Toggle
+          variant="outline"
+          size="sm"
+          pressed={filters.unseenOnly}
+          onPressedChange={() => set({ unseenOnly: !filters.unseenOnly })}
         >
-          <span className="flex items-center gap-1">
-            <EyeOff className="h-3.5 w-3.5" aria-hidden />
-            חדשות
-          </span>
-        </ChipButton>
-        <ChipButton
-          selected={filters.photoOnly}
-          onClick={() => set({ photoOnly: !filters.photoOnly })}
+          <EyeOff className="h-3.5 w-3.5" aria-hidden />
+          חדשות
+        </Toggle>
+        <Toggle
+          variant="outline"
+          size="sm"
+          pressed={filters.photoOnly}
+          onPressedChange={() => set({ photoOnly: !filters.photoOnly })}
         >
-          <span className="flex items-center gap-1">
-            <ImageIcon className="h-3.5 w-3.5" aria-hidden />
-            עם תמונה
-          </span>
-        </ChipButton>
+          <ImageIcon className="h-3.5 w-3.5" aria-hidden />
+          עם תמונה
+        </Toggle>
 
         {facets.fuels.map((fuel) => (
-          <ChipButton
+          <Toggle
             key={fuel}
-            selected={filters.fuels.includes(fuel)}
-            onClick={() => set({ fuels: toggleInArray(filters.fuels, fuel) })}
+            variant="outline"
+            size="sm"
+            pressed={filters.fuels.includes(fuel)}
+            onPressedChange={() => set({ fuels: toggleInArray(filters.fuels, fuel) })}
           >
             {fuel}
-          </ChipButton>
+          </Toggle>
         ))}
         {facets.gearboxes.map((gb) => (
-          <ChipButton
+          <Toggle
             key={gb}
-            selected={filters.gearboxes.includes(gb)}
-            onClick={() =>
+            variant="outline"
+            size="sm"
+            pressed={filters.gearboxes.includes(gb)}
+            onPressedChange={() =>
               set({ gearboxes: toggleInArray(filters.gearboxes, gb) })
             }
           >
             {gb}
-          </ChipButton>
+          </Toggle>
         ))}
       </div>
 
