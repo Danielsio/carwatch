@@ -38,6 +38,7 @@ import { ListingCardSkeleton } from "@/components/ListingCardSkeleton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageShell } from "@/components/ui/PageShell";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useToast } from "@/components/ui/Toast";
@@ -294,7 +295,7 @@ export function ListingsPage() {
       {/* Sort pills + refresh */}
       <div className="sticky top-0 z-30 -mx-4 bg-background/90 px-4 py-2 backdrop-blur-lg border-b border-border/30 will-change-transform md:static md:mx-0 md:px-0 md:bg-transparent md:backdrop-blur-none md:border-0 md:will-change-auto">
         <div className="flex items-center gap-2 dir-rtl">
-          <div className="flex flex-nowrap gap-1.5 flex-1 overflow-x-auto scrollbar-hide" role="radiogroup" aria-label="מיון תוצאות">
+          <div className="flex flex-nowrap gap-1 flex-1 overflow-x-auto scrollbar-hide" role="radiogroup" aria-label="מיון תוצאות">
             {SORT_OPTIONS.map((opt) => (
               <Button
                 key={opt.value}
@@ -302,42 +303,30 @@ export function ListingsPage() {
                 role="radio"
                 aria-checked={sort === opt.value}
                 size="sm"
-                variant={sort === opt.value ? "primary" : "secondary"}
+                variant={sort === opt.value ? "default" : "ghost"}
                 onClick={() => setSort(opt.value)}
               >
                 {opt.label}
               </Button>
             ))}
           </div>
-          <div className="flex shrink-0 items-center rounded-xl border border-border/50 bg-secondary/60 p-0.5" role="group" aria-label="צפיפות תצוגה">
-            <button
-              type="button"
+          <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/50 bg-secondary/40 p-0.5">
+            <Button
+              variant={density === "comfortable" ? "secondary" : "ghost"}
+              size="icon-sm"
               onClick={() => setDensity("comfortable")}
               aria-label="תצוגה מרווחת"
-              aria-pressed={density === "comfortable"}
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
-                density === "comfortable"
-                  ? "bg-card text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
             >
               <LayoutGrid className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant={density === "compact" ? "secondary" : "ghost"}
+              size="icon-sm"
               onClick={() => setDensity("compact")}
               aria-label="תצוגה צפופה"
-              aria-pressed={density === "compact"}
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
-                density === "compact"
-                  ? "bg-card text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
             >
               <Rows3 className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
           <RefreshButton searchId={searchId} />
         </div>
@@ -488,12 +477,15 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
   const spotlight = useSpotlight();
 
   return (
+    <Card
+      {...spotlight}
+      className="spotlight group overflow-hidden transition-all duration-300 ease-out hover:border-primary/20 hover:shadow-[0_16px_48px_-12px_var(--color-glow-primary)] hover:-translate-y-0.5"
+    >
     <Link
       to={`/listings/${listing.token}`}
       state={{ listing }}
       aria-label={`${listing.manufacturer} ${listing.model} ${listing.year} - ${formatPrice(listing.price)}`}
-      {...spotlight}
-      className="spotlight group block rounded-2xl border border-border/40 bg-card overflow-hidden shadow-sm transition-all duration-300 ease-out hover:border-primary/20 hover:shadow-[0_16px_48px_-12px_var(--color-glow-primary)] hover:-translate-y-1 dir-rtl"
+      className="block dir-rtl"
     >
       <ListingCardBody
         listing={listing}
@@ -559,5 +551,6 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
         }
       />
     </Link>
+    </Card>
   );
 });
