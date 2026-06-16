@@ -144,6 +144,7 @@ vm-bench: vm-check-env
 	@echo "=== Running benchmark on VM (phases: $(BENCH_PHASES))..."
 	$(SSH) "docker run --rm \
 		--network carwatch-net \
+		--env-file $(VM_DIR)/.env \
 		-v $(VM_DIR)/config.yaml:/config.yaml:ro \
 		-v $(VM_DIR)/bench:/bench:ro \
 		-v $(VM_DIR)/migrations:/migrations:ro \

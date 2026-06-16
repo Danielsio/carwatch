@@ -356,11 +356,10 @@ func phaseScoring(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 // ─── Phase 3: DB Dedup Contention ────────────────────────────────────────
 
 func phaseDBDedup(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
-	store, cleanup, err := openBenchDB(env)
+	store, err := openBenchDB(env)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
-	defer cleanup()
 
 	rng := rand.New(rand.NewPCG(42, 0))
 	users := benchutil.GenerateUsers(rng, env.Config.users, env.Config.searchesPerUser)
@@ -468,11 +467,10 @@ func phaseDBDedup(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 // ─── Phase 4: DB Listing Queries ─────────────────────────────────────────
 
 func phaseDBQueries(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
-	store, cleanup, err := openBenchDB(env)
+	store, err := openBenchDB(env)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
-	defer cleanup()
 
 	rng := rand.New(rand.NewPCG(42, 0))
 	users := benchutil.GenerateUsers(rng, env.Config.users, env.Config.searchesPerUser)
@@ -603,11 +601,10 @@ func phaseDBQueries(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 // ─── Phase 5: Market Cache ───────────────────────────────────────────────
 
 func phaseMarketCache(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
-	store, cleanup, err := openBenchDB(env)
+	store, err := openBenchDB(env)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
-	defer cleanup()
 
 	rng := rand.New(rand.NewPCG(42, 0))
 	users := benchutil.GenerateUsers(rng, 10, 3)
@@ -1002,11 +999,10 @@ func phaseYad2(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 // ─── Phase 8: Full Cycle ─────────────────────────────────────────────────
 
 func phaseFullCycle(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
-	store, cleanup, err := openBenchDB(env)
+	store, err := openBenchDB(env)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
-	defer cleanup()
 
 	rng := rand.New(rand.NewPCG(42, 0))
 	users := benchutil.GenerateUsers(rng, env.Config.users, env.Config.searchesPerUser)
@@ -1156,15 +1152,17 @@ func phaseFullCycle(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 
 // ─── DB helpers ──────────────────────────────────────────────────────────
 
-func openBenchDB(env *BenchEnv) (*postgres.Store, func(), error) {
-	// Reuse existing connection if available.
+// openBenchDB returns a shared store for all DB phases. The store is
+// created once (isolated schema) and reused. Cleanup runs in main()
+// after all phases complete — individual phases must NOT close the store.
+func openBenchDB(env *BenchEnv) (*postgres.Store, error) {
 	if env.DBStore != nil {
-		return env.DBStore.(*postgres.Store), func() {}, nil
+		return env.DBStore.(*postgres.Store), nil
 	}
 
 	cfg, err := loadConfig(env.Config.configPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load config: %w", err)
+		return nil, fmt.Errorf("load config: %w", err)
 	}
 
 	dsn := os.Getenv("TEST_POSTGRES_DSN")
@@ -1172,15 +1170,14 @@ func openBenchDB(env *BenchEnv) (*postgres.Store, func(), error) {
 		dsn = cfg.Storage.DSN
 	}
 
-	// Create isolated schema.
 	schema := fmt.Sprintf("bench_%d", time.Now().UnixNano())
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("open for schema: %w", err)
+		return nil, fmt.Errorf("open for schema: %w", err)
 	}
 	if _, err := db.Exec("CREATE SCHEMA " + schema); err != nil {
 		db.Close()
-		return nil, nil, fmt.Errorf("create schema: %w", err)
+		return nil, fmt.Errorf("create schema: %w", err)
 	}
 	db.Close()
 
@@ -1193,12 +1190,11 @@ func openBenchDB(env *BenchEnv) (*postgres.Store, func(), error) {
 
 	store, err := postgres.New(schemaDSN, cfg.Storage.MigrationsPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("open store: %w", err)
+		return nil, fmt.Errorf("open store: %w", err)
 	}
 
 	env.DBStore = store
-
-	cleanup := func() {
+	env.DBCleanup = func() {
 		store.Close()
 		db2, err := sql.Open("pgx", dsn)
 		if err != nil {
@@ -1207,9 +1203,8 @@ func openBenchDB(env *BenchEnv) (*postgres.Store, func(), error) {
 		defer db2.Close()
 		db2.Exec("DROP SCHEMA " + schema + " CASCADE")
 	}
-	env.DBCleanup = cleanup
 
-	return store, cleanup, nil
+	return store, nil
 }
 
 func loadConfig(path string) (*config.Config, error) {
