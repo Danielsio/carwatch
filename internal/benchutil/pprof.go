@@ -28,7 +28,7 @@ func StartProfile(dir, phase string) (*Profile, error) {
 		return nil, fmt.Errorf("create cpu profile: %w", err)
 	}
 	if err := pprof.StartCPUProfile(f); err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, fmt.Errorf("start cpu profile: %w", err)
 	}
 
@@ -39,7 +39,7 @@ func StartProfile(dir, phase string) (*Profile, error) {
 // Returns the directory containing the profiles.
 func (p *Profile) Stop() (string, error) {
 	pprof.StopCPUProfile()
-	p.cpuFile.Close()
+	_ = p.cpuFile.Close()
 
 	runtime.GC()
 	heapPath := filepath.Join(p.dir, p.phase+".heap.prof")
@@ -47,10 +47,9 @@ func (p *Profile) Stop() (string, error) {
 	if err != nil {
 		return p.dir, fmt.Errorf("create heap profile: %w", err)
 	}
-	defer f.Close()
 	if err := pprof.WriteHeapProfile(f); err != nil {
+		_ = f.Close()
 		return p.dir, fmt.Errorf("write heap profile: %w", err)
 	}
-
-	return p.dir, nil
+	return p.dir, f.Close()
 }

@@ -42,15 +42,15 @@ import (
 )
 
 type benchConfig struct {
-	configPath     string
-	phases         string
-	cooldown       time.Duration
-	yad2Cooldown   time.Duration
-	users          int
+	configPath      string
+	phases          string
+	cooldown        time.Duration
+	yad2Cooldown    time.Duration
+	users           int
 	searchesPerUser int
-	listings       int
-	output         string
-	pprof          bool
+	listings        int
+	output          string
+	pprof           bool
 }
 
 func main() {
@@ -111,7 +111,7 @@ func run(ctx context.Context, env *BenchEnv, selected map[string]bool, bc benchC
 			"searches": bc.users * bc.searchesPerUser,
 			"listings": bc.listings,
 		},
-		Phases: results,
+		Phases:  results,
 		Summary: buildSummary(results),
 	}
 
@@ -251,8 +251,8 @@ func phasePercolator(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	}
 
 	return &PhaseResult{
-		Phase: "percolator",
-		Pass:  pass,
+		Phase:      "percolator",
+		Pass:       pass,
 		FailReason: failReason,
 		Metrics: map[string]Metric{
 			"per_listing_us": {
@@ -338,8 +338,8 @@ func phaseScoring(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	}
 
 	return &PhaseResult{
-		Phase: "scoring",
-		Pass:  pass,
+		Phase:      "scoring",
+		Pass:       pass,
 		FailReason: failReason,
 		Metrics: map[string]Metric{
 			"per_listing_us": {
@@ -443,8 +443,8 @@ func phaseDBDedup(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	}
 
 	return &PhaseResult{
-		Phase: "db-dedup",
-		Pass:  pass,
+		Phase:      "db-dedup",
+		Pass:       pass,
 		FailReason: failReason,
 		Metrics: map[string]Metric{
 			"single_goroutine_us": {
@@ -579,8 +579,8 @@ func phaseDBQueries(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	}
 
 	return &PhaseResult{
-		Phase: "db-queries",
-		Pass:  pass,
+		Phase:      "db-queries",
+		Pass:       pass,
 		FailReason: failReason,
 		Metrics: map[string]Metric{
 			"save_rate": {
@@ -704,8 +704,8 @@ func phaseMarketCache(ctx context.Context, env *BenchEnv) (*PhaseResult, error) 
 	}
 
 	return &PhaseResult{
-		Phase: "market",
-		Pass:  pass,
+		Phase:      "market",
+		Pass:       pass,
 		FailReason: failReason,
 		Metrics: map[string]Metric{
 			"refresh_ms": {
@@ -750,7 +750,7 @@ func phaseBroker(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect redis: %w", err)
 	}
-	defer pub.Close()
+	defer func() { _ = pub.Close() }()
 
 	// All sub-tests use an isolated stream to avoid polluting the
 	// production carwatch:alerts stream.
@@ -827,8 +827,8 @@ func phaseBroker(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	}
 
 	return &PhaseResult{
-		Phase: "broker",
-		Pass:  pass,
+		Phase:      "broker",
+		Pass:       pass,
 		FailReason: failReason,
 		Metrics: map[string]Metric{
 			"publish_us": {
@@ -1062,8 +1062,8 @@ func phaseFullCycle(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	// Stage 2: Match all listings.
 	matchStart := time.Now()
 	type matchPair struct {
-		listing  model.RawListing
-		matches  []percolator.MatchResult
+		listing model.RawListing
+		matches []percolator.MatchResult
 	}
 	var matched []matchPair
 	for _, l := range listings {
@@ -1094,14 +1094,14 @@ func phaseFullCycle(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 		for _, m := range mp.matches {
 			fitness := scoring.FitnessScore(scoring.FitnessParams{
 				Price:    mp.listing.Price,
-				Km:      mp.listing.Km,
-				Hand:    mp.listing.Hand,
-				Year:    mp.listing.Year,
+				Km:       mp.listing.Km,
+				Hand:     mp.listing.Hand,
+				Year:     mp.listing.Year,
 				PriceMax: m.Search.PriceMax,
-				MaxKm:   m.Search.MaxKm,
-				MaxHand: m.Search.MaxHand,
-				YearMin: m.Search.YearMin,
-				YearMax: m.Search.YearMax,
+				MaxKm:    m.Search.MaxKm,
+				MaxHand:  m.Search.MaxHand,
+				YearMin:  m.Search.YearMin,
+				YearMax:  m.Search.YearMax,
 			})
 			record := storage.ListingRecord{
 				Token:        mp.listing.Token,
@@ -1139,8 +1139,8 @@ func phaseFullCycle(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 	}
 
 	return &PhaseResult{
-		Phase: "cycle",
-		Pass:  pass,
+		Phase:      "cycle",
+		Pass:       pass,
 		FailReason: failReason,
 		Metrics: map[string]Metric{
 			"cycle_ms": {
@@ -1204,10 +1204,10 @@ func openBenchDB(env *BenchEnv) (*postgres.Store, error) {
 		return nil, fmt.Errorf("open for schema: %w", err)
 	}
 	if _, err := db.Exec("CREATE SCHEMA " + schema); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	schemaDSN := dsn
 	if strings.Contains(schemaDSN, "?") {
@@ -1223,13 +1223,13 @@ func openBenchDB(env *BenchEnv) (*postgres.Store, error) {
 
 	env.DBStore = store
 	env.DBCleanup = func() {
-		store.Close()
+		_ = store.Close()
 		db2, err := sql.Open("pgx", dsn)
 		if err != nil {
 			return
 		}
-		defer db2.Close()
-		db2.Exec("DROP SCHEMA " + schema + " CASCADE")
+		defer func() { _ = db2.Close() }()
+		_, _ = db2.Exec("DROP SCHEMA " + schema + " CASCADE")
 	}
 
 	return store, nil
