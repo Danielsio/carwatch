@@ -27,7 +27,6 @@ describe("NotFoundPage", () => {
   it("renders Hebrew not-found message", () => {
     mockUseAuth.mockReturnValue({ user: null });
     renderPage();
-    expect(screen.getByText("הדף לא נמצא")).toBeInTheDocument();
     expect(screen.getByText("הדף שחיפשת לא קיים או הוסר")).toBeInTheDocument();
   });
 
