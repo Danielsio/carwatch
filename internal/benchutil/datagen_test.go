@@ -6,7 +6,7 @@ import (
 )
 
 func TestGenerateUsers(t *testing.T) {
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	users := GenerateUsers(rng, 10, 3)
 
 	if len(users) != 10 {
@@ -34,7 +34,7 @@ func TestGenerateUsers(t *testing.T) {
 }
 
 func TestGenerateListings(t *testing.T) {
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	listings := GenerateListings(rng, 200)
 
 	if len(listings) != 200 {
@@ -58,7 +58,7 @@ func TestGenerateListings(t *testing.T) {
 }
 
 func TestAllSearches(t *testing.T) {
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	users := GenerateUsers(rng, 5, 4)
 	all := AllSearches(users)
 	if len(all) != 20 {

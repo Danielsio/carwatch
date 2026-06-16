@@ -71,7 +71,7 @@ func generateListings(rng *rand.Rand, n int) []model.RawListing {
 func BenchmarkMatch(b *testing.B) {
 	for _, searchCount := range []int{50, 100, 350, 1000} {
 		b.Run(fmt.Sprintf("searches=%d", searchCount), func(b *testing.B) {
-			rng := rand.New(rand.NewPCG(42, 0))
+			rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 			searches := generateSearches(rng, searchCount)
 			listing := generateListings(rng, 1)[0]
 
@@ -87,7 +87,7 @@ func BenchmarkMatch(b *testing.B) {
 }
 
 func BenchmarkMatchBatch(b *testing.B) {
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	searches := generateSearches(rng, 350)
 	listings := generateListings(rng, 200)
 
@@ -103,7 +103,7 @@ func BenchmarkMatchBatch(b *testing.B) {
 }
 
 func BenchmarkCountRejections(b *testing.B) {
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	searches := generateSearches(rng, 350)
 	listings := generateListings(rng, 200)
 

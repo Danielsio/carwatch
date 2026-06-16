@@ -218,7 +218,7 @@ func registerAllPhases() {
 // ─── Phase 1: Percolator ─────────────────────────────────────────────────
 
 func phasePercolator(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	users := benchutil.GenerateUsers(rng, env.Config.users, env.Config.searchesPerUser)
 	searches := benchutil.AllSearches(users)
 	listings := benchutil.GenerateListings(rng, env.Config.listings)
@@ -281,7 +281,7 @@ func phasePercolator(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 // ─── Phase 2: Scoring ────────────────────────────────────────────────────
 
 func phaseScoring(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	listings := benchutil.GenerateListings(rng, env.Config.listings)
 	medianEntries := benchutil.GenerateMedianEntries(rng, 500)
 
@@ -368,7 +368,7 @@ func phaseDBDedup(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	users := benchutil.GenerateUsers(rng, env.Config.users, env.Config.searchesPerUser)
 
 	// Seed users + searches.
@@ -479,7 +479,7 @@ func phaseDBQueries(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	users := benchutil.GenerateUsers(rng, env.Config.users, env.Config.searchesPerUser)
 	listings := benchutil.GenerateListings(rng, env.Config.listings)
 
@@ -621,7 +621,7 @@ func phaseMarketCache(ctx context.Context, env *BenchEnv) (*PhaseResult, error) 
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	users := benchutil.GenerateUsers(rng, 10, 3)
 	listings := benchutil.GenerateListings(rng, env.Config.listings)
 
@@ -1024,7 +1024,7 @@ func phaseFullCycle(ctx context.Context, env *BenchEnv) (*PhaseResult, error) {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	users := benchutil.GenerateUsers(rng, env.Config.users, env.Config.searchesPerUser)
 
 	// Use cached Yad2 listings or generate synthetic.

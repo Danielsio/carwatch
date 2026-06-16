@@ -6,7 +6,7 @@ import (
 )
 
 func BenchmarkFitnessScoreDetailed(b *testing.B) {
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	params := make([]FitnessParams, 200)
 	for i := range params {
 		params[i] = FitnessParams{
@@ -35,7 +35,7 @@ func BenchmarkFitnessScoreDetailed(b *testing.B) {
 }
 
 func BenchmarkScoreWithKm(b *testing.B) {
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	type scoreInput struct {
 		price, km, medianPrice, medianKm int
 	}
@@ -58,7 +58,7 @@ func BenchmarkScoreWithKm(b *testing.B) {
 }
 
 func BenchmarkMarketCacheLookup(b *testing.B) {
-	rng := rand.New(rand.NewPCG(42, 0))
+	rng := rand.New(rand.NewPCG(42, 0)) //nolint:gosec
 	manufacturers := []string{"Mazda", "Toyota", "Honda", "Hyundai", "Kia"}
 	models := []string{"3", "Corolla", "Civic", "i30", "Sportage"}
 
