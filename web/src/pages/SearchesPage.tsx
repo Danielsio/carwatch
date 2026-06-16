@@ -18,11 +18,13 @@ import { useSpotlight } from "@/hooks/useSpotlight";
 import { formatPrice, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchCard } from "@/components/SearchCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { NumberTicker } from "@/components/ui/number-ticker";
 import { NextScanCountdown } from "@/components/NextScanCountdown";
 import { useToast } from "@/components/ui/Toast";
 
@@ -183,7 +185,8 @@ export function SearchesPage() {
       {/* Daily digest */}
       {totalSearches > 0 && (
         <div className="animate-slide-up motion-reduce:animate-none" style={{ animationDelay: "60ms", animationFillMode: "backwards" }}>
-          <div className="rounded-2xl border border-border/50 bg-card p-5">
+          <Card>
+            <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-foreground">סיכום יומי</h2>
               {unread > 0 && (
@@ -209,7 +212,8 @@ export function SearchesPage() {
                 <p className="text-xs text-muted-foreground mt-0.5">חדשות היום</p>
               </div>
             </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -347,7 +351,6 @@ function StatCard({
   label,
   color,
   bg,
-  glow,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   value: number;
@@ -358,50 +361,44 @@ function StatCard({
 }) {
   const spotlight = useSpotlight();
   return (
-    <div
+    <Card
       {...spotlight}
       className={cn(
-        "spotlight group relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-b from-card to-card/80 p-4 sm:p-5 backdrop-blur-sm transition-all duration-300",
-        "hover:border-primary/30 hover:shadow-[0_8px_32px_-8px_var(--color-glow-primary)] hover:-translate-y-1 active:scale-[0.98]",
-        "dark:from-[#0d1017] dark:to-[#0a0d14] dark:border-white/[0.06]",
-        "dark:hover:border-white/[0.12] dark:hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.2)]",
-        "motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100",
-        glow,
+        "spotlight group relative overflow-hidden transition-all duration-300",
+        "hover:border-primary/30 hover:-translate-y-0.5",
+        "hover:shadow-[0_8px_32px_-8px_var(--color-glow-primary)]",
       )}
     >
-      {/* Ambient glow blob */}
-      <div className="pointer-events-none absolute -end-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br from-primary/20 to-violet-500/10 opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
-      {/* Top edge shine */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent dark:via-white/[0.06]" />
-      {/* Hover overlay */}
-      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-
-      <div className="relative flex items-center justify-between mb-3 sm:mb-4">
-        <div
-          className={cn(
-            "flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl",
-            "ring-1 ring-white/[0.08] dark:ring-white/[0.06]",
-            bg,
-          )}
-        >
-          <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5", color)} />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+              bg,
+            )}
+          >
+            <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5", color)} />
+          </div>
         </div>
-      </div>
-      <p className="relative text-3xl sm:text-4xl font-extrabold tabular-nums text-foreground tracking-tighter">
-        {value}
-      </p>
-      <span className="relative mt-1 block text-[11px] sm:text-xs font-medium text-muted-foreground tracking-wide uppercase">{label}</span>
-    </div>
+        <p className="text-3xl sm:text-4xl font-extrabold text-foreground tracking-tighter">
+          <NumberTicker value={value} />
+        </p>
+        <span className="mt-1 block text-[11px] sm:text-xs font-medium text-muted-foreground tracking-wide uppercase">
+          {label}
+        </span>
+      </CardContent>
+    </Card>
   );
 }
 
 function RecentListingRow({ listing }: { listing: Listing }) {
   return (
-    <div>
+    <Card className="transition-all duration-150 hover:border-primary/30 hover:shadow-[0_4px_20px_-8px_var(--color-glow-primary)]">
       <Link
         to={`/listings/${listing.token}`}
         state={{ listing }}
-        className="flex items-center gap-4 rounded-xl border border-border/50 bg-card p-4 transition-all duration-150 hover:border-primary/30 hover:shadow-[0_4px_20px_-8px_var(--color-glow-primary)]"
+        className="flex items-center gap-4 p-4"
       >
         <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-secondary">
           {listing.image_url ? (
@@ -426,10 +423,10 @@ function RecentListingRow({ listing }: { listing: Listing }) {
             {listing.city || "—"} · {relativeTime(listing.first_seen_at)}
           </p>
         </div>
-        <span className="shrink-0 text-sm font-bold tabular-nums text-amber-500 dark:text-amber-400">
+        <span className="shrink-0 text-sm font-bold tabular-nums text-primary">
           {formatPrice(listing.price)}
         </span>
       </Link>
-    </div>
+    </Card>
   );
 }
