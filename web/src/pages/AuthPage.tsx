@@ -10,6 +10,11 @@ import {
 import { auth, firebaseAuthErrorCode, googleProvider } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuroraBackground } from "@/components/ui/AuroraBackground";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 function mapLoginError(code: string) {
@@ -180,45 +185,23 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
         </div>
 
         {/* Card */}
-        <div className="glass-card glow-border relative rounded-2xl p-6 shadow-2xl sm:p-8">
+        <Card className="glow-border relative shadow-2xl">
+          <CardContent className="p-6 sm:p-8">
           {/* Tab toggle */}
-          <div className="mb-6 flex rounded-lg bg-secondary p-1">
-            <button
-              type="button"
-              onClick={() => setTab("login")}
-              className={cn(
-                "flex-1 rounded-md py-2 text-sm font-medium transition-all duration-150",
-                tab === "login"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              התחברות
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("signup")}
-              className={cn(
-                "flex-1 rounded-md py-2 text-sm font-medium transition-all duration-150",
-                tab === "signup"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              הרשמה
-            </button>
-          </div>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as "login" | "signup")} className="mb-6">
+            <TabsList className="w-full">
+              <TabsTrigger value="login" className="flex-1">התחברות</TabsTrigger>
+              <TabsTrigger value="signup" className="flex-1">הרשמה</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           {/* Google OAuth — primary CTA */}
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full gap-3"
             onClick={onGoogle}
             disabled={busy !== null}
-            className={cn(
-              "flex w-full items-center justify-center gap-3 rounded-xl border border-border bg-secondary px-4 py-3 text-sm font-medium text-foreground transition-colors",
-              "hover:bg-accent hover:border-border",
-              "disabled:pointer-events-none disabled:opacity-50",
-            )}
           >
             {busy === "google" ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -231,7 +214,7 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
               </svg>
             )}
             {tab === "login" ? "המשך עם Google" : "הירשם עם Google"}
-          </button>
+          </Button>
 
           {/* Divider */}
           <div className="relative my-5">
@@ -256,10 +239,10 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
 
           <form onSubmit={onSubmit} className="space-y-3.5">
             <div>
-              <label htmlFor="auth-email" className="mb-1 block text-sm font-medium text-foreground">
+              <Label htmlFor="auth-email">
                 אימייל
-              </label>
-              <input
+              </Label>
+              <Input
                 id="auth-email"
                 name="email"
                 type="email"
@@ -269,25 +252,17 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
                 onChange={(e) => setEmail(e.target.value)}
                 onBlur={() => setTouched((p) => ({ ...p, email: true }))}
                 required
-                aria-invalid={!!emailErr}
+                error={!!emailErr}
                 aria-describedby={emailErr ? "auth-email-error" : undefined}
-                className={cn(
-                  "w-full rounded-lg border bg-secondary px-3.5 py-2.5 text-sm text-foreground outline-none transition-all",
-                  "placeholder:text-muted-foreground/50",
-                  "focus:border-primary/50 focus:ring-2 focus:ring-ring/30",
-                  emailErr ? "border-destructive/60" : "border-input",
-                )}
                 placeholder="you@example.com"
               />
               {emailErr && <p id="auth-email-error" className="mt-1 text-xs text-destructive">{emailErr}</p>}
             </div>
 
             <div>
-              <label htmlFor="auth-password" className="mb-1 block text-sm font-medium text-foreground">
-                סיסמה
-              </label>
+              <Label htmlFor="auth-password">סיסמה</Label>
               <div className="relative">
-                <input
+                <Input
                   id="auth-password"
                   name="password"
                   type={showPassword ? "text" : "password"}
@@ -297,14 +272,9 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
                   onChange={(e) => setPassword(e.target.value)}
                   onBlur={() => setTouched((p) => ({ ...p, password: true }))}
                   required
-                  aria-invalid={!!passwordErr}
+                  error={!!passwordErr}
                   aria-describedby={passwordErr ? "auth-password-error" : undefined}
-                  className={cn(
-                    "w-full rounded-lg border bg-secondary py-2.5 ps-10 pe-3.5 text-sm text-foreground outline-none transition-all",
-                    "placeholder:text-muted-foreground/50",
-                    "focus:border-primary/50 focus:ring-2 focus:ring-ring/30",
-                    passwordErr ? "border-destructive/60" : "border-input",
-                  )}
+                  className="ps-10"
                   placeholder="••••••••"
                 />
                 <button
@@ -343,10 +313,8 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
 
             {tab === "signup" && (
               <div>
-                <label htmlFor="auth-confirm" className="mb-1 block text-sm font-medium text-foreground">
-                  אימות סיסמה
-                </label>
-                <input
+                <Label htmlFor="auth-confirm">אימות סיסמה</Label>
+                <Input
                   id="auth-confirm"
                   name="confirm"
                   type="password"
@@ -356,13 +324,8 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
                   onChange={(e) => setConfirm(e.target.value)}
                   onBlur={() => setTouched((p) => ({ ...p, confirm: true }))}
                   required
+                  error={!!confirmErr}
                   aria-describedby={confirmErr ? "auth-confirm-error" : undefined}
-                  className={cn(
-                    "w-full rounded-lg border bg-secondary px-3.5 py-2.5 text-sm text-foreground outline-none transition-all",
-                    "placeholder:text-muted-foreground/50",
-                    "focus:border-primary/50 focus:ring-2 focus:ring-ring/30",
-                    confirmErr ? "border-destructive/60" : "border-input",
-                  )}
                   placeholder="••••••••"
                 />
                 {confirmErr && <p id="auth-confirm-error" className="mt-1 text-xs text-destructive">{confirmErr}</p>}
@@ -375,38 +338,30 @@ export function AuthPage({ defaultTab }: { defaultTab?: "login" | "signup" }) {
               </div>
             )}
 
-            <button
+            <Button
               type="submit"
+              size="lg"
+              className="w-full"
+              loading={busy === "email"}
               disabled={busy !== null}
-              className={cn(
-                "flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity",
-                "hover:opacity-95 active:opacity-90",
-                "disabled:pointer-events-none disabled:opacity-50",
-              )}
             >
-              {busy === "email" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
               {tab === "login" ? "התחבר" : "צור חשבון"}
-            </button>
+            </Button>
           </form>
 
           {/* Guest entry */}
           <div className="mt-5 flex flex-col items-center gap-2">
-            <Link
-              to="/try"
-              className={cn(
-                "flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors",
-                "hover:bg-secondary hover:text-foreground",
-              )}
-            >
-              המשך כאורח
-            </Link>
+            <Button asChild variant="ghost" size="lg" className="w-full">
+              <Link to="/try">המשך כאורח</Link>
+            </Button>
             <p className="text-center text-xs text-muted-foreground/70">
               <Link to="/" className="underline-offset-4 hover:underline hover:text-muted-foreground">
                 מה זה CarWatch?
               </Link>
             </p>
           </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
