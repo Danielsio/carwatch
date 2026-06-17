@@ -96,7 +96,7 @@ export default function App() {
         <Route path="/signup" element={<RouteGuard><SignupPage /></RouteGuard>} />
         <Route path="/try" element={<RouteGuard><Suspense fallback={<PageFallback />}><TrySearchPage /></Suspense></RouteGuard>} />
         <Route element={<ProtectedRoute />}>
-          <Route element={<Shell />}>
+          <Route element={<RouteGuard><Shell /></RouteGuard>}>
             <Route path="/dashboard" element={<RouteGuard><SearchesPage /></RouteGuard>} />
             <Route path="/searches/new" element={<RouteGuard><NewSearchPage /></RouteGuard>} />
             <Route path="/searches/:id/edit" element={<RouteGuard><EditSearchPage /></RouteGuard>} />
