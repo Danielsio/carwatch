@@ -168,8 +168,8 @@ func TestNotify_SingleListing_FormatsPayload(t *testing.T) {
 	if payload.URL != "/listings/tok123" {
 		t.Errorf("url = %q, want %q", payload.URL, "/listings/tok123")
 	}
-	if payload.Icon != "/icon-192.png" {
-		t.Errorf("icon = %q, want %q", payload.Icon, "/icon-192.png")
+	if payload.Icon != "/logo-192.png" {
+		t.Errorf("icon = %q, want %q", payload.Icon, "/logo-192.png")
 	}
 	// Body should contain price and km.
 	if payload.Body != "120000 NIS | 30000 km" {
