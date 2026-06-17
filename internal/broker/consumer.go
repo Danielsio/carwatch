@@ -250,6 +250,16 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {
 			c.ack(ctx, msg.ID)
 			return
 		}
+		if errors.Is(err, notifier.ErrNoDelivery) {
+			// The recipient has no reachable target right now (e.g. a web user
+			// with no push subscription). Retrying or re-claiming would loop
+			// forever, so ack and keep the dedup claim — but log it so the
+			// missed delivery is visible rather than a silent success.
+			c.logger.Warn("no delivery target for recipient; acking without retry",
+				"id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName)
+			c.ack(ctx, msg.ID)
+			return
+		}
 		c.logger.Error("deliver alert failed", "id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName, "error", err)
 		return
 	}

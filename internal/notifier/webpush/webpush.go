@@ -15,6 +15,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -76,7 +77,10 @@ func (n *Notifier) Notify(ctx context.Context, recipient string, listings []mode
 		return fmt.Errorf("webpush: list subscriptions for %d: %w", chatID, err)
 	}
 	if len(subs) == 0 {
-		return nil // user has not subscribed — not an error
+		// Nothing to deliver to. Signal this explicitly so the caller does not
+		// mistake it for a successful delivery (which would silently drop the
+		// alert). See notifier.ErrNoDelivery.
+		return notifier.ErrNoDelivery
 	}
 
 	payload := buildListingPayload(listings)
@@ -100,7 +104,7 @@ func (n *Notifier) NotifyRaw(ctx context.Context, recipient string, message stri
 		return fmt.Errorf("webpush: list subscriptions for %d: %w", chatID, err)
 	}
 	if len(subs) == 0 {
-		return nil
+		return notifier.ErrNoDelivery
 	}
 
 	payload := pushPayload{

@@ -115,58 +115,49 @@ func (m *MultiNotifier) NotifyRaw(ctx context.Context, recipient string, message
 	return errors.Join(errs...)
 }
 
+// resolveAll returns the notifier(s) a recipient should be delivered through,
+// based strictly on the user's platform channel (telegram or web). Each user
+// record belongs to exactly one channel, so we never fan out to channels the
+// user did not opt into — previously web-push was added to every recipient,
+// which caused duplicate sends and, worse, let a no-op web-push "success"
+// (zero subscriptions) mask a failed Telegram delivery, silently dropping the
+// alert. A last-resort fallback is used only when the recipient/user/channel
+// cannot be resolved, so we never drop an alert without attempting delivery.
 func (m *MultiNotifier) resolveAll(ctx context.Context, recipient string) map[string]Notifier {
 	result := make(map[string]Notifier)
 
 	chatID, err := strconv.ParseInt(recipient, 10, 64)
 	if err != nil {
-		if n := m.notifiers[m.fallback]; n != nil {
-			result[m.fallback] = n
-		}
+		m.addFallback(result)
 		return result
 	}
 
 	user, uErr := m.userStore.GetUser(ctx, chatID)
 	if uErr != nil {
 		m.logger.Warn("resolve user failed, using fallback", "recipient", recipient, "error", uErr)
-		if n := m.notifiers[m.fallback]; n != nil {
-			result[m.fallback] = n
-		}
+		m.addFallback(result)
 		return result
 	}
 
-	if user != nil && user.Channel != "" {
-		resolvedChannel := normalizeChannel(user.Channel)
-		if n, ok := m.notifiers[resolvedChannel]; ok {
-			result[resolvedChannel] = n
-		}
+	channel := ""
+	if user != nil {
+		channel = normalizeChannel(user.Channel)
+	}
+	if n, ok := m.notifiers[channel]; ok {
+		result[channel] = n
+		return result
 	}
 
-	if _, ok := result["telegram"]; !ok {
-		if n, ok := m.notifiers["telegram"]; ok {
-			if user != nil && normalizeChannel(user.Channel) == "telegram" {
-				result["telegram"] = n
-			}
-		}
-	}
-
-	if n, ok := m.notifiers["webpush"]; ok {
-		if _, alreadyAdded := result["webpush"]; !alreadyAdded {
-			result["webpush"] = n
-		}
-	}
-
-	if len(result) == 0 {
-		channel := ""
-		if user != nil {
-			channel = user.Channel
-		}
-		m.logger.Warn("no notification channel resolved for user",
-			"recipient", recipient, "channel", channel)
-		if n := m.notifiers[m.fallback]; n != nil {
-			result[m.fallback] = n
-		}
-	}
-
+	m.logger.Warn("no notifier for user channel, using fallback",
+		"recipient", recipient, "channel", channel)
+	m.addFallback(result)
 	return result
+}
+
+// addFallback adds the first-registered (fallback) notifier to result, if one
+// exists. Used only when a recipient's own channel cannot be resolved.
+func (m *MultiNotifier) addFallback(result map[string]Notifier) {
+	if n := m.notifiers[m.fallback]; n != nil {
+		result[m.fallback] = n
+	}
 }

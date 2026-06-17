@@ -3,6 +3,7 @@ package webpush
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
@@ -120,8 +122,8 @@ func TestNotify_NoSubscriptions_Noop(t *testing.T) {
 		{RawListing: model.RawListing{Token: "abc", Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 120000}},
 	}, locale.English)
 
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !errors.Is(err, notifier.ErrNoDelivery) {
+		t.Fatalf("expected ErrNoDelivery for user without subscriptions, got %v", err)
 	}
 	if calls.Load() != 0 {
 		t.Errorf("expected 0 send calls for user without subscriptions, got %d", calls.Load())
@@ -252,8 +254,8 @@ func TestNotifyRaw_NoSubscriptions_Noop(t *testing.T) {
 	n.sendFunc = sendFn
 
 	err := n.NotifyRaw(context.Background(), "99", "hello")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !errors.Is(err, notifier.ErrNoDelivery) {
+		t.Fatalf("expected ErrNoDelivery, got %v", err)
 	}
 	if calls.Load() != 0 {
 		t.Errorf("expected 0 calls, got %d", calls.Load())
