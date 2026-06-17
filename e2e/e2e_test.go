@@ -263,10 +263,10 @@ func TestE2E_DigestFlow(t *testing.T) {
 		t.Errorf("mode=%q interval=%q, want digest/1h", mode, interval)
 	}
 
-	if err := store.AddDigestItem(ctx, 100, "listing A"); err != nil {
+	if err := store.AddDigestItem(ctx, 100, "listing A", []string{"tokA"}); err != nil {
 		t.Fatalf("add item: %v", err)
 	}
-	if err := store.AddDigestItem(ctx, 100, "listing B"); err != nil {
+	if err := store.AddDigestItem(ctx, 100, "listing B", []string{"tokB"}); err != nil {
 		t.Fatalf("add item: %v", err)
 	}
 

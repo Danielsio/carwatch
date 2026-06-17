@@ -8,6 +8,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/notifier"
+	"github.com/dsionov/carwatch/internal/storage"
 )
 
 const (
@@ -186,6 +187,19 @@ func (s *Scheduler) sendDailyDigest(ctx context.Context, chatID int64) {
 	if err := s.notifier.NotifyRaw(ctx, chatIDStr, msg); err != nil {
 		s.logger.Error("send daily digest failed", "chat_id", chatID, "error", err)
 		return
+	}
+
+	// Record an aggregate 'daily' delivery (no per-listing token: the daily
+	// digest is a summary, not a per-listing alert). Best-effort.
+	if s.stores.Deliveries != nil {
+		if err := s.stores.Deliveries.RecordDeliveries(ctx, []storage.DeliveryEvent{{
+			ChatID:    chatID,
+			AlertType: "daily",
+			Status:    "sent",
+		}}); err != nil {
+			s.logger.Error("record daily digest delivery failed (best-effort)",
+				"chat_id", chatID, "error", err)
+		}
 	}
 
 	if err := s.stores.DailyDigests.UpdateDailyDigestLastSent(ctx, chatID); err != nil {

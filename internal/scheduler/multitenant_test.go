@@ -370,7 +370,7 @@ func (m *mockDigestStore) GetDigestMode(_ context.Context, chatID int64) (string
 	return "instant", "6h", nil
 }
 
-func (m *mockDigestStore) AddDigestItem(_ context.Context, chatID int64, payload string) error {
+func (m *mockDigestStore) AddDigestItem(_ context.Context, chatID int64, payload string, _ []string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.items[chatID] = append(m.items[chatID], digestItem{payload: payload, createdAt: time.Now()})

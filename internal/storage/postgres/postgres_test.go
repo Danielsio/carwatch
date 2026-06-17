@@ -30,7 +30,7 @@ func testStore(t *testing.T) *Store {
 	t.Cleanup(func() {
 		db := store.DB()
 		tables := []string{
-			"listing_user_seen", "pending_digest",
+			"listing_user_seen", "pending_digest", "notification_deliveries",
 			"saved_listings", "hidden_listings", "listing_history",
 			"seen_listings", "price_history", "push_subscriptions", "link_tokens",
 			"daily_digest", "search_cycle_stats", "cycle_log",
@@ -1640,7 +1640,7 @@ func TestPostgres_Admin(t *testing.T) {
 	}
 
 	// AdminListListings
-	items, total, err := store.AdminListListings(ctx, 1, 0, 0)
+	items, total, err := store.AdminListListings(ctx, 1, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("AdminListListings: %v", err)
 	}
@@ -1739,13 +1739,13 @@ func TestPostgres_DigestMode(t *testing.T) {
 	store := testStore(t)
 	ctx := context.Background()
 
-	// Default for unknown user
+	// Default for unknown user mirrors the schema default (instant).
 	mode, interval, err := store.GetDigestMode(ctx, 999)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mode != "digest" || interval != "6h" {
-		t.Errorf("defaults = %q/%q, want digest/6h", mode, interval)
+	if mode != "instant" || interval != "6h" {
+		t.Errorf("defaults = %q/%q, want instant/6h", mode, interval)
 	}
 
 	seedPgUser(t, store, 3000)
@@ -1770,10 +1770,10 @@ func TestPostgres_DigestWorkflow(t *testing.T) {
 	seedPgUser(t, store, 3101)
 
 	// Add items
-	if err := store.AddDigestItem(ctx, 3100, `{"token":"a"}`); err != nil {
+	if err := store.AddDigestItem(ctx, 3100, `{"token":"a"}`, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.AddDigestItem(ctx, 3100, `{"token":"b"}`); err != nil {
+	if err := store.AddDigestItem(ctx, 3100, `{"token":"b"}`, []string{"b"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2146,5 +2146,151 @@ func TestPostgres_SearchCycleStats(t *testing.T) {
 	}
 	if len(got6001) != 1 {
 		t.Errorf("user 6001: expected 1, got %d", len(got6001))
+	}
+}
+
+func TestPostgres_RecordDeliveries_Upsert(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+
+	events := []storage.DeliveryEvent{
+		{ChatID: 7000, Token: "tok-a", SearchID: 1, AlertType: "instant", Status: "sent", BatchID: "batch-1"},
+		{ChatID: 7000, Token: "tok-b", SearchID: 1, AlertType: "instant", Status: "sent", BatchID: "batch-1"},
+	}
+	if err := store.RecordDeliveries(ctx, events); err != nil {
+		t.Fatalf("initial insert: %v", err)
+	}
+
+	got, err := store.DeliveredAmong(ctx, 7000, []string{"tok-a", "tok-b", "tok-missing"})
+	if err != nil {
+		t.Fatalf("DeliveredAmong: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 delivered, got %d", len(got))
+	}
+	if got["tok-a"].Status != "sent" {
+		t.Errorf("tok-a status = %q, want sent", got["tok-a"].Status)
+	}
+	if _, ok := got["tok-missing"]; ok {
+		t.Error("tok-missing should not be in map")
+	}
+
+	// Upsert: same (chat, token, type, channel) should update, not duplicate.
+	retry := []storage.DeliveryEvent{
+		{ChatID: 7000, Token: "tok-a", SearchID: 1, AlertType: "instant", Status: "failed"},
+	}
+	if err := store.RecordDeliveries(ctx, retry); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	got2, err := store.DeliveredAmong(ctx, 7000, []string{"tok-a"})
+	if err != nil {
+		t.Fatalf("DeliveredAmong after upsert: %v", err)
+	}
+	if got2["tok-a"].Status != "failed" {
+		t.Errorf("tok-a status after upsert = %q, want failed", got2["tok-a"].Status)
+	}
+}
+
+func TestPostgres_RecordDeliveries_EmptyToken(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+
+	// Empty-token events (aggregate sends like daily digest) should always
+	// insert without conflicting on the partial unique index.
+	for i := range 3 {
+		if err := store.RecordDeliveries(ctx, []storage.DeliveryEvent{{
+			ChatID: 7100, AlertType: "daily", Status: "sent", BatchID: fmt.Sprintf("d-%d", i),
+		}}); err != nil {
+			t.Fatalf("insert %d: %v", i, err)
+		}
+	}
+
+	// DeliveredAmong should return nothing for empty-token rows.
+	got, err := store.DeliveredAmong(ctx, 7100, []string{""})
+	if err != nil {
+		t.Fatalf("DeliveredAmong: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("expected 0 for empty tokens, got %d", len(got))
+	}
+}
+
+func TestPostgres_RecordDeliveries_Empty(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+
+	if err := store.RecordDeliveries(ctx, nil); err != nil {
+		t.Fatalf("nil events should be a no-op: %v", err)
+	}
+	if err := store.RecordDeliveries(ctx, []storage.DeliveryEvent{}); err != nil {
+		t.Fatalf("empty events should be a no-op: %v", err)
+	}
+}
+
+func TestPostgres_DeliveredAmong_Empty(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+
+	got, err := store.DeliveredAmong(ctx, 999, nil)
+	if err != nil {
+		t.Fatalf("nil tokens: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil map for nil tokens, got %v", got)
+	}
+
+	got2, err := store.DeliveredAmong(ctx, 999, []string{})
+	if err != nil {
+		t.Fatalf("empty tokens: %v", err)
+	}
+	if got2 != nil {
+		t.Errorf("expected nil map for empty tokens, got %v", got2)
+	}
+}
+
+func TestPostgres_DigestDeliveriesRecorded(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 7200)
+
+	// Add digest items with tokens.
+	if err := store.AddDigestItem(ctx, 7200, `payload-x`, []string{"dtok-1", "dtok-2"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddDigestItem(ctx, 7200, `payload-y`, []string{"dtok-3"}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, cutoff, err := store.PeekDigest(ctx, 7200)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// AckDigest should atomically record delivery rows + delete pending items.
+	if err := store.AckDigest(ctx, 7200, cutoff); err != nil {
+		t.Fatalf("AckDigest: %v", err)
+	}
+
+	// Check that deliveries were recorded for the tokens.
+	got, err := store.DeliveredAmong(ctx, 7200, []string{"dtok-1", "dtok-2", "dtok-3"})
+	if err != nil {
+		t.Fatalf("DeliveredAmong: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected 3 delivered tokens, got %d", len(got))
+	}
+	for _, tok := range []string{"dtok-1", "dtok-2", "dtok-3"} {
+		di, ok := got[tok]
+		if !ok {
+			t.Errorf("token %q missing from deliveries", tok)
+			continue
+		}
+		if di.AlertType != "digest" {
+			t.Errorf("token %q: alert_type = %q, want digest", tok, di.AlertType)
+		}
+		if di.Status != "sent" {
+			t.Errorf("token %q: status = %q, want sent", tok, di.Status)
+		}
 	}
 }
