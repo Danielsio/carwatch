@@ -154,15 +154,16 @@ jobs:
         with:
           sparse-checkout: |
             docker-compose.prod.yaml
+            Caddyfile
             migrations
 
-      - name: Sync compose file and migrations to VM
+      - name: Sync compose file, Caddyfile and migrations to VM
         uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634 # v0.1.7
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "docker-compose.prod.yaml,migrations"
+          source: "docker-compose.prod.yaml,Caddyfile,migrations"
           target: ~/carwatch/
 
       - name: Prepare immutable deploy tag and rollback marker
@@ -341,6 +342,21 @@ jobs:
             rm -f .deploy_recreate_started
             rm -f next_image_tag
             echo "==> Persisted CARWATCH_IMAGE_TAG=${NEW_TAG} in .env"
+
+            # Apply the latest Caddyfile (synced above, bind-mounted into the
+            # long-lived caddy container) via a graceful, zero-downtime reload —
+            # without recreating the container. caddy keeps the current config if
+            # the new one fails to validate, so a bad reload never drops the site.
+            if docker ps --format '{{.Names}}' | grep -qx caddy; then
+              echo "==> Reloading Caddy with latest config..."
+              if docker exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
+                echo "==> Caddy reloaded."
+              else
+                echo "WARN: caddy reload failed; previous config remains active"
+              fi
+            else
+              echo "==> caddy container not running; skipping reload"
+            fi
 
       - name: Rollback on failure
         if: failure()
