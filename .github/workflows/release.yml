@@ -343,19 +343,28 @@ jobs:
             rm -f next_image_tag
             echo "==> Persisted CARWATCH_IMAGE_TAG=${NEW_TAG} in .env"
 
-            # Apply the latest Caddyfile (synced above, bind-mounted into the
-            # long-lived caddy container) via a graceful, zero-downtime reload —
-            # without recreating the container. caddy keeps the current config if
-            # the new one fails to validate, so a bad reload never drops the site.
-            if docker ps --format '{{.Names}}' | grep -qx caddy; then
-              echo "==> Reloading Caddy with latest config..."
-              if docker exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
-                echo "==> Caddy reloaded."
+            # Apply the latest Caddyfile. It is bind-mounted as a single FILE, so
+            # scp replaces it with a new inode that the running container (and
+            # `caddy reload`) never picks up — only recreating the container
+            # re-resolves the mount. To avoid churn we recreate caddy ONLY when
+            # the file actually changed, and validate the new config first (in a
+            # throwaway container) so a broken Caddyfile can never take the site
+            # down.
+            NEW_CADDY_HASH=$(sha256sum "$HOME/carwatch/Caddyfile" | awk '{print $1}')
+            OLD_CADDY_HASH=$(cat "$HOME/carwatch/.caddyfile.sha256" 2>/dev/null || echo "")
+            if [ "$NEW_CADDY_HASH" != "$OLD_CADDY_HASH" ]; then
+              echo "==> Caddyfile changed — validating new config..."
+              if docker run --rm -v "$HOME/carwatch/Caddyfile:/etc/caddy/Caddyfile:ro" \
+                   caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
+                echo "==> Valid; recreating caddy to apply it..."
+                docker compose -f docker-compose.prod.yaml up -d --force-recreate caddy
+                echo "$NEW_CADDY_HASH" > "$HOME/carwatch/.caddyfile.sha256"
+                echo "==> Caddy recreated with new config."
               else
-                echo "WARN: caddy reload failed; previous config remains active"
+                echo "WARN: new Caddyfile failed validation; leaving caddy running the old config"
               fi
             else
-              echo "==> caddy container not running; skipping reload"
+              echo "==> Caddyfile unchanged; skipping caddy recreate"
             fi
 
       - name: Rollback on failure
