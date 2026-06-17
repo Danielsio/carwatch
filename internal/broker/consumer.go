@@ -239,10 +239,10 @@ func (c *Consumer) deadLetter(ctx context.Context, id string) {
 	} else {
 		c.logger.Warn("message dead-lettered after max retries", dlAttrs...)
 	}
+	c.ack(ctx, id)
 	if alertErr == nil {
 		c.fireDelivery(ctx, alert, id, "dead_lettered")
 	}
-	c.ack(ctx, id)
 }
 
 func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {

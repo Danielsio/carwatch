@@ -190,9 +190,13 @@ func (s *Scheduler) sendDailyDigest(ctx context.Context, chatID int64) {
 	}
 
 	// Record an aggregate 'daily' delivery (no per-listing token: the daily
-	// digest is a summary, not a per-listing alert). Best-effort.
+	// digest is a summary, not a per-listing alert). Best-effort: a failure
+	// must not prevent UpdateDailyDigestLastSent, otherwise the user gets
+	// duplicate digests. Detach from the scheduler context so shutdown
+	// cannot cancel the write.
 	if s.stores.Deliveries != nil {
-		if err := s.stores.Deliveries.RecordDeliveries(ctx, []storage.DeliveryEvent{{
+		recCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		if err := s.stores.Deliveries.RecordDeliveries(recCtx, []storage.DeliveryEvent{{
 			ChatID:    chatID,
 			AlertType: "daily",
 			Status:    "sent",
@@ -200,6 +204,7 @@ func (s *Scheduler) sendDailyDigest(ctx context.Context, chatID int64) {
 			s.logger.Error("record daily digest delivery failed (best-effort)",
 				"chat_id", chatID, "error", err)
 		}
+		cancel()
 	}
 
 	if err := s.stores.DailyDigests.UpdateDailyDigestLastSent(ctx, chatID); err != nil {
