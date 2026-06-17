@@ -1,12 +1,11 @@
 {$CARWATCH_DOMAIN:localhost} {
 	encode zstd gzip
+	# The app (api) already sets CSP, X-Frame-Options, X-Content-Type-Options and
+	# Referrer-Policy on every response. Only add headers it does NOT set, to
+	# avoid duplicate headers (and, for CSP, an intersection-enforced policy).
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Frame-Options "DENY"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.googleapis.com https://accounts.google.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.googleapis.com https://www.gstatic.com https://*.firebaseapp.com https://*.firebaseio.com wss://*.firebaseio.com https://fonts.gstatic.com https://fonts.googleapis.com https://img.yad2.co.il https://apis.google.com; frame-src https://accounts.google.com https://*.firebaseapp.com; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 	}
 	reverse_proxy api:8080
 }
