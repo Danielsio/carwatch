@@ -13,7 +13,6 @@ import { useListingActions } from "@/hooks/useListingActions";
 import { useSpotlight } from "@/hooks/useSpotlight";
 import { useToast } from "@/components/ui/Toast";
 
-/** Dense, scannable single-row variant of a listing — used in compact mode. */
 export const CompactListingCard = memo(function CompactListingCard({
   listing,
 }: {
@@ -38,16 +37,22 @@ export const CompactListingCard = memo(function CompactListingCard({
     .join(" · ");
 
   return (
-    <Link
-      to={`/listings/${listing.token}`}
-      state={{ listing }}
+    <div
       {...spotlight}
-      aria-label={`${listing.manufacturer} ${listing.model} ${listing.year} - ${formatPrice(listing.price)}`}
       className={cn(
-        "spotlight group flex items-center gap-3 rounded-xl border border-border/40 bg-card p-2.5 transition-all duration-200 hover:border-primary/30 hover:shadow-[0_8px_28px_-12px_var(--color-glow-primary)] dir-rtl",
+        "spotlight group relative flex items-center gap-3 rounded-xl border border-border/40 bg-card p-2.5 transition-all duration-200 hover:border-primary/30 hover:shadow-[0_8px_28px_-12px_var(--color-glow-primary)] dir-rtl",
         listing.removed_at && "opacity-60",
       )}
     >
+      {/* Stretched navigation link */}
+      <Link
+        to={`/listings/${listing.token}`}
+        state={{ listing }}
+        aria-label={`${listing.manufacturer} ${listing.model} ${listing.year} - ${formatPrice(listing.price)}`}
+        className="absolute inset-0 z-0 rounded-xl"
+        tabIndex={-1}
+      />
+
       <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-secondary">
         {listing.image_url ? (
           <img
@@ -102,16 +107,13 @@ export const CompactListingCard = memo(function CompactListingCard({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5">
+      {/* Actions — above the stretched link */}
+      <div className="relative z-10 flex shrink-0 items-center gap-0.5">
         <button
           type="button"
           aria-label={seen ? "החזר לרשימת החדשות" : "סמן כנצפה"}
           aria-pressed={seen}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleSeen();
-          }}
+          onClick={() => toggleSeen()}
           className={cn(
             "flex h-11 w-11 items-center justify-center rounded-lg transition-colors",
             seen
@@ -125,14 +127,12 @@ export const CompactListingCard = memo(function CompactListingCard({
           type="button"
           aria-label={saved ? "הסר משמורים" : "שמור מודעה"}
           aria-pressed={saved}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+          onClick={() =>
             toggleSaved({
               onSuccess: (next) =>
                 toast(next ? "נשמר בהצלחה" : "הוסר מהשמורים", next ? "success" : "info"),
-            });
-          }}
+            })
+          }
           className={cn(
             "flex h-11 w-11 items-center justify-center rounded-lg transition-colors",
             saved
@@ -143,6 +143,6 @@ export const CompactListingCard = memo(function CompactListingCard({
           <Bookmark className={cn("h-4 w-4", saved && "fill-current")} />
         </button>
       </div>
-    </Link>
+    </div>
   );
 });

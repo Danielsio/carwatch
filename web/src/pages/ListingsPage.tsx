@@ -479,28 +479,28 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
   return (
     <Card
       {...spotlight}
-      className="spotlight group overflow-hidden transition-all duration-300 ease-out hover:border-primary/20 hover:shadow-[0_16px_48px_-12px_var(--color-glow-primary)] hover:-translate-y-0.5"
+      className="spotlight group relative overflow-hidden transition-all duration-300 ease-out hover:border-primary/20 hover:shadow-[0_16px_48px_-12px_var(--color-glow-primary)] hover:-translate-y-0.5 dir-rtl"
     >
-    <Link
-      to={`/listings/${listing.token}`}
-      state={{ listing }}
-      aria-label={`${listing.manufacturer} ${listing.model} ${listing.year} - ${formatPrice(listing.price)}`}
-      className="block dir-rtl"
-    >
+      {/* Stretched navigation link — covers entire card */}
+      <Link
+        to={`/listings/${listing.token}`}
+        state={{ listing }}
+        aria-label={`${listing.manufacturer} ${listing.model} ${listing.year} - ${formatPrice(listing.price)}`}
+        className="absolute inset-0 z-0"
+        tabIndex={-1}
+      />
+
       <ListingCardBody
         listing={listing}
         hoverScale
         showBookmarkOverlay={saved}
         actions={
-          <>
+          <div className="relative z-10 flex items-center">
             <button
               type="button"
               aria-label={seen ? "החזר לרשימת החדשות" : "סמן כנצפה"}
               aria-pressed={seen}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleSeen();
-              }}
+              onClick={() => toggleSeen()}
               className={cn(
                 "rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all duration-150",
                 seen
@@ -518,12 +518,11 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
               type="button"
               aria-label={saved ? "הסר משמורים" : "שמור מודעה"}
               aria-pressed={saved}
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={() =>
                 toggleSaved({
                   onSuccess: (next) => toast(next ? "נשמר בהצלחה" : "הוסר מהשמורים", next ? "success" : "info"),
-                });
-              }}
+                })
+              }
               className={cn(
                 "rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center transition-all duration-150",
                 saved
@@ -541,16 +540,14 @@ const ListingCard = memo(function ListingCard({ listing }: { listing: Listing })
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="פתח מודעה באתר חיצוני"
-                onClick={(e) => e.stopPropagation()}
                 className="rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground transition-all duration-150 hover:bg-primary/5 hover:text-primary"
               >
                 <ExternalLink className="h-4 w-4" />
               </a>
             ) : null}
-          </>
+          </div>
         }
       />
-    </Link>
     </Card>
   );
 });
