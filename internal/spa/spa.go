@@ -46,7 +46,19 @@ func Handler(distFS fs.FS) http.Handler {
 			}
 		}
 
+		// SPA fallback. The landing route ("/") is prerendered into index.html
+		// for SEO and a fast first paint. Every other route is served a clean
+		// shell (app-shell.html) when one exists, so the authenticated app does
+		// not briefly flash the marketing page before the JS bundle mounts.
+		// Falls back to index.html when no prerendered shell is present.
 		w.Header().Set("Cache-Control", "no-cache")
+		if path != "" {
+			if _, err := fs.Stat(distFS, "app-shell.html"); err == nil {
+				r.URL.Path = "/app-shell.html"
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+		}
 		r.URL.Path = "/"
 		fileServer.ServeHTTP(w, r)
 	})

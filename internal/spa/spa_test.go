@@ -59,3 +59,44 @@ func TestHandler_ServesIndexForSPARoutes(t *testing.T) {
 		})
 	}
 }
+
+// When a prerendered build is present, "/" serves the prerendered landing
+// (index.html) while every other SPA route serves the clean app shell so the
+// app does not flash marketing content before the bundle mounts.
+func TestHandler_ServesShellForNonLandingRoutes(t *testing.T) {
+	fs := fstest.MapFS{
+		"index.html":             {Data: []byte("<html>prerendered-landing</html>")},
+		"app-shell.html":         {Data: []byte("<html>clean-shell</html>")},
+		"assets/index-abc123.js": {Data: []byte("console.log('app')")},
+	}
+
+	handler := Handler(fs)
+
+	tests := []struct {
+		path     string
+		wantBody string
+	}{
+		{"/", "<html>prerendered-landing</html>"},
+		{"/dashboard", "<html>clean-shell</html>"},
+		{"/searches/new", "<html>clean-shell</html>"},
+		{"/listings/tok-123", "<html>clean-shell</html>"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tt.path, nil)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+			}
+			if got := w.Body.String(); got != tt.wantBody {
+				t.Errorf("body = %q, want %q", got, tt.wantBody)
+			}
+			if got := w.Header().Get("Cache-Control"); got != "no-cache" {
+				t.Errorf("Cache-Control = %q, want no-cache", got)
+			}
+		})
+	}
+}
