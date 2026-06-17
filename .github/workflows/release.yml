@@ -343,28 +343,37 @@ jobs:
             rm -f next_image_tag
             echo "==> Persisted CARWATCH_IMAGE_TAG=${NEW_TAG} in .env"
 
-            # Apply the latest Caddyfile. It is bind-mounted as a single FILE, so
-            # scp replaces it with a new inode that the running container (and
-            # `caddy reload`) never picks up — only recreating the container
-            # re-resolves the mount. To avoid churn we recreate caddy ONLY when
-            # the file actually changed, and validate the new config first (in a
-            # throwaway container) so a broken Caddyfile can never take the site
-            # down.
-            NEW_CADDY_HASH=$(sha256sum "$HOME/carwatch/Caddyfile" | awk '{print $1}')
+            # Caddy is a long-lived container with a fixed name ("caddy") that is
+            # NOT owned by this compose project, and a single-file bind mount —
+            # scp swaps the file's inode, which a running container / `caddy
+            # reload` never picks up, so the config only applies on re-create.
+            # Recreate ONLY when the file changed, validate first, use --no-deps
+            # so the app is never touched, and never let a caddy hiccup fail the
+            # deploy (set +e for the remainder of the script).
+            set +e
+            NEW_CADDY_HASH=$(sha256sum "$HOME/carwatch/Caddyfile" 2>/dev/null | awk '{print $1}')
             OLD_CADDY_HASH=$(cat "$HOME/carwatch/.caddyfile.sha256" 2>/dev/null || echo "")
-            if [ "$NEW_CADDY_HASH" != "$OLD_CADDY_HASH" ]; then
+            if [ -n "$NEW_CADDY_HASH" ] && [ "$NEW_CADDY_HASH" != "$OLD_CADDY_HASH" ]; then
               echo "==> Caddyfile changed — validating new config..."
-              if docker run --rm -v "$HOME/carwatch/Caddyfile:/etc/caddy/Caddyfile:ro" \
-                   caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
-                echo "==> Valid; recreating caddy to apply it..."
-                docker compose -f docker-compose.prod.yaml up -d --force-recreate caddy
-                echo "$NEW_CADDY_HASH" > "$HOME/carwatch/.caddyfile.sha256"
-                echo "==> Caddy recreated with new config."
+              if docker run --rm -v "$HOME/carwatch/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
+                echo "==> Valid; applying via caddy recreate (--no-deps)..."
+                docker compose -f docker-compose.prod.yaml up -d --no-deps --force-recreate caddy
+                if [ $? -ne 0 ]; then
+                  echo "==> force-recreate failed (name conflict with externally-managed caddy); removing and recreating..."
+                  docker rm -f caddy
+                  docker compose -f docker-compose.prod.yaml up -d --no-deps caddy
+                fi
+                if docker ps --format '{{.Names}}' | grep -qx caddy; then
+                  echo "$NEW_CADDY_HASH" > "$HOME/carwatch/.caddyfile.sha256"
+                  echo "==> Caddy running with new config."
+                else
+                  echo "WARN: caddy is NOT running after recreate — investigate on the VM"
+                fi
               else
-                echo "WARN: new Caddyfile failed validation; leaving caddy running the old config"
+                echo "WARN: new Caddyfile failed validation; leaving caddy untouched"
               fi
             else
-              echo "==> Caddyfile unchanged; skipping caddy recreate"
+              echo "==> Caddyfile unchanged or missing; skipping caddy recreate"
             fi
 
       - name: Rollback on failure
