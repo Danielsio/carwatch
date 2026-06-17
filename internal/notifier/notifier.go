@@ -11,6 +11,12 @@ import (
 
 var ErrRecipientBlocked = errors.New("recipient blocked the bot")
 
+// ErrNoDelivery means a channel had no reachable target for the recipient (e.g.
+// a web user with zero push subscriptions). It must NOT be treated as a
+// successful delivery — otherwise the alert is silently dropped (dedup claim
+// kept / message ACKed) even though nothing reached the user.
+var ErrNoDelivery = errors.New("no delivery target for recipient")
+
 // MinSafeMessageLen is the minimum length a valid formatted message should
 // have. Anything shorter is almost certainly a bug (raw template syntax,
 // partial format string, or empty payload).

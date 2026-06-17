@@ -97,7 +97,10 @@ func (f *fakeUserStore) GetLinkedTelegramUser(_ context.Context, webChatID int64
 	return u, nil
 }
 
-func TestMultiNotifier_FanOutToAllChannels(t *testing.T) {
+func TestMultiNotifier_TelegramUserGetsOnlyTelegram(t *testing.T) {
+	// A user whose channel is "telegram" must be delivered ONLY via Telegram —
+	// web-push must not be fanned out (it would duplicate, and a no-op push
+	// "success" could mask a Telegram failure).
 	tg := &fakeNotifier{name: "telegram"}
 	wp := &fakeNotifier{name: "webpush"}
 
@@ -117,12 +120,16 @@ func TestMultiNotifier_FanOutToAllChannels(t *testing.T) {
 	if len(tg.rawCalls) != 1 {
 		t.Errorf("telegram got %d calls, want 1", len(tg.rawCalls))
 	}
-	if len(wp.rawCalls) != 1 {
-		t.Errorf("webpush got %d calls, want 1 (fan-out)", len(wp.rawCalls))
+	if len(wp.rawCalls) != 0 {
+		t.Errorf("webpush got %d calls, want 0 (must respect telegram-only preference)", len(wp.rawCalls))
 	}
 }
 
-func TestMultiNotifier_PartialFailureSucceeds(t *testing.T) {
+func TestMultiNotifier_ChannelFailureSurfaces(t *testing.T) {
+	// A Telegram user resolves only to Telegram; if Telegram delivery fails the
+	// error MUST surface (so the dedup claim is released and the alert retried)
+	// rather than being masked by a no-op web-push success on a channel the user
+	// never opted into. This is the regression guard for the silent-miss bug.
 	tg := &fakeNotifier{name: "telegram", notifyErr: fmt.Errorf("telegram down")}
 	wp := &fakeNotifier{name: "webpush"}
 
@@ -135,9 +142,33 @@ func TestMultiNotifier_PartialFailureSucceeds(t *testing.T) {
 	_ = mn.Register("webpush", wp)
 
 	ctx := context.Background()
-	err := mn.NotifyRaw(ctx, "100", "hello")
-	if err != nil {
-		t.Fatalf("partial failure should succeed, got: %v", err)
+	if err := mn.NotifyRaw(ctx, "100", "hello"); err == nil {
+		t.Fatal("telegram failure must surface as an error, not be masked by web-push")
+	}
+	if len(wp.rawCalls) != 0 {
+		t.Errorf("webpush got %d calls, want 0 (telegram user must not fan out to push)", len(wp.rawCalls))
+	}
+}
+
+func TestMultiNotifier_WebUserNoSubscriptionSurfaces(t *testing.T) {
+	// A web user with zero push subscriptions: webpush returns ErrNoDelivery,
+	// which must surface as an error (not silent success) so the alert is retried
+	// instead of being marked delivered.
+	wp := &fakeNotifier{name: "webpush", notifyErr: ErrNoDelivery}
+	users := &fakeUserStore{users: map[int64]*storage.User{
+		777: {ChatID: 777, Channel: "web"},
+	}}
+
+	mn := NewMultiNotifier(users, slog.Default())
+	_ = mn.Register("telegram", &fakeNotifier{name: "telegram"})
+	_ = mn.Register("webpush", wp)
+
+	err := mn.NotifyRaw(context.Background(), "777", "hello")
+	if err == nil {
+		t.Fatal("web user with no subscriptions must surface an error, not silent success")
+	}
+	if !errors.Is(err, ErrNoDelivery) {
+		t.Errorf("expected ErrNoDelivery, got %v", err)
 	}
 }
 
