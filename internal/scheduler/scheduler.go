@@ -110,7 +110,6 @@ type Stores struct {
 	DailyDigests     storage.DailyDigestStore
 	CycleLog         storage.CycleLogStore
 	SearchCycleStats storage.SearchCycleStatsStore
-	Deliveries       storage.NotificationDeliveryStore
 }
 
 type searchResult struct {
@@ -139,7 +138,6 @@ type Options struct {
 	DailyDigestStore      storage.DailyDigestStore
 	CycleLogStore         storage.CycleLogStore
 	SearchCycleStatsStore storage.SearchCycleStatsStore
-	DeliveryStore         storage.NotificationDeliveryStore
 	MarketCacheTTL        time.Duration
 	Publisher             *broker.Publisher
 	EnrichPublisher       *broker.EnrichPublisher
@@ -206,7 +204,6 @@ func NewWithOptions(
 			DailyDigests:     opts.DailyDigestStore,
 			CycleLog:         opts.CycleLogStore,
 			SearchCycleStats: opts.SearchCycleStatsStore,
-			Deliveries:       opts.DeliveryStore,
 		},
 		notifier:        n,
 		logger:          logger,

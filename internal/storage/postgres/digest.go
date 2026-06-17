@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/storage"
@@ -26,9 +25,7 @@ func (s *Store) GetDigestMode(ctx context.Context, chatID int64) (string, string
 		`SELECT digest_mode, digest_interval FROM users WHERE chat_id = $1`,
 		chatID).Scan(&mode, &interval)
 	if err == sql.ErrNoRows {
-		// Unknown user: mirror the schema default (instant) rather than
-		// silently batching their alerts. See migration 000025.
-		return "instant", "6h", nil
+		return "digest", "6h", nil
 	}
 	if err != nil {
 		return "", "", fmt.Errorf("get digest mode: %w", err)
@@ -36,10 +33,10 @@ func (s *Store) GetDigestMode(ctx context.Context, chatID int64) (string, string
 	return mode, interval, nil
 }
 
-func (s *Store) AddDigestItem(ctx context.Context, chatID int64, payload string, tokens []string) error {
+func (s *Store) AddDigestItem(ctx context.Context, chatID int64, payload string) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO pending_digest (chat_id, listing_payload, tokens) VALUES ($1, $2, $3)`,
-		chatID, payload, strings.Join(tokens, ","))
+		`INSERT INTO pending_digest (chat_id, listing_payload) VALUES ($1, $2)`,
+		chatID, payload)
 	if err != nil {
 		return fmt.Errorf("add digest item: %w", err)
 	}
@@ -76,14 +73,6 @@ func (s *Store) AckDigest(ctx context.Context, chatID int64, before time.Time) e
 		return fmt.Errorf("ack digest begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-
-	// Record a 'digest' delivery for every listing token covered by the items
-	// about to be flushed, so digest-mode users get the same per-listing
-	// "delivered" visibility as instant users. AckDigest runs only after a
-	// successful send, so these are confirmed deliveries.
-	if err := s.recordDigestDeliveries(ctx, tx, chatID, before); err != nil {
-		return err
-	}
 
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM pending_digest WHERE chat_id = $1 AND created_at <= $2`,

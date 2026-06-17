@@ -175,17 +175,12 @@ func (d *DigestDelivery) DeliverBatch(ctx context.Context, chatID int64, listing
 	if notifier.IsMalformedMessage(msg) {
 		return errMalformedMessage
 	}
-	tokens := make([]string, 0, len(listings))
-	for _, l := range listings {
-		tokens = append(tokens, l.Token)
-	}
-	return d.store.AddDigestItem(ctx, chatID, msg, tokens)
+	return d.store.AddDigestItem(ctx, chatID, msg)
 }
 
 func (d *DigestDelivery) DeliverRaw(ctx context.Context, chatID int64, message string) error {
 	if notifier.IsMalformedMessage(message) {
 		return errMalformedMessage
 	}
-	// Raw digest items (e.g. price drops) carry no per-listing token.
-	return d.store.AddDigestItem(ctx, chatID, message, nil)
+	return d.store.AddDigestItem(ctx, chatID, message)
 }

@@ -118,14 +118,8 @@ type PriceTracker interface {
 type DigestStore interface {
 	SetDigestMode(ctx context.Context, chatID int64, mode string, interval string) error
 	GetDigestMode(ctx context.Context, chatID int64) (mode string, interval string, err error)
-	// AddDigestItem queues a rendered digest payload plus the source listing
-	// tokens it covers (used to attribute the eventual send in the delivery
-	// ledger). tokens may be empty for token-less items (e.g. price drops).
-	AddDigestItem(ctx context.Context, chatID int64, payload string, tokens []string) error
+	AddDigestItem(ctx context.Context, chatID int64, payload string) error
 	PeekDigest(ctx context.Context, chatID int64) ([]string, time.Time, error)
-	// AckDigest is called only after a digest was successfully sent: it records
-	// a 'digest' delivery for every queued token, deletes the flushed items, and
-	// stamps digest_last_flushed — atomically.
 	AckDigest(ctx context.Context, chatID int64, before time.Time) error
 	PendingDigestUsers(ctx context.Context) ([]int64, error)
 	DigestLastFlushed(ctx context.Context, chatID int64) (time.Time, error)
@@ -164,12 +158,6 @@ type ListingRecord struct {
 	// RemovedAt: non-nil when the listing disappeared from the source but was
 	// preserved because it is bookmarked ("likely sold").
 	RemovedAt *time.Time
-	// Delivery: latest Telegram-delivery outcome for this (chat, listing) from
-	// the notification_deliveries ledger. Nil NotifiedAt = no delivery recorded
-	// (matched-only / not tracked), distinct from a 'failed'/'dropped' status.
-	NotifiedAt   *time.Time
-	NotifyVia    string // instant | price_drop | digest | daily
-	NotifyStatus string // sent | failed | dropped | dead_lettered
 }
 
 type PricePoint struct {
@@ -348,41 +336,6 @@ type DailySearchStats struct {
 	PriceTrend    float64
 }
 
-// DeliveryEvent records the outcome of attempting to send one alert to one
-// user for one listing (or an aggregate send when Token is empty).
-type DeliveryEvent struct {
-	ChatID    int64
-	Token     string // "" for aggregate sends (e.g. daily digest)
-	SearchID  int64
-	AlertType string // instant | price_drop | digest | daily
-	Channel   string // defaults to "telegram" when empty
-	Status    string // sent | failed | dropped | dead_lettered (defaults to "sent")
-	BatchID   string // groups one Telegram message ↔ N listings (Redis stream id)
-	Error     string
-}
-
-// DeliveryInfo is the latest delivery outcome for a (chat, token) pair.
-type DeliveryInfo struct {
-	Token     string    `json:"token"`
-	AlertType string    `json:"alert_type"`
-	Status    string    `json:"status"`
-	SentAt    time.Time `json:"sent_at"`
-}
-
-// NotificationDeliveryStore persists and reads the alert-delivery ledger
-// (notification_deliveries). This is the durable record of whether a specific
-// alert actually reached a user — distinct from listing_history, which only
-// records that a listing matched/was recorded.
-type NotificationDeliveryStore interface {
-	// RecordDeliveries upserts delivery outcomes. Repeated outcomes for the
-	// same (chat_id, token, alert_type, channel) collapse to one row with
-	// attempts incremented — making broker retries/reclaims idempotent.
-	RecordDeliveries(ctx context.Context, events []DeliveryEvent) error
-	// DeliveredAmong returns, for each token that has any delivery record for
-	// chatID, its most recent delivery info.
-	DeliveredAmong(ctx context.Context, chatID int64, tokens []string) (map[string]DeliveryInfo, error)
-}
-
 type DailyDigestStore interface {
 	SetDailyDigest(ctx context.Context, chatID int64, enabled bool, digestTime string) error
 	GetDailyDigest(ctx context.Context, chatID int64) (enabled bool, digestTime string, lastSent time.Time, err error)
@@ -445,7 +398,7 @@ type AdminStore interface {
 	CountAllListings(ctx context.Context) (int64, error)
 	TableSizes(ctx context.Context) (map[string]int64, error)
 	PurgeTable(ctx context.Context, table string) (int64, error)
-	AdminListListings(ctx context.Context, limit, offset int, searchID, chatID int64) ([]ListingRecord, int64, error)
+	AdminListListings(ctx context.Context, limit, offset int, searchID int64) ([]ListingRecord, int64, error)
 	AdminDeleteListing(ctx context.Context, token string, chatID int64) error
 	AdminListSearches(ctx context.Context) ([]Search, error)
 	AdminDeleteSearch(ctx context.Context, id int64) error

@@ -113,7 +113,7 @@ func newFailDigestStore(err error) *failDigestStore {
 	}
 }
 
-func (m *failDigestStore) AddDigestItem(_ context.Context, _ int64, _ string, _ []string) error {
+func (m *failDigestStore) AddDigestItem(_ context.Context, _ int64, _ string) error {
 	return m.addErr
 }
 

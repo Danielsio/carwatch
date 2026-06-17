@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { adminApi, type AdminDelivery, type AdminListing } from "@/lib/api";
+import { adminApi, type AdminListing } from "@/lib/api";
 import { EmptyState, Skeleton, Badge } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,47 +22,6 @@ import { formatKm, formatPrice, relativeTime, safeHref } from "@/lib/utils";
 import { ConfirmModal } from "./ConfirmModal";
 import { DetailModal } from "./DetailModal";
 
-const ALERT_TYPE_LABELS: Record<string, string> = {
-  instant: "מיידי",
-  digest: "סיכום",
-  daily: "יומי",
-  price_drop: "ירידת מחיר",
-};
-
-const FAILED_STATUS_LABELS: Record<string, string> = {
-  dead_lettered: "נכשל סופית",
-  dropped: "לא נמסר",
-  failed: "נכשל",
-};
-
-function DeliveryBadge({ delivered }: { delivered?: AdminDelivery }) {
-  if (!delivered) {
-    return (
-      <Badge
-        variant="secondary"
-        className="text-[10px] px-1.5 py-0"
-        title="לא תועדה שליחת התראה למשתמש"
-      >
-        — לא נשלח
-      </Badge>
-    );
-  }
-  const sent = delivered.status === "sent";
-  const via = ALERT_TYPE_LABELS[delivered.alert_type] ?? delivered.alert_type;
-  const label = sent
-    ? `✓ נשלח · ${via}`
-    : `✗ ${FAILED_STATUS_LABELS[delivered.status] ?? delivered.status}`;
-  return (
-    <Badge
-      variant={sent ? "success" : "destructive"}
-      className="text-[10px] px-1.5 py-0"
-      title={`${via} · ${relativeTime(delivered.sent_at)}`}
-    >
-      {label}
-    </Badge>
-  );
-}
-
 export function ListingsTab({
   searchId,
   onClearFilter,
@@ -70,7 +29,6 @@ export function ListingsTab({
   searchId: number | null;
   onClearFilter: () => void;
 }) {
-  const [chatIdInput, setChatIdInput] = useState("");
   const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [detailListing, setDetailListing] = useState<AdminListing | null>(null);
@@ -79,22 +37,17 @@ export function ListingsTab({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const chatId = /^\d+$/.test(chatIdInput.trim())
-    ? Number(chatIdInput.trim())
-    : null;
-
   useEffect(() => {
     setPage(0);
-  }, [searchId, chatId]);
+  }, [searchId]);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin", "listings", page, searchId, chatId],
+    queryKey: ["admin", "listings", page, searchId],
     queryFn: () =>
       adminApi.listings({
         limit: pageSize,
         offset: page * pageSize,
         ...(searchId ? { search_id: searchId } : {}),
-        ...(chatId ? { chat_id: chatId } : {}),
       }),
   });
 
@@ -160,15 +113,6 @@ export function ListingsTab({
             className="pe-10 ps-4"
           />
         </div>
-        <Input
-          type="text"
-          inputMode="numeric"
-          value={chatIdInput}
-          onChange={(e) => setChatIdInput(e.target.value.replace(/\D/g, ""))}
-          placeholder="סנן לפי Chat ID..."
-          className="px-4 sm:w-44 ltr-nums"
-          aria-label="סינון לפי Chat ID"
-        />
         <Button variant="outline" size="sm" onClick={() => void refetch()}>
           <RefreshCw className="h-3.5 w-3.5" />
           רענן
@@ -265,7 +209,6 @@ export function ListingsTab({
                             {listing.fitness_score.toFixed(1)}
                           </Badge>
                         )}
-                        <DeliveryBadge delivered={listing.delivered} />
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
@@ -394,16 +337,6 @@ export function ListingsTab({
                 value: detailListing.first_seen_at
                   ? relativeTime(detailListing.first_seen_at)
                   : null,
-              },
-              {
-                label: "התראת טלגרם",
-                value: detailListing.delivered
-                  ? `${
-                      detailListing.delivered.status === "sent"
-                        ? "✓ נשלח"
-                        : `✗ ${FAILED_STATUS_LABELS[detailListing.delivered.status] ?? detailListing.delivered.status}`
-                    } · ${ALERT_TYPE_LABELS[detailListing.delivered.alert_type] ?? detailListing.delivered.alert_type} · ${relativeTime(detailListing.delivered.sent_at)}`
-                  : "לא נשלח",
               },
               { label: "חיפוש", value: detailListing.search_name },
               { label: "Token", value: detailListing.token },

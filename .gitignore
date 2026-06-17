@@ -24,8 +24,6 @@ web/dist/
 firebase-service-account*.json
 *-adminsdk-*.json
 *.pem
-*.key
-ssh-key-*
 *.env
 *.env.local
 *.env.*.local

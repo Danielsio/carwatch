@@ -705,7 +705,7 @@ func (f *failingAdminStore) PurgeTable(_ context.Context, _ string) (int64, erro
 	return 0, nil
 }
 
-func (f *failingAdminStore) AdminListListings(_ context.Context, _, _ int, _, _ int64) ([]storage.ListingRecord, int64, error) {
+func (f *failingAdminStore) AdminListListings(_ context.Context, _, _ int, _ int64) ([]storage.ListingRecord, int64, error) {
 	return nil, 0, nil
 }
 

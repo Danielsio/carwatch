@@ -127,11 +127,11 @@ func (m *errDigestStore) GetDigestMode(ctx context.Context, chatID int64) (strin
 	return m.mockDigestStore.GetDigestMode(ctx, chatID)
 }
 
-func (m *errDigestStore) AddDigestItem(ctx context.Context, chatID int64, payload string, tokens []string) error {
+func (m *errDigestStore) AddDigestItem(ctx context.Context, chatID int64, payload string) error {
 	if m.addItemErr != nil {
 		return m.addItemErr
 	}
-	return m.mockDigestStore.AddDigestItem(ctx, chatID, payload, tokens)
+	return m.mockDigestStore.AddDigestItem(ctx, chatID, payload)
 }
 
 func (m *errDigestStore) PeekDigest(ctx context.Context, chatID int64) ([]string, time.Time, error) {

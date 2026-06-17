@@ -123,7 +123,6 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 		multi.NotifyRaw,
 		logger.With("component", "broker-consumer"),
 		broker.WithDeadLetterHook(releaseDedupClaimsOnDeadLetter(store, logger)),
-		broker.WithDeliveryHook(recordDeliveries(store, logger)),
 	)
 	if err != nil {
 		return fmt.Errorf("create redis consumer: %w", err)
@@ -206,47 +205,5 @@ func releaseDedupClaimsOnDeadLetter(dedup storage.DedupStore, logger *slog.Logge
 			"tokens", len(alert.Tokens),
 			"search_id", alert.SearchID)
 		return nil
-	}
-}
-
-// recordDeliveries persists each instant-path delivery outcome to the ledger.
-// Token-bearing alerts (new-listing batches) record one row per listing sharing
-// the Redis message id as batch_id; token-less alerts (price drops) record one
-// aggregate row. Best-effort: a ledger write failure is logged but never blocks
-// acking — the message was already delivered.
-func recordDeliveries(deliveries storage.NotificationDeliveryStore, logger *slog.Logger) broker.DeliveryHook {
-	return func(ctx context.Context, alert broker.Alert, msgID, status string) {
-		if deliveries == nil {
-			return
-		}
-		var events []storage.DeliveryEvent
-		if len(alert.Tokens) > 0 {
-			events = make([]storage.DeliveryEvent, 0, len(alert.Tokens))
-			for _, token := range alert.Tokens {
-				events = append(events, storage.DeliveryEvent{
-					ChatID:    alert.ChatID,
-					Token:     token,
-					SearchID:  alert.SearchID,
-					AlertType: "instant",
-					Status:    status,
-					BatchID:   msgID,
-				})
-			}
-		} else {
-			events = []storage.DeliveryEvent{{
-				ChatID:    alert.ChatID,
-				SearchID:  alert.SearchID,
-				AlertType: "price_drop",
-				Status:    status,
-				BatchID:   msgID,
-			}}
-		}
-
-		recCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		if err := deliveries.RecordDeliveries(recCtx, events); err != nil {
-			logger.Error("record delivery ledger failed (best-effort)",
-				"chat_id", alert.ChatID, "status", status, "tokens", len(alert.Tokens), "error", err)
-		}
 	}
 }

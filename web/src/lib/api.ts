@@ -334,18 +334,10 @@ export interface VitalsSummary {
   poor: number;
 }
 
-export interface AdminDelivery {
-  status: string; // sent | failed | dropped | dead_lettered
-  alert_type: string; // instant | price_drop | digest | daily
-  sent_at: string;
-}
-
 export interface AdminListing extends Listing {
   chat_id: number;
   search_id: number;
   search_name?: string;
-  /** Latest Telegram-delivery outcome; absent = no delivery recorded (matched-only). */
-  delivered?: AdminDelivery;
 }
 
 export interface AdminListingsResponse {
@@ -458,12 +450,11 @@ export interface AdminCyclesResponse {
 
 export const adminApi = {
   stats: () => fetchAPI<AdminStats>("/admin/stats"),
-  listings: (params?: ListingsParams & { search_id?: number; chat_id?: number }) => {
+  listings: (params?: ListingsParams & { search_id?: number }) => {
     const query = new URLSearchParams();
     if (params?.limit !== undefined) query.set("limit", String(params.limit));
     if (params?.offset !== undefined) query.set("offset", String(params.offset));
     if (params?.search_id) query.set("search_id", String(params.search_id));
-    if (params?.chat_id) query.set("chat_id", String(params.chat_id));
     const qs = query.toString();
     return fetchAPI<AdminListingsResponse>(`/admin/listings${qs ? `?${qs}` : ""}`);
   },

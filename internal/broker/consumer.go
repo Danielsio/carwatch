@@ -31,18 +31,11 @@ const (
 type NotifyFunc func(ctx context.Context, recipient string, message string) error
 type DeadLetterHook func(ctx context.Context, alert Alert) error
 
-// DeliveryHook records the outcome of a delivery attempt for the persisted
-// delivery ledger. msgID is the Redis stream id (used as a batch id grouping
-// one Telegram message ↔ N listings). It is best-effort: it must not block
-// acking, and errors are the hook's own responsibility to log.
-type DeliveryHook func(ctx context.Context, alert Alert, msgID string, status string)
-
 // Consumer reads alerts from the Redis Stream and delivers them.
 type Consumer struct {
 	client               *redis.Client
 	notify               NotifyFunc
 	deadLetterHook       DeadLetterHook
-	deliveryHook         DeliveryHook
 	limiter              *rate.Limiter
 	logger               *slog.Logger
 	consumer             string
@@ -93,18 +86,6 @@ func NewConsumer(addr, password string, db int, notify NotifyFunc, logger *slog.
 func WithDeadLetterHook(h DeadLetterHook) func(*Consumer) {
 	return func(c *Consumer) {
 		c.deadLetterHook = h
-	}
-}
-
-func WithDeliveryHook(h DeliveryHook) func(*Consumer) {
-	return func(c *Consumer) {
-		c.deliveryHook = h
-	}
-}
-
-func (c *Consumer) fireDelivery(ctx context.Context, alert Alert, msgID, status string) {
-	if c.deliveryHook != nil {
-		c.deliveryHook(ctx, alert, msgID, status)
 	}
 }
 
@@ -239,9 +220,6 @@ func (c *Consumer) deadLetter(ctx context.Context, id string) {
 	} else {
 		c.logger.Warn("message dead-lettered after max retries", dlAttrs...)
 	}
-	if alertErr == nil {
-		c.fireDelivery(ctx, alert, id, "dead_lettered")
-	}
 	c.ack(ctx, id)
 }
 
@@ -270,7 +248,6 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {
 			c.logger.Warn("dropping alert for permanently undeliverable recipient",
 				"id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName, "error", err)
 			c.ack(ctx, msg.ID)
-			c.fireDelivery(ctx, alert, msg.ID, "dropped")
 			return
 		}
 		if errors.Is(err, notifier.ErrNoDelivery) {
@@ -281,7 +258,6 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {
 			c.logger.Warn("no delivery target for recipient; acking without retry",
 				"id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName)
 			c.ack(ctx, msg.ID)
-			c.fireDelivery(ctx, alert, msg.ID, "dropped")
 			return
 		}
 		c.logger.Error("deliver alert failed", "id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName, "error", err)
@@ -290,7 +266,6 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) {
 
 	c.ack(ctx, msg.ID)
 	c.logger.Info("alert delivered", "id", msg.ID, "chat_id", alert.ChatID, "search_name", alert.SearchName)
-	c.fireDelivery(ctx, alert, msg.ID, "sent")
 
 	if telemetry.QueueLag != nil {
 		if lag := messageAge(msg.ID); lag > 0 {

@@ -105,7 +105,6 @@ export function LogsTab({ active }: { active: boolean }) {
   const [autoScroll, setAutoScroll] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [backendLevel, setBackendLevel] = useState("INFO");
-  const [chatIdFilter, setChatIdFilter] = useState("");
 
   const availableComponents = useMemo(
     () => Array.from(new Set(logs.map((e) => e.component))).sort(),
@@ -126,20 +125,14 @@ export function LogsTab({ active }: { active: boolean }) {
     }
   }
 
-  const filtered = useMemo(() => {
-    const cid = chatIdFilter.trim();
-    return logs.filter((e) => {
-      if (excludedComponents.has(e.component) || !levelFilter.has(e.level)) {
-        return false;
-      }
-      if (cid) {
-        const inAttrs = e.attrs && String(e.attrs.chat_id ?? "") === cid;
-        const inMessage = e.message?.includes(cid);
-        if (!inAttrs && !inMessage) return false;
-      }
-      return true;
-    });
-  }, [logs, excludedComponents, levelFilter, chatIdFilter]);
+  const filtered = useMemo(
+    () =>
+      logs.filter(
+        (e) =>
+          !excludedComponents.has(e.component) && levelFilter.has(e.level),
+      ),
+    [logs, excludedComponents, levelFilter],
+  );
 
   useEffect(() => {
     if (autoScroll && bottomRef.current) {
@@ -233,17 +226,6 @@ export function LogsTab({ active }: { active: boolean }) {
               );
             })}
           </div>
-
-          {/* Chat ID filter */}
-          <input
-            type="text"
-            inputMode="numeric"
-            value={chatIdFilter}
-            onChange={(e) => setChatIdFilter(e.target.value.replace(/\D/g, ""))}
-            placeholder="Chat ID..."
-            aria-label="סינון לוגים לפי Chat ID"
-            className="h-7 w-28 rounded-md border border-border bg-secondary/50 px-2 text-[11px] tabular-nums placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-          />
         </div>
 
         <div className="flex items-center gap-2">

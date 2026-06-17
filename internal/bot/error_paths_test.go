@@ -183,9 +183,7 @@ func (m *errDigestStore) GetDigestMode(_ context.Context, _ int64) (string, stri
 	return m.mode, m.interval, nil
 }
 
-func (m *errDigestStore) AddDigestItem(_ context.Context, _ int64, _ string, _ []string) error {
-	return nil
-}
+func (m *errDigestStore) AddDigestItem(_ context.Context, _ int64, _ string) error { return nil }
 func (m *errDigestStore) PeekDigest(_ context.Context, _ int64) ([]string, time.Time, error) {
 	return nil, time.Time{}, nil
 }

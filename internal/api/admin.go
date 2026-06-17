@@ -39,15 +39,6 @@ type adminListingResponse struct {
 	EngineType   string   `json:"engine_type,omitempty"`
 	GearBox      string   `json:"gear_box,omitempty"`
 	Description  string   `json:"description,omitempty"`
-	// Delivered is the latest Telegram-delivery outcome for this (chat, listing).
-	// nil means no delivery was recorded (matched-only / not tracked).
-	Delivered *adminDeliveryInfo `json:"delivered,omitempty"`
-}
-
-type adminDeliveryInfo struct {
-	Status    string `json:"status"`     // sent | failed | dropped | dead_lettered
-	AlertType string `json:"alert_type"` // instant | price_drop | digest | daily
-	SentAt    string `json:"sent_at"`
 }
 
 type adminStatsResponse struct {
@@ -244,13 +235,8 @@ func (s *Server) adminListListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	searchID := int64(searchIDVal)
-	chatIDVal, ok := parseIntParam(w, r, "chat_id", 0)
-	if !ok {
-		return
-	}
-	chatID := int64(chatIDVal)
 
-	items, total, err := s.admin.AdminListListings(r.Context(), limit, offset, searchID, chatID)
+	items, total, err := s.admin.AdminListListings(r.Context(), limit, offset, searchID)
 	if err != nil {
 		s.logger.Error("admin: list listings", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to list listings")
@@ -259,16 +245,7 @@ func (s *Server) adminListListings(w http.ResponseWriter, r *http.Request) {
 
 	resp := make([]adminListingResponse, 0, len(items))
 	for _, l := range items {
-		var delivered *adminDeliveryInfo
-		if l.NotifiedAt != nil {
-			delivered = &adminDeliveryInfo{
-				Status:    l.NotifyStatus,
-				AlertType: l.NotifyVia,
-				SentAt:    l.NotifiedAt.UTC().Format("2006-01-02T15:04:05Z"),
-			}
-		}
 		resp = append(resp, adminListingResponse{
-			Delivered:    delivered,
 			ChatID:       l.ChatID,
 			Token:        l.Token,
 			SearchID:     l.SearchID,
