@@ -133,40 +133,48 @@ func (s *Store) ResetAllData(ctx context.Context) (map[string]int64, error) {
 	return counts, nil
 }
 
-func (s *Store) AdminListListings(ctx context.Context, limit, offset int, searchID int64) ([]storage.ListingRecord, int64, error) {
-	var total int64
+func (s *Store) AdminListListings(ctx context.Context, limit, offset int, searchID, chatID int64) ([]storage.ListingRecord, int64, error) {
+	// Build dynamic filters shared by the count and page queries.
+	var conds []string
+	var filterArgs []any
 	if searchID > 0 {
-		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM listing_history WHERE search_id = $1`, searchID).Scan(&total); err != nil {
-			return nil, 0, fmt.Errorf("count listings: %w", err)
-		}
-	} else {
-		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM listing_history`).Scan(&total); err != nil {
-			return nil, 0, fmt.Errorf("count listings: %w", err)
-		}
+		filterArgs = append(filterArgs, searchID)
+		conds = append(conds, fmt.Sprintf("lh.search_id = $%d", len(filterArgs)))
+	}
+	if chatID > 0 {
+		filterArgs = append(filterArgs, chatID)
+		conds = append(conds, fmt.Sprintf("lh.chat_id = $%d", len(filterArgs)))
+	}
+	where := ""
+	if len(conds) > 0 {
+		where = " WHERE " + strings.Join(conds, " AND ")
 	}
 
-	var rows *sql.Rows
-	var err error
-	if searchID > 0 {
-		rows, err = s.db.QueryContext(ctx, `
-			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
-				km, hand, city, page_link, image_url,
-				engine_volume, horse_power, engine_type, gear_box, description,
-				is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, posted_at, removed_at
-			FROM listing_history
-			WHERE search_id = $1
-			ORDER BY first_seen_at DESC
-			LIMIT $2 OFFSET $3`, searchID, limit, offset)
-	} else {
-		rows, err = s.db.QueryContext(ctx, `
-			SELECT token, chat_id, search_id, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
-				km, hand, city, page_link, image_url,
-				engine_volume, horse_power, engine_type, gear_box, description,
-				is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, posted_at, removed_at
-			FROM listing_history
-			ORDER BY first_seen_at DESC
-			LIMIT $1 OFFSET $2`, limit, offset)
+	var total int64
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM listing_history lh`+where, filterArgs...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count listings: %w", err)
 	}
+
+	// Latest delivery outcome per (chat, token) via a lateral join on the ledger.
+	args := append([]any{}, filterArgs...)
+	args = append(args, limit, offset)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT lh.token, lh.chat_id, lh.search_id, lh.search_name, lh.manufacturer, lh.model, lh.sub_model, lh.sub_model_id, lh.year, lh.price,
+			lh.km, lh.hand, lh.city, lh.page_link, lh.image_url,
+			lh.engine_volume, lh.horse_power, lh.engine_type, lh.gear_box, lh.description,
+			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at, lh.posted_at, lh.removed_at,
+			d.status, d.alert_type, d.created_at
+		FROM listing_history lh
+		LEFT JOIN LATERAL (
+			SELECT nd.status, nd.alert_type, nd.created_at
+			FROM notification_deliveries nd
+			WHERE nd.chat_id = lh.chat_id AND nd.token = lh.token
+			ORDER BY nd.created_at DESC
+			LIMIT 1
+		) d ON true`+where+`
+		ORDER BY lh.first_seen_at DESC
+		LIMIT $`+fmt.Sprintf("%d", len(filterArgs)+1)+` OFFSET $`+fmt.Sprintf("%d", len(filterArgs)+2), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query listings: %w", err)
 	}
@@ -177,17 +185,24 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 		var r storage.ListingRecord
 		var fs sql.NullFloat64
 		var ic, mp, cs, ds, bp sql.NullInt64
-		var postedAt, removedAt sql.NullTime
+		var postedAt, removedAt, notifiedAt sql.NullTime
+		var notifyStatus, notifyVia sql.NullString
 		if err := rows.Scan(
 			&r.Token, &r.ChatID, &r.SearchID, &r.SearchName,
 			&r.Manufacturer, &r.Model, &r.SubModel, &r.SubModelID, &r.Year, &r.Price,
 			&r.Km, &r.Hand, &r.City, &r.PageLink, &r.ImageURL,
 			&r.EngineVolume, &r.HorsePower, &r.EngineType, &r.GearBox, &r.Description,
 			&ic, &fs, &mp, &cs, &ds, &bp, &r.FirstSeenAt, &postedAt, &removedAt,
+			&notifyStatus, &notifyVia, &notifiedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan listing: %w", err)
 		}
 		r.IsCommercial = storage.ListingCommercialFromSQL(ic)
+		if notifiedAt.Valid {
+			r.NotifiedAt = &notifiedAt.Time
+		}
+		r.NotifyStatus = notifyStatus.String
+		r.NotifyVia = notifyVia.String
 		if postedAt.Valid {
 			r.PostedAt = &postedAt.Time
 		}

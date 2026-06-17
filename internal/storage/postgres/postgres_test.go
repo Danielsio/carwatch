@@ -30,7 +30,7 @@ func testStore(t *testing.T) *Store {
 	t.Cleanup(func() {
 		db := store.DB()
 		tables := []string{
-			"listing_user_seen", "pending_digest",
+			"listing_user_seen", "pending_digest", "notification_deliveries",
 			"saved_listings", "hidden_listings", "listing_history",
 			"seen_listings", "price_history", "push_subscriptions", "link_tokens",
 			"daily_digest", "search_cycle_stats", "cycle_log",
@@ -1640,7 +1640,7 @@ func TestPostgres_Admin(t *testing.T) {
 	}
 
 	// AdminListListings
-	items, total, err := store.AdminListListings(ctx, 1, 0, 0)
+	items, total, err := store.AdminListListings(ctx, 1, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("AdminListListings: %v", err)
 	}
@@ -1739,13 +1739,13 @@ func TestPostgres_DigestMode(t *testing.T) {
 	store := testStore(t)
 	ctx := context.Background()
 
-	// Default for unknown user
+	// Default for unknown user mirrors the schema default (instant).
 	mode, interval, err := store.GetDigestMode(ctx, 999)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mode != "digest" || interval != "6h" {
-		t.Errorf("defaults = %q/%q, want digest/6h", mode, interval)
+	if mode != "instant" || interval != "6h" {
+		t.Errorf("defaults = %q/%q, want instant/6h", mode, interval)
 	}
 
 	seedPgUser(t, store, 3000)
@@ -1770,10 +1770,10 @@ func TestPostgres_DigestWorkflow(t *testing.T) {
 	seedPgUser(t, store, 3101)
 
 	// Add items
-	if err := store.AddDigestItem(ctx, 3100, `{"token":"a"}`); err != nil {
+	if err := store.AddDigestItem(ctx, 3100, `{"token":"a"}`, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.AddDigestItem(ctx, 3100, `{"token":"b"}`); err != nil {
+	if err := store.AddDigestItem(ctx, 3100, `{"token":"b"}`, []string{"b"}); err != nil {
 		t.Fatal(err)
 	}
 
