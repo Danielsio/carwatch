@@ -110,7 +110,7 @@ func (n *Notifier) NotifyRaw(ctx context.Context, recipient string, message stri
 	payload := pushPayload{
 		Title: "CarWatch",
 		Body:  message,
-		Icon:  "/icon-192.png",
+		Icon:  "/logo-192.png",
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -192,7 +192,7 @@ func (n *Notifier) deliver(ctx context.Context, chatID int64, subs []storage.Pus
 // buildListingPayload creates a push notification payload from one or more listings.
 func buildListingPayload(listings []model.Listing) pushPayload {
 	if len(listings) == 0 {
-		return pushPayload{Title: "CarWatch", Body: "New listings available", Icon: "/icon-192.png"}
+		return pushPayload{Title: "CarWatch", Body: "New listings available", Icon: "/logo-192.png"}
 	}
 
 	if len(listings) == 1 {
@@ -229,7 +229,7 @@ func buildListingPayload(listings []model.Listing) pushPayload {
 			Title: title,
 			Body:  body,
 			URL:   url,
-			Icon:  "/icon-192.png",
+			Icon:  "/logo-192.png",
 		}
 	}
 
@@ -247,7 +247,7 @@ func buildListingPayload(listings []model.Listing) pushPayload {
 	return pushPayload{
 		Title: title,
 		Body:  body,
-		Icon:  "/icon-192.png",
+		Icon:  "/logo-192.png",
 	}
 }
 
