@@ -1,11 +1,26 @@
+import { useMemo } from "react";
 import { formatPrice } from "@/lib/utils";
 import { useManufacturers, useModels } from "@/hooks/useCatalog";
 import { Toggle } from "@/components/ui/toggle";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RangeSlider } from "@/components/ui/RangeSlider";
-import { Select } from "@/components/ui/NativeSelect";
+import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
 import { FormField } from "@/components/ui/FormField";
+import type { Manufacturer, Model } from "@/lib/api";
+
+/** Map a catalog entry to a searchable combobox option (matches both names). */
+function catalogOption(entry: Manufacturer | Model): ComboboxOption {
+  const label =
+    entry.name_he && entry.name_he !== entry.name
+      ? `${entry.name_he} (${entry.name})`
+      : entry.name;
+  return {
+    value: entry.id,
+    label,
+    keywords: [entry.name, entry.name_he].filter((k): k is string => Boolean(k)),
+  };
+}
 
 export interface SearchFormData {
   name: string;
@@ -155,6 +170,24 @@ export function VehicleFields({
   const { data: manufacturers } = useManufacturers();
   const { data: models } = useModels(form.manufacturer);
 
+  const manufacturerOptions = useMemo<ComboboxOption[]>(
+    () => [
+      { value: 0, label: "כל היצרנים" },
+      ...(manufacturers ?? []).map(catalogOption),
+    ],
+    [manufacturers],
+  );
+  const modelOptions = useMemo<ComboboxOption[]>(
+    () => [
+      {
+        value: 0,
+        label: form.manufacturer === 0 ? "יש לבחור יצרן קודם" : "כל הדגמים",
+      },
+      ...(models ?? []).map(catalogOption),
+    ],
+    [models, form.manufacturer],
+  );
+
   if (readOnly) {
     return null;
   }
@@ -178,39 +211,31 @@ export function VehicleFields({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField label="יצרן" htmlFor="mfr">
-          <Select
+          <Combobox
             id="mfr"
+            options={manufacturerOptions}
             value={form.manufacturer}
-            onChange={(e) => {
-              set("manufacturer", Number(e.target.value));
+            onChange={(v) => {
+              set("manufacturer", Number(v));
               set("model", 0);
             }}
-          >
-            <option value={0}>כל היצרנים</option>
-            {manufacturers?.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name_he && m.name_he !== m.name ? `${m.name_he} (${m.name})` : m.name}
-              </option>
-            ))}
-          </Select>
+            placeholder="כל היצרנים"
+            searchPlaceholder="חיפוש יצרן…"
+            emptyText="לא נמצא יצרן"
+          />
         </FormField>
 
         <FormField label="דגם" htmlFor="mdl">
-          <Select
+          <Combobox
             id="mdl"
+            options={modelOptions}
             value={form.model}
             disabled={form.manufacturer === 0}
-            onChange={(e) => set("model", Number(e.target.value))}
-          >
-            <option value={0}>
-              {form.manufacturer === 0 ? "יש לבחור יצרן קודם" : "כל הדגמים"}
-            </option>
-            {models?.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name_he && m.name_he !== m.name ? `${m.name_he} (${m.name})` : m.name}
-              </option>
-            ))}
-          </Select>
+            onChange={(v) => set("model", Number(v))}
+            placeholder={form.manufacturer === 0 ? "יש לבחור יצרן קודם" : "כל הדגמים"}
+            searchPlaceholder="חיפוש דגם…"
+            emptyText="לא נמצא דגם"
+          />
         </FormField>
       </div>
 
