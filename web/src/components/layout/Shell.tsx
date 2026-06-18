@@ -316,7 +316,12 @@ export function Shell() {
         <main
           id="main-content"
           className={cn(
-            "flex-1 overflow-y-auto scroll-smooth",
+            // Vertical-only scroll region: overflow-y-auto alone makes
+            // overflow-x compute to `auto`, so any incidental child overflow
+            // becomes a horizontal drag. Pin overflow-x to hidden. Intentional
+            // horizontal scrollers (e.g. the sort pills) have their own
+            // overflow-x-auto and are unaffected.
+            "flex-1 overflow-y-auto overflow-x-hidden scroll-smooth",
             "h-[100dvh]",
           )}
         >
