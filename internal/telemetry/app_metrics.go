@@ -47,6 +47,17 @@ var (
 	QueuePending metric.Int64Gauge
 	// QueueLag records the time between message publish and delivery.
 	QueueLag metric.Float64Histogram
+
+	// VitalsCLS records Cumulative Layout Shift values from the browser.
+	VitalsCLS metric.Float64Histogram
+	// VitalsFCP records First Contentful Paint values from the browser.
+	VitalsFCP metric.Float64Histogram
+	// VitalsINP records Interaction to Next Paint values from the browser.
+	VitalsINP metric.Float64Histogram
+	// VitalsLCP records Largest Contentful Paint values from the browser.
+	VitalsLCP metric.Float64Histogram
+	// VitalsTTFB records Time to First Byte values from the browser.
+	VitalsTTFB metric.Float64Histogram
 )
 
 // InitMetrics creates all application-level OTel metric instruments.
@@ -154,6 +165,40 @@ func InitMetrics() error {
 	QueueLag, err = meter.Float64Histogram("carwatch.queue.lag",
 		metric.WithDescription("Time from message publish to delivery"),
 		metric.WithUnit("s"))
+	if err != nil {
+		return err
+	}
+
+	VitalsCLS, err = meter.Float64Histogram("carwatch.vitals.cls",
+		metric.WithDescription("Cumulative Layout Shift from browser"))
+	if err != nil {
+		return err
+	}
+
+	VitalsFCP, err = meter.Float64Histogram("carwatch.vitals.fcp",
+		metric.WithDescription("First Contentful Paint"),
+		metric.WithUnit("ms"))
+	if err != nil {
+		return err
+	}
+
+	VitalsINP, err = meter.Float64Histogram("carwatch.vitals.inp",
+		metric.WithDescription("Interaction to Next Paint"),
+		metric.WithUnit("ms"))
+	if err != nil {
+		return err
+	}
+
+	VitalsLCP, err = meter.Float64Histogram("carwatch.vitals.lcp",
+		metric.WithDescription("Largest Contentful Paint"),
+		metric.WithUnit("ms"))
+	if err != nil {
+		return err
+	}
+
+	VitalsTTFB, err = meter.Float64Histogram("carwatch.vitals.ttfb",
+		metric.WithDescription("Time to First Byte"),
+		metric.WithUnit("ms"))
 	if err != nil {
 		return err
 	}

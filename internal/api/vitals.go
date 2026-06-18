@@ -1,10 +1,15 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/dsionov/carwatch/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 const (
@@ -151,5 +156,27 @@ func (s *Server) receiveVitals(w http.ResponseWriter, r *http.Request) {
 		ReceivedAt:     time.Now().UTC().Format(time.RFC3339),
 	})
 
+	recordVitalMetric(r.Context(), v.Name, v.Value, v.Rating)
+
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func recordVitalMetric(ctx context.Context, name string, value float64, rating string) {
+	attrs := metric.WithAttributes(attribute.String("rating", rating))
+	var h metric.Float64Histogram
+	switch name {
+	case "CLS":
+		h = telemetry.VitalsCLS
+	case "FCP":
+		h = telemetry.VitalsFCP
+	case "INP":
+		h = telemetry.VitalsINP
+	case "LCP":
+		h = telemetry.VitalsLCP
+	case "TTFB":
+		h = telemetry.VitalsTTFB
+	}
+	if h != nil {
+		h.Record(ctx, value, attrs)
+	}
 }
