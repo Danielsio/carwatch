@@ -52,7 +52,7 @@ export function ListingsFilterBar({
     >
       {/* Search + advanced toggle + count */}
       <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-0">
           <Search
             className="pointer-events-none absolute top-1/2 start-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden
