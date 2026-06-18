@@ -1,0 +1,69 @@
+name: Perf Budget
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'web/**'
+
+concurrency:
+  group: perf-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    name: Lighthouse Budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: cd web && npm ci
+
+      - name: Build web
+        run: cd web && npm run build
+
+      - name: Install perf dependencies
+        run: cd web/perf && npm install
+
+      - name: Start preview server
+        run: cd web && npx vite preview --port 4173 &
+        env:
+          CI: true
+
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 15); do
+            if curl -s http://localhost:4173 > /dev/null 2>&1; then
+              echo "Server ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server failed to start"
+          exit 1
+
+      - name: Run Lighthouse
+        run: cd web/perf && node scripts/lighthouse-run.mjs
+        env:
+          BASE: http://localhost:4173
+
+      - name: Check budget
+        run: cd web/perf && node scripts/check-budget.mjs
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: lighthouse-reports
+          path: web/perf/reports/

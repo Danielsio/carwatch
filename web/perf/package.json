@@ -1,0 +1,12 @@
+{
+  "name": "carwatch-perf",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lighthouse": "node scripts/lighthouse-run.mjs",
+    "check": "node scripts/check-budget.mjs"
+  },
+  "dependencies": {
+    "lighthouse": "^12.0.0"
+  }
+}
