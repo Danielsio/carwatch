@@ -63,6 +63,7 @@ describe("AuthContext", () => {
   beforeEach(() => {
     authStateCallback = null;
     mockSignOut.mockClear();
+    localStorage.clear();
   });
 
   it("stays loading=true until the lazy auth subscription emits", async () => {
@@ -139,6 +140,29 @@ describe("AuthContext", () => {
       authStateCallback?.({ uid: "u1", email: "test@example.com" });
     });
     expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it("records a session hint in localStorage when a user is present", async () => {
+    renderWithProviders();
+    await flushAuthInit();
+
+    await act(async () => {
+      authStateCallback?.({ uid: "u1", email: "test@example.com" });
+    });
+
+    expect(localStorage.getItem("cw:has-session")).toBe("1");
+  });
+
+  it("clears the session hint when auth resolves signed-out", async () => {
+    localStorage.setItem("cw:has-session", "1");
+    renderWithProviders();
+    await flushAuthInit();
+
+    await act(async () => {
+      authStateCallback?.(null);
+    });
+
+    expect(localStorage.getItem("cw:has-session")).toBeNull();
   });
 
   it("clears query cache when switching from a user to signed-out", async () => {
