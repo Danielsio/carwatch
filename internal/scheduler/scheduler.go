@@ -34,6 +34,7 @@ const (
 	retryBaseDelay          = 2 * time.Second
 	priceHistoryRetention   = 90 * 24 * time.Hour
 	listingHistoryRetention = 90 * 24 * time.Hour
+	deliveryLedgerRetention = 90 * 24 * time.Hour
 	defaultMarketCacheTTL   = 30 * time.Minute
 )
 
