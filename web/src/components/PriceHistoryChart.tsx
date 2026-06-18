@@ -55,7 +55,6 @@ function formatAxisPrice(v: number): string {
 
 export function PriceHistoryChart({
   token,
-  currentPrice,
 }: PriceHistoryChartProps) {
   const { data, isLoading: loading, isError: error } = useQuery({
     queryKey: ["price-history", token],
@@ -207,13 +206,13 @@ export function PriceHistoryChart({
         <div
           className="h-44 w-full"
           dir="ltr"
-          role="img"
-          aria-label="גרף היסטוריית מחירים"
         >
           <svg
             ref={svgRef}
             viewBox={`0 0 ${CHART_W} ${CHART_H}`}
             className="h-full w-full"
+            role="img"
+            aria-label="גרף היסטוריית מחירים"
             onPointerMove={(e) => onPointerMove(e, points)}
             onPointerLeave={() => setHover(null)}
           >
