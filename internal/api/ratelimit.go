@@ -244,6 +244,42 @@ func (s *Server) withGuestRateLimit(next http.Handler) http.Handler {
 	})
 }
 
+type globalBucket struct {
+	mu       sync.Mutex
+	tokens   int
+	burst    int
+	every    time.Duration
+	lastTick time.Time
+}
+
+func newGlobalBucket(burst int, every time.Duration) *globalBucket {
+	return &globalBucket{
+		tokens:   burst,
+		burst:    burst,
+		every:    every,
+		lastTick: time.Now(),
+	}
+}
+
+func (gb *globalBucket) allow() bool {
+	gb.mu.Lock()
+	defer gb.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(gb.lastTick)
+	refill := int(elapsed / gb.every)
+	if refill > 0 {
+		gb.tokens = min(gb.tokens+refill, gb.burst)
+		gb.lastTick = gb.lastTick.Add(time.Duration(refill) * gb.every)
+	}
+
+	if gb.tokens <= 0 {
+		return false
+	}
+	gb.tokens--
+	return true
+}
+
 func (rl *rateLimiter) cleanup(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()

@@ -65,6 +65,7 @@ type Server struct {
 	rl               *rateLimiter
 	ipRL             *ipRateLimiter
 	guestRL          *ipRateLimiter
+	globalGuestRL    *globalBucket
 	vacuumMu         sync.Mutex
 	fetchers         *fetcher.Factory
 	priceListSvc     *pricelist.Service
@@ -198,6 +199,7 @@ func New(c Config) *Server {
 		rl:              newRateLimiter(60, time.Second/60),
 		ipRL:            newIPRateLimiter(20, time.Second/10, c.API.TrustForwardedFor),
 		guestRL:         newIPRateLimiter(15, 3*time.Minute, c.API.TrustForwardedFor),
+		globalGuestRL:   newGlobalBucket(30, 10*time.Second),
 		fetchers:        c.Fetchers,
 		priceListSvc:    c.PriceListSvc,
 		pipeline:        pipeline,
