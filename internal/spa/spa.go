@@ -6,6 +6,16 @@ import (
 	"strings"
 )
 
+var prerenderedRoutes = map[string]string{
+	"login":  "login.html",
+	"signup": "signup.html",
+}
+
+func prerenderedFile(path string) (string, bool) {
+	f, ok := prerenderedRoutes[path]
+	return f, ok
+}
+
 func Handler(distFS fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(distFS))
 
@@ -46,13 +56,17 @@ func Handler(distFS fs.FS) http.Handler {
 			}
 		}
 
-		// SPA fallback. The landing route ("/") is prerendered into index.html
-		// for SEO and a fast first paint. Every other route is served a clean
-		// shell (app-shell.html) when one exists, so the authenticated app does
-		// not briefly flash the marketing page before the JS bundle mounts.
-		// Falls back to index.html when no prerendered shell is present.
+		// SPA fallback. Prerendered routes get their own static HTML for a
+		// fast first paint. Everything else is served the app-shell skeleton.
 		w.Header().Set("Cache-Control", "no-cache")
 		if path != "" {
+			if prerendered, ok := prerenderedFile(path); ok {
+				if _, err := fs.Stat(distFS, prerendered); err == nil {
+					r.URL.Path = "/" + prerendered
+					fileServer.ServeHTTP(w, r)
+					return
+				}
+			}
 			if _, err := fs.Stat(distFS, "app-shell.html"); err == nil {
 				r.URL.Path = "/app-shell.html"
 				fileServer.ServeHTTP(w, r)
