@@ -12,7 +12,17 @@ import "./index.css";
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    // Register once the main thread is idle so the sw.js fetch never competes
+    // with lazy chunk downloads / hydration during the initial load. Falls back
+    // to a short timer where requestIdleCallback is unavailable (Safari).
+    const register = () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    };
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(register, { timeout: 5000 });
+    } else {
+      setTimeout(register, 3000);
+    }
   });
 }
 

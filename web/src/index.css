@@ -553,6 +553,13 @@
     will-change: auto;
     animation: none !important;
   }
+  /* HeroSection's three decorative blobs use Tailwind blur-[100px..120px].
+     Those large blur surfaces are the main scroll-jank source on phones, so
+     clamp them to a cheap radius. !important overrides the Tailwind filter
+     utility; the look stays near-identical at this size. */
+  .hero-blob {
+    filter: blur(40px) !important;
+  }
   /* Lighter frosted glass — backdrop-filter is recomputed on every scroll
      frame over the content beneath it. */
   .glass-card {

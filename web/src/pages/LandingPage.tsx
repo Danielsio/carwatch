@@ -36,27 +36,45 @@ export function LandingPage() {
     >
       <LandingNav />
       <HeroSection />
-      <Suspense fallback={<div className="min-h-[200px]" />}>
-        <ProblemSolution />
-      </Suspense>
-      <Suspense fallback={<div className="min-h-[200px]" />}>
-        <FeaturesSection />
-      </Suspense>
-      <Suspense fallback={<div className="min-h-[200px]" />}>
-        <SmartScoreSection />
-      </Suspense>
-      <Suspense fallback={<div className="min-h-[200px]" />}>
-        <HowItWorks />
-      </Suspense>
-      <Suspense fallback={<div className="min-h-[200px]" />}>
-        <StatsSection />
-      </Suspense>
-      <Suspense fallback={<div className="min-h-[200px]" />}>
-        <FinalCTA />
-      </Suspense>
-      <Suspense fallback={<div className="min-h-[200px]" />}>
-        <LandingFooter version={version} />
-      </Suspense>
+      {/* Below-fold sections: cv-auto lets the browser skip layout/paint for
+          off-screen content until it's scrolled near, cutting initial render
+          work. contain-intrinsic-size (from the utility) reserves space so the
+          scrollbar doesn't jump. */}
+      <div className="cv-auto">
+        <Suspense fallback={<div className="min-h-[200px]" />}>
+          <ProblemSolution />
+        </Suspense>
+      </div>
+      <div className="cv-auto">
+        <Suspense fallback={<div className="min-h-[200px]" />}>
+          <FeaturesSection />
+        </Suspense>
+      </div>
+      <div className="cv-auto">
+        <Suspense fallback={<div className="min-h-[200px]" />}>
+          <SmartScoreSection />
+        </Suspense>
+      </div>
+      <div className="cv-auto">
+        <Suspense fallback={<div className="min-h-[200px]" />}>
+          <HowItWorks />
+        </Suspense>
+      </div>
+      <div className="cv-auto">
+        <Suspense fallback={<div className="min-h-[200px]" />}>
+          <StatsSection />
+        </Suspense>
+      </div>
+      <div className="cv-auto">
+        <Suspense fallback={<div className="min-h-[200px]" />}>
+          <FinalCTA />
+        </Suspense>
+      </div>
+      <div className="cv-auto">
+        <Suspense fallback={<div className="min-h-[200px]" />}>
+          <LandingFooter version={version} />
+        </Suspense>
+      </div>
     </div>
   );
 }

@@ -26,9 +26,9 @@ export function HeroSection() {
   return (
     <section className="relative flex min-h-screen items-center justify-center pt-16">
       <div className="pointer-events-none absolute inset-0 overflow-hidden will-change-transform" aria-hidden="true" style={{ transform: "translateZ(0)" }}>
-        <div className="absolute top-1/4 end-1/4 h-96 w-96 rounded-full bg-primary/10 blur-[100px]" />
-        <div className="absolute bottom-1/3 start-1/4 h-72 w-72 rounded-full bg-purple-500/8 blur-[80px]" />
-        <div className="absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[120px]" />
+        <div className="hero-blob absolute top-1/4 end-1/4 h-96 w-96 rounded-full bg-primary/10 blur-[100px]" />
+        <div className="hero-blob absolute bottom-1/3 start-1/4 h-72 w-72 rounded-full bg-purple-500/8 blur-[80px]" />
+        <div className="hero-blob absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[120px]" />
       </div>
 
       <div className="landing-grid-bg pointer-events-none absolute inset-0 opacity-[0.03]" aria-hidden="true" />
