@@ -381,6 +381,8 @@ type NotificationDeliveryStore interface {
 	// DeliveredAmong returns, for each token that has any delivery record for
 	// chatID, its most recent delivery info.
 	DeliveredAmong(ctx context.Context, chatID int64, tokens []string) (map[string]DeliveryInfo, error)
+	// PruneDeliveries removes ledger rows older than olderThan (retention).
+	PruneDeliveries(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 
 type DailyDigestStore interface {

@@ -38,6 +38,14 @@ func (s *Scheduler) pruneOldData(ctx context.Context) {
 			s.logger.Info("pruned old listing history", "count", pruned, "retention", listingHistoryRetention.String())
 		}
 	}
+	if s.stores.Deliveries != nil {
+		pruned, err := s.stores.Deliveries.PruneDeliveries(ctx, deliveryLedgerRetention)
+		if err != nil {
+			s.logger.Error("prune delivery ledger failed", "retention", deliveryLedgerRetention.String(), "error", err)
+		} else if pruned > 0 {
+			s.logger.Info("pruned old delivery ledger", "count", pruned, "retention", deliveryLedgerRetention.String())
+		}
+	}
 	s.lastPruneTime = time.Now()
 }
 

@@ -184,3 +184,16 @@ func (s *Store) DeliveredAmong(ctx context.Context, chatID int64, tokens []strin
 	}
 	return out, tx.Commit()
 }
+
+// PruneDeliveries removes delivery-ledger rows older than olderThan. The ledger
+// grows one row per (listing, user, alert) and is never otherwise trimmed, so it
+// needs retention like price_history / listing_history.
+func (s *Store) PruneDeliveries(ctx context.Context, olderThan time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-olderThan)
+	result, err := s.db.ExecContext(ctx,
+		`DELETE FROM notification_deliveries WHERE created_at < $1`, cutoff.UTC())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}

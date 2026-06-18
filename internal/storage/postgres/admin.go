@@ -74,13 +74,14 @@ func quoteIdent(ident string) string {
 }
 
 var purgeable = map[string]bool{
-	"listing_history":   true,
-	"price_history":     true,
-	"seen_listings":     true,
-	"listing_user_seen": true,
-	"saved_listings":    true,
-	"hidden_listings":   true,
-	"pending_digest":    true,
+	"listing_history":         true,
+	"price_history":           true,
+	"seen_listings":           true,
+	"listing_user_seen":       true,
+	"saved_listings":          true,
+	"hidden_listings":         true,
+	"pending_digest":          true,
+	"notification_deliveries": true,
 }
 
 func (s *Store) PurgeTable(ctx context.Context, table string) (int64, error) {
@@ -101,6 +102,7 @@ var resetTables = []string{
 	"hidden_listings",
 	"seen_listings",
 	"pending_digest",
+	"notification_deliveries",
 	"listing_history",
 	"price_history",
 	"price_list_cache",
@@ -299,7 +301,7 @@ func (s *Store) AdminDeleteUser(ctx context.Context, chatID int64) error {
 	for _, table := range []string{
 		"searches", "listing_history", "seen_listings", "listing_user_seen",
 		"saved_listings", "hidden_listings",
-		"push_subscriptions", "pending_digest",
+		"push_subscriptions", "pending_digest", "notification_deliveries",
 	} {
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE chat_id = $1`, quoteIdent(table)), chatID); err != nil {
 			return fmt.Errorf("admin delete user data from %s: %w", table, err)

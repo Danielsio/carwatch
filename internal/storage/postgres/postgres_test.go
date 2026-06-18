@@ -2294,3 +2294,65 @@ func TestPostgres_DigestDeliveriesRecorded(t *testing.T) {
 		}
 	}
 }
+
+func TestPostgres_PruneDeliveries(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+
+	// Fresh row (created_at = NOW()).
+	if err := store.RecordDeliveries(ctx, []storage.DeliveryEvent{
+		{ChatID: 7300, Token: "fresh", AlertType: "instant", Status: "sent"},
+	}); err != nil {
+		t.Fatalf("record fresh: %v", err)
+	}
+	// Stale row, backdated 100 days.
+	if _, err := store.DB().ExecContext(ctx,
+		`INSERT INTO notification_deliveries (chat_id, token, alert_type, status, created_at)
+		 VALUES ($1, $2, 'instant', 'sent', NOW() - INTERVAL '100 days')`,
+		7300, "stale"); err != nil {
+		t.Fatalf("insert stale: %v", err)
+	}
+
+	pruned, err := store.PruneDeliveries(ctx, 90*24*time.Hour)
+	if err != nil {
+		t.Fatalf("PruneDeliveries: %v", err)
+	}
+	if pruned != 1 {
+		t.Errorf("pruned = %d, want 1", pruned)
+	}
+
+	got, err := store.DeliveredAmong(ctx, 7300, []string{"fresh", "stale"})
+	if err != nil {
+		t.Fatalf("DeliveredAmong: %v", err)
+	}
+	if _, ok := got["stale"]; ok {
+		t.Error("stale delivery should have been pruned")
+	}
+	if _, ok := got["fresh"]; !ok {
+		t.Error("fresh delivery should survive pruning")
+	}
+}
+
+func TestPostgres_AdminDeleteUser_RemovesDeliveries(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 7400)
+
+	if err := store.RecordDeliveries(ctx, []storage.DeliveryEvent{
+		{ChatID: 7400, Token: "dtok", AlertType: "instant", Status: "sent"},
+	}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	if err := store.AdminDeleteUser(ctx, 7400); err != nil {
+		t.Fatalf("AdminDeleteUser: %v", err)
+	}
+
+	got, err := store.DeliveredAmong(ctx, 7400, []string{"dtok"})
+	if err != nil {
+		t.Fatalf("DeliveredAmong: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("expected user's delivery rows removed, got %d", len(got))
+	}
+}
