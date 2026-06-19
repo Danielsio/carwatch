@@ -61,12 +61,15 @@ func TestHandler_ServesIndexForSPARoutes(t *testing.T) {
 }
 
 // When a prerendered build is present, "/" serves the prerendered landing
-// (index.html) while every other SPA route serves the clean app shell so the
-// app does not flash marketing content before the bundle mounts.
+// (index.html), /login and /signup serve their prerendered pages, and every
+// other SPA route serves the clean app shell so the app does not flash
+// marketing content before the bundle mounts.
 func TestHandler_ServesShellForNonLandingRoutes(t *testing.T) {
 	fs := fstest.MapFS{
 		"index.html":             {Data: []byte("<html>prerendered-landing</html>")},
 		"app-shell.html":         {Data: []byte("<html>clean-shell</html>")},
+		"login.html":             {Data: []byte("<html>prerendered-login</html>")},
+		"signup.html":            {Data: []byte("<html>prerendered-signup</html>")},
 		"assets/index-abc123.js": {Data: []byte("console.log('app')")},
 	}
 
@@ -77,6 +80,10 @@ func TestHandler_ServesShellForNonLandingRoutes(t *testing.T) {
 		wantBody string
 	}{
 		{"/", "<html>prerendered-landing</html>"},
+		{"/login", "<html>prerendered-login</html>"},
+		{"/login/", "<html>prerendered-login</html>"},
+		{"/signup", "<html>prerendered-signup</html>"},
+		{"/signup/", "<html>prerendered-signup</html>"},
 		{"/dashboard", "<html>clean-shell</html>"},
 		{"/searches/new", "<html>clean-shell</html>"},
 		{"/listings/tok-123", "<html>clean-shell</html>"},

@@ -205,6 +205,33 @@ func TestExtractIP_NoTrustProxy(t *testing.T) {
 	}
 }
 
+func TestGlobalBucket_AllowBurst(t *testing.T) {
+	t.Parallel()
+	gb := newGlobalBucket(5, time.Hour)
+	for i := 0; i < 5; i++ {
+		if !gb.allow() {
+			t.Fatalf("request %d: expected allow=true", i+1)
+		}
+	}
+	if gb.allow() {
+		t.Fatal("expected allow=false after burst exhausted")
+	}
+}
+
+func TestGlobalBucket_Recovery(t *testing.T) {
+	t.Parallel()
+	gb := newGlobalBucket(2, 25*time.Millisecond)
+	gb.allow()
+	gb.allow()
+	if gb.allow() {
+		t.Fatal("expected allow=false after burst")
+	}
+	time.Sleep(30 * time.Millisecond)
+	if !gb.allow() {
+		t.Fatal("expected allow=true after refill")
+	}
+}
+
 func TestExtractIP_XForwardedFor_SinglePublicIP(t *testing.T) {
 	t.Parallel()
 	r := &http.Request{

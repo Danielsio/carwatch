@@ -44,8 +44,7 @@ export function HeroSection() {
 
         <h1
           lang="he"
-          className="mb-6 text-4xl leading-[1.12] font-bold text-foreground sm:text-5xl md:text-6xl lg:text-7xl animate-slide-up motion-reduce:animate-none"
-          style={{ animationDelay: "0.1s", animationFillMode: "backwards" }}
+          className="mb-6 text-4xl leading-[1.12] font-bold text-foreground sm:text-5xl md:text-6xl lg:text-7xl"
         >
           עקוב אחרי המודעות
           <br />

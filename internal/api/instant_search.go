@@ -72,6 +72,11 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 
 	log := s.handlerLogger(r, "op", "instant_search")
 
+	if !s.globalGuestRL.allow() {
+		writeError(w, http.StatusTooManyRequests, "server busy, try again later")
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
