@@ -12,13 +12,91 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
+// ltrMark (U+200E LEFT-TO-RIGHT MARK) isolates Latin/number runs inside RTL
+// (Hebrew) lines so prices, years, and mileage render left-to-right instead of
+// being reordered by the bidirectional algorithm.
+var ltrMark = string(rune(0x200e))
+
+// num renders a number group-separated and prefixed with an LTR mark so it
+// keeps its order inside RTL messages. Callers supply any surrounding symbol
+// (e.g. the ₪ sign) via the locale template.
+func num(n int) string {
+	return ltrMark + format.Number(n)
+}
+
+// FormatListing builds the per-listing notification. Field order follows how a
+// buyer triages a used car: headline (model + year) → at-a-glance verdict →
+// the specs the eye lands on first (mileage, hand, engine) → price and market
+// context → seller/location → trust warnings → link.
 func FormatListing(l model.Listing, lang locale.Lang) string {
 	var b strings.Builder
 
 	b.WriteString(locale.T(lang, "fmt_new_listing"))
 
+	// Headline carries manufacturer, model, sub-model and year — the first
+	// things a buyer scans. Year lives here, not buried below the scores.
+	b.WriteString("*" + listingTitle(l, lang) + "*\n")
+
+	// At-a-glance verdict (fitness + deal score) with the up/down breakdown
+	// beneath, so a user can rank a listing without reading the whole block.
+	if verdict := verdictLine(l, lang); verdict != "" {
+		b.WriteString(verdict + "\n")
+		b.WriteString(formatBreakdown(l.FitnessBreakdown, lang))
+	}
+
+	b.WriteString("\n")
+
+	// Eye-first specs, grouped: usage (mileage, hand) then mechanicals
+	// (engine, fuel, gearbox, power).
+	if t := usageTokens(l, lang); len(t) > 0 {
+		b.WriteString(strings.Join(t, " · ") + "\n")
+	}
+	if t := mechanicalTokens(l, lang); len(t) > 0 {
+		b.WriteString(strings.Join(t, " · ") + "\n")
+	}
+
+	// Price and market context. The median/cohort is shown once here rather
+	// than duplicated by a separate deal-score explanation.
+	if l.Price > 0 {
+		b.WriteString(locale.Tf(lang, "fmt_price", num(l.Price)))
+		if l.DealScore != nil && l.DealScore.MedianPrice > 0 {
+			b.WriteString(marketValueLine(lang, l.DealScore, l.Price))
+		}
+		if l.BasePrice != nil && *l.BasePrice > 0 {
+			b.WriteString(basePriceLine(lang, *l.BasePrice, l.Price))
+		}
+	}
+
+	// Seller type + location on one line.
+	if t := sellerLocationTokens(l, lang); len(t) > 0 {
+		b.WriteString(strings.Join(t, " · ") + "\n")
+	}
+
+	// Trust signal: surface why a listing was flagged suspicious. The data is
+	// already computed; without this it is silently dropped on Telegram.
+	b.WriteString(suspiciousBlock(l.SuspiciousReasons, lang))
+
+	if l.PageLink != "" {
+		b.WriteString(fmt.Sprintf("\n🔗 %s", l.PageLink))
+	}
+
+	return b.String()
+}
+
+// listingTitle renders the bold headline: "<Manufacturer> <Model> <SubModel> <Year>".
+func listingTitle(l model.Listing, lang locale.Lang) string {
 	mfr := strings.TrimSpace(l.Manufacturer)
 	mdl := strings.TrimSpace(l.Model)
+	// Hebrew-first product: prefer the Hebrew names when available so Hebrew
+	// users don't get an English car name in an otherwise-Hebrew message.
+	if lang == locale.Hebrew {
+		if h := strings.TrimSpace(l.ManufacturerNameHe); h != "" {
+			mfr = h
+		}
+		if h := strings.TrimSpace(l.ModelNameHe); h != "" {
+			mdl = h
+		}
+	}
 	if mfr == "" && mdl == "" {
 		mfr = "Unknown"
 	}
@@ -26,71 +104,101 @@ func FormatListing(l model.Listing, lang locale.Lang) string {
 	if l.SubModel != "" {
 		title += " " + format.EscapeMarkdown(l.SubModel)
 	}
-	b.WriteString("*" + title + "*\n\n")
-
-	if l.Price > 0 {
-		b.WriteString(locale.Tf(lang, "fmt_price", format.Number(l.Price)))
-		if l.BasePrice != nil && *l.BasePrice > 0 {
-			b.WriteString(basePriceLine(lang, *l.BasePrice, l.Price))
-		}
-		if l.DealScore != nil && l.DealScore.MedianPrice > 0 {
-			b.WriteString(marketValueLine(lang, l.DealScore, l.Price))
-		}
-	}
-
-	if l.Km > 0 {
-		b.WriteString(locale.Tf(lang, "fmt_mileage", format.Number(l.Km)))
-	} else {
-		b.WriteString(locale.T(lang, "fmt_mileage_unknown"))
-	}
-
-	if l.FitnessScore > 0 {
-		b.WriteString(locale.Tf(lang, "fmt_fitness_score", l.FitnessScore))
-		b.WriteString(formatBreakdown(l.FitnessBreakdown, lang))
-	}
-
-	if l.DealScore != nil {
-		b.WriteString(locale.Tf(lang, "fmt_deal_score", l.DealScore.Score))
-		b.WriteString(dealExplanation(lang, l.DealScore, l.Price))
-		b.WriteString("\n")
-	}
-
 	if l.Year > 0 {
-		b.WriteString(locale.Tf(lang, "fmt_year", l.Year))
+		title += fmt.Sprintf(" %s%d", ltrMark, l.Year)
 		if l.Month > 0 {
-			b.WriteString(locale.Tf(lang, "fmt_year_month", l.Month))
+			title += locale.Tf(lang, "fmt_year_month", l.Month)
 		}
-		b.WriteString("\n")
 	}
+	return title
+}
 
-	if l.EngineVolume > 0 {
-		b.WriteString(locale.Tf(lang, "fmt_engine", float64(l.EngineVolume)/1000.0))
-		if l.GearBox != "" {
-			b.WriteString(", " + format.EscapeMarkdown(l.GearBox))
-		}
-		b.WriteString("\n")
+// verdictLine combines the fitness and deal scores into a single scannable line.
+func verdictLine(l model.Listing, lang locale.Lang) string {
+	var parts []string
+	if l.FitnessScore > 0 {
+		parts = append(parts, locale.Tf(lang, "fmt_fitness_inline", l.FitnessScore))
 	}
-
-	if l.HorsePower > 0 {
-		b.WriteString(locale.Tf(lang, "fmt_power", l.HorsePower))
+	if l.DealScore != nil {
+		parts = append(parts, locale.Tf(lang, "fmt_deal_inline", l.DealScore.Score))
 	}
+	return strings.Join(parts, " · ")
+}
 
+// usageTokens returns the condition/usage spec tokens (mileage, hand).
+func usageTokens(l model.Listing, lang locale.Lang) []string {
+	var t []string
+	if l.Km > 0 {
+		t = append(t, locale.Tf(lang, "fmt_mileage_inline", num(l.Km)))
+	} else {
+		t = append(t, locale.T(lang, "fmt_mileage_unknown_inline"))
+	}
 	if l.Hand > 0 {
-		b.WriteString(locale.Tf(lang, "fmt_hand", l.Hand))
+		t = append(t, locale.Tf(lang, "fmt_hand_inline", l.Hand))
 	}
+	return t
+}
 
-	if l.City != "" {
-		location := format.EscapeMarkdown(l.City)
-		if l.Area != "" {
-			location += ", " + format.EscapeMarkdown(l.Area)
+// mechanicalTokens returns the mechanical spec tokens (engine, fuel, gearbox, power).
+func mechanicalTokens(l model.Listing, lang locale.Lang) []string {
+	var t []string
+	if l.EngineVolume > 0 {
+		t = append(t, locale.Tf(lang, "fmt_engine_inline", l.EngineVolume/1000.0))
+	}
+	if et := strings.TrimSpace(l.EngineType); et != "" {
+		t = append(t, locale.Tf(lang, "fmt_fuel_inline", format.EscapeMarkdown(et)))
+	}
+	if gb := strings.TrimSpace(l.GearBox); gb != "" {
+		t = append(t, format.EscapeMarkdown(gb))
+	}
+	if l.HorsePower > 0 {
+		t = append(t, locale.Tf(lang, "fmt_power_inline", l.HorsePower))
+	}
+	return t
+}
+
+// sellerLocationTokens returns the seller type and location tokens.
+func sellerLocationTokens(l model.Listing, lang locale.Lang) []string {
+	var t []string
+	if l.Commercial != nil {
+		if *l.Commercial {
+			t = append(t, locale.T(lang, "fmt_seller_dealer"))
+		} else {
+			t = append(t, locale.T(lang, "fmt_seller_private"))
 		}
-		b.WriteString(locale.Tf(lang, "fmt_location", location))
 	}
-
-	if l.PageLink != "" {
-		b.WriteString(fmt.Sprintf("\n🔗 %s", l.PageLink))
+	if l.City != "" {
+		loc := format.EscapeMarkdown(l.City)
+		if l.Area != "" {
+			loc += ", " + format.EscapeMarkdown(l.Area)
+		}
+		t = append(t, locale.Tf(lang, "fmt_location_inline", loc))
 	}
+	return t
+}
 
+// suspiciousReasonKeys maps suspicious-reason codes (from scoring.DetectSuspicious)
+// to their localized message keys.
+var suspiciousReasonKeys = map[string]string{
+	"price_below_market": "fmt_suspicious_price_below_market",
+	"no_photo_low_price": "fmt_suspicious_no_photo_low_price",
+}
+
+// suspiciousBlock renders the trust warning (header + one line per reason).
+func suspiciousBlock(reasons []string, lang locale.Lang) string {
+	if len(reasons) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n")
+	b.WriteString(locale.T(lang, "fmt_suspicious_header"))
+	for _, r := range reasons {
+		if key, ok := suspiciousReasonKeys[r]; ok {
+			b.WriteString(locale.T(lang, key))
+		} else {
+			b.WriteString("• " + format.EscapeMarkdown(r) + "\n")
+		}
+	}
 	return b.String()
 }
 
@@ -111,17 +219,16 @@ func FormatPriceDrop(l model.Listing, oldPrice int, lang locale.Lang) string {
 	}
 
 	drop := oldPrice - l.Price
-	ltr := "\u200e"
 	b.WriteString(locale.Tf(lang, "fmt_price_drop",
 		title,
-		ltr+format.Number(oldPrice),
-		ltr+format.Number(l.Price),
-		ltr+format.Number(drop),
+		num(oldPrice),
+		num(l.Price),
+		num(drop),
 	))
 
 	var inlineParts []string
 	if l.Km > 0 {
-		inlineParts = append(inlineParts, fmt.Sprintf("🛣️ %s km", format.Number(l.Km)))
+		inlineParts = append(inlineParts, locale.Tf(lang, "fmt_mileage_inline", num(l.Km)))
 	} else {
 		inlineParts = append(inlineParts, locale.T(lang, "fmt_mileage_unknown_inline"))
 	}
@@ -196,7 +303,7 @@ func basePriceLine(lang locale.Lang, basePrice, price int) string {
 	if basePrice <= 0 {
 		return ""
 	}
-	bpStr := format.Number(basePrice)
+	bpStr := num(basePrice)
 	pctDiff := int(math.Round(100.0 * (1.0 - float64(price)/float64(basePrice))))
 	if pctDiff > 5 {
 		return locale.Tf(lang, "fmt_base_price_below", bpStr, pctDiff)
@@ -208,7 +315,7 @@ func basePriceLine(lang locale.Lang, basePrice, price int) string {
 }
 
 func marketValueLine(lang locale.Lang, score *model.ScoreInfo, price int) string {
-	medianStr := format.Number(score.MedianPrice)
+	medianStr := num(score.MedianPrice)
 	pctDiff := int(math.Round(100.0 * (1.0 - float64(price)/float64(score.MedianPrice))))
 	if pctDiff > 5 {
 		return locale.Tf(lang, "fmt_market_value_below", medianStr, pctDiff, score.CohortSize)
@@ -218,18 +325,6 @@ func marketValueLine(lang locale.Lang, score *model.ScoreInfo, price int) string
 	}
 	abovePct := -pctDiff
 	return locale.Tf(lang, "fmt_market_value_above", medianStr, abovePct, score.CohortSize)
-}
-
-func dealExplanation(lang locale.Lang, score *model.ScoreInfo, price int) string {
-	medianStr := format.Number(score.MedianPrice)
-	pctBelow := int(math.Round(100.0 * (1.0 - float64(price)/float64(score.MedianPrice))))
-	if pctBelow > 5 {
-		return locale.Tf(lang, "fmt_deal_below_market", pctBelow, medianStr, score.CohortSize)
-	}
-	if pctBelow >= -5 {
-		return locale.Tf(lang, "fmt_deal_near_market", medianStr, score.CohortSize)
-	}
-	return locale.Tf(lang, "fmt_deal_above_market", medianStr, score.CohortSize)
 }
 
 func FormatDailyDigest(stats []storage.DailySearchStats, lang locale.Lang, now time.Time) string {
