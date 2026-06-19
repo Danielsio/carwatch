@@ -6,6 +6,14 @@ import (
 	"strings"
 )
 
+// staticAsset reports whether the path is a build-emitted static asset that can
+// be served with a long immutable cache and 404'd (rather than SPA-fallback'd)
+// when missing. assets/ filenames are content-hashed by Vite; fonts/ are stable
+// self-hosted woff2 (see web/src/fonts.css) — bump the filename to bust cache.
+func staticAsset(path string) bool {
+	return strings.HasPrefix(path, "assets/") || strings.HasPrefix(path, "fonts/")
+}
+
 func prerenderedFile(path string) (string, bool) {
 	switch path {
 	case "login":
@@ -30,13 +38,13 @@ func Handler(distFS fs.FS) http.Handler {
 		w.Header().Set("Content-Security-Policy",
 			"default-src 'self'; "+
 				"script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://www.google.com; "+
-				"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "+
-				"font-src 'self' data: https://fonts.gstatic.com; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"font-src 'self' data:; "+
 				"img-src 'self' data: https: blob:; "+
 				"connect-src 'self' https://*.googleapis.com https://accounts.google.com "+
 				"https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.googleapis.com "+
 				"https://www.gstatic.com https://*.firebaseapp.com https://*.firebaseio.com wss://*.firebaseio.com "+
-				"https://fonts.gstatic.com https://fonts.googleapis.com https://img.yad2.co.il https://apis.google.com; "+
+				"https://img.yad2.co.il https://apis.google.com; "+
 				"frame-src https://accounts.google.com https://*.firebaseapp.com https://carwatch-5cabf.firebaseapp.com; "+
 				"worker-src 'self'; "+
 				"frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'")
@@ -45,13 +53,13 @@ func Handler(distFS fs.FS) http.Handler {
 
 		if path != "" {
 			if _, err := fs.Stat(distFS, path); err == nil {
-				if strings.HasPrefix(path, "assets/") {
+				if staticAsset(path) {
 					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 				}
 				fileServer.ServeHTTP(w, r)
 				return
 			}
-			if strings.HasPrefix(path, "assets/") {
+			if staticAsset(path) {
 				http.NotFound(w, r)
 				return
 			}

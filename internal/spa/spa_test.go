@@ -9,8 +9,9 @@ import (
 
 func TestHandler_ServesIndexForSPARoutes(t *testing.T) {
 	fs := fstest.MapFS{
-		"index.html":             {Data: []byte("<html>app</html>")},
-		"assets/index-abc123.js": {Data: []byte("console.log('app')")},
+		"index.html":                   {Data: []byte("<html>app</html>")},
+		"assets/index-abc123.js":       {Data: []byte("console.log('app')")},
+		"fonts/heebo-hebrew-700.woff2": {Data: []byte("wOF2-stub")},
 	}
 
 	handler := Handler(fs)
@@ -27,6 +28,9 @@ func TestHandler_ServesIndexForSPARoutes(t *testing.T) {
 		{"/admin", http.StatusOK, "<html>app</html>", "no-cache"},
 		{"/assets/index-abc123.js", http.StatusOK, "console.log('app')", "public, max-age=31536000, immutable"},
 		{"/assets/missing.js", http.StatusNotFound, "", ""},
+		// Self-hosted fonts are immutably cached and 404 (not SPA-fallback) on miss.
+		{"/fonts/heebo-hebrew-700.woff2", http.StatusOK, "wOF2-stub", "public, max-age=31536000, immutable"},
+		{"/fonts/missing.woff2", http.StatusNotFound, "", ""},
 	}
 
 	for _, tt := range tests {
