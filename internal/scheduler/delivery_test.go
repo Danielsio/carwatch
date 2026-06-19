@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -13,6 +14,123 @@ import (
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/redis/go-redis/v9"
 )
+
+func TestSortListingsByScore(t *testing.T) {
+	dealScore := func(s int) *model.ScoreInfo { return &model.ScoreInfo{Score: s} }
+	tests := []struct {
+		name string
+		in   []model.Listing
+		want []string
+	}{
+		{
+			name: "orders by fitness desc with deal score as tiebreak",
+			in: []model.Listing{
+				{RawListing: model.RawListing{Token: "low"}, FitnessScore: 3.0},
+				{RawListing: model.RawListing{Token: "high"}, FitnessScore: 9.0},
+				{RawListing: model.RawListing{Token: "mid-weak-deal"}, FitnessScore: 6.0, DealScore: dealScore(40)},
+				{RawListing: model.RawListing{Token: "mid-strong-deal"}, FitnessScore: 6.0, DealScore: dealScore(80)},
+			},
+			want: []string{"high", "mid-strong-deal", "mid-weak-deal", "low"},
+		},
+		{
+			name: "scored listing outranks unscored at equal fitness",
+			in: []model.Listing{
+				{RawListing: model.RawListing{Token: "unscored"}, FitnessScore: 5.0},
+				{RawListing: model.RawListing{Token: "scored"}, FitnessScore: 5.0, DealScore: dealScore(10)},
+			},
+			want: []string{"scored", "unscored"},
+		},
+		{
+			name: "all unscored at equal fitness keeps stable input order",
+			in: []model.Listing{
+				{RawListing: model.RawListing{Token: "a"}, FitnessScore: 5.0},
+				{RawListing: model.RawListing{Token: "b"}, FitnessScore: 5.0},
+				{RawListing: model.RawListing{Token: "c"}, FitnessScore: 5.0},
+			},
+			want: []string{"a", "b", "c"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sortListingsByScore(tt.in)
+			got := tokensOf(tt.in)
+			if len(got) != len(tt.want) {
+				t.Fatalf("order = %v, want %v", got, tt.want)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Fatalf("order = %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestInstantDelivery_DeliverBatch_TruncatesToBest(t *testing.T) {
+	mr := miniredis.RunT(t)
+	pub, err := broker.NewPublisher(mr.Addr(), "", 0)
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	defer func() { _ = pub.Close() }()
+
+	d := NewInstantDelivery(&mockNotifier{}, locale.English, WithPublisher(pub), WithSearchContext(1, "s"))
+
+	// More listings than fit in one batch, in worst-first order so a naive
+	// "keep the first N" would drop the best cars.
+	var listings []model.Listing
+	for i := 0; i < maxBatchSize+2; i++ {
+		listings = append(listings, model.Listing{
+			RawListing:   model.RawListing{Token: fmt.Sprintf("tok-%02d", i), Manufacturer: "Toyota", Model: "Corolla", Year: 2021, Price: 100000},
+			FitnessScore: float64(i), // higher index = better car
+		})
+	}
+
+	if err := d.DeliverBatch(context.Background(), 100, listings); err != nil {
+		t.Fatalf("deliver batch: %v", err)
+	}
+
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+	msgs, err := client.XRange(context.Background(), broker.StreamName, "-", "+").Result()
+	if err != nil {
+		t.Fatalf("xrange: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 queued message, got %d", len(msgs))
+	}
+	data, ok := msgs[0].Values["data"].(string)
+	if !ok {
+		t.Fatal("missing data field in queued message")
+	}
+	var queued broker.Alert
+	if err := json.Unmarshal([]byte(data), &queued); err != nil {
+		t.Fatalf("unmarshal queued alert: %v", err)
+	}
+
+	if len(queued.Tokens) != maxBatchSize {
+		t.Fatalf("expected %d tokens after truncation, got %d", maxBatchSize, len(queued.Tokens))
+	}
+	if queued.Tokens[0] != "tok-11" {
+		t.Errorf("best listing should lead the batch, got %q", queued.Tokens[0])
+	}
+	for _, dropped := range []string{"tok-00", "tok-01"} {
+		for _, tok := range queued.Tokens {
+			if tok == dropped {
+				t.Errorf("lowest-scored listing %q should have been truncated, but was delivered", dropped)
+			}
+		}
+	}
+}
+
+func tokensOf(listings []model.Listing) []string {
+	out := make([]string, len(listings))
+	for i, l := range listings {
+		out[i] = l.Token
+	}
+	return out
+}
 
 func TestInstantDelivery_DeliverBatch_Success(t *testing.T) {
 	n := &mockNotifier{}

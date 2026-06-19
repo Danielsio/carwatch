@@ -244,8 +244,8 @@ func TestFormatListing_WithScore(t *testing.T) {
 	msg := FormatListing(l, locale.English)
 
 	checks := []string{
-		"Deal Score: 20/100",
-		"below market",
+		"Deal: 20/100",
+		"20% below",
 		"100,000",
 	}
 	for _, check := range checks {
@@ -279,10 +279,10 @@ func TestFormatListing_ScoreAtMedian(t *testing.T) {
 	}
 
 	msg := FormatListing(l, locale.English)
-	if !strings.Contains(msg, "Deal Score: 0/100") {
+	if !strings.Contains(msg, "Deal: 0/100") {
 		t.Errorf("expected score 0:\n%s", msg)
 	}
-	if !strings.Contains(msg, "Near market price") {
+	if !strings.Contains(msg, "near market") {
 		t.Errorf("expected near market text:\n%s", msg)
 	}
 }
@@ -297,7 +297,7 @@ func TestFormatListing_ScoreAboveMedian(t *testing.T) {
 	}
 
 	msg := FormatListing(l, locale.English)
-	if !strings.Contains(msg, "Above market price") {
+	if !strings.Contains(msg, "above") {
 		t.Errorf("expected above market text:\n%s", msg)
 	}
 }
@@ -311,7 +311,7 @@ func TestFormatListing_ZeroKm(t *testing.T) {
 	}
 
 	msg := FormatListing(l, locale.English)
-	if !strings.Contains(msg, "Not specified") {
+	if !strings.Contains(msg, "N/A") {
 		t.Errorf("should show unknown mileage when Km=0:\n%s", msg)
 	}
 }
@@ -330,22 +330,24 @@ func TestFormatListing_FieldOrder(t *testing.T) {
 	}
 
 	msg := FormatListing(l, locale.English)
-	priceIdx := strings.Index(msg, "Price:")
-	mileageIdx := strings.Index(msg, "Mileage:")
+	// New triage hierarchy: year (headline) → verdict (fitness) → mileage →
+	// price. The fields a buyer scans first lead the message.
+	yearIdx := strings.Index(msg, "2021")
 	fitnessIdx := strings.Index(msg, "Fitness:")
-	yearIdx := strings.Index(msg, "Year:")
+	mileageIdx := strings.Index(msg, "85,000")
+	priceIdx := strings.Index(msg, "Price:")
 
-	if priceIdx < 0 || mileageIdx < 0 || fitnessIdx < 0 || yearIdx < 0 {
+	if yearIdx < 0 || fitnessIdx < 0 || mileageIdx < 0 || priceIdx < 0 {
 		t.Fatalf("missing expected fields:\n%s", msg)
 	}
-	if priceIdx > mileageIdx {
-		t.Errorf("price should appear before mileage:\n%s", msg)
+	if yearIdx > fitnessIdx {
+		t.Errorf("year (headline) should appear before the verdict:\n%s", msg)
 	}
-	if mileageIdx > fitnessIdx {
-		t.Errorf("mileage should appear before fitness:\n%s", msg)
+	if fitnessIdx > mileageIdx {
+		t.Errorf("verdict should appear before mileage:\n%s", msg)
 	}
-	if fitnessIdx > yearIdx {
-		t.Errorf("fitness should appear before year:\n%s", msg)
+	if mileageIdx > priceIdx {
+		t.Errorf("mileage should appear before price:\n%s", msg)
 	}
 }
 
@@ -375,6 +377,144 @@ func TestFormatListing_WithFitnessBreakdown(t *testing.T) {
 	}
 	if !strings.Contains(msg, "value") {
 		t.Errorf("should mention 'value' as bad dimension:\n%s", msg)
+	}
+}
+
+func TestFormatListing_YearInHeadline(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "y1", Manufacturer: "Mazda", Model: "3", SubModel: "Sport",
+			Year: 2021, Price: 95000,
+		},
+	}
+	msg := FormatListing(l, locale.English)
+	// The headline is the bold title line carrying make, model, sub-model and
+	// year — and it must come before the spec/price block, not after it.
+	titleIdx := strings.Index(msg, "Mazda 3 Sport")
+	yearIdx := strings.Index(msg, "2021")
+	specsIdx := strings.Index(msg, "💰")
+	if titleIdx < 0 || yearIdx < 0 || specsIdx < 0 {
+		t.Fatalf("missing headline fields:\n%s", msg)
+	}
+	if yearIdx < titleIdx {
+		t.Errorf("year should sit within the headline after the model:\n%s", msg)
+	}
+	if yearIdx > specsIdx {
+		t.Errorf("year should appear in the headline, before the price block:\n%s", msg)
+	}
+}
+
+func TestFormatListing_EngineTypeAndSeller(t *testing.T) {
+	private := false
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "fs", Manufacturer: "Toyota", Model: "Corolla",
+			Year: 2022, Price: 90000, Km: 30000,
+			EngineType: "Hybrid", GearBox: "Automatic", HorsePower: 122,
+			City: "Tel Aviv", Commercial: &private,
+		},
+	}
+	msg := FormatListing(l, locale.English)
+	for _, want := range []string{"Hybrid", "Automatic", "122 HP", "Private seller"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("message missing %q:\n%s", want, msg)
+		}
+	}
+}
+
+func TestFormatListing_DealerSeller(t *testing.T) {
+	dealer := true
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "ds", Manufacturer: "Kia", Model: "Niro",
+			Year: 2023, Price: 120000, Commercial: &dealer,
+		},
+	}
+	msg := FormatListing(l, locale.English)
+	if !strings.Contains(msg, "Dealer") {
+		t.Errorf("commercial listing should show dealer label:\n%s", msg)
+	}
+	if strings.Contains(msg, "Private") {
+		t.Errorf("commercial listing should not show private label:\n%s", msg)
+	}
+}
+
+func TestFormatListing_GearboxWithoutEngineVolume(t *testing.T) {
+	// Gearbox must survive even when engine volume is missing (it used to be
+	// nested under the engine-volume guard and silently dropped).
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "gb", Manufacturer: "Toyota", Model: "Corolla",
+			Year: 2022, Price: 90000, GearBox: "Automatic",
+		},
+	}
+	msg := FormatListing(l, locale.English)
+	if !strings.Contains(msg, "Automatic") {
+		t.Errorf("gearbox should show even without engine volume:\n%s", msg)
+	}
+}
+
+func TestFormatListing_SuspiciousReasons(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "sus", Manufacturer: "BMW", Model: "5",
+			Year: 2020, Price: 40000,
+		},
+		SuspiciousReasons: []string{"price_below_market", "no_photo_low_price"},
+	}
+	msg := FormatListing(l, locale.English)
+	for _, want := range []string{"Suspicious listing", "Price far below market", "No photo"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("message missing suspicious text %q:\n%s", want, msg)
+		}
+	}
+}
+
+func TestFormatListing_NoSuspiciousBlockWhenClean(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "clean", Manufacturer: "BMW", Model: "5",
+			Year: 2020, Price: 140000,
+		},
+	}
+	msg := FormatListing(l, locale.English)
+	if strings.Contains(msg, "Suspicious") {
+		t.Errorf("clean listing should not show a suspicious block:\n%s", msg)
+	}
+}
+
+func TestFormatListing_PriceHasLTRMark(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "ltr", Manufacturer: "Mazda", Model: "3",
+			Year: 2021, Price: 95000, Km: 85000,
+		},
+	}
+	msg := FormatListing(l, locale.Hebrew)
+	// Prices and mileage carry an LTR mark so they render correctly in RTL.
+	if !strings.Contains(msg, "₪"+ltrMark+"95,000") {
+		t.Errorf("price should carry an LTR mark for RTL rendering:\n%s", msg)
+	}
+	if !strings.Contains(msg, ltrMark+"85,000") {
+		t.Errorf("mileage should carry an LTR mark for RTL rendering:\n%s", msg)
+	}
+}
+
+func TestFormatListing_HebrewNamesPreferred(t *testing.T) {
+	l := model.Listing{
+		RawListing: model.RawListing{
+			Token: "he", Manufacturer: "Toyota", Model: "Corolla",
+			ManufacturerNameHe: "טויוטה", ModelNameHe: "קורולה",
+			Year: 2022, Price: 90000,
+		},
+	}
+	heMsg := FormatListing(l, locale.Hebrew)
+	if !strings.Contains(heMsg, "טויוטה קורולה") {
+		t.Errorf("Hebrew message should use Hebrew names:\n%s", heMsg)
+	}
+	enMsg := FormatListing(l, locale.English)
+	if !strings.Contains(enMsg, "Toyota Corolla") {
+		t.Errorf("English message should keep English names:\n%s", enMsg)
 	}
 }
 
