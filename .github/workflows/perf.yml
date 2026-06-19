@@ -20,12 +20,16 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: |
+            web/package-lock.json
+            web/perf/package-lock.json
 
       - name: Install web dependencies
         run: cd web && npm ci
@@ -34,7 +38,7 @@ jobs:
         run: cd web && npm run build
 
       - name: Install perf dependencies
-        run: cd web/perf && npm install
+        run: cd web/perf && npm ci
 
       - name: Start preview server
         run: cd web && npx vite preview --port 4173 &

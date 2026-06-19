@@ -6,14 +6,15 @@ import (
 	"strings"
 )
 
-var prerenderedRoutes = map[string]string{
-	"login":  "login.html",
-	"signup": "signup.html",
-}
-
 func prerenderedFile(path string) (string, bool) {
-	f, ok := prerenderedRoutes[path]
-	return f, ok
+	switch path {
+	case "login":
+		return "login.html", true
+	case "signup":
+		return "signup.html", true
+	default:
+		return "", false
+	}
 }
 
 func Handler(distFS fs.FS) http.Handler {
@@ -60,7 +61,7 @@ func Handler(distFS fs.FS) http.Handler {
 		// fast first paint. Everything else is served the app-shell skeleton.
 		w.Header().Set("Cache-Control", "no-cache")
 		if path != "" {
-			if prerendered, ok := prerenderedFile(path); ok {
+			if prerendered, ok := prerenderedFile(strings.TrimRight(path, "/")); ok {
 				if _, err := fs.Stat(distFS, prerendered); err == nil {
 					r.URL.Path = "/" + prerendered
 					fileServer.ServeHTTP(w, r)

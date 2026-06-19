@@ -81,7 +81,9 @@ func TestHandler_ServesShellForNonLandingRoutes(t *testing.T) {
 	}{
 		{"/", "<html>prerendered-landing</html>"},
 		{"/login", "<html>prerendered-login</html>"},
+		{"/login/", "<html>prerendered-login</html>"},
 		{"/signup", "<html>prerendered-signup</html>"},
+		{"/signup/", "<html>prerendered-signup</html>"},
 		{"/dashboard", "<html>clean-shell</html>"},
 		{"/searches/new", "<html>clean-shell</html>"},
 		{"/listings/tok-123", "<html>clean-shell</html>"},

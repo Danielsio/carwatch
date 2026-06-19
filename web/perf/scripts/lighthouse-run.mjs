@@ -63,41 +63,43 @@ async function run() {
 
   const chrome = await chromeLauncher.launch({ chromeFlags: ["--headless", "--no-sandbox"] });
 
-  const summary = {};
+  try {
+    const summary = {};
 
-  for (const route of ROUTES) {
-    summary[route.name] = {};
-    for (const config of CONFIGS) {
-      const url = `${BASE}${route.path}`;
-      console.log(`[lighthouse] ${config.name} ${url}`);
+    for (const route of ROUTES) {
+      summary[route.name] = {};
+      for (const config of CONFIGS) {
+        const url = `${BASE}${route.path}`;
+        console.log(`[lighthouse] ${config.name} ${url}`);
 
-      const result = await lighthouse(url, {
-        port: chrome.port,
-        output: "json",
-        onlyCategories: ["performance", "accessibility"],
-        ...config.settings,
-      });
+        const result = await lighthouse(url, {
+          port: chrome.port,
+          output: "json",
+          onlyCategories: ["performance", "accessibility"],
+          ...config.settings,
+        });
 
-      const report = JSON.parse(result.report);
-      const perf = report.categories.performance.score * 100;
-      const a11y = report.categories.accessibility.score * 100;
-      const fcp = report.audits["first-contentful-paint"].numericValue;
-      const lcp = report.audits["largest-contentful-paint"].numericValue;
-      const tbt = report.audits["total-blocking-time"].numericValue;
+        const report = JSON.parse(result.report);
+        const perf = report.categories.performance.score * 100;
+        const a11y = report.categories.accessibility.score * 100;
+        const fcp = report.audits["first-contentful-paint"].numericValue;
+        const lcp = report.audits["largest-contentful-paint"].numericValue;
+        const tbt = report.audits["total-blocking-time"].numericValue;
 
-      summary[route.name][config.name] = { perf, a11y, fcp, lcp, tbt };
-      console.log(`  perf=${perf} a11y=${a11y} FCP=${Math.round(fcp)}ms LCP=${Math.round(lcp)}ms TBT=${Math.round(tbt)}ms`);
+        summary[route.name][config.name] = { perf, a11y, fcp, lcp, tbt };
+        console.log(`  perf=${perf} a11y=${a11y} FCP=${Math.round(fcp)}ms LCP=${Math.round(lcp)}ms TBT=${Math.round(tbt)}ms`);
 
-      const reportPath = resolve(reportsDir, `${route.name}-${config.name}.json`);
-      writeFileSync(reportPath, result.report);
+        const reportPath = resolve(reportsDir, `${route.name}-${config.name}.json`);
+        writeFileSync(reportPath, result.report);
+      }
     }
+
+    const summaryPath = resolve(reportsDir, "lighthouse-summary.json");
+    writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+    console.log(`[lighthouse] summary → ${summaryPath}`);
+  } finally {
+    await chrome.kill();
   }
-
-  const summaryPath = resolve(reportsDir, "lighthouse-summary.json");
-  writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
-  console.log(`[lighthouse] summary → ${summaryPath}`);
-
-  await chrome.kill();
 }
 
 run().catch((err) => {

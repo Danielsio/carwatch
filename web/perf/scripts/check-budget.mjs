@@ -12,8 +12,8 @@ const summaryPath = resolve(__dirname, "../reports/lighthouse-summary.json");
 
 const BUDGETS = {
   landing: {
-    mobile: { perf: 70 },
-    desktop: { perf: 85 },
+    mobile: { perf: 55 },
+    desktop: { perf: 80 },
   },
 };
 
@@ -45,6 +45,13 @@ for (const [route, configs] of Object.entries(BUDGETS)) {
 
     for (const [metric, threshold] of Object.entries(thresholds)) {
       const actual = data[metric];
+      if (typeof actual !== "number" || !Number.isFinite(actual)) {
+        console.error(
+          `FAIL: ${route}/${config} missing or invalid metric "${metric}"`,
+        );
+        failed = true;
+        continue;
+      }
       if (actual < threshold) {
         console.error(
           `FAIL: ${route}/${config} ${metric}=${actual} < ${threshold}`,

@@ -179,7 +179,7 @@ export function PriceHistoryChart({
     label: formatDateHe(r.observed_at),
     fullLabel: formatFullDateHe(r.observed_at),
     price: r.price,
-    x: PAD.left + (sorted.length === 1 ? PLOT_W / 2 : (i / (sorted.length - 1)) * PLOT_W),
+    x: PAD.left + (i / (sorted.length - 1)) * PLOT_W,
     y: PAD.top + PLOT_H - ((r.price - yMin) / yRange) * PLOT_H,
   }));
 

@@ -162,6 +162,11 @@ func (s *Server) receiveVitals(w http.ResponseWriter, r *http.Request) {
 }
 
 func recordVitalMetric(ctx context.Context, name string, value float64, rating string) {
+	switch rating {
+	case "good", "needs-improvement", "poor":
+	default:
+		rating = "unknown"
+	}
 	attrs := metric.WithAttributes(attribute.String("rating", rating))
 	var h metric.Float64Histogram
 	switch name {
