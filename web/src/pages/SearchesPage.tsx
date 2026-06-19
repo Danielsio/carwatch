@@ -364,9 +364,12 @@ function StatCard({
     <Card
       {...spotlight}
       className={cn(
-        "spotlight group relative overflow-hidden transition-all duration-300",
+        // Scope the transition (never transition-all, which repaints on hover
+        // as cards pass under the cursor while scrolling) and use a small-blur
+        // hover shadow — a 32px blur is expensive to rasterise as it fades in.
+        "spotlight group relative overflow-hidden transition-[transform,box-shadow,border-color] duration-150",
         "hover:border-primary/30 hover:-translate-y-0.5",
-        "hover:shadow-[0_8px_32px_-8px_var(--color-glow-primary)]",
+        "hover:shadow-[0_6px_12px_-6px_var(--color-glow-primary)]",
       )}
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
