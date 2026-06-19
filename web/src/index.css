@@ -302,10 +302,15 @@
   50% { transform: translateY(10px); }
 }
 
+/* Translate-only drift. The blobs carry a 70px blur over ~half the viewport;
+   animating scale() forced the GPU to re-rasterise that blur every frame (the
+   main app-wide scroll tax on desktop, where the coarse-pointer freeze doesn't
+   apply). A pure translate of a will-change:transform layer just repositions
+   the already-rasterised texture — same ambient motion, ~zero per-frame cost. */
 @keyframes aurora-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  33% { transform: translate3d(4%, -5%, 0) scale(1.12); }
-  66% { transform: translate3d(-4%, 3%, 0) scale(1.06); }
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  33% { transform: translate3d(5%, -6%, 0); }
+  66% { transform: translate3d(-5%, 4%, 0); }
 }
 
 @keyframes scale-in {
