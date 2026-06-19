@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -96,9 +97,6 @@ func (n *Notifier) Notify(ctx context.Context, chatID string, listings []model.L
 }
 
 func listingActionKeyboard(token, pageLink string, lang locale.Lang) *tgmodels.InlineKeyboardMarkup {
-	if token == "" && pageLink == "" {
-		return nil
-	}
 	var rows [][]tgmodels.InlineKeyboardButton
 	if token != "" {
 		rows = append(rows, []tgmodels.InlineKeyboardButton{
@@ -108,12 +106,34 @@ func listingActionKeyboard(token, pageLink string, lang locale.Lang) *tgmodels.I
 	}
 	// A one-tap link to the source listing. Also protects the URL from being
 	// dropped when a long photo caption is truncated to the Telegram limit.
-	if pageLink != "" {
+	// The link comes from scraped listing data, so validate it before exposing
+	// it as a tappable button — a poisoned URL must not become an in-chat
+	// phishing vector.
+	if isSafeListingURL(pageLink) {
 		rows = append(rows, []tgmodels.InlineKeyboardButton{
 			{Text: locale.T(lang, "btn_view_listing"), URL: pageLink},
 		})
 	}
+	if len(rows) == 0 {
+		return nil
+	}
 	return &tgmodels.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+// isSafeListingURL reports whether raw is a well-formed http(s) URL with a host,
+// i.e. safe to surface as a tappable button.
+func isSafeListingURL(raw string) bool {
+	if raw == "" {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	return u.Hostname() != ""
 }
 
 func (n *Notifier) NotifyRaw(ctx context.Context, chatID string, message string) error {

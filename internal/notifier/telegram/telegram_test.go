@@ -886,6 +886,26 @@ func TestListingActionKeyboard(t *testing.T) {
 		}
 	})
 
+	t.Run("drops an unsafe link but keeps the action buttons", func(t *testing.T) {
+		kb := listingActionKeyboard("tok123", "javascript:alert(1)", locale.English)
+		if kb == nil {
+			t.Fatal("expected a keyboard for the save/hide actions")
+		}
+		for _, row := range kb.InlineKeyboard {
+			for _, btn := range row {
+				if btn.URL != "" {
+					t.Errorf("unsafe URL should not be exposed as a button, got %q", btn.URL)
+				}
+			}
+		}
+	})
+
+	t.Run("returns nil for an unsafe link with no token", func(t *testing.T) {
+		if kb := listingActionKeyboard("", "ftp://evil.example/x", locale.English); kb != nil {
+			t.Errorf("expected nil keyboard when the only link is unsafe, got %+v", kb)
+		}
+	})
+
 	t.Run("returns nil when there is nothing actionable", func(t *testing.T) {
 		if kb := listingActionKeyboard("", "", locale.English); kb != nil {
 			t.Errorf("expected nil keyboard, got %+v", kb)

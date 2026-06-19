@@ -17,20 +17,53 @@ import (
 
 func TestSortListingsByScore(t *testing.T) {
 	dealScore := func(s int) *model.ScoreInfo { return &model.ScoreInfo{Score: s} }
-	listings := []model.Listing{
-		{RawListing: model.RawListing{Token: "low"}, FitnessScore: 3.0},
-		{RawListing: model.RawListing{Token: "high"}, FitnessScore: 9.0},
-		{RawListing: model.RawListing{Token: "mid-weak-deal"}, FitnessScore: 6.0, DealScore: dealScore(40)},
-		{RawListing: model.RawListing{Token: "mid-strong-deal"}, FitnessScore: 6.0, DealScore: dealScore(80)},
+	tests := []struct {
+		name string
+		in   []model.Listing
+		want []string
+	}{
+		{
+			name: "orders by fitness desc with deal score as tiebreak",
+			in: []model.Listing{
+				{RawListing: model.RawListing{Token: "low"}, FitnessScore: 3.0},
+				{RawListing: model.RawListing{Token: "high"}, FitnessScore: 9.0},
+				{RawListing: model.RawListing{Token: "mid-weak-deal"}, FitnessScore: 6.0, DealScore: dealScore(40)},
+				{RawListing: model.RawListing{Token: "mid-strong-deal"}, FitnessScore: 6.0, DealScore: dealScore(80)},
+			},
+			want: []string{"high", "mid-strong-deal", "mid-weak-deal", "low"},
+		},
+		{
+			name: "scored listing outranks unscored at equal fitness",
+			in: []model.Listing{
+				{RawListing: model.RawListing{Token: "unscored"}, FitnessScore: 5.0},
+				{RawListing: model.RawListing{Token: "scored"}, FitnessScore: 5.0, DealScore: dealScore(10)},
+			},
+			want: []string{"scored", "unscored"},
+		},
+		{
+			name: "all unscored at equal fitness keeps stable input order",
+			in: []model.Listing{
+				{RawListing: model.RawListing{Token: "a"}, FitnessScore: 5.0},
+				{RawListing: model.RawListing{Token: "b"}, FitnessScore: 5.0},
+				{RawListing: model.RawListing{Token: "c"}, FitnessScore: 5.0},
+			},
+			want: []string{"a", "b", "c"},
+		},
 	}
 
-	sortListingsByScore(listings)
-
-	want := []string{"high", "mid-strong-deal", "mid-weak-deal", "low"}
-	for i, w := range want {
-		if listings[i].Token != w {
-			t.Fatalf("position %d = %q, want %q (full order: %v)", i, listings[i].Token, w, tokensOf(listings))
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sortListingsByScore(tt.in)
+			got := tokensOf(tt.in)
+			if len(got) != len(tt.want) {
+				t.Fatalf("order = %v, want %v", got, tt.want)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Fatalf("order = %v, want %v", got, tt.want)
+				}
+			}
+		})
 	}
 }
 
@@ -67,8 +100,12 @@ func TestInstantDelivery_DeliverBatch_TruncatesToBest(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 queued message, got %d", len(msgs))
 	}
+	data, ok := msgs[0].Values["data"].(string)
+	if !ok {
+		t.Fatal("missing data field in queued message")
+	}
 	var queued broker.Alert
-	if err := json.Unmarshal([]byte(msgs[0].Values["data"].(string)), &queued); err != nil {
+	if err := json.Unmarshal([]byte(data), &queued); err != nil {
 		t.Fatalf("unmarshal queued alert: %v", err)
 	}
 
