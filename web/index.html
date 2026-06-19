@@ -12,11 +12,11 @@
     <script>
       (function(){var t=localStorage.getItem('theme');if(t==='light'||(!t&&matchMedia('(prefers-color-scheme:light)').matches)){document.documentElement.classList.remove('dark');document.querySelector('meta[name=theme-color]').content='#F8FAFC'}else{document.documentElement.classList.add('dark')}})();
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" />
-    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" /></noscript>
+    <!-- Self-hosted fonts (see web/src/fonts.css). Preload the two Hebrew weights
+         used by the above-the-fold hero (LCP text) so the final font paints fast
+         and the swap doesn't shift layout. The rest load on demand via @font-face. -->
+    <link rel="preload" href="/fonts/heebo-hebrew-700.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/heebo-hebrew-400.woff2" as="font" type="font/woff2" crossorigin />
     <title>CarWatch — מעקב חכם אחרי רכבים</title>
     <meta name="description" content="CarWatch — מעקב חכם אחרי מודעות רכב מיד2 ו-WinWin. קבלו התראות מיידיות, ניתוח מחירים וציון התאמה אוטומטי." />
     <meta property="og:title" content="CarWatch — מעקב חכם אחרי רכבים" />
