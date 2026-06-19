@@ -1,0 +1,11 @@
+These self-hosted woff2 files are subsets of:
+
+- Heebo — Copyright the Heebo Project Authors (https://github.com/OdedEzer/heebo)
+- Inter — Copyright the Inter Project Authors (https://github.com/rsms/inter)
+
+Both are licensed under the SIL Open Font License, Version 1.1.
+Full license text: https://openfontlicense.org/
+
+Files here were generated from the Google Fonts css2 API (woff2, subset by
+unicode-range) and trimmed to the hebrew + latin subsets the app renders.
+Regenerate by re-running the font fetch and bumping filenames to bust cache.
