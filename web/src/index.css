@@ -350,15 +350,20 @@
 }
 
 @utility card-hover {
+  /* Only the three properties that actually change on hover — never
+     transition-all, which would repaint on every unrelated change (and fire a
+     full repaint each time a card slides under the cursor while scrolling). */
   transition-property: transform, box-shadow, border-color;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 200ms;
+  transition-duration: 140ms;
 
   &:hover {
     border-color: color-mix(in oklab, var(--color-primary) 30%, var(--color-border));
     transform: translateY(-2px);
+    /* Smaller blur radius — a 24px-blur shadow is expensive to rasterise; 12px
+       reads almost the same but paints far cheaper as it fades in. */
     box-shadow:
-      0 8px 24px -8px var(--color-glow-primary),
+      0 6px 12px -6px var(--color-glow-primary),
       0 0 0 1px color-mix(in oklab, var(--color-primary) 8%, transparent);
   }
 }
