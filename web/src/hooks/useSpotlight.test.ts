@@ -8,13 +8,16 @@ describe("useSpotlight", () => {
     window.matchMedia = realMatchMedia;
   });
 
-  it("writes element-relative coordinates to CSS vars on pointer move", () => {
+  it("caches the rect on enter and writes element-relative coords on move", () => {
     const { result } = renderHook(() => useSpotlight());
 
     const el = document.createElement("div");
     el.getBoundingClientRect = () =>
       ({ left: 100, top: 50, width: 200, height: 120 }) as DOMRect;
 
+    result.current.onPointerEnter({
+      currentTarget: el,
+    } as unknown as React.PointerEvent<HTMLElement>);
     result.current.onPointerMove({
       currentTarget: el,
       clientX: 150,
@@ -25,6 +28,19 @@ describe("useSpotlight", () => {
     expect(el.style.getPropertyValue("--spot-y")).toBe("40px");
   });
 
+  it("move before enter is a no-op (nothing cached yet)", () => {
+    const { result } = renderHook(() => useSpotlight());
+
+    const el = document.createElement("div");
+    result.current.onPointerMove({
+      currentTarget: el,
+      clientX: 10,
+      clientY: 10,
+    } as unknown as React.PointerEvent<HTMLElement>);
+
+    expect(el.style.getPropertyValue("--spot-x")).toBe("");
+  });
+
   it("returns a stable handler across renders", () => {
     const { result, rerender } = renderHook(() => useSpotlight());
     const first = result.current.onPointerMove;
@@ -32,7 +48,7 @@ describe("useSpotlight", () => {
     expect(result.current.onPointerMove).toBe(first);
   });
 
-  it("no-ops on coarse-pointer (touch) devices — no layout reads on scroll", () => {
+  it("no-ops on coarse-pointer (touch) devices — no layout reads", () => {
     window.matchMedia = ((query: string) => ({
       matches: query.includes("coarse"),
       media: query,
@@ -53,6 +69,11 @@ describe("useSpotlight", () => {
       return { left: 0, top: 0, width: 10, height: 10 } as DOMRect;
     };
 
+    // Even the enter handler (the one that reads layout on desktop) must not
+    // touch the rect on touch devices.
+    result.current.onPointerEnter({
+      currentTarget: el,
+    } as unknown as React.PointerEvent<HTMLElement>);
     result.current.onPointerMove({
       currentTarget: el,
       clientX: 5,
