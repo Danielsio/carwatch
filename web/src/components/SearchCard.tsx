@@ -84,7 +84,10 @@ export function SearchCard({
   return (
     <Card
       className={cn(
-        "group card-hover transition-all duration-200",
+        // card-hover already scopes its own transition (transform/shadow/border);
+        // a stacked transition-all would repaint every property on hover — the
+        // cause of the scroll jank as cards pass under the cursor.
+        "group card-hover",
         !isActive && "opacity-75",
       )}
     >
