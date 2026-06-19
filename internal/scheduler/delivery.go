@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/dsionov/carwatch/internal/broker"
@@ -17,6 +18,27 @@ import (
 var errMalformedMessage = errors.New("blocked malformed message")
 
 const maxBatchSize = 10
+
+// sortListingsByScore orders a batch best-first so the most relevant cars lead
+// the message and survive truncation to maxBatchSize. Primary key is the
+// fitness score; ties break on the deal score.
+func sortListingsByScore(listings []model.Listing) {
+	sort.SliceStable(listings, func(i, j int) bool {
+		if listings[i].FitnessScore != listings[j].FitnessScore {
+			return listings[i].FitnessScore > listings[j].FitnessScore
+		}
+		return dealScoreValue(listings[i]) > dealScoreValue(listings[j])
+	})
+}
+
+// dealScoreValue returns the listing's deal score, or -1 when unscored, so
+// scored listings always rank above unscored ones on a tie.
+func dealScoreValue(l model.Listing) int {
+	if l.DealScore != nil {
+		return l.DealScore.Score
+	}
+	return -1
+}
 
 type DeliveryStrategy interface {
 	DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error
@@ -69,6 +91,7 @@ func WithSearchContext(id int64, name string) func(*InstantDelivery) {
 }
 
 func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error {
+	sortListingsByScore(listings)
 	truncated := 0
 	if len(listings) > maxBatchSize {
 		truncated = len(listings) - maxBatchSize
@@ -163,6 +186,7 @@ func NewDigestDelivery(s storage.DigestStore, lang locale.Lang) *DigestDelivery 
 }
 
 func (d *DigestDelivery) DeliverBatch(ctx context.Context, chatID int64, listings []model.Listing) error {
+	sortListingsByScore(listings)
 	truncated := 0
 	if len(listings) > maxBatchSize {
 		truncated = len(listings) - maxBatchSize
