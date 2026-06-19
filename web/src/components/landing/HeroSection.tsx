@@ -25,10 +25,10 @@ function FloatingCard({
 export function HeroSection() {
   return (
     <section className="relative flex min-h-screen items-center justify-center pt-16">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden will-change-transform" aria-hidden="true" style={{ transform: "translateZ(0)" }}>
-        <div className="hero-blob absolute top-1/4 end-1/4 h-96 w-96 rounded-full bg-primary/10 blur-[100px]" />
-        <div className="hero-blob absolute bottom-1/3 start-1/4 h-72 w-72 rounded-full bg-purple-500/8 blur-[80px]" />
-        <div className="hero-blob absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[120px]" />
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div className="aurora-blob absolute top-1/4 end-1/4 h-96 w-96 rounded-full bg-primary/10 blur-[60px]" />
+        <div className="aurora-blob absolute bottom-1/3 start-1/4 h-72 w-72 rounded-full bg-purple-500/8 blur-[50px]" />
+        <div className="aurora-blob absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[70px]" />
       </div>
 
       <div className="landing-grid-bg pointer-events-none absolute inset-0 opacity-[0.03]" aria-hidden="true" />
@@ -74,7 +74,7 @@ export function HeroSection() {
         >
           <Link
             to="/signup"
-            className="glow-border flex items-center gap-2.5 rounded-2xl bg-primary px-7 py-3.5 text-base font-bold text-white shadow-2xl shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-primary/40 hover:active:translate-y-0 md:hover:-translate-y-0.5"
+            className="flex items-center gap-2.5 rounded-2xl bg-primary px-7 py-3.5 text-base font-bold text-white shadow-2xl shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-primary/40 hover:active:translate-y-0 md:hover:-translate-y-0.5"
           >
             התחל עכשיו
             <ArrowLeft size={18} />

@@ -107,7 +107,6 @@
   --animate-aurora-a: aurora-drift 20s ease-in-out infinite;
   --animate-aurora-b: aurora-drift 28s ease-in-out infinite reverse;
   --animate-aurora-c: aurora-drift 34s ease-in-out infinite;
-  --animate-text-shimmer: text-shimmer 6s linear infinite;
   --animate-scale-in: scale-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -308,10 +307,6 @@
   66% { transform: translate3d(-4%, 3%, 0) scale(1.06); }
 }
 
-@keyframes text-shimmer {
-  to { background-position: 200% center; }
-}
-
 @keyframes scale-in {
   from { opacity: 0; transform: scale(0.96) translateY(6px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
@@ -320,16 +315,6 @@
 @keyframes shine-sweep {
   0% { transform: translateX(-130%) skewX(-18deg); }
   100% { transform: translateX(130%) skewX(-18deg); }
-}
-
-@property --glow-angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-
-@keyframes glow-rotate {
-  to { --glow-angle: 360deg; }
 }
 
 @keyframes toast-progress {
@@ -358,9 +343,7 @@
 }
 
 @utility glass-card {
-  background-color: color-mix(in oklab, var(--color-card) 75%, transparent);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  background-color: color-mix(in oklab, var(--color-card) 92%, transparent);
 }
 
 @utility card-hover {
@@ -427,7 +410,7 @@
     border-radius: inherit;
     padding: 1px;
     background: conic-gradient(
-      from var(--glow-angle),
+      from 135deg,
       transparent 0deg,
       var(--color-primary) 70deg,
       var(--color-aurora-cyan) 140deg,
@@ -439,7 +422,6 @@
       linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
-    animation: glow-rotate 6s linear infinite;
     pointer-events: none;
   }
 }
@@ -489,14 +471,11 @@
     115deg,
     var(--color-primary),
     var(--color-aurora-cyan),
-    var(--color-violet),
-    var(--color-primary)
+    var(--color-violet)
   );
-  background-size: 200% auto;
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
-  animation: text-shimmer 6s linear infinite;
 }
 
 @utility aurora-blob {
@@ -527,8 +506,6 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  .glow-border::before,
-  .text-aurora,
   .aurora-blob {
     animation: none !important;
   }
@@ -547,28 +524,10 @@
    ═══════════════════════════════════════════════════════════ */
 @media (pointer: coarse) {
   /* Half the blur radius (blur cost scales super-linearly with radius) and
-     stop the drift so the three full-bleed blobs no longer recomposite. */
+     stop the drift so the blobs no longer recomposite on mobile GPUs. */
   .aurora-blob {
-    filter: blur(40px);
+    filter: blur(30px);
     will-change: auto;
-    animation: none !important;
-  }
-  /* HeroSection's three decorative blobs use Tailwind blur-[100px..120px].
-     Those large blur surfaces are the main scroll-jank source on phones, so
-     clamp them to a cheap radius. !important overrides the Tailwind filter
-     utility; the look stays near-identical at this size. */
-  .hero-blob {
-    filter: blur(40px) !important;
-  }
-  /* Lighter frosted glass — backdrop-filter is recomputed on every scroll
-     frame over the content beneath it. */
-  .glass-card {
-    backdrop-filter: blur(10px) saturate(1.1);
-    -webkit-backdrop-filter: blur(10px) saturate(1.1);
-  }
-  /* Purely ambient infinite loops — freeze them on battery devices. */
-  .glow-border::before,
-  .text-aurora {
     animation: none !important;
   }
 }

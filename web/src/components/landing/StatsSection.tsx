@@ -27,7 +27,7 @@ export function StatsSection() {
       className="scroll-mt-28 px-4 py-24 sm:px-6"
     >
       <div className="relative mx-auto max-w-5xl">
-        <div className="pointer-events-none absolute -top-24 start-1/2 h-64 w-[min(90%,28rem)] -translate-x-1/2 rounded-full bg-primary/8 blur-[80px] will-change-transform" style={{ transform: "translateZ(0)" }} />
+        <div className="aurora-blob pointer-events-none absolute -top-24 start-1/2 h-64 w-[min(90%,28rem)] -translate-x-1/2 rounded-full bg-primary/8 blur-[50px]" />
 
         <FadeUp>
           <div className="mb-14 text-center">

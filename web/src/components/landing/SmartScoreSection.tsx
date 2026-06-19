@@ -126,8 +126,8 @@ function DemoCard({
 export function SmartScoreSection() {
   return (
     <section className="relative overflow-hidden px-4 py-24 sm:px-6">
-      <div className="pointer-events-none absolute inset-0 will-change-transform" style={{ transform: "translateZ(0)" }}>
-        <div className="absolute top-1/2 start-1/2 h-[300px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/6 blur-[80px]" />
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        <div className="aurora-blob absolute top-1/2 start-1/2 h-[300px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/6 blur-[50px]" />
       </div>
 
       <div className="relative mx-auto max-w-5xl">
