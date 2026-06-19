@@ -862,6 +862,30 @@ func TestListingActionKeyboard(t *testing.T) {
 		}
 	})
 
+	t.Run("returns a URL-only keyboard when token is empty but link is present", func(t *testing.T) {
+		kb := listingActionKeyboard("", "https://www.yad2.co.il/item/tok123", locale.English)
+		if kb == nil {
+			t.Fatal("expected a keyboard")
+		}
+		var sawURL, sawCallback bool
+		for _, row := range kb.InlineKeyboard {
+			for _, btn := range row {
+				if btn.URL != "" {
+					sawURL = true
+				}
+				if btn.CallbackData != "" {
+					sawCallback = true
+				}
+			}
+		}
+		if !sawURL {
+			t.Error("expected a URL button")
+		}
+		if sawCallback {
+			t.Error("did not expect any callback (save/hide) buttons without a token")
+		}
+	})
+
 	t.Run("returns nil when there is nothing actionable", func(t *testing.T) {
 		if kb := listingActionKeyboard("", "", locale.English); kb != nil {
 			t.Errorf("expected nil keyboard, got %+v", kb)

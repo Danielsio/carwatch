@@ -15,7 +15,7 @@ import (
 // ltrMark (U+200E LEFT-TO-RIGHT MARK) isolates Latin/number runs inside RTL
 // (Hebrew) lines so prices, years, and mileage render left-to-right instead of
 // being reordered by the bidirectional algorithm.
-var ltrMark = string(rune(0x200e))
+const ltrMark = string(rune(0x200e))
 
 // num renders a number group-separated and prefixed with an LTR mark so it
 // keeps its order inside RTL messages. Callers supply any surrounding symbol
