@@ -822,3 +822,49 @@ func TestThrottleChat_DisabledWhenZero(t *testing.T) {
 		t.Errorf("5 sends with zero chatDelay took %v, expected near-instant", time.Since(start))
 	}
 }
+
+func TestListingActionKeyboard(t *testing.T) {
+	t.Run("includes a view-listing URL button when a link is present", func(t *testing.T) {
+		kb := listingActionKeyboard("tok123", "https://www.yad2.co.il/item/tok123", locale.English)
+		if kb == nil {
+			t.Fatal("expected a keyboard")
+		}
+		var sawURL, sawSave bool
+		for _, row := range kb.InlineKeyboard {
+			for _, btn := range row {
+				if btn.URL == "https://www.yad2.co.il/item/tok123" {
+					sawURL = true
+				}
+				if btn.CallbackData == "save:tok123" {
+					sawSave = true
+				}
+			}
+		}
+		if !sawURL {
+			t.Error("expected a URL button linking to the listing")
+		}
+		if !sawSave {
+			t.Error("expected the save action button")
+		}
+	})
+
+	t.Run("omits the URL button when there is no link", func(t *testing.T) {
+		kb := listingActionKeyboard("tok123", "", locale.English)
+		if kb == nil {
+			t.Fatal("expected a keyboard for the save/hide actions")
+		}
+		for _, row := range kb.InlineKeyboard {
+			for _, btn := range row {
+				if btn.URL != "" {
+					t.Errorf("did not expect a URL button, got %q", btn.URL)
+				}
+			}
+		}
+	})
+
+	t.Run("returns nil when there is nothing actionable", func(t *testing.T) {
+		if kb := listingActionKeyboard("", "", locale.English); kb != nil {
+			t.Errorf("expected nil keyboard, got %+v", kb)
+		}
+	})
+}
