@@ -9,8 +9,8 @@ export function FinalCTA() {
         <FadeUp>
           <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-10 text-center md:p-16">
           <div className="pointer-events-none absolute inset-0">
-            <div className="absolute top-0 start-1/2 h-48 w-72 -translate-x-1/2 rounded-full bg-primary/12 blur-[80px]" />
-            <div className="absolute end-1/4 bottom-0 h-32 w-48 rounded-full bg-purple-500/8 blur-[60px]" />
+            <div className="decor-blob absolute top-0 start-1/2 h-48 w-72 -translate-x-1/2 rounded-full bg-primary/12 blur-[80px]" />
+            <div className="decor-blob absolute end-1/4 bottom-0 h-32 w-48 rounded-full bg-purple-500/8 blur-[60px]" />
           </div>
 
           <div className="landing-grid-bg-sm pointer-events-none absolute inset-0 opacity-[0.025]" />
