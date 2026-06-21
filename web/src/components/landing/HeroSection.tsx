@@ -71,7 +71,7 @@ export function HeroSection() {
         >
           <Link
             to="/signup"
-            className=" flex items-center gap-2.5 rounded-2xl bg-primary px-7 py-3.5 text-base font-bold text-white transition-all hover:bg-primary/90 hover:active:translate-y-0 md:"
+            className="flex items-center gap-2.5 rounded-2xl bg-primary px-7 py-3.5 text-base font-bold text-white transition-all hover:bg-primary/90 hover:active:translate-y-0"
           >
             התחל עכשיו
             <ArrowLeft size={18} />

@@ -124,7 +124,7 @@ export function EditSearchPage() {
         <BudgetFields form={form} set={set} />
         <AdvancedFields form={form} set={set} />
 
-        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md: md:border-0">
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:border-0">
           <div className="flex items-center gap-3">
             <button
               type="submit"

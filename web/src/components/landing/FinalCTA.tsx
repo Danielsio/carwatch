@@ -29,7 +29,7 @@ export function FinalCTA() {
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
                 to="/signup"
-                className="flex items-center gap-2.5 rounded-2xl bg-primary px-8 py-4 text-base font-bold text-white transition-all hover:bg-primary/90 hover:active:translate-y-0 md:"
+                className="flex items-center gap-2.5 rounded-2xl bg-primary px-8 py-4 text-base font-bold text-white transition-all hover:bg-primary/90 hover:active:translate-y-0"
               >
                 התחל לעקוב עכשיו
                 <ArrowLeft size={18} />

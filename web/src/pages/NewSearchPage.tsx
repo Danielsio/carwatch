@@ -341,7 +341,7 @@ export function NewSearchPage() {
         </div>
 
         {/* Navigation */}
-        <div className="sticky bottom-[var(--bottom-nav-h)] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md: md:border-0 mt-5">
+        <div className="sticky bottom-[var(--bottom-nav-h)] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:border-0 mt-5">
           <div className="flex items-center gap-3">
             {step > 0 && (
               <button
