@@ -1,10 +1,6 @@
 export { Badge, badgeVariants } from "./badge";
 export { MatchScoreBox, type MatchScoreBoxProps } from "./MatchScoreBox";
 export { Button, buttonVariants } from "./button";
-export {
-  AuroraBackground,
-  type AuroraBackgroundProps,
-} from "./AuroraBackground";
 export { ConfirmDialog, type ConfirmDialogProps } from "./ConfirmDialog";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { ErrorState, type ErrorStateProps } from "./ErrorState";

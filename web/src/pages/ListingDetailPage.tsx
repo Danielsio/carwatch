@@ -30,7 +30,6 @@ import { Button } from "@/components/ui/button";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
 import { useListingActions } from "@/hooks/useListingActions";
-import { useSpotlight } from "@/hooks/useSpotlight";
 import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -160,7 +159,6 @@ function ListingDetailContent({
   backButton: ReactNode;
 }) {
   const { saved, seen, toggleSaved, toggleSeen, isSaving, isTogglingSeen } = useListingActions(listing);
-  const spotlight = useSpotlight();
 
   const detailLogoSrc = manufacturerLogoSrc(listing.manufacturer);
   const source = listingSource(listing.page_link);
@@ -199,8 +197,7 @@ function ListingDetailContent({
 
       {/* Hero — magazine-style with overlaid title, price and badges */}
       <div
-        {...spotlight}
-        className="spotlight group relative aspect-video w-full overflow-hidden rounded-3xl border border-border/50 bg-secondary shadow-[0_24px_70px_-24px_var(--color-glow-primary)] animate-scale-in motion-reduce:animate-none"
+        className="group relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-secondary animate-scale-in motion-reduce:animate-none"
       >
         {listing.image_url ? (
           <img
@@ -228,13 +225,13 @@ function ListingDetailContent({
               </span>
             ) : null}
             {listing.removed_at ? (
-              <span className="rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white/80 backdrop-blur-sm">
+              <span className="rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white/80">
                 נמכר
               </span>
             ) : null}
           </div>
           {source ? (
-            <span className="rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-semibold text-white/90 backdrop-blur-sm">
+            <span className="rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-semibold text-white/90">
               {source}
             </span>
           ) : null}
@@ -410,7 +407,7 @@ function ListingDetailContent({
       </div>
 
       {/* Mobile sticky action bar */}
-      <div className="fixed inset-x-0 bottom-[var(--bottom-nav-h)] z-40 border-t border-border/50 bg-card/95 px-4 py-3 backdrop-blur-xl md:hidden">
+      <div className="fixed inset-x-0 bottom-[var(--bottom-nav-h)] z-40 border-t border-border/50 bg-card/95 px-4 py-3 md:hidden">
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -568,7 +565,7 @@ function SpecPill({
 }) {
   return (
     <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-card px-3 py-2.5">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">

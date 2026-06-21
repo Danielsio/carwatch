@@ -124,12 +124,12 @@ export function EditSearchPage() {
         <BudgetFields form={form} set={set} />
         <AdvancedFields form={form} set={set} />
 
-        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0">
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:border-0">
           <div className="flex items-center gap-3">
             <button
               type="submit"
               disabled={!canSubmit}
-              className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-primary rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-4px_var(--color-glow-primary)] transition-all duration-150 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-primary rounded-xl px-6 py-3 text-sm font-semibold text-white transition-all duration-150 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {updateSearch.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

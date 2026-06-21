@@ -3,14 +3,20 @@
 @import "shadcn/tailwind.css";
 @import "./fonts.css";
 
+/* ═══════════════════════════════════════════════════════════
+   CarWatch design language — see docs/design/mobile-first.md
+   Mobile-first (consumer) · clean data display (admin web).
+   Hard rules: no blur / backdrop-filter, no glow / grain / shine,
+   no aurora, no animated gradients, no box-shadow transitions, no
+   hover lifts. Depth = 1px borders + spacing. Animation = transform/
+   opacity only, ≤180ms ease-out. ~90% neutral + one quiet accent.
+   ═══════════════════════════════════════════════════════════ */
+
 @custom-variant dark (&:is(.dark *));
 @custom-variant landscape (@media (orientation: landscape) and (max-height: 500px));
 
-/* ═══════════════════════════════════════════════════════════
-   Tailwind @theme — maps semantic tokens to CSS variables
-   ═══════════════════════════════════════════════════════════ */
 @theme {
-  /* ─── Core palette (resolved from :root / .dark vars below) ─── */
+  /* Semantic tokens (names kept stable so components re-skin for free) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -31,541 +37,229 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* ─── Brand accents ─── */
-  --color-violet: #8B5CF6;
-  --color-violet-foreground: #FFFFFF;
-  --color-aurora-cyan: #06B6D4;
+  /* Status (muted, never neon) */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--destructive);
 
-  /* ─── Semantic ─── */
-  --color-success: #10B981;
-  --color-warning: #F59E0B;
-  --color-price: #F59E0B;
-  --color-price-foreground: #92400E;
-
-  /* ─── Score tiers ─── */
+  /* Data viz / scoring / freshness — functional, kept */
   --color-score-great: var(--score-great);
   --color-score-good: var(--score-good);
   --color-score-low: var(--score-low);
-
-  /* ─── Charts ─── */
+  --color-deal-good: var(--score-great);
+  --color-deal-bad: var(--score-low);
+  --color-deal-neutral: var(--muted-foreground);
+  --color-fresh-hot: var(--fresh-hot);
+  --color-fresh-today: var(--score-great);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --color-chart-purple: #A78BFA;
 
-  /* ─── Sidebar ─── */
+  /* Sidebar (admin shell) */
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent-hover: var(--sidebar-accent-hover);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-active-fade: var(--sidebar-active-fade);
-  --color-sidebar-active-edge: var(--sidebar-active-edge);
-  --color-sidebar-muted: var(--sidebar-muted);
 
-  /* ─── Surface ─── */
   --color-surface-hover: var(--surface-hover);
 
-  /* ─── Glow ─── */
-  --color-glow-primary: var(--glow-primary);
-  --color-glow-success: rgba(16, 185, 129, 0.12);
-  --color-glow-chart-purple: rgba(167, 139, 250, 0.20);
-  --color-glow-violet: rgba(139, 92, 246, 0.15);
+  /* Radius scale (base 12px) */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
 
-  /* ─── Deal / Freshness ─── */
-  --color-deal-good: var(--deal-good);
-  --color-deal-bad: var(--deal-bad);
-  --color-deal-neutral: var(--muted-foreground);
-  --color-fresh-hot: var(--fresh-hot);
-  --color-fresh-today: var(--fresh-today);
-
-  /* ─── Radius ─── */
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-
-  /* ─── Typography ─── */
-  --font-sans: "Heebo", "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+  /* Type */
+  --font-sans: "Heebo", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-heading: var(--font-sans);
 
-  /* ─── Animations ─── */
-  --animate-shimmer: shimmer 2s infinite;
-  --animate-fade-in: fade-in 0.35s cubic-bezier(0, 0, 0.2, 1);
-  --animate-slide-up: slide-up 0.4s cubic-bezier(0, 0, 0.2, 1);
-  --animate-pulse-soft: pulse-soft 2.5s ease-in-out infinite;
-  --animate-pulse-glow: pulse-glow 2.5s ease-in-out infinite;
-  --animate-aurora-a: aurora-drift 20s ease-in-out infinite;
-  --animate-aurora-b: aurora-drift 28s ease-in-out infinite reverse;
-  --animate-aurora-c: aurora-drift 34s ease-in-out infinite;
-  --animate-scale-in: scale-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  /* The only allowed motion — transform/opacity, short, ease-out */
+  --animate-fade-in: fade-in 0.18s cubic-bezier(0, 0, 0.2, 1);
+  --animate-slide-up: slide-up 0.18s cubic-bezier(0, 0, 0.2, 1);
+  --animate-scale-in: scale-in 0.16s cubic-bezier(0, 0, 0.2, 1);
+  --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Light Mode
-   ═══════════════════════════════════════════════════════════ */
+/* ─── Light (default — consumer daylight use) ─── */
 :root {
-  --radius: 0.625rem;
-  /* Offset used by fixed/sticky mobile action bars. There is currently no
-     bottom tab bar rendered, so this is just the iOS home-indicator inset —
-     the bars sit flush at the bottom edge instead of floating ~4.5rem above
-     it. If a bottom nav is added later, restore its height here. */
+  /* Sharp: tighter corners than the old soft look. */
+  --radius: 0.5rem;
   --bottom-nav-h: env(safe-area-inset-bottom, 0px);
 
-  /* Core palette */
-  --background: #F4F6FA;
-  --foreground: #0C1222;
-  --card: #FFFFFF;
-  --card-foreground: #0C1222;
-  --popover: #FFFFFF;
-  --popover-foreground: #0C1222;
-  --primary: #4F46E5;
-  --primary-foreground: #FFFFFF;
-  --secondary: #EEF1F6;
-  --secondary-foreground: #3F4A5C;
-  --muted: #EEF1F6;
-  --muted-foreground: #556A7E;
-  --accent: #DFE4ED;
-  --accent-foreground: #0C1222;
-  --destructive: #DC2626;
-  --destructive-foreground: #FFFFFF;
-  --border: #DFE4ED;
-  --input: #DFE4ED;
-  --ring: #4F46E5;
-  --surface-hover: #E8ECF3;
+  --background: #f6f7f9;
+  --foreground: #15171a;
+  --card: #ffffff;
+  --card-foreground: #15171a;
+  --popover: #ffffff;
+  --popover-foreground: #15171a;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0f3;
+  --secondary-foreground: #3a3f47;
+  --muted: #eef0f3;
+  --muted-foreground: #6a6f76;
+  --accent: #e9ebef;
+  --accent-foreground: #15171a;
+  --destructive: #c0362c;
+  --destructive-foreground: #ffffff;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #4f46e5;
+  --surface-hover: #eef0f3;
 
-  /* Charts */
-  --chart-1: #4F46E5;
-  --chart-2: #22C55E;
-  --chart-3: #06B6D4;
-  --chart-4: #A855F7;
-  --chart-5: #EC4899;
+  --success: #157f4b;
+  --warning: #9a6700;
 
-  /* Sidebar */
-  --sidebar: #FAFBFD;
-  --sidebar-foreground: #6B7A90;
-  --sidebar-border: #E5E9F0;
-  --sidebar-accent: #F0F3F8;
-  --sidebar-accent-foreground: #0C1222;
-  --sidebar-accent-hover: #E5E9F0;
-  --sidebar-primary: #4F46E5;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-ring: #4F46E5;
-  --sidebar-active-fade: rgba(79, 70, 229, 0.07);
-  --sidebar-active-edge: rgba(79, 70, 229, 0.20);
-  --sidebar-muted: #8896A8;
+  --score-great: #157f4b;
+  --score-good: #9a6700;
+  --score-low: #c0362c;
+  --fresh-hot: #c2410c;
 
-  /* Glow */
-  --glow-primary: rgba(79, 70, 229, 0.12);
+  --chart-1: #4f46e5;
+  --chart-2: #157f4b;
+  --chart-3: #0e7490;
+  --chart-4: #9a6700;
+  --chart-5: #be185d;
 
-  /* Score tiers */
-  --score-great: #047857;
-  --score-good: #B45309;
-  --score-low: #DC2626;
-  --score-saturation: 78%;
-  --score-lightness: 42%;
-
-  /* Deal / Freshness */
-  --deal-good: #059669;
-  --deal-bad: #DC2626;
-  --fresh-hot: #EA580C;
-  --fresh-today: #059669;
-
-  /* Signature effects */
-  --spot-color: rgba(79, 70, 229, 0.22);
-  --aurora-1: rgba(79, 70, 229, 0.18);
-  --aurora-2: rgba(6, 182, 212, 0.14);
-  --aurora-3: rgba(139, 92, 246, 0.12);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #6a6f76;
+  --sidebar-border: #e5e7eb;
+  --sidebar-accent: #eef0f3;
+  --sidebar-accent-foreground: #15171a;
+  --sidebar-primary: #4f46e5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-ring: #4f46e5;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Dark Mode — Linear/Vercel-inspired deep blue-tinted dark
-   ═══════════════════════════════════════════════════════════ */
+/* ─── Dark ─── */
 .dark {
-  /* Core palette — blue-tinted depth hierarchy */
-  --background: #09090B;
-  --foreground: #FAFAFA;
-  --card: #111113;
-  --card-foreground: #FAFAFA;
-  --popover: #111113;
-  --popover-foreground: #FAFAFA;
-  --primary: #6366F1;
-  --primary-foreground: #FFFFFF;
-  --secondary: #1A1A1F;
-  --secondary-foreground: #A1A1AA;
-  --muted: #1A1A1F;
-  --muted-foreground: #7E7E86;
-  --accent: #1F1F26;
-  --accent-foreground: #FAFAFA;
-  --destructive: #EF4444;
-  --destructive-foreground: #FFFFFF;
-  --border: rgba(255, 255, 255, 0.06);
-  --input: rgba(255, 255, 255, 0.08);
-  --ring: #6366F1;
-  --surface-hover: #18181D;
+  --background: #0b0c0e;
+  --foreground: #f4f5f6;
+  --card: #141518;
+  --card-foreground: #f4f5f6;
+  --popover: #141518;
+  --popover-foreground: #f4f5f6;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --secondary: #1c1e22;
+  --secondary-foreground: #c9ccd1;
+  --muted: #1c1e22;
+  --muted-foreground: #9aa0a6;
+  --accent: #22252a;
+  --accent-foreground: #f4f5f6;
+  --destructive: #f26257;
+  --destructive-foreground: #15171a;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: #6366f1;
+  --surface-hover: #1c1e22;
 
-  /* Charts — vibrant on dark */
-  --chart-1: #6366F1;
-  --chart-2: #22C55E;
-  --chart-3: #06B6D4;
-  --chart-4: #A855F7;
-  --chart-5: #EC4899;
+  --success: #34d399;
+  --warning: #f0b429;
 
-  /* Sidebar — darker than card for depth */
-  --sidebar: #0C0C0E;
-  --sidebar-foreground: #71717A;
-  --sidebar-border: rgba(255, 255, 255, 0.05);
-  --sidebar-accent: #1A1A1F;
-  --sidebar-accent-foreground: #FAFAFA;
-  --sidebar-accent-hover: rgba(255, 255, 255, 0.05);
-  --sidebar-primary: #6366F1;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-ring: #6366F1;
-  --sidebar-active-fade: rgba(99, 102, 241, 0.10);
-  --sidebar-active-edge: rgba(99, 102, 241, 0.25);
-  --sidebar-muted: #52525B;
+  --score-great: #34d399;
+  --score-good: #f0b429;
+  --score-low: #f26257;
+  --fresh-hot: #fb923c;
 
-  /* Glow — indigo tint */
-  --glow-primary: rgba(99, 102, 241, 0.20);
+  --chart-1: #6366f1;
+  --chart-2: #34d399;
+  --chart-3: #22d3ee;
+  --chart-4: #f0b429;
+  --chart-5: #f472b6;
 
-  /* Score tiers — vivid on dark */
-  --score-great: #34D399;
-  --score-good: #FBBF24;
-  --score-low: #F87171;
-  --score-saturation: 75%;
-  --score-lightness: 62%;
-
-  /* Deal / Freshness */
-  --deal-good: #10B981;
-  --deal-bad: #F87171;
-  --fresh-hot: #FB923C;
-  --fresh-today: #34D399;
-
-  /* Signature effects — more vibrant */
-  --spot-color: rgba(99, 102, 241, 0.35);
-  --aurora-1: rgba(99, 102, 241, 0.25);
-  --aurora-2: rgba(6, 182, 212, 0.18);
-  --aurora-3: rgba(139, 92, 246, 0.20);
+  --sidebar: #0c0d0f;
+  --sidebar-foreground: #8a9099;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-accent: #1c1e22;
+  --sidebar-accent-foreground: #f4f5f6;
+  --sidebar-primary: #6366f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-ring: #6366f1;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Keyframes
+   Keyframes — only transform/opacity, short. No infinite decor
+   except the status-dot pulse (the one allowed exception).
    ═══════════════════════════════════════════════════════════ */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
 @keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-up {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
-@keyframes slide-up {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
 }
-
 @keyframes pulse-soft {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
+  50% { opacity: 0.5; }
 }
-
-@keyframes pulse-glow {
-  0%, 100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 var(--color-glow-primary);
-  }
-  50% {
-    opacity: 0.8;
-    box-shadow: 0 0 14px 4px var(--color-glow-primary);
-  }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-
-@keyframes scroll-dot {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(10px); }
-}
-
-/* Translate-only drift. The blobs carry a 70px blur over ~half the viewport;
-   animating scale() forced the GPU to re-rasterise that blur every frame (the
-   main app-wide scroll tax on desktop, where the coarse-pointer freeze doesn't
-   apply). A pure translate of a will-change:transform layer just repositions
-   the already-rasterised texture — same ambient motion, ~zero per-frame cost. */
-@keyframes aurora-drift {
-  0%, 100% { transform: translate3d(0, 0, 0); }
-  33% { transform: translate3d(5%, -6%, 0); }
-  66% { transform: translate3d(-5%, 4%, 0); }
-}
-
-@keyframes scale-in {
-  from { opacity: 0; transform: scale(0.96) translateY(6px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-@keyframes shine-sweep {
-  0% { transform: translateX(-130%) skewX(-18deg); }
-  100% { transform: translateX(130%) skewX(-18deg); }
-}
-
 @keyframes toast-progress {
   from { transform: scaleX(1); }
   to { transform: scaleX(0); }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Utility Classes
+   Utilities — cheap only. (No glass/glow/aurora/spotlight/shine/
+   grain/gradient-text — deleted on purpose.)
    ═══════════════════════════════════════════════════════════ */
-@utility shimmer-skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--color-muted) 25%,
-    var(--color-surface-hover) 50%,
-    var(--color-muted) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-}
 
-@utility gradient-text {
-  background-image: linear-gradient(135deg, var(--color-primary), #06B6D4, var(--color-violet));
-  background-clip: text;
-  color: transparent;
-}
-
-@utility glass-card {
-  background-color: color-mix(in oklab, var(--color-card) 75%, transparent);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
-}
-
-@utility card-hover {
-  /* Only the three properties that actually change on hover — never
-     transition-all, which would repaint on every unrelated change (and fire a
-     full repaint each time a card slides under the cursor while scrolling). */
-  transition-property: transform, box-shadow, border-color;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 140ms;
-
-  &:hover {
-    border-color: color-mix(in oklab, var(--color-primary) 30%, var(--color-border));
-    transform: translateY(-2px);
-    /* Smaller blur radius — a 24px-blur shadow is expensive to rasterise; 12px
-       reads almost the same but paints far cheaper as it fades in. */
-    box-shadow:
-      0 6px 12px -6px var(--color-glow-primary),
-      0 0 0 1px color-mix(in oklab, var(--color-primary) 8%, transparent);
-  }
-}
-
-@utility landing-grid-bg {
-  background-image:
-    linear-gradient(color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px);
-  background-size: 56px 56px;
-}
-
-@utility landing-grid-bg-sm {
-  background-image:
-    linear-gradient(color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px);
-  background-size: 36px 36px;
-}
-
-@utility spotlight {
-  position: relative;
-  isolation: isolate;
-
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: radial-gradient(
-      230px circle at var(--spot-x, 50%) var(--spot-y, 0%),
-      var(--spot-color),
-      transparent 65%
-    );
-    opacity: 0;
-    transition: opacity 0.4s ease;
-    pointer-events: none;
-    z-index: 3;
-  }
-
-  &:hover::after,
-  &:focus-within::after {
-    opacity: 1;
-  }
-}
-
-@utility glow-border {
-  position: relative;
-
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: conic-gradient(
-      from 135deg,
-      transparent 0deg,
-      var(--color-primary) 70deg,
-      var(--color-aurora-cyan) 140deg,
-      var(--color-violet) 210deg,
-      transparent 320deg
-    );
-    -webkit-mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
-  }
-}
-
-@utility shine {
-  position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 45%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      color-mix(in oklab, #fff 22%, transparent),
-      transparent
-    );
-    transform: translateX(-130%) skewX(-18deg);
-    pointer-events: none;
-    z-index: 4;
-  }
-
-  &:hover::before {
-    animation: shine-sweep 1s ease;
-  }
-}
-
-@utility grain {
-  position: relative;
-
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    opacity: 0.035;
-    mix-blend-mode: overlay;
-    pointer-events: none;
-  }
-}
-
-@utility text-aurora {
-  background-image: linear-gradient(
-    115deg,
-    var(--color-primary),
-    var(--color-aurora-cyan),
-    var(--color-violet),
-    var(--color-primary)
-  );
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-}
-
-@utility aurora-blob {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(70px);
-  will-change: transform;
-}
-
+/* Long lists: skip rendering offscreen content. */
 @utility cv-auto {
   content-visibility: auto;
   contain-intrinsic-size: auto 480px;
 }
 
+/* Desktop hover affordance: a cheap tint + accent hairline. NO lift,
+   NO shadow transition. Pointer-fine only so touch devices never pay. */
+@utility hover-tint {
+  transition: background-color 120ms cubic-bezier(0, 0, 0.2, 1),
+    border-color 120ms cubic-bezier(0, 0, 0.2, 1);
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      background-color: var(--color-surface-hover);
+      border-color: color-mix(in oklab, var(--color-primary) 28%, var(--color-border));
+    }
+  }
+}
+
+/* Tactile press feedback — compositor-only, great on mobile. */
+@utility press {
+  transition: transform 90ms cubic-bezier(0, 0, 0.2, 1);
+  &:active { transform: scale(0.98); }
+}
+
+/* Skeleton: a calm opacity pulse (no moving gradient to repaint). */
+@utility skeleton {
+  background-color: var(--color-muted);
+  animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
 /* ═══════════════════════════════════════════════════════════
-   Reduced Motion
+   Reduced motion — collapse to near-instant, stop infinite loops.
    ═══════════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
-  /* Honour the OS "reduce motion" setting app-wide. The app has many ambient
-     infinite loops (pulse, shimmer, glow, freshness rings); collapse all
-     animations/transitions to near-instant (non-zero so transitionend /
-     animationend still fire), stop infinite repeats, and disable smooth scroll. */
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  .glow-border::before,
-  .text-aurora,
-  .aurora-blob {
-    animation: none !important;
-  }
-  .shine::before {
-    display: none;
-  }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Touch / mobile performance
-   Coarse-pointer devices (phones, tablets) have weaker GPUs and run on
-   battery. The decorative effects below — large blur surfaces, stacked
-   backdrop-filters and never-ending compositor animations — are the main
-   source of scroll jank there, so we make them cheap (or freeze them).
-   The visuals remain; they just stop costing a frame every 16ms.
-   ═══════════════════════════════════════════════════════════ */
-@media (pointer: coarse) {
-  /* Half the blur radius (blur cost scales super-linearly with radius) and
-     stop the drift so the three full-bleed blobs no longer recomposite. */
-  .aurora-blob {
-    filter: blur(40px);
-    will-change: auto;
-    animation: none !important;
-  }
-  /* Decorative blobs (hero + section backdrops) use Tailwind blur-[60..120px].
-     Those large blur surfaces are a primary scroll-jank source on phones, so
-     clamp them to a cheap radius. !important overrides the Tailwind filter
-     utility; the look stays near-identical at this size. */
-  .decor-blob {
-    filter: blur(40px) !important;
-  }
-  /* Drop the frosted-glass backdrop-filter entirely on mobile — re-rasterising
-     a blur over the content scrolling beneath it is the single biggest scroll
-     cost on phone GPUs. A near-opaque solid reads almost identically at this
-     size. Desktop keeps the real frosted glass (see @utility glass-card). */
-  .glass-card {
-    background-color: color-mix(in oklab, var(--color-card) 92%, transparent);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Base Styles
+   Base
    ═══════════════════════════════════════════════════════════ */
 @layer base {
   * {
@@ -580,17 +274,13 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) 0 env(safe-area-inset-left, 0);
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) 0
+    env(safe-area-inset-left, 0);
   letter-spacing: -0.01em;
 }
 
 ::selection {
-  background-color: rgba(79, 70, 229, 0.25);
-  color: #fff;
-}
-
-.dark ::selection {
-  background-color: rgba(99, 102, 241, 0.3);
+  background-color: color-mix(in oklab, var(--color-primary) 22%, transparent);
 }
 
 input:focus-visible,
@@ -602,45 +292,27 @@ textarea:focus-visible {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Scrollbar
+   Scrollbar — thin, neutral
    ═══════════════════════════════════════════════════════════ */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 999px;
 }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted-foreground); }
+* { scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted-foreground);
-}
-
-.dark {
-  scrollbar-color: var(--color-border) transparent;
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background-color: var(--color-border);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background-color: var(--color-muted-foreground);
-}
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
 /* ═══════════════════════════════════════════════════════════
-   Range Slider (native input[type=range])
+   Range slider (native input[type=range]) — flat, accent fill
    ═══════════════════════════════════════════════════════════ */
 .range-slider {
   -webkit-appearance: none;
   appearance: none;
-  height: 8px;
+  height: 6px;
   border-radius: 999px;
   background: linear-gradient(
     to left,
@@ -650,51 +322,35 @@ textarea:focus-visible {
   cursor: pointer;
   outline: none;
 }
-
 .range-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--color-primary);
   border: 3px solid var(--color-card);
-  box-shadow: 0 0 0 1px var(--color-primary), 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0 0 1px var(--color-border);
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.12s cubic-bezier(0, 0, 0.2, 1);
 }
-
-.range-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-  box-shadow: 0 0 0 1px var(--color-primary), 0 0 12px var(--color-glow-primary);
-}
-
+.range-slider::-webkit-slider-thumb:active { transform: scale(1.15); }
 .range-slider::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--color-primary);
   border: 3px solid var(--color-card);
-  box-shadow: 0 0 0 1px var(--color-primary), 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0 0 1px var(--color-border);
   cursor: pointer;
 }
-
 .range-slider::-moz-range-track {
-  height: 8px;
+  height: 6px;
   border-radius: 999px;
   background: var(--color-border);
 }
-
 .range-slider::-moz-range-progress {
-  height: 8px;
+  height: 6px;
   border-radius: 999px;
   background: var(--color-primary);
-}
-
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
 }

@@ -381,7 +381,7 @@ export default function TrySearchPage() {
       {/* Loading skeletons */}
       {search.isPending && (
         <div className="mt-10">
-          <div className="mb-4 h-5 w-32 rounded shimmer-skeleton" />
+          <div className="mb-4 h-5 w-32 rounded skeleton" />
           <div className="grid gap-4 sm:grid-cols-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <ListingCardSkeleton key={i} />

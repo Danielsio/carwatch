@@ -128,7 +128,7 @@ function NotificationCard({ listing }: { listing: Listing }) {
     <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-card transition-all duration-300 hover:border-border hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:-translate-y-0.5">
       <button
         type="button"
-        className="absolute top-2 end-2 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-background/90 text-muted-foreground shadow-sm ring-1 ring-border/60 backdrop-blur-[2px] hover:bg-background hover:text-foreground"
+        className="absolute top-2 end-2 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-background/90 text-muted-foreground shadow-sm ring-1 ring-border/60 hover:bg-background hover:text-foreground"
         aria-label="סמן כנצפה והסר מהחדשות"
         disabled={markOne.isPending}
         onClick={() => markOne.mutate(listing.token)}

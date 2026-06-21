@@ -67,13 +67,13 @@ export function LandingNav() {
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-all duration-300",
         scrolled
-          ? "border-border/50 border-b bg-background/85 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] backdrop-blur-xl dark:shadow-[0_8px_40px_-16px_rgba(0,0,0,0.45)]"
+          ? "border-border/50 border-b bg-background/85 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_40px_-16px_rgba(0,0,0,0.45)]"
           : "bg-transparent",
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link to="/" className="group flex min-w-0 items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/35 ring-1 ring-white/15 transition-transform group-hover:scale-[1.03]">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary shadow-lg ring-1 ring-white/15 transition-transform group-hover:scale-[1.03]">
             <Car size={17} className="text-white" />
           </div>
           <span className="truncate text-lg font-bold tracking-tight text-foreground">
@@ -105,7 +105,7 @@ export function LandingNav() {
           >
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <Button asChild className="hidden sm:flex shadow-lg shadow-primary/25">
+          <Button asChild className="hidden sm:flex shadow-lg">
             <Link to="/signup">התחל עכשיו</Link>
           </Button>
           <button
@@ -128,7 +128,7 @@ export function LandingNav() {
         role="navigation"
         aria-label="ניווט ראשי — נייד"
         hidden={!mobileOpen}
-        className="border-border border-b bg-background/95 px-6 py-4 backdrop-blur-xl lg:hidden"
+        className="border-border border-b bg-background/95 px-6 py-4 lg:hidden"
       >
         <div className="space-y-3">
           {links.map((l) => (

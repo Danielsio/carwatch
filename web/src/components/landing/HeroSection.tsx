@@ -13,7 +13,7 @@ function FloatingCard({
 }) {
   return (
     <div
-      className={`glass-card absolute rounded-2xl p-3.5 shadow-xl animate-slide-up motion-reduce:animate-none ${className ?? ""}`}
+      className={`border border-border bg-card absolute rounded-2xl p-3.5 shadow-xl animate-slide-up motion-reduce:animate-none ${className ?? ""}`}
       style={delay > 0 ? { animationDelay: `${delay}s`, animationFillMode: "backwards" } : undefined}
       aria-hidden="true"
     >
@@ -26,17 +26,14 @@ export function HeroSection() {
   return (
     <section className="relative flex min-h-screen items-center justify-center pt-16">
       <div className="pointer-events-none absolute inset-0 overflow-hidden will-change-transform" aria-hidden="true" style={{ transform: "translateZ(0)" }}>
-        <div className="decor-blob absolute top-1/4 end-1/4 h-96 w-96 rounded-full bg-primary/10 blur-[100px]" />
-        <div className="decor-blob absolute bottom-1/3 start-1/4 h-72 w-72 rounded-full bg-purple-500/8 blur-[80px]" />
-        <div className="decor-blob absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[120px]" />
       </div>
 
-      <div className="landing-grid-bg pointer-events-none absolute inset-0 opacity-[0.03]" aria-hidden="true" />
+      <div className=" pointer-events-none absolute inset-0 opacity-[0.03]" aria-hidden="true" />
 
       <div className="relative z-10 mx-auto max-w-5xl px-4 text-center sm:px-6">
         <div
           lang="he"
-          className="mb-8 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary animate-fade-in motion-reduce:animate-none"
+          className="mb-8 inline-flex items-center gap-2 rounded-full border border-border bg-muted px-4 py-1.5 text-sm font-medium text-primary animate-fade-in motion-reduce:animate-none"
         >
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
           מעקב רכבים חכם בישראל
@@ -48,7 +45,7 @@ export function HeroSection() {
         >
           עקוב אחרי המודעות
           <br />
-          <span className="gradient-text">וקנה לפני שכולם הספיקו.</span>
+          <span className="text-primary">וקנה לפני שכולם הספיקו.</span>
         </h1>
 
         <p
@@ -74,7 +71,7 @@ export function HeroSection() {
         >
           <Link
             to="/signup"
-            className="glow-border flex items-center gap-2.5 rounded-2xl bg-primary px-7 py-3.5 text-base font-bold text-white shadow-2xl shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-primary/40 hover:active:translate-y-0 md:hover:-translate-y-0.5"
+            className="flex items-center gap-2.5 rounded-2xl bg-primary px-7 py-3.5 text-base font-bold text-white transition-all hover:bg-primary/90 hover:active:translate-y-0"
           >
             התחל עכשיו
             <ArrowLeft size={18} />
@@ -91,7 +88,7 @@ export function HeroSection() {
           className="relative mx-auto max-w-3xl pb-10 animate-slide-up motion-reduce:animate-none"
           style={{ animationDelay: "0.4s", animationFillMode: "backwards" }}
         >
-          <div className="glass-card rounded-3xl border border-border/80 p-5 shadow-2xl sm:p-6">
+          <div className="border border-border bg-card rounded-3xl border border-border/80 p-5 shadow-2xl sm:p-6">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 animate-pulse rounded-full bg-success motion-reduce:animate-none" />
@@ -103,7 +100,7 @@ export function HeroSection() {
                 <span className="rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
                   Yad2
                 </span>
-                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-primary">
                   סנכרון: לפני רגע
                 </span>
               </div>
@@ -177,7 +174,7 @@ export function HeroSection() {
               ))}
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-dashed border-primary/25 bg-primary/5 px-3 py-2.5">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-dashed border-border bg-muted/40 px-3 py-2.5">
               <div className="flex items-center gap-2 text-xs font-medium text-foreground">
                 <Bell className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
                 <span>סיכום יומי · 08:00 — 6 התאמות חדשות מאתמול</span>
@@ -193,7 +190,7 @@ export function HeroSection() {
             delay={0.8}
           >
             <div className="flex items-start gap-2.5">
-              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/20">
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-muted">
                 <Bell size={13} className="text-primary" />
               </div>
               <div className="text-right">

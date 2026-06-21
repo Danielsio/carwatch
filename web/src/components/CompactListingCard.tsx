@@ -10,7 +10,6 @@ import {
 import type { Listing } from "@/lib/api";
 import { scoreHsl } from "@/lib/scoringAlgorithm";
 import { useListingActions } from "@/hooks/useListingActions";
-import { useSpotlight } from "@/hooks/useSpotlight";
 import { useToast } from "@/components/ui/Toast";
 
 export const CompactListingCard = memo(function CompactListingCard({
@@ -20,7 +19,6 @@ export const CompactListingCard = memo(function CompactListingCard({
 }) {
   const { saved, seen, toggleSaved, toggleSeen } = useListingActions(listing);
   const { toast } = useToast();
-  const spotlight = useSpotlight();
   const mc = marketComparison(
     listing.price,
     listing.median_price,
@@ -38,9 +36,8 @@ export const CompactListingCard = memo(function CompactListingCard({
 
   return (
     <div
-      {...spotlight}
       className={cn(
-        "spotlight group relative flex items-center gap-3 rounded-xl border border-border/40 bg-card p-2.5 transition-all duration-200 hover:border-primary/30 hover:shadow-[0_8px_28px_-12px_var(--color-glow-primary)] dir-rtl",
+        "group hover-tint relative flex items-center gap-3 rounded-xl border border-border bg-card p-2.5 dir-rtl",
         listing.removed_at && "opacity-60",
       )}
     >

@@ -132,25 +132,25 @@ export function AdminPage() {
           label="מודעות"
           value={listingsCount}
           icon={Car}
-          color="bg-primary/10 text-primary"
+          color="bg-muted text-muted-foreground"
         />
         <StatCard
           label="חיפושים"
           value={searchesCount}
           icon={FileSearch}
-          color="bg-chart-2/10 text-chart-2"
+          color="bg-muted text-muted-foreground"
         />
         <StatCard
           label="משתמשים"
           value={usersCount}
           icon={Users}
-          color="bg-chart-4/10 text-chart-4"
+          color="bg-muted text-muted-foreground"
         />
         <StatCard
           label="אחסון"
           value={data.db.file_size_human}
           icon={Database}
-          color="bg-warning/10 text-warning"
+          color="bg-muted text-muted-foreground"
           subtitle={data.runtime.uptime + " פעיל"}
         />
       </div>

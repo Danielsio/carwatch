@@ -127,19 +127,18 @@ export function SmartScoreSection() {
   return (
     <section className="relative overflow-hidden px-4 py-24 sm:px-6">
       <div className="pointer-events-none absolute inset-0 will-change-transform" style={{ transform: "translateZ(0)" }}>
-        <div className="decor-blob absolute top-1/2 start-1/2 h-[300px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/6 blur-[80px]" />
       </div>
 
       <div className="relative mx-auto max-w-5xl">
         <FadeUp>
           <div className="mb-16 text-center">
-            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-xs font-semibold tracking-widest text-primary uppercase">
+            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-muted px-4 py-1.5 text-xs font-semibold tracking-widest text-primary uppercase">
               <Sparkles size={12} />
               חדש · Smart Match Score
             </span>
             <h2 className="mb-4 text-3xl font-bold text-foreground md:text-4xl">
               לא רק לסנן —
-              <span className="gradient-text"> לדרג חכם.</span>
+              <span className="text-primary"> לדרג חכם.</span>
             </h2>
             <p className="mx-auto max-w-xl text-base leading-relaxed text-muted-foreground">
               CarWatch מחשבת ציון 0–10 לכל מודעה על בסיס האלגוריתם שלנו — כך שתמיד תראה קודם את העסקאות הכי טובות עבורך.
@@ -174,7 +173,7 @@ export function SmartScoreSection() {
               return (
                 <FadeUp key={f.label} delay={0.05 + i * 0.07}>
                   <div className="flex items-start gap-3 rounded-xl border border-border bg-card p-4">
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-muted">
                       <Icon size={16} className="text-primary" />
                     </div>
                     <div className="flex-1">
@@ -182,7 +181,7 @@ export function SmartScoreSection() {
                         <span className="text-sm font-semibold text-foreground">
                           {f.label}
                         </span>
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-primary">
                           {f.weight}
                         </span>
                       </div>

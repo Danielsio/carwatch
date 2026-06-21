@@ -20,14 +20,10 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "relative flex flex-col items-center justify-center gap-4 rounded-2xl border border-border/50 bg-card/50 px-6 py-10 sm:py-14 md:py-16 text-center overflow-hidden",
+        "relative flex flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-card px-6 py-10 sm:py-14 md:py-16 text-center",
         className,
       )}
     >
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_40%,var(--color-glow-primary),transparent)]"
-        aria-hidden
-      />
       <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/8 text-primary ring-1 ring-primary/10">
         <Icon className="h-7 w-7" aria-hidden />
       </div>

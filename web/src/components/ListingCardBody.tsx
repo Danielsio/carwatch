@@ -129,19 +129,19 @@ export function ListingCardBody({
               </span>
             ) : null}
             {listing.removed_at ? (
-              <span className="rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white/80 backdrop-blur-sm">
+              <span className="rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white/80">
                 נמכר
               </span>
             ) : null}
           </div>
           <div className="flex items-center gap-1.5">
             {showBookmarkOverlay ? (
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm" aria-hidden>
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-black/40" aria-hidden>
                 <Bookmark className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
               </div>
             ) : null}
             {source ? (
-              <span className="rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur-sm">
+              <span className="rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold text-white/90">
                 {source}
               </span>
             ) : null}

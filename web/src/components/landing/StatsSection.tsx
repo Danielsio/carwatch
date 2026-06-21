@@ -27,7 +27,6 @@ export function StatsSection() {
       className="scroll-mt-28 px-4 py-24 sm:px-6"
     >
       <div className="relative mx-auto max-w-5xl">
-        <div className="decor-blob pointer-events-none absolute -top-24 start-1/2 h-64 w-[min(90%,28rem)] -translate-x-1/2 rounded-full bg-primary/8 blur-[80px] will-change-transform" style={{ transform: "translateZ(0)" }} />
 
         <FadeUp>
           <div className="mb-14 text-center">
@@ -46,7 +45,7 @@ export function StatsSection() {
         <div className="relative grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           {stats.map((s, i) => (
             <FadeUp key={s.label} delay={i * 0.1}>
-              <Card className="card-hover group text-center">
+              <Card className="hover-tint group text-center">
                 <CardContent className="p-6">
                   <p className="mb-2 text-3xl font-extrabold tabular-nums text-primary md:text-4xl">
                     {s.value}
