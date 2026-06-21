@@ -214,3 +214,26 @@ func TestPurgeableAllowlist(t *testing.T) {
 		}
 	}
 }
+
+func TestListingsOrderBy(t *testing.T) {
+	cases := []struct {
+		sort string
+		want string
+	}{
+		// "newest" sorts by the source post date, not the fetch time.
+		{"newest", "COALESCE(posted_at, first_seen_at) DESC, token DESC"},
+		// Empty and unknown sorts fall back to newest.
+		{"", "COALESCE(posted_at, first_seen_at) DESC, token DESC"},
+		{"bogus", "COALESCE(posted_at, first_seen_at) DESC, token DESC"},
+		{"price_asc", "CASE WHEN price <= 0 THEN 1 ELSE 0 END, price ASC, token DESC"},
+		{"price_desc", "CASE WHEN price <= 0 THEN 1 ELSE 0 END, price DESC, token DESC"},
+		{"score", "CASE WHEN fitness_score IS NULL THEN 1 ELSE 0 END, fitness_score DESC, token DESC"},
+		{"km", "CASE WHEN km <= 0 THEN 1 ELSE 0 END, km ASC, token DESC"},
+		{"year", "year DESC, token DESC"},
+	}
+	for _, tc := range cases {
+		if got := listingsOrderBy(tc.sort); got != tc.want {
+			t.Errorf("listingsOrderBy(%q) = %q, want %q", tc.sort, got, tc.want)
+		}
+	}
+}

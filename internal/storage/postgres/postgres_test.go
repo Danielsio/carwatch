@@ -563,6 +563,67 @@ func TestPostgres_ListSearchListings_Filters(t *testing.T) {
 	})
 }
 
+// TestPostgres_ListSearchListings_NewestSortByPostedAt verifies the "newest"
+// sort orders by the source post date (posted_at), not the fetch time
+// (first_seen_at), and falls back to first_seen_at when posted_at is NULL.
+func TestPostgres_ListSearchListings_NewestSortByPostedAt(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 100)
+
+	searchID, _ := store.CreateSearch(ctx, storage.Search{
+		ChatID: 100, Name: "test", Source: "yad2",
+		Manufacturer: 8, Model: 10061,
+	})
+
+	now := time.Now().UTC()
+	postedRecently := now.Add(-1 * time.Hour)
+	postedLongAgo := now.Add(-30 * 24 * time.Hour)
+
+	// Fetched just now, but posted a month ago on the source.
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "old-post", ChatID: 100, SearchID: searchID, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 100,
+		FirstSeenAt: now, PostedAt: &postedLongAgo,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Fetched two days ago, but posted an hour ago on the source.
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "new-post", ChatID: 100, SearchID: searchID, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 100,
+		FirstSeenAt: now.Add(-2 * 24 * time.Hour), PostedAt: &postedRecently,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// No post date captured: should fall back to first_seen_at (12h ago).
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "no-post", ChatID: 100, SearchID: searchID, SearchName: "test",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 100,
+		FirstSeenAt: now.Add(-12 * time.Hour), PostedAt: nil,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.ListSearchListings(ctx, 100, searchID, storage.ListingFilter{}, 20, 0, "newest")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	wantOrder := []string{"new-post", "no-post", "old-post"}
+	if len(got) != len(wantOrder) {
+		t.Fatalf("got %d rows, want %d", len(got), len(wantOrder))
+	}
+	for i, want := range wantOrder {
+		if got[i].Token != want {
+			gotOrder := make([]string, len(got))
+			for j, l := range got {
+				gotOrder[j] = l.Token
+			}
+			t.Fatalf("newest order = %v, want %v", gotOrder, wantOrder)
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Dedup
 // ---------------------------------------------------------------------------

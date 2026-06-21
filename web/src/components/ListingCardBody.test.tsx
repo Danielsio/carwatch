@@ -45,4 +45,30 @@ describe("ListingCardBody", () => {
     render(<ListingCardBody listing={baseListing()} />);
     expect(screen.queryByRole("button", { name: "עוד" })).not.toBeInTheDocument();
   });
+
+  it("shows the source post date, not the fetch date, when posted_at is present", () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const listing: Listing = {
+      ...baseListing(),
+      // Fetched just now, but posted ~35 days ago on the source.
+      first_seen_at: new Date(now).toISOString(),
+      posted_at: new Date(now - 35 * day).toISOString(),
+    };
+    render(<ListingCardBody listing={listing} />);
+    expect(screen.getByText("לפני חודש")).toBeInTheDocument();
+    expect(screen.queryByText("היום")).not.toBeInTheDocument();
+  });
+
+  it("falls back to first_seen_at when posted_at is absent", () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const listing: Listing = {
+      ...baseListing(),
+      first_seen_at: new Date(now - 35 * day).toISOString(),
+      posted_at: undefined,
+    };
+    render(<ListingCardBody listing={listing} />);
+    expect(screen.getByText("לפני חודש")).toBeInTheDocument();
+  });
 });
