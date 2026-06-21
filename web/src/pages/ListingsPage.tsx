@@ -372,7 +372,7 @@ export function ListingsPage() {
 
       {/* Grid */}
       {showSkeletons ? (
-        <div className="grid gap-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={`skel-${i}`}
@@ -416,7 +416,11 @@ export function ListingsPage() {
             className={cn(
               density === "compact"
                 ? "space-y-2"
-                : "grid gap-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3",
+                : // grid-cols-1 is required: a bare `grid` falls back to an implicit
+                  // `auto` track on mobile, which WebKit/iOS Safari sizes to the card
+                  // image's intrinsic width — overflowing the viewport and clipping
+                  // the card. minmax(0,1fr) from grid-cols-1 keeps it clamped.
+                  "grid grid-cols-1 gap-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3",
             )}
           >
             {visible.map((listing, i) => (

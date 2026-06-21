@@ -38,7 +38,7 @@ export function NotificationsPage() {
     return (
       <PageShell>
         <InboxTabs />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-72 rounded-2xl" />
           ))}
@@ -96,7 +96,7 @@ export function NotificationsPage() {
         />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {data.items.map((listing) => (
               <NotificationCard key={listing.token} listing={listing} />
             ))}
