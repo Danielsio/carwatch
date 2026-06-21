@@ -383,22 +383,31 @@ func buildFilterClauses(f storage.ListingFilter, paramStart int) (string, []any,
 	return " AND " + strings.Join(clauses, " AND "), args, n
 }
 
-func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID int64, f storage.ListingFilter, limit, offset int, sort string) ([]storage.ListingRecord, error) {
-	orderBy := "first_seen_at DESC, token DESC"
+// newestOrderBy sorts by the listing's original post date on the source (yad2),
+// falling back to first_seen_at when posted_at was never captured.
+const newestOrderBy = "COALESCE(posted_at, first_seen_at) DESC, token DESC"
+
+// listingsOrderBy maps a user-facing sort key to a SQL ORDER BY clause. An
+// empty or unknown sort defaults to newest.
+func listingsOrderBy(sort string) string {
 	switch sort {
-	case "newest":
-		orderBy = "first_seen_at DESC, token DESC"
 	case "price_asc":
-		orderBy = "CASE WHEN price <= 0 THEN 1 ELSE 0 END, price ASC, token DESC"
+		return "CASE WHEN price <= 0 THEN 1 ELSE 0 END, price ASC, token DESC"
 	case "price_desc":
-		orderBy = "CASE WHEN price <= 0 THEN 1 ELSE 0 END, price DESC, token DESC"
+		return "CASE WHEN price <= 0 THEN 1 ELSE 0 END, price DESC, token DESC"
 	case "score":
-		orderBy = "CASE WHEN fitness_score IS NULL THEN 1 ELSE 0 END, fitness_score DESC, token DESC"
+		return "CASE WHEN fitness_score IS NULL THEN 1 ELSE 0 END, fitness_score DESC, token DESC"
 	case "km":
-		orderBy = "CASE WHEN km <= 0 THEN 1 ELSE 0 END, km ASC, token DESC"
+		return "CASE WHEN km <= 0 THEN 1 ELSE 0 END, km ASC, token DESC"
 	case "year":
-		orderBy = "year DESC, token DESC"
+		return "year DESC, token DESC"
+	default: // "newest" and unknown values
+		return newestOrderBy
 	}
+}
+
+func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID int64, f storage.ListingFilter, limit, offset int, sort string) ([]storage.ListingRecord, error) {
+	orderBy := listingsOrderBy(sort)
 
 	filterSQL, filterArgs, nextParam := buildFilterClauses(f, 3)
 	args := []any{chatID, searchID}
