@@ -16,7 +16,6 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useInfiniteListings } from "@/hooks/useInfiniteListings";
 import { useListingActions } from "@/hooks/useListingActions";
-import { useSpotlight } from "@/hooks/useSpotlight";
 import {
   useListingFilters,
   deriveFacets,
@@ -285,7 +284,7 @@ export function ListingsPage() {
         title="תוצאות"
         subtitle={
           showSkeletons ? (
-            <span className="inline-block h-4 w-24 rounded shimmer-skeleton align-middle" />
+            <span className="inline-block h-4 w-24 rounded skeleton align-middle" />
           ) : total > 0 ? (
             `${total.toLocaleString("he-IL")} מודעות`
           ) : undefined
@@ -293,7 +292,7 @@ export function ListingsPage() {
       />
 
       {/* Sort pills + refresh */}
-      <div className="sticky top-0 z-30 -mx-4 bg-background/90 px-4 py-2 backdrop-blur-lg border-b border-border/30 will-change-transform md:static md:mx-0 md:px-0 md:bg-transparent md:backdrop-blur-none md:border-0 md:will-change-auto">
+      <div className="sticky top-0 z-30 -mx-4 bg-background/90 px-4 py-2 border-b border-border/30 will-change-transform md:static md:mx-0 md:px-0 md:bg-transparent md: md:border-0 md:will-change-auto">
         <div className="flex items-center gap-2 dir-rtl">
           <div className="flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto scrollbar-hide" role="radiogroup" aria-label="מיון תוצאות">
             {SORT_OPTIONS.map((opt) => (
@@ -474,13 +473,9 @@ export function ListingsPage() {
 const ListingCard = memo(function ListingCard({ listing }: { listing: Listing }) {
   const { saved, seen, toggleSaved, toggleSeen } = useListingActions(listing);
   const { toast } = useToast();
-  const spotlight = useSpotlight();
 
   return (
-    <Card
-      {...spotlight}
-      className="spotlight group relative overflow-hidden transition-all duration-300 ease-out hover:border-primary/20 hover:shadow-[0_16px_48px_-12px_var(--color-glow-primary)] hover:-translate-y-0.5 dir-rtl"
-    >
+    <Card className="group hover-tint relative overflow-hidden dir-rtl">
       {/* Stretched navigation link — covers entire card */}
       <Link
         to={`/listings/${listing.token}`}

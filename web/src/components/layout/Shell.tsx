@@ -25,7 +25,6 @@ import { useHealthCheck } from "@/hooks/useHealthCheck";
 import { useMe } from "@/hooks/useMe";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { ConnectionBanner } from "@/components/ui/ConnectionBanner";
-import { AuroraBackground } from "@/components/ui/AuroraBackground";
 import { AppCommandPalette } from "@/components/AppCommandPalette";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/button";
@@ -164,7 +163,6 @@ export function Shell() {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
-        <AuroraBackground />
         <AppCommandPalette />
         <ConfirmDialog
           open={signOutOpen}
@@ -189,7 +187,7 @@ export function Shell() {
         <Sidebar side="right" collapsible="offcanvas">
           <SidebarHeader>
             <div className="flex items-center gap-3 px-2">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-primary to-blue-400 text-white shadow-[0_4px_16px_-4px_var(--color-glow-primary)]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
                 <Car className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
@@ -243,11 +241,11 @@ export function Shell() {
               <div className="px-3 pt-2">
                 <Link
                   to="/notifications"
-                  className="flex items-center gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 transition-all duration-150 hover:bg-primary/10"
+                  className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/40 px-3 py-2 transition-all duration-150 hover:bg-muted"
                 >
                   <div className="relative shrink-0">
                     <Bell className="h-4 w-4 text-primary" />
-                    <span className="absolute -top-1 -right-1 h-2 w-2 animate-pulse-glow rounded-full bg-primary" />
+                    <span className="absolute -top-1 -right-1 h-2 w-2 animate-pulse-soft rounded-full bg-primary" />
                   </div>
                   <span className="text-xs font-medium text-primary">
                     התראות חדשות
@@ -260,7 +258,7 @@ export function Shell() {
             )}
 
             {!user && (
-              <div className="mx-3 mt-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-center text-xs text-muted-foreground">
+              <div className="mx-3 mt-2 rounded-xl border border-border bg-muted/40 p-3 text-center text-xs text-muted-foreground">
                 <Link
                   to="/login"
                   className="font-medium text-primary hover:underline"
@@ -326,7 +324,7 @@ export function Shell() {
           )}
         >
           {/* Mobile header with sidebar trigger */}
-          <div className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border/50 bg-background/80 px-4 backdrop-blur-xl md:hidden">
+          <div className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-background px-4 md:hidden">
             <SidebarTrigger>
               <Menu className="h-5 w-5" />
             </SidebarTrigger>

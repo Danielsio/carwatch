@@ -14,7 +14,6 @@ import {
   useNotifications,
 } from "@/hooks/useNotifications";
 import { useSearchCycleStats } from "@/hooks/useSearchCycleStats";
-import { useSpotlight } from "@/hooks/useSpotlight";
 import { formatPrice, relativeTime, cn } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -54,8 +53,8 @@ export function SearchesPage() {
     return (
       <div className="space-y-8 animate-fade-in">
         <PageHeader title="לוח בקרה" />
-        <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-6 sm:p-10 text-center space-y-6">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-10 text-center space-y-6">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
             <Sparkles className="h-8 w-8" />
           </div>
           <div className="space-y-2">
@@ -127,51 +126,20 @@ export function SearchesPage() {
         <DashboardHeader />
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
-          {
-            icon: SearchIcon,
-            label: "חיפושים פעילים",
-            value: activeCount,
-            color: "text-primary",
-            bg: "bg-primary/12",
-            glow: "shadow-[0_4px_20px_-4px_var(--color-glow-primary)]",
-          },
+          { icon: SearchIcon, label: "חיפושים פעילים", value: activeCount },
           {
             icon: Car,
             label: "מודעות שנמצאו",
-            value: searches?.reduce((sum, s) => sum + (s.listings_count ?? 0), 0) ?? 0,
-            color: "text-primary",
-            bg: "bg-primary/12",
-            glow: "shadow-[0_4px_20px_-4px_var(--color-glow-primary)]",
+            value:
+              searches?.reduce((sum, s) => sum + (s.listings_count ?? 0), 0) ?? 0,
           },
-          {
-            icon: Bell,
-            label: "מודעות חדשות",
-            value: unread,
-            color: "text-score-good",
-            bg: "bg-score-good/12",
-            glow: unread > 0
-              ? "shadow-[0_4px_20px_-4px_rgba(217,119,6,0.25)]"
-              : "",
-          },
-          {
-            icon: Activity,
-            label: "סה״כ חיפושים",
-            value: totalSearches,
-            color: "text-chart-purple",
-            bg: "bg-chart-purple/12",
-            glow: "shadow-[0_0_24px_-4px_var(--color-glow-chart-purple)]",
-          },
-        ].map((stat, i) => (
-          <div
-            key={stat.label}
-            className="animate-slide-up motion-reduce:animate-none"
-            style={{ animationDelay: `${i * STAGGER_MS}ms`, animationFillMode: "backwards" }}
-          >
-            <StatCard {...stat} />
-          </div>
+          { icon: Bell, label: "מודעות חדשות", value: unread, highlight: unread > 0 },
+          { icon: Activity, label: "סה״כ חיפושים", value: totalSearches },
+        ].map((stat) => (
+          <StatCard key={stat.label} {...stat} />
         ))}
       </div>
 
@@ -222,8 +190,8 @@ export function SearchesPage() {
         <SectionHeader title="חיפושים שמורים" />
 
         {!searches || searches.length === 0 ? (
-          <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-6 sm:p-8 text-center space-y-5">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 text-center space-y-5">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
               <Car className="h-8 w-8" />
             </div>
             <div className="space-y-2">
@@ -325,22 +293,21 @@ export function SearchesPage() {
 
 function DashboardHeader() {
   return (
-    <div className="relative flex items-start justify-between gap-4">
-      <div className="relative">
-        <p className="text-[11px] font-semibold tracking-[0.2em] text-primary uppercase mb-1.5">Dashboard</p>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">לוח בקרה</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          מעקב אחר חיפושי רכבים שלך
+    <div className="flex items-end justify-between gap-4 border-b border-border pb-5">
+      <div>
+        <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          Dashboard
         </p>
+        <h1 className="text-2xl font-bold leading-none tracking-tight text-foreground sm:text-[28px]">
+          לוח בקרה
+        </h1>
       </div>
-      <div className="relative shrink-0">
-        <Button asChild>
-          <Link to="/searches/new">
-            <Plus className="h-4 w-4" />
-            חיפוש חדש
-          </Link>
-        </Button>
-      </div>
+      <Button asChild>
+        <Link to="/searches/new">
+          <Plus className="h-4 w-4" />
+          חיפוש חדש
+        </Link>
+      </Button>
     </div>
   );
 }
@@ -349,55 +316,36 @@ function StatCard({
   icon: Icon,
   value,
   label,
-  color,
-  bg,
+  highlight,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   value: number;
   label: string;
-  color: string;
-  bg: string;
-  glow?: string;
+  highlight?: boolean;
 }) {
-  const spotlight = useSpotlight();
   return (
-    <Card
-      {...spotlight}
-      className={cn(
-        // Scope the transition (never transition-all, which repaints on hover
-        // as cards pass under the cursor while scrolling) and use a small-blur
-        // hover shadow — a 32px blur is expensive to rasterise as it fades in.
-        "spotlight group relative overflow-hidden transition-[transform,box-shadow,border-color] duration-150",
-        "hover:border-primary/30 hover:-translate-y-0.5",
-        "hover:shadow-[0_6px_12px_-6px_var(--color-glow-primary)]",
-      )}
-    >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-      <CardContent className="p-4 sm:p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div
-            className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-              bg,
-            )}
-          >
-            <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5", color)} />
-          </div>
-        </div>
-        <p className="text-3xl sm:text-4xl font-extrabold text-foreground tracking-tighter">
-          <NumberTicker value={value} />
-        </p>
-        <span className="mt-1 block text-[11px] sm:text-xs font-medium text-muted-foreground tracking-wide uppercase">
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate text-[11px] font-medium uppercase tracking-wider">
           {label}
         </span>
-      </CardContent>
-    </Card>
+      </div>
+      <p
+        className={cn(
+          "mt-2 text-2xl font-bold tabular-nums tracking-tight sm:text-3xl",
+          highlight ? "text-primary" : "text-foreground",
+        )}
+      >
+        <NumberTicker value={value} />
+      </p>
+    </div>
   );
 }
 
 function RecentListingRow({ listing }: { listing: Listing }) {
   return (
-    <Card className="transition-all duration-150 hover:border-primary/30 hover:shadow-[0_4px_20px_-8px_var(--color-glow-primary)]">
+    <Card className="hover-tint">
       <Link
         to={`/listings/${listing.token}`}
         state={{ listing }}
@@ -426,7 +374,7 @@ function RecentListingRow({ listing }: { listing: Listing }) {
             {listing.city || "—"} · {relativeTime(listing.first_seen_at)}
           </p>
         </div>
-        <span className="shrink-0 text-sm font-bold tabular-nums text-primary">
+        <span className="shrink-0 text-sm font-bold tabular-nums text-foreground">
           {formatPrice(listing.price)}
         </span>
       </Link>

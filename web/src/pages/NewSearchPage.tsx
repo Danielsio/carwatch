@@ -204,7 +204,7 @@ export function NewSearchPage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4">
         <div className="w-full max-w-md space-y-6 text-center animate-fade-in">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
             <Bell className="h-7 w-7 text-primary" />
           </div>
           <div className="space-y-2">
@@ -341,7 +341,7 @@ export function NewSearchPage() {
         </div>
 
         {/* Navigation */}
-        <div className="sticky bottom-[var(--bottom-nav-h)] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none md:border-0 mt-5">
+        <div className="sticky bottom-[var(--bottom-nav-h)] landscape:bottom-14 md:bottom-0 z-40 -mx-4 px-4 py-3 bg-background/90 border-t border-border/30 md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md: md:border-0 mt-5">
           <div className="flex items-center gap-3">
             {step > 0 && (
               <button
@@ -358,7 +358,7 @@ export function NewSearchPage() {
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-primary rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-4px_var(--color-glow-primary)] transition-all duration-150 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-primary rounded-xl px-6 py-3 text-sm font-semibold text-white transition-all duration-150 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {createSearch.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -370,7 +370,7 @@ export function NewSearchPage() {
             ) : (
               <button
                 type="submit"
-                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-primary rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-4px_var(--color-glow-primary)] transition-all duration-150 hover:opacity-95"
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-primary rounded-xl px-6 py-3 text-sm font-semibold text-white transition-all duration-150 hover:opacity-95"
               >
                 הבא
                 <ArrowLeft className="h-4 w-4" />

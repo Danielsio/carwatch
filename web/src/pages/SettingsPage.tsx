@@ -56,7 +56,7 @@ export function SettingsPage() {
       <Card>
         <CardContent className="p-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
               <User className="h-4 w-4 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
@@ -72,7 +72,7 @@ export function SettingsPage() {
       <Card>
         <CardContent className="p-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
               {theme === "dark" ? (
                 <Moon className="h-4 w-4 text-primary" />
               ) : (
@@ -139,7 +139,7 @@ export function SettingsPage() {
             </div>
           ) : linkMutation.isSuccess ? (
             <div className="space-y-3">
-              <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 space-y-2">
+              <div className="rounded-xl bg-muted/40 border border-border p-4 space-y-2">
                 <p className="text-sm font-medium text-foreground">
                   כמעט שם! עקוב אחרי הצעדים:
                 </p>
@@ -199,7 +199,7 @@ export function SettingsPage() {
       <Card>
         <CardContent className="p-5 space-y-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
               {pushState.subscribed ? (
                 <BellRing className="h-4 w-4 text-primary" />
               ) : (

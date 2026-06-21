@@ -48,7 +48,7 @@ export function ListingsFilterBar({
     <div
       role="group"
       aria-label="סינון תוצאות"
-      className="space-y-3 rounded-2xl border border-border/50 bg-card/70 p-3 backdrop-blur-sm dir-rtl"
+      className="space-y-3 rounded-2xl border border-border/50 bg-card/70 p-3 dir-rtl"
     >
       {/* Search + advanced toggle + count */}
       <div className="flex items-center gap-2">

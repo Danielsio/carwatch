@@ -84,10 +84,7 @@ export function SearchCard({
   return (
     <Card
       className={cn(
-        // card-hover already scopes its own transition (transform/shadow/border);
-        // a stacked transition-all would repaint every property on hover — the
-        // cause of the scroll jank as cards pass under the cursor.
-        "group card-hover",
+        "group hover-tint",
         !isActive && "opacity-75",
       )}
     >
@@ -102,8 +99,7 @@ export function SearchCard({
         >
           <div
             className={cn(
-              "flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl",
-              isActive ? "bg-primary/15" : "bg-muted",
+              "flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted",
             )}
           >
             {mfrLogo ? (

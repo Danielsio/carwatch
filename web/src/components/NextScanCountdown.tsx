@@ -40,10 +40,10 @@ export function NextScanCountdown() {
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-xl border bg-card/60 backdrop-blur-sm px-4 py-3",
+        "relative overflow-hidden rounded-xl border bg-card/60 px-4 py-3",
         "transition-all duration-500",
         isOverdue
-          ? "border-primary/30 shadow-[0_0_20px_-6px_var(--color-glow-primary)]"
+          ? "border-primary/30"
           : "border-border/30",
       )}
     >
