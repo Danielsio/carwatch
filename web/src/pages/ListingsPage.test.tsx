@@ -115,6 +115,19 @@ describe("ListingsPage", () => {
     expect(screen.getByText("1 מודעות")).toBeInTheDocument();
   });
 
+  it("pins a single-column base on the results grid (prevents iOS Safari grid blow-out)", () => {
+    // A bare `grid` with only sm:+ column counts falls back to an implicit
+    // `auto` track on mobile. WebKit sizes that track to the card image's
+    // intrinsic width, overflowing the viewport and clipping the card. The
+    // explicit grid-cols-1 base (minmax(0,1fr)) keeps it clamped.
+    const { container } = renderPage();
+    const cardGrid = Array.from(container.querySelectorAll("div.grid")).find((g) =>
+      g.className.includes("sm:grid-cols-2"),
+    );
+    expect(cardGrid).toBeDefined();
+    expect(cardGrid?.className).toContain("grid-cols-1");
+  });
+
   it("shows empty state when no listings", () => {
     infiniteReturn = {
       ...infiniteReturn,

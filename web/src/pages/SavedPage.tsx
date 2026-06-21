@@ -43,7 +43,7 @@ export function SavedPage() {
     return (
       <PageShell>
         <InboxTabs />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[1, 2].map((i) => (
             <ListingCardSkeleton key={i} />
           ))}
@@ -90,7 +90,7 @@ export function SavedPage() {
         />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {data.items.map((listing) => (
               <SavedCard
                 key={listing.token}
