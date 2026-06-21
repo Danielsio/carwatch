@@ -14,7 +14,7 @@ export function FinalCTA() {
           <div className=" pointer-events-none absolute inset-0 opacity-[0.025]" />
 
           <div className="relative z-10">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/25 bg-primary/15">
+            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-muted">
               <Zap size={24} className="text-primary" />
             </div>
             <h2 className="mb-4 text-3xl leading-tight font-bold text-foreground md:text-5xl">
@@ -29,7 +29,7 @@ export function FinalCTA() {
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
                 to="/signup"
-                className="flex items-center gap-2.5 rounded-2xl bg-primary px-8 py-4 text-base font-bold text-white shadow-2xl shadow-primary/30 transition-all hover:bg-primary/90 hover:shadow-primary/50 hover:active:translate-y-0 md:"
+                className="flex items-center gap-2.5 rounded-2xl bg-primary px-8 py-4 text-base font-bold text-white transition-all hover:bg-primary/90 hover:active:translate-y-0 md:"
               >
                 התחל לעקוב עכשיו
                 <ArrowLeft size={18} />

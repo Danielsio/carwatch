@@ -33,7 +33,7 @@ export function HeroSection() {
       <div className="relative z-10 mx-auto max-w-5xl px-4 text-center sm:px-6">
         <div
           lang="he"
-          className="mb-8 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary animate-fade-in motion-reduce:animate-none"
+          className="mb-8 inline-flex items-center gap-2 rounded-full border border-border bg-muted px-4 py-1.5 text-sm font-medium text-primary animate-fade-in motion-reduce:animate-none"
         >
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
           מעקב רכבים חכם בישראל
@@ -71,7 +71,7 @@ export function HeroSection() {
         >
           <Link
             to="/signup"
-            className=" flex items-center gap-2.5 rounded-2xl bg-primary px-7 py-3.5 text-base font-bold text-white shadow-2xl shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-primary/40 hover:active:translate-y-0 md:"
+            className=" flex items-center gap-2.5 rounded-2xl bg-primary px-7 py-3.5 text-base font-bold text-white transition-all hover:bg-primary/90 hover:active:translate-y-0 md:"
           >
             התחל עכשיו
             <ArrowLeft size={18} />
@@ -100,7 +100,7 @@ export function HeroSection() {
                 <span className="rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
                   Yad2
                 </span>
-                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-primary">
                   סנכרון: לפני רגע
                 </span>
               </div>
@@ -174,7 +174,7 @@ export function HeroSection() {
               ))}
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-dashed border-primary/25 bg-primary/5 px-3 py-2.5">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-dashed border-border bg-muted/40 px-3 py-2.5">
               <div className="flex items-center gap-2 text-xs font-medium text-foreground">
                 <Bell className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
                 <span>סיכום יומי · 08:00 — 6 התאמות חדשות מאתמול</span>
@@ -190,7 +190,7 @@ export function HeroSection() {
             delay={0.8}
           >
             <div className="flex items-start gap-2.5">
-              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/20">
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-muted">
                 <Bell size={13} className="text-primary" />
               </div>
               <div className="text-right">

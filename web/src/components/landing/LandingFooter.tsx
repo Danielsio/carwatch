@@ -15,7 +15,7 @@ export function LandingFooter({ version }: { version?: string | null }) {
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
           <div className="max-w-md space-y-3 text-center md:text-start">
             <Link to="/" className="inline-flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-md shadow-primary/30 ring-1 ring-white/15">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-md ring-1 ring-white/15">
                 <Car size={15} className="text-white" />
               </div>
               <span className="text-base font-bold text-foreground">CarWatch</span>

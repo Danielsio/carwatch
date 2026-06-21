@@ -132,7 +132,7 @@ export function SmartScoreSection() {
       <div className="relative mx-auto max-w-5xl">
         <FadeUp>
           <div className="mb-16 text-center">
-            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-xs font-semibold tracking-widest text-primary uppercase">
+            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-muted px-4 py-1.5 text-xs font-semibold tracking-widest text-primary uppercase">
               <Sparkles size={12} />
               חדש · Smart Match Score
             </span>
@@ -173,7 +173,7 @@ export function SmartScoreSection() {
               return (
                 <FadeUp key={f.label} delay={0.05 + i * 0.07}>
                   <div className="flex items-start gap-3 rounded-xl border border-border bg-card p-4">
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-muted">
                       <Icon size={16} className="text-primary" />
                     </div>
                     <div className="flex-1">
@@ -181,7 +181,7 @@ export function SmartScoreSection() {
                         <span className="text-sm font-semibold text-foreground">
                           {f.label}
                         </span>
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-primary">
                           {f.weight}
                         </span>
                       </div>
