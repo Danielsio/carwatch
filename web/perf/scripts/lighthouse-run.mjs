@@ -66,31 +66,54 @@ async function run() {
   try {
     const summary = {};
 
+    // Single-run mobile Lighthouse in CI is noisy (the same commit has scored
+    // 52→62 across runs as runner CPU contention varies). Run each config N
+    // times and keep the MEDIAN so the budget gate reflects the real page, not
+    // a slow-runner roll of the dice. Override with LH_RUNS.
+    const RUNS = Math.max(1, Number(process.env.LH_RUNS || 3));
+
     for (const route of ROUTES) {
       summary[route.name] = {};
       for (const config of CONFIGS) {
         const url = `${BASE}${route.path}`;
-        console.log(`[lighthouse] ${config.name} ${url}`);
+        console.log(`[lighthouse] ${config.name} ${url} (median of ${RUNS})`);
 
-        const result = await lighthouse(url, {
-          port: chrome.port,
-          output: "json",
-          onlyCategories: ["performance", "accessibility"],
-          ...config.settings,
-        });
+        const samples = [];
+        for (let i = 0; i < RUNS; i++) {
+          const result = await lighthouse(url, {
+            port: chrome.port,
+            output: "json",
+            onlyCategories: ["performance", "accessibility"],
+            ...config.settings,
+          });
+          const report = JSON.parse(result.report);
+          samples.push({
+            perf: report.categories.performance.score * 100,
+            a11y: report.categories.accessibility.score * 100,
+            fcp: report.audits["first-contentful-paint"].numericValue,
+            lcp: report.audits["largest-contentful-paint"].numericValue,
+            tbt: report.audits["total-blocking-time"].numericValue,
+            report: result.report,
+          });
+          const s = samples[i];
+          console.log(`  run ${i + 1}/${RUNS}: perf=${s.perf} FCP=${Math.round(s.fcp)}ms LCP=${Math.round(s.lcp)}ms TBT=${Math.round(s.tbt)}ms`);
+        }
 
-        const report = JSON.parse(result.report);
-        const perf = report.categories.performance.score * 100;
-        const a11y = report.categories.accessibility.score * 100;
-        const fcp = report.audits["first-contentful-paint"].numericValue;
-        const lcp = report.audits["largest-contentful-paint"].numericValue;
-        const tbt = report.audits["total-blocking-time"].numericValue;
+        // Median by performance score (the metric the budget gates on).
+        samples.sort((a, b) => a.perf - b.perf);
+        const median = samples[Math.floor(samples.length / 2)];
 
-        summary[route.name][config.name] = { perf, a11y, fcp, lcp, tbt };
-        console.log(`  perf=${perf} a11y=${a11y} FCP=${Math.round(fcp)}ms LCP=${Math.round(lcp)}ms TBT=${Math.round(tbt)}ms`);
+        summary[route.name][config.name] = {
+          perf: median.perf,
+          a11y: median.a11y,
+          fcp: median.fcp,
+          lcp: median.lcp,
+          tbt: median.tbt,
+        };
+        console.log(`  median: perf=${median.perf} a11y=${median.a11y} FCP=${Math.round(median.fcp)}ms LCP=${Math.round(median.lcp)}ms TBT=${Math.round(median.tbt)}ms`);
 
         const reportPath = resolve(reportsDir, `${route.name}-${config.name}.json`);
-        writeFileSync(reportPath, result.report);
+        writeFileSync(reportPath, median.report);
       }
     }
 
