@@ -219,7 +219,7 @@ export function ListingCardBody({
             {freshness === "hot" ? <Flame className="h-3 w-3" /> :
              freshness === "today" ? <Clock className="h-3 w-3" /> :
              <Clock className="h-3 w-3 opacity-50" />}
-            {relativeTime(listing.first_seen_at)}
+            {relativeTime(listing.posted_at || listing.first_seen_at)}
           </span>
         </div>
 

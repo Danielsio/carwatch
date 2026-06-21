@@ -423,7 +423,7 @@ function RecentListingRow({ listing }: { listing: Listing }) {
             {listing.manufacturer} {listing.model} {listing.year}
           </p>
           <p className="text-xs text-muted-foreground">
-            {listing.city || "—"} · {relativeTime(listing.first_seen_at)}
+            {listing.city || "—"} · {relativeTime(listing.posted_at || listing.first_seen_at)}
           </p>
         </div>
         <span className="shrink-0 text-sm font-bold tabular-nums text-primary">
