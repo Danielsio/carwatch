@@ -70,7 +70,9 @@ async function run() {
     // 52→62 across runs as runner CPU contention varies). Run each config N
     // times and keep the MEDIAN so the budget gate reflects the real page, not
     // a slow-runner roll of the dice. Override with LH_RUNS.
-    const RUNS = Math.max(1, Number(process.env.LH_RUNS || 3));
+    // Guard against a non-numeric LH_RUNS (Number("abc") → NaN would empty the
+    // loop and crash on median access); fall back to 3.
+    const RUNS = Math.max(1, Math.floor(Number(process.env.LH_RUNS) || 3));
 
     for (const route of ROUTES) {
       summary[route.name] = {};

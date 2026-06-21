@@ -82,7 +82,7 @@
 
   /* The only allowed motion — transform/opacity, short, ease-out */
   --animate-fade-in: fade-in 0.18s cubic-bezier(0, 0, 0.2, 1);
-  --animate-slide-up: slide-up 0.22s cubic-bezier(0, 0, 0.2, 1);
+  --animate-slide-up: slide-up 0.18s cubic-bezier(0, 0, 0.2, 1);
   --animate-scale-in: scale-in 0.16s cubic-bezier(0, 0, 0.2, 1);
   --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
 }
