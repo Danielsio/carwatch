@@ -713,7 +713,7 @@ func (f *failingAdminStore) AdminDeleteListing(_ context.Context, _ string, _ in
 	return nil
 }
 
-func (f *failingAdminStore) AdminListSearches(_ context.Context) ([]storage.Search, error) {
+func (f *failingAdminStore) AdminListSearches(_ context.Context) ([]storage.AdminSearchRow, error) {
 	return nil, nil
 }
 

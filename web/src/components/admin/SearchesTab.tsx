@@ -152,8 +152,8 @@ export function SearchesTab({ onViewListings }: { onViewListings: (searchId: num
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0">
-                    #{search.chat_id}
+                  <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0 truncate max-w-[180px]" title={search.username || `#${search.chat_id}`}>
+                    {search.username || `#${search.chat_id}`}
                   </span>
                 </motion.div>
               ))}
@@ -204,6 +204,7 @@ export function SearchesTab({ onViewListings }: { onViewListings: (searchId: num
                 label: "סטטוס",
                 value: detailSearch.active ? "פעיל" : "מושהה",
               },
+              { label: "משתמש", value: detailSearch.username || null },
               { label: "Chat ID", value: detailSearch.chat_id },
               {
                 label: "נוצר",

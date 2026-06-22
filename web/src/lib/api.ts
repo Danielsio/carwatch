@@ -377,6 +377,7 @@ export interface VacuumResult {
 export interface AdminSearch {
   id: number;
   chat_id: number;
+  username?: string;
   name: string;
   source: string;
   manufacturer: number;

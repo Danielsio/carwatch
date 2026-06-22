@@ -223,19 +223,36 @@ func (s *Store) AdminDeleteListing(ctx context.Context, token string, chatID int
 	return err
 }
 
-func (s *Store) AdminListSearches(ctx context.Context) ([]storage.Search, error) {
+func (s *Store) AdminListSearches(ctx context.Context) ([]storage.AdminSearchRow, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, chat_id, user_seq, name, source, manufacturer, model, year_min, year_max,
-			COALESCE(price_min, 0), price_max, engine_min_cc, max_km, max_hand, keywords, exclude_keys,
-			COALESCE(seller_filter, 'any'), COALESCE(gear_box, ''), price_only, photo_only, active, created_at,
-			COALESCE(share_token, '')
-		FROM searches
-		ORDER BY created_at DESC`)
+		SELECT s.id, s.chat_id, s.user_seq, s.name, s.source, s.manufacturer, s.model, s.year_min, s.year_max,
+			COALESCE(s.price_min, 0), s.price_max, s.engine_min_cc, s.max_km, s.max_hand, s.keywords, s.exclude_keys,
+			COALESCE(s.seller_filter, 'any'), COALESCE(s.gear_box, ''), s.price_only, s.photo_only, s.active, s.created_at,
+			COALESCE(s.share_token, ''),
+			COALESCE(u.username, '')
+		FROM searches s
+		LEFT JOIN users u ON u.chat_id = s.chat_id
+		ORDER BY s.created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("admin list searches: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	return scanSearches(rows)
+
+	var results []storage.AdminSearchRow
+	for rows.Next() {
+		var r storage.AdminSearchRow
+		if err := rows.Scan(&r.ID, &r.ChatID, &r.UserSeq, &r.Name, &r.Source, &r.Manufacturer, &r.Model,
+			&r.YearMin, &r.YearMax, &r.PriceMin, &r.PriceMax,
+			&r.EngineMinCC, &r.MaxKm, &r.MaxHand,
+			&r.Keywords, &r.ExcludeKeys, &r.SellerFilter,
+			&r.GearBox, &r.PriceOnly, &r.PhotoOnly,
+			&r.Active, &r.CreatedAt, &r.ShareToken,
+			&r.Username); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
 }
 
 func (s *Store) AdminDeleteSearch(ctx context.Context, id int64) error {

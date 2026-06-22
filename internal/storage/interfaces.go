@@ -57,6 +57,11 @@ type Search struct {
 	ShareToken   string
 }
 
+type AdminSearchRow struct {
+	Search
+	Username string
+}
+
 type UserStore interface {
 	UpsertUser(ctx context.Context, chatID int64, username string) error
 	GetUser(ctx context.Context, chatID int64) (*User, error)
@@ -400,7 +405,7 @@ type AdminStore interface {
 	PurgeTable(ctx context.Context, table string) (int64, error)
 	AdminListListings(ctx context.Context, limit, offset int, searchID int64) ([]ListingRecord, int64, error)
 	AdminDeleteListing(ctx context.Context, token string, chatID int64) error
-	AdminListSearches(ctx context.Context) ([]Search, error)
+	AdminListSearches(ctx context.Context) ([]AdminSearchRow, error)
 	AdminDeleteSearch(ctx context.Context, id int64) error
 	AdminListUsers(ctx context.Context) ([]User, error)
 	AdminDeleteUser(ctx context.Context, chatID int64) error

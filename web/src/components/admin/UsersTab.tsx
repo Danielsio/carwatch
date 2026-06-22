@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { AlertCircle, RefreshCcw, RefreshCw, ToggleLeft, ToggleRight, Trash2, Users } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertCircle, FileSearch, RefreshCcw, RefreshCw, ToggleLeft, ToggleRight, Trash2, Users } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { adminApi, type AdminUser } from "@/lib/api";
@@ -7,7 +7,7 @@ import { EmptyState, Skeleton, Badge } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/Toast";
-import { cn, relativeTime } from "@/lib/utils";
+import { cn, formatPrice, relativeTime } from "@/lib/utils";
 import { ConfirmModal } from "./ConfirmModal";
 import { DetailModal } from "./DetailModal";
 
@@ -48,6 +48,18 @@ export function UsersTab() {
       toast("שגיאה בעדכון סטטוס המשתמש", "error");
     },
   });
+
+  const { data: searchesData } = useQuery({
+    queryKey: ["admin", "searches"],
+    queryFn: adminApi.searches,
+  });
+
+  const userSearches = useMemo(() => {
+    if (!detailUser || !searchesData) return [];
+    return searchesData.items.filter(
+      (s) => s.chat_id === detailUser.chat_id && s.active,
+    );
+  }, [detailUser, searchesData]);
 
   const syncUserStatusMutation = useMutation({
     mutationFn: () => adminApi.syncUserStatus(),
@@ -234,7 +246,47 @@ export function UsersTab() {
                 </button>
               </div>
             }
-          />
+          >
+            <div className="mt-4 pt-4 border-t border-border/50">
+              <div className="flex items-center gap-2 mb-3">
+                <FileSearch className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">חיפושים פעילים</h3>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  ({userSearches.length})
+                </span>
+              </div>
+              {userSearches.length === 0 ? (
+                <p className="text-xs text-muted-foreground">אין חיפושים פעילים</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {userSearches.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center gap-2 rounded-lg bg-secondary/40 px-3 py-2"
+                    >
+                      <div className="h-2 w-2 rounded-full bg-success animate-pulse-soft flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium truncate">
+                          {s.name || `חיפוש #${s.id}`}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[11px] text-muted-foreground">{s.source}</span>
+                          {s.price_max > 0 && (
+                            <span className="text-[11px] text-muted-foreground">
+                              · עד {formatPrice(s.price_max)}
+                            </span>
+                          )}
+                          <span className="text-[11px] text-muted-foreground">
+                            · {relativeTime(s.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DetailModal>
         )}
       </AnimatePresence>
 
