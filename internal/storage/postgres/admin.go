@@ -274,28 +274,29 @@ func (s *Store) AdminDeleteSearch(ctx context.Context, id int64) error {
 	return s.DeleteSearch(ctx, id, chatID)
 }
 
-func (s *Store) AdminListUsers(ctx context.Context) ([]storage.User, error) {
+func (s *Store) AdminListUsers(ctx context.Context) ([]storage.AdminUserRow, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT chat_id, username, state, state_data, created_at, active, language, tier,
-			tier_expires_at, trial_used, channel, channel_id
-		FROM users
-		ORDER BY created_at DESC`)
+		SELECT u.chat_id, u.username, u.state, u.state_data, u.created_at, u.active, u.language, u.tier,
+			u.tier_expires_at, u.trial_used, u.channel, u.channel_id,
+			COALESCE(tg.chat_id, 0), COALESCE(tg.username, ''), COALESCE(tg.channel_id, '')
+		FROM users u
+		LEFT JOIN users tg ON tg.linked_web_id = u.chat_id AND tg.channel = 'telegram'
+		WHERE u.linked_web_id IS NULL
+		ORDER BY u.created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("admin list users: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	return scanAdminUsers(rows)
-}
 
-func scanAdminUsers(rows *sql.Rows) ([]storage.User, error) {
-	var users []storage.User
+	var users []storage.AdminUserRow
 	for rows.Next() {
-		var u storage.User
-		if err := rows.Scan(&u.ChatID, &u.Username, &u.State, &u.StateData, &u.CreatedAt, &u.Active, &u.Language,
-			&u.Tier, &u.TierExpires, &u.TrialUsed, &u.Channel, &u.ChannelID); err != nil {
+		var r storage.AdminUserRow
+		if err := rows.Scan(&r.ChatID, &r.Username, &r.State, &r.StateData, &r.CreatedAt, &r.Active, &r.Language,
+			&r.Tier, &r.TierExpires, &r.TrialUsed, &r.Channel, &r.ChannelID,
+			&r.LinkedTelegramChatID, &r.LinkedTelegramUsername, &r.LinkedTelegramChannelID); err != nil {
 			return nil, err
 		}
-		users = append(users, u)
+		users = append(users, r)
 	}
 	return users, rows.Err()
 }

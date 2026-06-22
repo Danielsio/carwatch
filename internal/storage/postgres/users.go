@@ -334,6 +334,20 @@ func (s *Store) LinkTelegramToWeb(ctx context.Context, telegramChatID, webChatID
 		return fmt.Errorf("cleanup duplicate listing history: %w", err)
 	}
 
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE seen_listings SET chat_id = $1
+		WHERE chat_id = $2
+		AND NOT EXISTS (
+			SELECT 1 FROM seen_listings s2
+			WHERE s2.chat_id = $1 AND s2.token = seen_listings.token
+		)`,
+		telegramChatID, webChatID); err != nil {
+		return fmt.Errorf("migrate seen listings: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM seen_listings WHERE chat_id = $1`, webChatID); err != nil {
+		return fmt.Errorf("cleanup duplicate seen listings: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
@@ -450,6 +464,23 @@ func (s *Store) migrateUserData(ctx context.Context, telegramChatID, webChatID i
 		total += n
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM listing_history WHERE chat_id = $1`, webChatID); err != nil {
+		return 0, err
+	}
+
+	res, err = tx.ExecContext(ctx, `
+		UPDATE seen_listings SET chat_id = $1
+		WHERE chat_id = $2
+		AND NOT EXISTS (
+			SELECT 1 FROM seen_listings s2
+			WHERE s2.chat_id = $1 AND s2.token = seen_listings.token
+		)`, telegramChatID, webChatID)
+	if err != nil {
+		return 0, err
+	}
+	if n, err := res.RowsAffected(); err == nil {
+		total += n
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM seen_listings WHERE chat_id = $1`, webChatID); err != nil {
 		return 0, err
 	}
 

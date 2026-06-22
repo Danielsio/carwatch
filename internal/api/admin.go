@@ -411,20 +411,26 @@ func (s *Server) adminListUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type userResp struct {
+	type linkedTelegramResp struct {
 		ChatID    int64  `json:"chat_id"`
 		Username  string `json:"username"`
-		Channel   string `json:"channel"`
 		ChannelID string `json:"channel_id"`
-		Active    bool   `json:"active"`
-		Tier      string `json:"tier"`
-		Language  string `json:"language"`
-		CreatedAt string `json:"created_at"`
+	}
+	type userResp struct {
+		ChatID         int64               `json:"chat_id"`
+		Username       string              `json:"username"`
+		Channel        string              `json:"channel"`
+		ChannelID      string              `json:"channel_id"`
+		Active         bool                `json:"active"`
+		Tier           string              `json:"tier"`
+		Language       string              `json:"language"`
+		CreatedAt      string              `json:"created_at"`
+		LinkedTelegram *linkedTelegramResp `json:"linked_telegram,omitempty"`
 	}
 
 	resp := make([]userResp, 0, len(users))
 	for _, u := range users {
-		resp = append(resp, userResp{
+		r := userResp{
 			ChatID:    u.ChatID,
 			Username:  u.Username,
 			Channel:   u.Channel,
@@ -433,7 +439,15 @@ func (s *Server) adminListUsers(w http.ResponseWriter, r *http.Request) {
 			Tier:      u.Tier,
 			Language:  u.Language,
 			CreatedAt: u.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
-		})
+		}
+		if u.LinkedTelegramChatID > 0 {
+			r.LinkedTelegram = &linkedTelegramResp{
+				ChatID:    u.LinkedTelegramChatID,
+				Username:  u.LinkedTelegramUsername,
+				ChannelID: u.LinkedTelegramChannelID,
+			}
+		}
+		resp = append(resp, r)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": resp, "total": len(resp)})
 }
