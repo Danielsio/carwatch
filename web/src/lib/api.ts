@@ -413,6 +413,12 @@ export interface AdminSearchesResponse {
   total: number;
 }
 
+export interface AdminLinkedTelegram {
+  chat_id: number;
+  username: string;
+  channel_id: string;
+}
+
 export interface AdminUser {
   chat_id: number;
   username: string;
@@ -422,6 +428,7 @@ export interface AdminUser {
   tier: string;
   language: string;
   created_at: string;
+  linked_telegram?: AdminLinkedTelegram;
 }
 
 export interface AdminUsersResponse {

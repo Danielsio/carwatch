@@ -721,7 +721,7 @@ func (f *failingAdminStore) AdminDeleteSearch(_ context.Context, _ int64) error 
 	return nil
 }
 
-func (f *failingAdminStore) AdminListUsers(_ context.Context) ([]storage.User, error) {
+func (f *failingAdminStore) AdminListUsers(_ context.Context) ([]storage.AdminUserRow, error) {
 	return nil, nil
 }
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertCircle, FileSearch, RefreshCcw, RefreshCw, ToggleLeft, ToggleRight, Trash2, Users } from "lucide-react";
+import { AlertCircle, FileSearch, MessageCircle, RefreshCcw, RefreshCw, ToggleLeft, ToggleRight, Trash2, Users } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { adminApi, type AdminUser } from "@/lib/api";
@@ -56,8 +56,9 @@ export function UsersTab() {
 
   const userSearches = useMemo(() => {
     if (!detailUser || !searchesData) return [];
+    const searchChatId = detailUser.linked_telegram?.chat_id ?? detailUser.chat_id;
     return searchesData.items.filter(
-      (s) => s.chat_id === detailUser.chat_id && s.active,
+      (s) => s.chat_id === searchChatId && s.active,
     );
   }, [detailUser, searchesData]);
 
@@ -148,6 +149,11 @@ export function UsersTab() {
                       {user.channel && (
                         <span className="text-xs text-muted-foreground">
                           {user.channel}
+                        </span>
+                      )}
+                      {user.linked_telegram && (
+                        <span className="text-xs text-muted-foreground">
+                          · טלגרם מקושר
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground">
@@ -247,6 +253,24 @@ export function UsersTab() {
               </div>
             }
           >
+            {detailUser.linked_telegram && (
+              <div className="mt-4 pt-4 border-t border-border/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold">טלגרם מקושר</h3>
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex gap-3 py-2 border-b border-border/50">
+                    <span className="text-xs text-muted-foreground w-28 flex-shrink-0 mt-0.5">שם משתמש</span>
+                    <span className="text-sm text-foreground font-medium break-all">@{detailUser.linked_telegram.username}</span>
+                  </div>
+                  <div className="flex gap-3 py-2">
+                    <span className="text-xs text-muted-foreground w-28 flex-shrink-0 mt-0.5">Chat ID</span>
+                    <span className="text-sm text-foreground font-medium break-all font-mono tabular-nums">{detailUser.linked_telegram.chat_id}</span>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="mt-4 pt-4 border-t border-border/50">
               <div className="flex items-center gap-2 mb-3">
                 <FileSearch className="h-4 w-4 text-muted-foreground" />

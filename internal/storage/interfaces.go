@@ -62,6 +62,13 @@ type AdminSearchRow struct {
 	Username string
 }
 
+type AdminUserRow struct {
+	User
+	LinkedTelegramChatID    int64
+	LinkedTelegramUsername  string
+	LinkedTelegramChannelID string
+}
+
 type UserStore interface {
 	UpsertUser(ctx context.Context, chatID int64, username string) error
 	GetUser(ctx context.Context, chatID int64) (*User, error)
@@ -456,7 +463,7 @@ type AdminStore interface {
 	AdminDeleteListing(ctx context.Context, token string, chatID int64) error
 	AdminListSearches(ctx context.Context) ([]AdminSearchRow, error)
 	AdminDeleteSearch(ctx context.Context, id int64) error
-	AdminListUsers(ctx context.Context) ([]User, error)
+	AdminListUsers(ctx context.Context) ([]AdminUserRow, error)
 	AdminDeleteUser(ctx context.Context, chatID int64) error
 	VacuumDB(ctx context.Context) error
 	SyncUserActiveStatus(ctx context.Context) (activated, deactivated int64, err error)
