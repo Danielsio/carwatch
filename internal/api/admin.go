@@ -337,6 +337,7 @@ func (s *Server) adminListSearches(w http.ResponseWriter, r *http.Request) {
 	type searchResp struct {
 		ID           int64  `json:"id"`
 		ChatID       int64  `json:"chat_id"`
+		Username     string `json:"username,omitempty"`
 		Name         string `json:"name"`
 		Source       string `json:"source"`
 		Manufacturer int    `json:"manufacturer"`
@@ -360,6 +361,7 @@ func (s *Server) adminListSearches(w http.ResponseWriter, r *http.Request) {
 		resp = append(resp, searchResp{
 			ID:           s.ID,
 			ChatID:       s.ChatID,
+			Username:     s.Username,
 			Name:         s.Name,
 			Source:       s.Source,
 			Manufacturer: s.Manufacturer,

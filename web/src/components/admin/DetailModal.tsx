@@ -10,11 +10,13 @@ export function DetailModal({
   fields,
   onClose,
   actions,
+  children,
 }: {
   title: string;
   fields: { label: string; value: string | number | null | undefined }[];
   onClose: () => void;
   actions?: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -41,6 +43,7 @@ export function DetailModal({
             );
           })}
         </div>
+        {children}
         {actions && (
           <div className="flex justify-end mt-4 pt-4 border-t border-border/50">
             {actions}

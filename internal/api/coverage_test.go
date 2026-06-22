@@ -827,9 +827,10 @@ func TestAdminListSearches(t *testing.T) {
 
 	var resp struct {
 		Items []struct {
-			ID     int64  `json:"id"`
-			Name   string `json:"name"`
-			Active bool   `json:"active"`
+			ID       int64  `json:"id"`
+			Name     string `json:"name"`
+			Username string `json:"username"`
+			Active   bool   `json:"active"`
 		} `json:"items"`
 		Total int `json:"total"`
 	}
@@ -844,6 +845,9 @@ func TestAdminListSearches(t *testing.T) {
 	}
 	if resp.Items[0].Name != "test-search" {
 		t.Fatalf("expected name=test-search, got %s", resp.Items[0].Name)
+	}
+	if resp.Items[0].Username != "admin" {
+		t.Fatalf("expected username=admin, got %q", resp.Items[0].Username)
 	}
 }
 

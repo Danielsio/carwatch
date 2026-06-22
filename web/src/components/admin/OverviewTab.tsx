@@ -4,7 +4,6 @@ import {
   Cpu,
   Database,
   HardDrive,
-  Table,
   Trash2,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -15,32 +14,7 @@ import { ActivityChart } from "./ActivityChart";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table as ShadcnTable,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-
-const TABLE_LABELS: Record<string, string> = {
-  users: "משתמשים",
-  searches: "חיפושים",
-  listing_history: "היסטוריית מודעות",
-  price_history: "היסטוריית מחירים",
-  seen_listings: "מודעות שנצפו",
-  listing_user_seen: "מודעות סומנו כנצפו",
-  saved_listings: "מודעות שמורות",
-  hidden_listings: "מודעות מוסתרות",
-  pending_digest: "תקצירים ממתינים",
-  cycle_log: "לוג סריקות",
-  search_cycle_stats: "סטטיסטיקות חיפוש",
-  price_list_cache: "מחירון מטמון",
-  link_tokens: "טוקנים לקישור",
-};
-
 
 function StorageIndicator({ sizeBytes }: { sizeBytes: number }) {
   const mb = sizeBytes / (1024 * 1024);
@@ -270,48 +244,6 @@ export function OverviewTab({
             value={`${data.http.avg_duration_ms.toFixed(2)} ms`}
           />
         </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-6">
-        <div className="flex items-center gap-2.5 mb-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-chart-2/10">
-            <Table className="h-[18px] w-[18px] text-chart-2" />
-          </div>
-          <h2 className="text-base font-semibold">טבלאות</h2>
-        </div>
-
-        <ShadcnTable>
-          <TableHeader>
-            <TableRow>
-              <TableHead>טבלה</TableHead>
-              <TableHead className="text-left">שורות</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {Object.entries(data.tables)
-              .sort(([, a], [, b]) => b - a)
-              .map(([table, count]) => (
-                <TableRow key={table}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className={cn(
-                          "h-2 w-2 rounded-full flex-shrink-0",
-                          count > 0 ? "bg-primary" : "bg-muted-foreground/30",
-                        )}
-                      />
-                      {TABLE_LABELS[table] ?? table}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-left font-mono tabular-nums">
-                    {count.toLocaleString("he-IL")}
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </ShadcnTable>
         </CardContent>
       </Card>
 

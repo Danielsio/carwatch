@@ -264,16 +264,22 @@ func (s *Store) CountAllSearches(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
+func searchScanDests(s *storage.Search) []any {
+	return []any{
+		&s.ID, &s.ChatID, &s.UserSeq, &s.Name, &s.Source, &s.Manufacturer, &s.Model,
+		&s.YearMin, &s.YearMax, &s.PriceMin, &s.PriceMax,
+		&s.EngineMinCC, &s.MaxKm, &s.MaxHand,
+		&s.Keywords, &s.ExcludeKeys, &s.SellerFilter,
+		&s.GearBox, &s.PriceOnly, &s.PhotoOnly,
+		&s.Active, &s.CreatedAt, &s.ShareToken,
+	}
+}
+
 func scanSearches(rows *sql.Rows) ([]storage.Search, error) {
 	var searches []storage.Search
 	for rows.Next() {
 		var s storage.Search
-		if err := rows.Scan(&s.ID, &s.ChatID, &s.UserSeq, &s.Name, &s.Source, &s.Manufacturer, &s.Model,
-			&s.YearMin, &s.YearMax, &s.PriceMin, &s.PriceMax,
-			&s.EngineMinCC, &s.MaxKm, &s.MaxHand,
-			&s.Keywords, &s.ExcludeKeys, &s.SellerFilter,
-			&s.GearBox, &s.PriceOnly, &s.PhotoOnly,
-			&s.Active, &s.CreatedAt, &s.ShareToken); err != nil {
+		if err := rows.Scan(searchScanDests(&s)...); err != nil {
 			return nil, err
 		}
 		searches = append(searches, s)
