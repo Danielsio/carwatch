@@ -241,13 +241,8 @@ func (s *Store) AdminListSearches(ctx context.Context) ([]storage.AdminSearchRow
 	var results []storage.AdminSearchRow
 	for rows.Next() {
 		var r storage.AdminSearchRow
-		if err := rows.Scan(&r.ID, &r.ChatID, &r.UserSeq, &r.Name, &r.Source, &r.Manufacturer, &r.Model,
-			&r.YearMin, &r.YearMax, &r.PriceMin, &r.PriceMax,
-			&r.EngineMinCC, &r.MaxKm, &r.MaxHand,
-			&r.Keywords, &r.ExcludeKeys, &r.SellerFilter,
-			&r.GearBox, &r.PriceOnly, &r.PhotoOnly,
-			&r.Active, &r.CreatedAt, &r.ShareToken,
-			&r.Username); err != nil {
+		dests := append(searchScanDests(&r.Search), &r.Username)
+		if err := rows.Scan(dests...); err != nil {
 			return nil, err
 		}
 		results = append(results, r)

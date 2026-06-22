@@ -49,7 +49,7 @@ export function UsersTab() {
     },
   });
 
-  const { data: searchesData } = useQuery({
+  const { data: searchesData, isLoading: searchesLoading, isError: searchesError } = useQuery({
     queryKey: ["admin", "searches"],
     queryFn: adminApi.searches,
   });
@@ -255,7 +255,11 @@ export function UsersTab() {
                   ({userSearches.length})
                 </span>
               </div>
-              {userSearches.length === 0 ? (
+              {searchesLoading ? (
+                <p className="text-xs text-muted-foreground">טוען חיפושים…</p>
+              ) : searchesError ? (
+                <p className="text-xs text-destructive">שגיאה בטעינת חיפושים</p>
+              ) : userSearches.length === 0 ? (
                 <p className="text-xs text-muted-foreground">אין חיפושים פעילים</p>
               ) : (
                 <div className="space-y-1.5">
