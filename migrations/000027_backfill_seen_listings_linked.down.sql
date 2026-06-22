@@ -1,0 +1,2 @@
+-- No-op: backfill migration cannot be meaningfully reversed.
+-- The orphaned rows under web chat_ids were invalid state.
