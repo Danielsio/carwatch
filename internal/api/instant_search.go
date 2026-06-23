@@ -169,6 +169,7 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 	type scoredListing struct {
 		listing    model.RawListing
 		fitness    float64
+		dims       []scoring.DimScore
 		dealScore  *int
 		median     *int
 		medianKm   *int
@@ -208,6 +209,7 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 
 		result := scoring.FitnessScoreDetailed(fp)
 		sl.fitness = result.Total
+		sl.dims = result.Dims
 
 		scored = append(scored, sl)
 	}
@@ -262,6 +264,17 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 			SuspiciousReasons: sl.suspicious,
 			FirstSeenAt:       l.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 			IsCommercial:      l.Commercial,
+		}
+		if len(sl.dims) == 3 {
+			resp.ScoreBreakdown = &scoreBreakdownResponse{
+				Condition: sl.dims[0].Score,
+				Value:     sl.dims[1].Score,
+				Engine:    sl.dims[2].Score,
+			}
+		}
+		if l.OriginalOwnership != "" {
+			ow := l.OriginalOwnership
+			resp.OriginalOwnership = &ow
 		}
 		items = append(items, resp)
 	}

@@ -141,6 +141,106 @@ func TestParseItemPage_CoverImgSnakeCase(t *testing.T) {
 	}
 }
 
+func TestNormalizeOwnership(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		// Hebrew inputs
+		{"פרטי", "private"},
+		{"בעלות פרטי", "private"},
+		{"ליסינג", "lease"},
+		{"השכרה", "rental"},
+		// English inputs
+		{"private", "private"},
+		{"Private", "private"},
+		{"PRIVATE", "private"},
+		{"lease", "lease"},
+		{"Lease", "lease"},
+		{"leasing", "lease"},
+		{"Leasing", "lease"},
+		{"rental", "rental"},
+		{"Rental", "rental"},
+		// English substring matches in Hebrew context
+		{"leasing company", "lease"},
+		{"rental car", "rental"},
+		// Unknown / empty
+		{"", ""},
+		{"  ", ""},
+		{"unknown", ""},
+		{"other", ""},
+		// Whitespace trimming
+		{"  private  ", "private"},
+		{"  ליסינג  ", "lease"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := normalizeOwnership(tt.input)
+			if got != tt.want {
+				t.Errorf("normalizeOwnership(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseItemPage_Ownership(t *testing.T) {
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "km": 50000,
+  "originalOwnership": {"text": "ליסינג", "textEng": "leasing", "id": 2},
+  "currentOwnership": {"text": "פרטי", "textEng": "private", "id": 1}
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.OriginalOwnership != "lease" {
+		t.Errorf("OriginalOwnership = %q, want lease", details.OriginalOwnership)
+	}
+	if details.CurrentOwnership != "private" {
+		t.Errorf("CurrentOwnership = %q, want private", details.CurrentOwnership)
+	}
+}
+
+func TestParseItemPage_OwnershipFallbackToPrevious(t *testing.T) {
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "km": 60000,
+  "previousOwnership": {"text": "השכרה", "textEng": "rental", "id": 3}
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.OriginalOwnership != "rental" {
+		t.Errorf("OriginalOwnership = %q, want rental (fallback from previousOwnership)", details.OriginalOwnership)
+	}
+}
+
+func TestParseItemPage_OwnershipFallbackToOwnership(t *testing.T) {
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "km": 70000,
+  "ownership": {"text": "", "textEng": "private", "id": 1}
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.OriginalOwnership != "private" {
+		t.Errorf("OriginalOwnership = %q, want private (fallback from ownership)", details.OriginalOwnership)
+	}
+}
+
 func TestParseItemPage_ImagesArrayFallback(t *testing.T) {
 	html := `<html><body>
 <script id="__NEXT_DATA__" type="application/json">

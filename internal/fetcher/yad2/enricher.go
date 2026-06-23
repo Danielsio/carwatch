@@ -193,6 +193,10 @@ func (e *Enricher) Enrich(ctx context.Context, listings []model.RawListing) int 
 			listings[i].Area = details.Area
 			changed = true
 		}
+		if listings[i].OriginalOwnership == "" && details.OriginalOwnership != "" {
+			listings[i].OriginalOwnership = details.OriginalOwnership
+			changed = true
+		}
 		if changed {
 			enriched++
 			e.logger.InfoContext(ctx, "enriched listing",

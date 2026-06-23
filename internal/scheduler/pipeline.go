@@ -121,17 +121,19 @@ func (p *ListingPipeline) scoreAndEnrich(ctx context.Context, l model.RawListing
 	}
 
 	fp := scoring.FitnessParams{
-		Price:        l.Price,
-		Km:           l.Km,
-		Hand:         l.Hand,
-		Year:         l.Year,
-		EngineVolume: l.EngineVolume,
-		PriceMax:     params.PriceMax,
-		MaxKm:        params.MaxKm,
-		MaxHand:      params.MaxHand,
-		YearMin:      params.YearMin,
-		YearMax:      params.YearMax,
-		EngineMinCC:  params.EngineMinCC,
+		Price:             l.Price,
+		Km:                l.Km,
+		Hand:              l.Hand,
+		Year:              l.Year,
+		EngineVolume:      l.EngineVolume,
+		PriceMax:          params.PriceMax,
+		MaxKm:             params.MaxKm,
+		MaxHand:           params.MaxHand,
+		YearMin:           params.YearMin,
+		YearMax:           params.YearMax,
+		EngineMinCC:       params.EngineMinCC,
+		IsCommercial:      l.Commercial != nil && *l.Commercial,
+		OriginalOwnership: l.OriginalOwnership,
 	}
 	if marketOK {
 		fp.MedianPrice = medianPrice
@@ -357,6 +359,23 @@ func (p *ListingPipeline) buildRecord(listing model.Listing, params ProcessParam
 		rec.MedianPrice = &listing.DealScore.MedianPrice
 		rec.CohortSize = &listing.DealScore.CohortSize
 		rec.DealScore = &listing.DealScore.Score
+	}
+	for _, dim := range listing.FitnessBreakdown {
+		switch dim.Name {
+		case "condition":
+			v := dim.Score
+			rec.ScoreCondition = &v
+		case "value":
+			v := dim.Score
+			rec.ScoreValue = &v
+		case "engine":
+			v := dim.Score
+			rec.ScoreEngine = &v
+		}
+	}
+	if listing.OriginalOwnership != "" {
+		s := listing.OriginalOwnership
+		rec.OriginalOwnership = &s
 	}
 	return rec
 }

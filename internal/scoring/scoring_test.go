@@ -395,9 +395,9 @@ func TestComputeHandDelta(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			delta, _ := computeHandDelta(tt.hand, tt.carAge)
+			delta, _ := computeHandDelta(tt.hand, tt.carAge, false)
 			if delta < tt.minDelta || delta > tt.maxDelta {
-				t.Errorf("computeHandDelta(%d, %d) delta=%.3f, want [%.1f, %.1f]", tt.hand, tt.carAge, delta, tt.minDelta, tt.maxDelta)
+				t.Errorf("computeHandDelta(%d, %d, false) delta=%.3f, want [%.1f, %.1f]", tt.hand, tt.carAge, delta, tt.minDelta, tt.maxDelta)
 			}
 		})
 	}
@@ -825,10 +825,106 @@ func TestKmDelta_AgeAdjusted(t *testing.T) {
 	}
 }
 
+func TestComputeHandDelta_Commercial(t *testing.T) {
+	// Commercial first-hand should get a reduced bonus compared to private.
+	privateDelta, privateScore := computeHandDelta(1, 8, false)
+	commercialDelta, commercialScore := computeHandDelta(1, 8, true)
+
+	if commercialDelta >= privateDelta {
+		t.Errorf("commercial hand=1 delta (%.3f) should be less than private (%.3f)", commercialDelta, privateDelta)
+	}
+	expectedRatio := commercialHand1BonusFactor
+	gotRatio := commercialDelta / privateDelta
+	if math.Abs(gotRatio-expectedRatio) > 0.01 {
+		t.Errorf("commercial/private delta ratio = %.3f, want %.2f", gotRatio, expectedRatio)
+	}
+	if commercialScore != 0.7 {
+		t.Errorf("commercial hand=1 score01 = %.3f, want 0.7", commercialScore)
+	}
+	if privateScore != 1.0 {
+		t.Errorf("private hand=1 score01 = %.3f, want 1.0", privateScore)
+	}
+}
+
+func TestComputeHandDelta_CommercialNonFirstHand(t *testing.T) {
+	// Commercial flag should not affect non-first-hand cars.
+	privateDelta, _ := computeHandDelta(3, 5, false)
+	commercialDelta, _ := computeHandDelta(3, 5, true)
+
+	if privateDelta != commercialDelta {
+		t.Errorf("commercial flag should not affect hand=3: private=%.3f, commercial=%.3f", privateDelta, commercialDelta)
+	}
+}
+
+func TestFitnessScore_CommercialFirstHand(t *testing.T) {
+	stubCurrentYear(t, 2026)
+
+	// Use params that produce a mid-range score so the hand delta difference is visible.
+	private := FitnessParams{
+		Price: 88000, Km: 80000, Hand: 1, Year: 2020, EngineVolume: 2000,
+		PriceMax: 100000, EngineMinCC: 1500,
+		MedianPrice: 90000, MedianKm: 70000,
+	}
+	commercial := private
+	commercial.IsCommercial = true
+
+	privateScore := FitnessScore(private)
+	commercialScore := FitnessScore(commercial)
+
+	if commercialScore >= privateScore {
+		t.Errorf("commercial first-hand (%.1f) should score lower than private first-hand (%.1f)", commercialScore, privateScore)
+	}
+}
+
+func TestFitnessScore_LeaseOriginDiscount(t *testing.T) {
+	stubCurrentYear(t, 2026)
+
+	base := FitnessParams{
+		Price: 80000, Km: 60000, Hand: 2, Year: 2020, EngineVolume: 2000,
+		PriceMax: 150000, EngineMinCC: 1500,
+		MedianPrice: 90000, MedianKm: 70000,
+	}
+	leaseOrigin := base
+	leaseOrigin.OriginalOwnership = "lease"
+
+	baseScore := FitnessScore(base)
+	leaseScore := FitnessScore(leaseOrigin)
+
+	// Lease origin lowers expected price, so the same listing price looks relatively
+	// worse (or at least no better). The score should differ.
+	if leaseScore == baseScore {
+		t.Errorf("lease origin should affect scoring, both got %.1f", baseScore)
+	}
+}
+
+func TestFitnessScore_RentalOriginDiscount(t *testing.T) {
+	stubCurrentYear(t, 2026)
+
+	base := FitnessParams{
+		Price: 80000, Km: 60000, Hand: 2, Year: 2020, EngineVolume: 2000,
+		PriceMax: 150000, EngineMinCC: 1500,
+		MedianPrice: 90000, MedianKm: 70000,
+	}
+	rentalOrigin := base
+	rentalOrigin.OriginalOwnership = "rental"
+
+	leaseOrigin := base
+	leaseOrigin.OriginalOwnership = "lease"
+
+	rentalScore := FitnessScore(rentalOrigin)
+	leaseScore := FitnessScore(leaseOrigin)
+
+	// Rental has a larger discount than lease, so rental-origin should score
+	// differently (lower or equal) compared to lease-origin for the same price.
+	if rentalScore > leaseScore {
+		t.Errorf("rental origin (%.1f) should not score higher than lease origin (%.1f) — rental discount is larger", rentalScore, leaseScore)
+	}
+}
+
 func TestHandDelta_AgeScaling(t *testing.T) {
 	// First hand on old car should get bigger bonus than on new car.
-	oldDelta, _ := computeHandDelta(1, 12)
-	newDelta, _ := computeHandDelta(1, 2)
+	oldDelta, _ := computeHandDelta(1, 12, false)
+	newDelta, _ := computeHandDelta(1, 2, false)
 
 	if oldDelta <= newDelta {
 		t.Errorf("first hand: old car delta %.3f should exceed new car delta %.3f", oldDelta, newDelta)
