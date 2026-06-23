@@ -276,17 +276,11 @@ func (n *Notifier) sendMessageWithRetry(ctx context.Context, chatID string, para
 			params.ParseMode = ""
 			continue
 		}
-		if isTransientError(err) && attempt < telegramMaxRetries {
-			delay := telegramRetryBaseDelay * time.Duration(1<<uint(attempt))
-			n.logger.Warn("transient telegram error, retrying",
-				"chat_id", chatID, "attempt", attempt+1, "wait", delay.String(), "error", err)
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(delay):
-			}
-			continue
-		}
+		// Transient errors (timeout, connection reset, EOF) are NOT retried
+		// here because the request may have been processed by Telegram — a
+		// retry would send a duplicate message. The caller's own retry
+		// mechanism (consumer reclaim / next scheduler cycle) handles
+		// redelivery at a higher level where dedup checks can run first.
 		if !isRateLimited(err) || attempt >= telegramMaxRetries {
 			return fmt.Errorf("telegram sendMessage: %w", err)
 		}
@@ -314,17 +308,7 @@ func (n *Notifier) sendPhotoWithRetry(ctx context.Context, chatID string, params
 		if recErr := recipientBlockedError(err); recErr != nil {
 			return recErr
 		}
-		if isTransientError(err) && attempt < telegramMaxRetries {
-			delay := telegramRetryBaseDelay * time.Duration(1<<uint(attempt))
-			n.logger.Warn("transient telegram error on sendPhoto, retrying",
-				"chat_id", chatID, "attempt", attempt+1, "wait", delay.String(), "error", err)
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(delay):
-			}
-			continue
-		}
+		// Transient errors are not retried — see sendMessageWithRetry.
 		if !isRateLimited(err) || attempt >= telegramMaxRetries {
 			return err
 		}
@@ -480,19 +464,6 @@ func isMarkdownParseError(err error) bool {
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "can't parse") ||
 		(strings.Contains(msg, "entities") && strings.Contains(msg, "parse"))
-}
-
-func isTransientError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "connection reset") ||
-		strings.Contains(msg, "timeout") ||
-		strings.Contains(msg, "eof") ||
-		strings.Contains(msg, "502") ||
-		strings.Contains(msg, "503") ||
-		strings.Contains(msg, "gateway")
 }
 
 func isRateLimited(err error) bool {
