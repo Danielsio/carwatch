@@ -48,7 +48,7 @@ func (d *perSearchDedup) ReleaseClaim(_ context.Context, token string, chatID, s
 }
 
 func (d *perSearchDedup) Prune(_ context.Context, _ time.Duration) (int64, error) { return 0, nil }
-func (d *perSearchDedup) Close() error                                          { return nil }
+func (d *perSearchDedup) Close() error                                            { return nil }
 
 // TestCrossSearchDedup_SameUserOverlappingSearches verifies that a listing
 // matching multiple searches for the same user produces only one notification.
