@@ -74,7 +74,10 @@ func TestCrossSearchDedup_SameUserOverlappingSearches(t *testing.T) {
 		},
 	}
 
-	s, _ := NewWithOptions(testConfig(), f, d, n, testLogger(), Options{SearchStore: ss})
+	s, err := NewWithOptions(testConfig(), f, d, n, testLogger(), Options{SearchStore: ss})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
 
 	if err := s.runMultiTenantCycle(context.Background()); err != nil {
 		t.Fatalf("cycle: %v", err)
@@ -111,7 +114,10 @@ func TestCrossSearchDedup_DifferentUsers(t *testing.T) {
 		},
 	}
 
-	s, _ := NewWithOptions(testConfig(), f, d, n, testLogger(), Options{SearchStore: ss})
+	s, err := NewWithOptions(testConfig(), f, d, n, testLogger(), Options{SearchStore: ss})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
 
 	if err := s.runMultiTenantCycle(context.Background()); err != nil {
 		t.Fatalf("cycle: %v", err)
@@ -151,10 +157,13 @@ func TestCrossSearchDedup_PriceDrop(t *testing.T) {
 		},
 	}
 
-	s, _ := NewWithOptions(testConfig(), f, d, n, testLogger(), Options{
+	s, err := NewWithOptions(testConfig(), f, d, n, testLogger(), Options{
 		SearchStore: ss,
 		Prices:      pt,
 	})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
 
 	if err := s.runMultiTenantCycle(context.Background()); err != nil {
 		t.Fatalf("cycle: %v", err)
