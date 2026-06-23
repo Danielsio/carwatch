@@ -89,6 +89,10 @@ func (s *Scheduler) matchListingsToSearches(ctx context.Context, ms *matchState)
 	hiddenCache := make(map[int64]map[string]bool)
 	priceCache := make(map[string]priceResult)
 
+	// Cross-search dedup: prevent the same listing from being delivered
+	// multiple times to the same user when overlapping searches match it.
+	userDelivered := make(map[int64]map[string]bool) // chatID -> token set
+
 	for i := range ms.raw {
 		matches := s.percolator.Match(ms.raw[i])
 		if len(matches) == 0 {
@@ -149,9 +153,16 @@ func (s *Scheduler) matchListingsToSearches(ctx context.Context, ms *matchState)
 					priceCache[ms.raw[i].Token] = pr
 				}
 				if !pr.err && pr.changed && ms.raw[i].Price < pr.oldPrice {
+					if ud := userDelivered[m.ChatID]; ud != nil && ud[ms.raw[i].Token] {
+						continue
+					}
 					ms.priceDropCandidates = append(ms.priceDropCandidates, priceDropCandidate{
 						rawIdx: i, searchID: m.SearchID, oldPrice: pr.oldPrice,
 					})
+					if userDelivered[m.ChatID] == nil {
+						userDelivered[m.ChatID] = make(map[string]bool)
+					}
+					userDelivered[m.ChatID][ms.raw[i].Token] = true
 					continue
 				}
 			}
@@ -159,6 +170,14 @@ func (s *Scheduler) matchListingsToSearches(ctx context.Context, ms *matchState)
 			if !isNew {
 				continue
 			}
+
+			if ud := userDelivered[m.ChatID]; ud != nil && ud[ms.raw[i].Token] {
+				continue
+			}
+			if userDelivered[m.ChatID] == nil {
+				userDelivered[m.ChatID] = make(map[string]bool)
+			}
+			userDelivered[m.ChatID][ms.raw[i].Token] = true
 
 			acc.result.newListings = append(acc.result.newListings, model.Listing{RawListing: ms.raw[i]})
 		}
