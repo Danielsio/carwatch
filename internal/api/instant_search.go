@@ -180,17 +180,19 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 	scored := make([]scoredListing, 0, len(filtered))
 	for _, l := range filtered {
 		fp := scoring.FitnessParams{
-			Price:        l.Price,
-			Km:           l.Km,
-			Hand:         l.Hand,
-			Year:         l.Year,
-			EngineVolume: l.EngineVolume,
-			PriceMax:     req.PriceMax,
-			MaxKm:        req.MaxKm,
-			MaxHand:      req.MaxHand,
-			YearMin:      req.YearMin,
-			YearMax:      req.YearMax,
-			EngineMinCC:  req.EngineMinCC,
+			Price:             l.Price,
+			Km:                l.Km,
+			Hand:              l.Hand,
+			Year:              l.Year,
+			EngineVolume:      l.EngineVolume,
+			PriceMax:          req.PriceMax,
+			MaxKm:             req.MaxKm,
+			MaxHand:           req.MaxHand,
+			YearMin:           req.YearMin,
+			YearMax:           req.YearMax,
+			EngineMinCC:       req.EngineMinCC,
+			IsCommercial:      l.Commercial != nil && *l.Commercial,
+			OriginalOwnership: l.OriginalOwnership,
 		}
 
 		var sl scoredListing
@@ -265,12 +267,19 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 			FirstSeenAt:       l.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 			IsCommercial:      l.Commercial,
 		}
-		if len(sl.dims) == 3 {
-			resp.ScoreBreakdown = &scoreBreakdownResponse{
-				Condition: sl.dims[0].Score,
-				Value:     sl.dims[1].Score,
-				Engine:    sl.dims[2].Score,
+		if len(sl.dims) > 0 {
+			bd := &scoreBreakdownResponse{}
+			for _, d := range sl.dims {
+				switch d.Name {
+				case "condition":
+					bd.Condition = d.Score
+				case "value":
+					bd.Value = d.Score
+				case "engine":
+					bd.Engine = d.Score
+				}
 			}
+			resp.ScoreBreakdown = bd
 		}
 		if l.OriginalOwnership != "" {
 			ow := l.OriginalOwnership

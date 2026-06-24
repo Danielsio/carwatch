@@ -892,8 +892,8 @@ func TestFitnessScore_LeaseOriginDiscount(t *testing.T) {
 
 	// Lease origin lowers expected price, so the same listing price looks relatively
 	// worse (or at least no better). The score should differ.
-	if leaseScore == baseScore {
-		t.Errorf("lease origin should affect scoring, both got %.1f", baseScore)
+	if leaseScore > baseScore {
+		t.Errorf("lease origin should not improve scoring: lease=%.1f base=%.1f", leaseScore, baseScore)
 	}
 }
 

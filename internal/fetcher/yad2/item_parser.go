@@ -159,18 +159,19 @@ func normalizeOwnership(text string) string {
 	if t == "" {
 		return ""
 	}
+	lower := strings.ToLower(t)
 	switch {
 	case strings.Contains(t, "פרטי"):
 		return "private"
-	case strings.Contains(t, "ליסינג") || strings.Contains(t, "leasing"):
+	case strings.Contains(t, "ליסינג") || strings.Contains(lower, "leasing"):
 		return "lease"
-	case strings.Contains(t, "השכרה") || strings.Contains(t, "rental"):
+	case strings.Contains(t, "השכרה") || strings.Contains(lower, "rental"):
 		return "rental"
-	case strings.EqualFold(t, "private"):
+	case lower == "private":
 		return "private"
-	case strings.EqualFold(t, "lease") || strings.EqualFold(t, "leasing"):
+	case lower == "lease" || lower == "leasing":
 		return "lease"
-	case strings.EqualFold(t, "rental"):
+	case lower == "rental":
 		return "rental"
 	default:
 		return ""

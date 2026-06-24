@@ -73,13 +73,13 @@ const upsertListingSQL = `
 		original_ownership = COALESCE(EXCLUDED.original_ownership, listing_history.original_ownership)`
 
 const unenrichedBacklogWhereSQL = `
-(km <= 0 OR COALESCE(city, '') = '' OR COALESCE(image_url, '') = '')
+(km <= 0 OR COALESCE(city, '') = '' OR COALESCE(image_url, '') = '' OR COALESCE(original_ownership, '') = '')
 AND enrich_attempts < 10
 AND (last_enrich_at IS NULL OR last_enrich_at < NOW() - INTERVAL '1 hour')
 AND first_seen_at > NOW() - INTERVAL '7 days'`
 
 const unenrichedMissingFieldsWhereSQL = `
-(km <= 0 OR COALESCE(city, '') = '' OR COALESCE(image_url, '') = '')`
+(km <= 0 OR COALESCE(city, '') = '' OR COALESCE(image_url, '') = '' OR COALESCE(original_ownership, '') = '')`
 
 type listingScanner interface {
 	Scan(dest ...any) error
