@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Bookmark, AlertTriangle, Clock, Flame, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { formatPrice, formatKm, relativeTime, cn, marketComparison, listingSource } from "@/lib/utils";
 import type { Listing } from "@/lib/api";
-import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
+import { ScoreBreakdownPopover } from "@/components/ScoreBreakdownPopover";
 import { scoreHsl, scoreLabel } from "@/lib/scoringAlgorithm";
 import { manufacturerLogoSrc } from "@/lib/manufacturerLogo";
 
@@ -204,7 +204,12 @@ export function ListingCardBody({
           ) : null}
           {listing.fitness_score != null ? (
             <>
-              <MatchScoreBox score={listing.fitness_score} size="sm" />
+              <ScoreBreakdownPopover
+                score={listing.fitness_score}
+                breakdown={listing.score_breakdown}
+                originalOwnership={listing.original_ownership}
+                size="sm"
+              />
               <span className="text-xs font-semibold" style={{ color: scoreHsl(listing.fitness_score) }}>
                 {listing.fitness_score.toFixed(1)} · {scoreLabel(listing.fitness_score)}
               </span>

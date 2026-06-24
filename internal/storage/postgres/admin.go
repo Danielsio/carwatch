@@ -164,6 +164,7 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 			lh.km, lh.hand, lh.city, lh.page_link, lh.image_url,
 			lh.engine_volume, lh.horse_power, lh.engine_type, lh.gear_box, lh.description,
 			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at, lh.posted_at, lh.removed_at,
+			lh.score_condition, lh.score_value, lh.score_engine, lh.original_ownership,
 			d.status, d.alert_type, d.created_at
 		FROM listing_history lh
 		LEFT JOIN LATERAL (
@@ -183,16 +184,17 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 	var items []storage.ListingRecord
 	for rows.Next() {
 		var r storage.ListingRecord
-		var fs sql.NullFloat64
+		var fs, scoreCond, scoreVal, scoreEng sql.NullFloat64
 		var ic, mp, cs, ds, bp sql.NullInt64
 		var postedAt, removedAt, notifiedAt sql.NullTime
-		var notifyStatus, notifyVia sql.NullString
+		var notifyStatus, notifyVia, origOwn sql.NullString
 		if err := rows.Scan(
 			&r.Token, &r.ChatID, &r.SearchID, &r.SearchName,
 			&r.Manufacturer, &r.Model, &r.SubModel, &r.SubModelID, &r.Year, &r.Price,
 			&r.Km, &r.Hand, &r.City, &r.PageLink, &r.ImageURL,
 			&r.EngineVolume, &r.HorsePower, &r.EngineType, &r.GearBox, &r.Description,
 			&ic, &fs, &mp, &cs, &ds, &bp, &r.FirstSeenAt, &postedAt, &removedAt,
+			&scoreCond, &scoreVal, &scoreEng, &origOwn,
 			&notifyStatus, &notifyVia, &notifiedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan listing: %w", err)
@@ -227,6 +229,22 @@ func (s *Store) AdminListListings(ctx context.Context, limit, offset int, search
 		}
 		if removedAt.Valid {
 			r.RemovedAt = &removedAt.Time
+		}
+		if scoreCond.Valid {
+			v := scoreCond.Float64
+			r.ScoreCondition = &v
+		}
+		if scoreVal.Valid {
+			v := scoreVal.Float64
+			r.ScoreValue = &v
+		}
+		if scoreEng.Valid {
+			v := scoreEng.Float64
+			r.ScoreEngine = &v
+		}
+		if origOwn.Valid && origOwn.String != "" {
+			v := origOwn.String
+			r.OriginalOwnership = &v
 		}
 		items = append(items, r)
 	}

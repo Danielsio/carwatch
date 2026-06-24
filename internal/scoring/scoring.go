@@ -239,13 +239,18 @@ const (
 	kmExcessExponent  = 0.7
 
 	// Condition: hand sub-delta
-	hand1BonusBase    = 0.5
-	hand1AgeBonusRate = 0.10
-	hand1AgeBonusCap  = 0.8
-	handExpectedRate  = 5.0
-	handExcessPenalty = 1.1
-	handBelowRate     = 0.3
-	handBelowCap      = 0.3
+	hand1BonusBase             = 0.5
+	hand1AgeBonusRate          = 0.10
+	hand1AgeBonusCap           = 0.8
+	handExpectedRate           = 5.0
+	handExcessPenalty          = 1.1
+	handBelowRate              = 0.3
+	handBelowCap               = 0.3
+	commercialHand1BonusFactor = 0.4
+
+	// Ownership origin discounts (value dimension)
+	leaseOriginPriceDisc  = 0.04
+	rentalOriginPriceDisc = 0.06
 
 	// Condition delta bounds
 	condDeltaMin = -5.0
@@ -296,6 +301,9 @@ type FitnessParams struct {
 
 	MedianPrice int
 	MedianKm    int
+
+	IsCommercial      bool
+	OriginalOwnership string
 }
 
 type DimScore struct {
@@ -339,7 +347,7 @@ func FitnessScoreDetailed(p FitnessParams) FitnessResult {
 	}
 
 	kmDelta, kmScore01 := computeKmDelta(p.Km, carAge)
-	handDelta, handScore01 := computeHandDelta(p.Hand, carAge)
+	handDelta, handScore01 := computeHandDelta(p.Hand, carAge, p.IsCommercial)
 	condDelta := clampRange(kmDelta+handDelta, condDeltaMin, condDeltaMax)
 	condScore01 := 0.70*kmScore01 + 0.30*handScore01
 
@@ -397,14 +405,19 @@ func computeKmDelta(km int, carAge int) (delta float64, score01 float64) {
 	return delta, score01
 }
 
-func computeHandDelta(hand int, carAge int) (delta float64, score01 float64) {
+func computeHandDelta(hand int, carAge int, isCommercial bool) (delta float64, score01 float64) {
 	if hand <= 0 {
 		return 0, 0.5
 	}
 
 	if hand == 1 {
 		ageBonus := math.Min(hand1AgeBonusCap, float64(carAge)*hand1AgeBonusRate)
-		return hand1BonusBase + ageBonus, 1.0
+		delta = hand1BonusBase + ageBonus
+		if isCommercial {
+			delta *= commercialHand1BonusFactor
+			return delta, 0.7
+		}
+		return delta, 1.0
 	}
 
 	expectedHands := 1.0 + float64(carAge)/handExpectedRate
@@ -440,6 +453,13 @@ func computeValueDelta(p FitnessParams, carAge int, condScore01 float64) (delta 
 		} else if p.Hand > 0 && float64(p.Hand) > expectedHands {
 			excess := float64(p.Hand) - expectedHands
 			adjExpected *= math.Max(0.85, 1.0-excess*handExcessPriceDisc)
+		}
+
+		switch p.OriginalOwnership {
+		case "lease":
+			adjExpected *= (1.0 - leaseOriginPriceDisc)
+		case "rental":
+			adjExpected *= (1.0 - rentalOriginPriceDisc)
 		}
 
 		ratio := float64(p.Price) / adjExpected

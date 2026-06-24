@@ -169,6 +169,7 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 	type scoredListing struct {
 		listing    model.RawListing
 		fitness    float64
+		dims       []scoring.DimScore
 		dealScore  *int
 		median     *int
 		medianKm   *int
@@ -179,17 +180,19 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 	scored := make([]scoredListing, 0, len(filtered))
 	for _, l := range filtered {
 		fp := scoring.FitnessParams{
-			Price:        l.Price,
-			Km:           l.Km,
-			Hand:         l.Hand,
-			Year:         l.Year,
-			EngineVolume: l.EngineVolume,
-			PriceMax:     req.PriceMax,
-			MaxKm:        req.MaxKm,
-			MaxHand:      req.MaxHand,
-			YearMin:      req.YearMin,
-			YearMax:      req.YearMax,
-			EngineMinCC:  req.EngineMinCC,
+			Price:             l.Price,
+			Km:                l.Km,
+			Hand:              l.Hand,
+			Year:              l.Year,
+			EngineVolume:      l.EngineVolume,
+			PriceMax:          req.PriceMax,
+			MaxKm:             req.MaxKm,
+			MaxHand:           req.MaxHand,
+			YearMin:           req.YearMin,
+			YearMax:           req.YearMax,
+			EngineMinCC:       req.EngineMinCC,
+			IsCommercial:      l.Commercial != nil && *l.Commercial,
+			OriginalOwnership: l.OriginalOwnership,
 		}
 
 		var sl scoredListing
@@ -208,6 +211,7 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 
 		result := scoring.FitnessScoreDetailed(fp)
 		sl.fitness = result.Total
+		sl.dims = result.Dims
 
 		scored = append(scored, sl)
 	}
@@ -262,6 +266,24 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 			SuspiciousReasons: sl.suspicious,
 			FirstSeenAt:       l.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 			IsCommercial:      l.Commercial,
+		}
+		if len(sl.dims) > 0 {
+			bd := &scoreBreakdownResponse{}
+			for _, d := range sl.dims {
+				switch d.Name {
+				case "condition":
+					bd.Condition = d.Score
+				case "value":
+					bd.Value = d.Score
+				case "engine":
+					bd.Engine = d.Score
+				}
+			}
+			resp.ScoreBreakdown = bd
+		}
+		if l.OriginalOwnership != "" {
+			ow := l.OriginalOwnership
+			resp.OriginalOwnership = &ow
 		}
 		items = append(items, resp)
 	}

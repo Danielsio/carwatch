@@ -165,14 +165,18 @@ type ListingRecord struct {
 	GearBox      string
 	Description  string
 	// IsCommercial: nil = unknown; false = private seller; true = dealer/commercial (Yad2 bucket).
-	IsCommercial *bool
-	FitnessScore *float64
-	MedianPrice  *int
-	CohortSize   *int
-	DealScore    *int
-	BasePrice    *int
-	FirstSeenAt  time.Time
-	PostedAt     *time.Time
+	IsCommercial      *bool
+	FitnessScore      *float64
+	MedianPrice       *int
+	CohortSize        *int
+	DealScore         *int
+	BasePrice         *int
+	FirstSeenAt       time.Time
+	PostedAt          *time.Time
+	ScoreCondition    *float64
+	ScoreValue        *float64
+	ScoreEngine       *float64
+	OriginalOwnership *string
 	// RemovedAt: non-nil when the listing disappeared from the source but was
 	// preserved because it is bookmarked ("likely sold").
 	RemovedAt *time.Time

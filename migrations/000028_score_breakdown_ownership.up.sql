@@ -1,0 +1,4 @@
+ALTER TABLE listing_history ADD COLUMN IF NOT EXISTS score_condition DOUBLE PRECISION;
+ALTER TABLE listing_history ADD COLUMN IF NOT EXISTS score_value DOUBLE PRECISION;
+ALTER TABLE listing_history ADD COLUMN IF NOT EXISTS score_engine DOUBLE PRECISION;
+ALTER TABLE listing_history ADD COLUMN IF NOT EXISTS original_ownership TEXT;
