@@ -257,6 +257,7 @@ type mockListingStore struct {
 	saved            []storage.ListingRecord
 	pruneCalls       int
 	unenrichedTokens []string
+	exhaustedTokens  map[string]bool
 }
 
 func (m *mockListingStore) SaveListing(_ context.Context, r storage.ListingRecord) error {
@@ -321,6 +322,21 @@ func (m *mockListingStore) ListUnenrichedTokens(_ context.Context, _ int) ([]str
 }
 func (m *mockListingStore) CountUnenrichedTokens(_ context.Context) (int64, error)   { return 0, nil }
 func (m *mockListingStore) IncrementEnrichAttempt(_ context.Context, _ string) error { return nil }
+func (m *mockListingStore) ListEnrichExhaustedTokens(_ context.Context, tokens []string, _ int) (map[string]bool, error) {
+	if m.exhaustedTokens == nil {
+		return nil, nil
+	}
+	result := make(map[string]bool)
+	for _, tok := range tokens {
+		if m.exhaustedTokens[tok] {
+			result[tok] = true
+		}
+	}
+	if len(result) == 0 {
+		return nil, nil
+	}
+	return result, nil
+}
 func (m *mockListingStore) LookupListingIdentity(_ context.Context, _ string) (*storage.ListingIdentity, error) {
 	return &storage.ListingIdentity{}, nil
 }

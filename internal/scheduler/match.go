@@ -188,10 +188,49 @@ func (s *Scheduler) publishEnrichRequests(ctx context.Context, ms *matchState) {
 	if s.enrichPublisher == nil || len(ms.matchedIndices) == 0 {
 		return
 	}
+
+	// Collect tokens that need enrichment
+	needEnrich := make(map[string]bool)
+	var tokensToCheck []string
+	for idx := range ms.matchedIndices {
+		l := ms.raw[idx]
+		if l.Km <= 0 || l.City == "" || l.ImageURL == "" {
+			if !needEnrich[l.Token] {
+				needEnrich[l.Token] = true
+				tokensToCheck = append(tokensToCheck, l.Token)
+			}
+		}
+	}
+
+	// Check which tokens have exhausted retry attempts
+	var exhausted map[string]bool
+	if s.stores.Listings != nil && len(tokensToCheck) > 0 {
+		s.cfgMu.RLock()
+		maxAttempts := s.cfg.Enricher.MaxAttemptsPerToken
+		s.cfgMu.RUnlock()
+
+		var err error
+		exhausted, err = s.stores.Listings.ListEnrichExhaustedTokens(ctx, tokensToCheck, maxAttempts)
+		if err != nil {
+			s.logger.WarnContext(ctx, "failed to check exhausted enrich tokens, proceeding without circuit breaker",
+				"error", err)
+			exhausted = nil
+		}
+	}
+
 	published := 0
+	skipped := 0
+	exhaustedSkipped := 0
 	for idx, searchIDs := range ms.matchedIndices {
 		l := ms.raw[idx]
 		if l.Km <= 0 || l.City == "" || l.ImageURL == "" {
+			if exhausted != nil && exhausted[l.Token] {
+				exhaustedSkipped++
+				s.logger.WarnContext(ctx, "skipping enrich request for token that exhausted retry attempts",
+					"token", l.Token, "car", l.Manufacturer+" "+l.Model)
+				continue
+			}
+
 			req := broker.EnrichRequest{
 				Token:      l.Token,
 				Priority:   1,
@@ -199,17 +238,21 @@ func (s *Scheduler) publishEnrichRequests(ctx context.Context, ms *matchState) {
 				Source:     "scheduler",
 				EnqueuedAt: time.Now().UTC().Format(time.RFC3339),
 			}
-			if err := s.enrichPublisher.PublishEnrich(ctx, req); err != nil {
+			ok, err := s.enrichPublisher.PublishEnrichDedup(ctx, req)
+			if err != nil {
 				s.logger.WarnContext(ctx, "failed to publish enrichment request to stream",
 					"token", l.Token, "car", l.Manufacturer+" "+l.Model, "error", err)
-			} else {
+			} else if ok {
 				published++
+			} else {
+				skipped++
 			}
 		}
 	}
-	if published > 0 {
+	if published > 0 || skipped > 0 || exhaustedSkipped > 0 {
 		s.logger.InfoContext(ctx, "published enrichment requests for matched listings",
-			"published", published, "total_matched", len(ms.matchedIndices))
+			"published", published, "skipped_dedup", skipped, "skipped_exhausted", exhaustedSkipped,
+			"total_matched", len(ms.matchedIndices))
 	}
 }
 

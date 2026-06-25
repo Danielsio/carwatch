@@ -13,20 +13,26 @@ import (
 // requests and backs off on challenges, entering a cooldown period
 // when the success rate drops too low.
 type AdaptiveRateLimiter struct {
-	mu              sync.Mutex
-	baseDelay       time.Duration
-	maxDelay        time.Duration
-	cooldownDur     time.Duration
-	currentDelay    time.Duration
-	cooldownUntil   time.Time
-	windowStart     time.Time
-	windowSuccesses int
-	windowTotal     int
-	windowDuration  time.Duration
+	mu                   sync.Mutex
+	baseDelay            time.Duration
+	maxDelay             time.Duration
+	cooldownDur          time.Duration
+	currentDelay         time.Duration
+	cooldownUntil        time.Time
+	windowStart          time.Time
+	windowSuccesses      int
+	windowTotal          int
+	windowDuration       time.Duration
+	consecutiveCooldowns int
+	maxCooldownDur       time.Duration
 }
 
 // NewAdaptiveRateLimiter creates a rate limiter with the given parameters.
 func NewAdaptiveRateLimiter(baseDelay, maxDelay, cooldownDuration time.Duration) *AdaptiveRateLimiter {
+	maxCooldown := cooldownDuration * 4
+	if maxCooldown > 30*time.Minute {
+		maxCooldown = 30 * time.Minute
+	}
 	return &AdaptiveRateLimiter{
 		baseDelay:      baseDelay,
 		maxDelay:       maxDelay,
@@ -34,6 +40,7 @@ func NewAdaptiveRateLimiter(baseDelay, maxDelay, cooldownDuration time.Duration)
 		currentDelay:   baseDelay,
 		windowStart:    time.Now(),
 		windowDuration: 10 * time.Minute,
+		maxCooldownDur: maxCooldown,
 	}
 }
 
@@ -71,6 +78,7 @@ func (r *AdaptiveRateLimiter) RecordSuccess() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	r.consecutiveCooldowns = 0
 	windowReset := r.resetWindowIfExpired()
 	r.windowTotal++
 	r.windowSuccesses++
@@ -99,7 +107,16 @@ func (r *AdaptiveRateLimiter) RecordChallenge() {
 	}
 
 	if r.windowTotal >= 3 && r.successRate() < 0.5 {
-		r.cooldownUntil = time.Now().Add(r.cooldownDur)
+		// Only increment consecutive cooldowns if we're not already in one
+		if !time.Now().Before(r.cooldownUntil) {
+			r.consecutiveCooldowns++
+		}
+		shift := min(r.consecutiveCooldowns-1, 2) // cap at 4x base (1x, 2x, 4x)
+		escalated := r.cooldownDur * time.Duration(1<<shift)
+		if escalated > r.maxCooldownDur {
+			escalated = r.maxCooldownDur
+		}
+		r.cooldownUntil = time.Now().Add(escalated)
 	}
 }
 
@@ -115,6 +132,13 @@ func (r *AdaptiveRateLimiter) CurrentDelay() time.Duration {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.currentDelay
+}
+
+// ConsecutiveCooldowns returns the current consecutive cooldown count (for testing).
+func (r *AdaptiveRateLimiter) ConsecutiveCooldowns() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.consecutiveCooldowns
 }
 
 func (r *AdaptiveRateLimiter) successRate() float64 {

@@ -268,3 +268,54 @@ func TestDualWrite_MultipleSearchesSharePublish(t *testing.T) {
 		t.Errorf("expected 2 search IDs, got %d: %v", len(reqs[0].SearchIDs), reqs[0].SearchIDs)
 	}
 }
+
+func TestDualWrite_ExhaustedTokenNotPublished(t *testing.T) {
+	enrichPub, redisSrv := newTestEnrichPublisher(t)
+
+	f := &mockFetcher{
+		listings: []model.RawListing{
+			{Token: "tok-ok", ManufacturerID: 27, Manufacturer: "Mazda", ModelID: 10332, Model: "3",
+				Price: 90000, Year: 2020, EngineVolume: 2000, Km: 0, City: "", ImageURL: ""},
+			{Token: "tok-exhausted", ManufacturerID: 27, Manufacturer: "Mazda", ModelID: 10332, Model: "3",
+				Price: 95000, Year: 2021, EngineVolume: 2000, Km: 0, City: "", ImageURL: ""},
+		},
+	}
+	d := newMockDedup()
+	n := &mockNotifier{}
+	cfg := testConfig()
+
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "mazda3", Source: "yad2",
+				Manufacturer: 27, Model: 10332, YearMin: 2018, YearMax: 2024,
+				PriceMax: 150000, Active: true},
+		},
+	}
+
+	ls := &mockListingStore{
+		exhaustedTokens: map[string]bool{"tok-exhausted": true},
+	}
+
+	s, err := NewWithOptions(cfg, f, d, n, testLogger(), Options{
+		SearchStore:     ss,
+		ListingStore:    ls,
+		EnrichPublisher: enrichPub,
+	})
+	if err != nil {
+		t.Fatalf("create scheduler: %v", err)
+	}
+
+	if err := s.runMultiTenantCycle(context.Background()); err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
+	reqs := readEnrichRequests(t, redisSrv)
+
+	// Only tok-ok should be published; tok-exhausted has enrich_attempts >= 10.
+	if len(reqs) != 1 {
+		t.Fatalf("expected 1 enrich request (tok-exhausted skipped), got %d", len(reqs))
+	}
+	if reqs[0].Token != "tok-ok" {
+		t.Errorf("token = %q, want tok-ok", reqs[0].Token)
+	}
+}

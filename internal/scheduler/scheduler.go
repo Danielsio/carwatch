@@ -556,6 +556,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 
 	if len(searches) == 0 {
 		s.backfillUnenrichedListings(ctx)
+		s.purgeStaleEnrichMessages(ctx)
 		s.logger.InfoContext(ctx, "scheduler cycle completed with no active searches", "scan", cycle, "elapsed", time.Since(cycleStart).Round(time.Millisecond))
 		s.observer.RecordSuccess()
 		return nil
@@ -580,6 +581,7 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.processDigests(ctx)
 	s.processDailyDigests(ctx)
 	s.backfillUnenrichedListings(ctx)
+	s.purgeStaleEnrichMessages(ctx)
 
 	s.logger.InfoContext(ctx, "scheduler cycle completed",
 		"scan", cycle,

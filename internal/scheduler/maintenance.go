@@ -89,6 +89,7 @@ func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 	)
 
 	published := 0
+	skipped := 0
 	for _, t := range tokens {
 		req := broker.EnrichRequest{
 			Token:      t,
@@ -96,16 +97,19 @@ func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 			Source:     "backfill",
 			EnqueuedAt: time.Now().UTC().Format(time.RFC3339),
 		}
-		if err := s.enrichPublisher.PublishEnrich(ctx, req); err != nil {
+		ok, err := s.enrichPublisher.PublishEnrichDedup(ctx, req)
+		if err != nil {
 			s.logger.Warn("failed to publish backfill enrichment request to stream",
 				"token", t, "error", err)
-		} else {
+		} else if ok {
 			published++
+		} else {
+			skipped++
 		}
 	}
-	if published > 0 {
+	if published > 0 || skipped > 0 {
 		s.logger.Info("published backfill enrichment requests to stream",
-			"published", published, "candidates", len(tokens))
+			"published", published, "skipped_dedup", skipped, "candidates", len(tokens))
 	}
 }
 
@@ -135,6 +139,45 @@ func (s *Scheduler) processExpiredPremium(ctx context.Context) {
 		s.deactivateExcessSearches(ctx, u.ChatID, maxSearches)
 		s.logger.Info("premium subscription expired, user downgraded to free",
 			"chat_id", u.ChatID,
+		)
+	}
+}
+
+func (s *Scheduler) purgeStaleEnrichMessages(ctx context.Context) {
+	if s.enrichPublisher == nil || s.stores.Listings == nil {
+		return
+	}
+
+	// Checker callback: check if tokens are fully enriched
+	checker := func(ctx context.Context, tokens []string) (map[string]bool, error) {
+		enrichmentData, err := s.stores.Listings.LookupEnrichmentData(ctx, tokens)
+		if err != nil {
+			return nil, err
+		}
+
+		result := make(map[string]bool)
+		for _, token := range tokens {
+			data, exists := enrichmentData[token]
+			if !exists {
+				result[token] = false
+				continue
+			}
+			// Consider fully enriched if Km > 0 && City != "" && ImageURL != ""
+			isEnriched := data.Km > 0 && data.City != "" && data.ImageURL != ""
+			result[token] = isEnriched
+		}
+		return result, nil
+	}
+
+	purged, err := s.enrichPublisher.PurgeEnrichedEntries(ctx, checker)
+	if err != nil {
+		s.logger.Error("purge stale enrichment messages failed", "error", err)
+		return
+	}
+	if purged > 0 {
+		s.logger.Info("purged stale enrichment messages from stream",
+			"count", purged,
+			"impact", "removed entries for tokens already fully enriched",
 		)
 	}
 }

@@ -3,9 +3,6 @@
 // and proxy settings as production.
 //
 // Limitations (see ADV review):
-//   - Runs in isolation; production has 3 concurrent Yad2 sources (enricher,
-//     inline enricher, scheduler) sharing the same proxy IPs. Apply a safety
-//     buffer on top of bench results.
 //   - Time-of-day effects are not controlled. Run during peak hours for
 //     conservative results.
 //
@@ -13,6 +10,7 @@
 //
 //	enrich-bench --config config.yaml --ramp
 //	enrich-bench --config config.yaml --delay 200ms --count 200
+//	enrich-bench --config config.yaml --delay 200ms --count 200 --concurrent 3
 package main
 
 import (
@@ -56,6 +54,7 @@ func main() {
 	delay := flag.Duration("delay", 200*time.Millisecond, "delay between fetches")
 	count := flag.Int("count", 200, "number of unique tokens to fetch")
 	ramp := flag.Bool("ramp", false, "auto ramp-down test (overrides --delay/--count)")
+	concurrent := flag.Int("concurrent", 1, "number of concurrent fetch goroutines (simulates N Yad2 consumers)")
 	flag.Parse()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -91,13 +90,18 @@ func main() {
 	}
 
 	if *ramp {
-		runRamp(ctx, fb.Yad2, tokens)
+		runRamp(ctx, fb.Yad2, tokens, *concurrent)
 	} else {
 		if len(tokens) > *count {
 			tokens = tokens[:*count]
 		}
-		results := runSustained(ctx, fb.Yad2, tokens, *delay)
-		printTotal(results, *delay)
+		var results []fetchResult
+		if *concurrent > 1 {
+			results = runSustainedConcurrent(ctx, fb.Yad2, tokens, *delay, *concurrent)
+		} else {
+			results = runSustained(ctx, fb.Yad2, tokens, *delay)
+		}
+		printTotal(results, *delay, *concurrent)
 	}
 }
 
@@ -246,7 +250,152 @@ func runSustained(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, del
 	return results
 }
 
-func runRamp(ctx context.Context, f *yad2.Yad2Fetcher, allTokens []string) {
+func runSustainedConcurrent(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, delay time.Duration, workers int) []fetchResult {
+	fmt.Printf("=== Sustained Concurrent Benchmark ===\n")
+	fmt.Printf("Delay: %v (with jitter)  Count: %d  Workers: %d\n\n", delay, len(tokens), workers)
+
+	// Split tokens across workers.
+	tokensPerWorker := len(tokens) / workers
+	remainder := len(tokens) % workers
+
+	type workerJob struct {
+		id     int
+		tokens []string
+	}
+
+	jobs := make([]workerJob, workers)
+	offset := 0
+	for i := 0; i < workers; i++ {
+		count := tokensPerWorker
+		if i < remainder {
+			count++
+		}
+		jobs[i] = workerJob{
+			id:     i + 1,
+			tokens: tokens[offset : offset+count],
+		}
+		offset += count
+	}
+
+	// Channel to collect all results.
+	resultsChan := make(chan []fetchResult, workers)
+
+	// Launch workers.
+	for _, job := range jobs {
+		go func(j workerJob) {
+			results := make([]fetchResult, 0, len(j.tokens))
+			for i, token := range j.tokens {
+				if ctx.Err() != nil {
+					break
+				}
+
+				// Independent jittered delay per worker.
+				if i > 0 {
+					wait := jitteredDelay(delay)
+					if wait > 0 {
+						select {
+						case <-ctx.Done():
+							resultsChan <- results
+							return
+						case <-time.After(wait):
+						}
+					}
+				}
+
+				fetchStart := time.Now()
+				_, err := f.FetchItem(ctx, token)
+				fetchMs := time.Since(fetchStart).Milliseconds()
+
+				r := fetchResult{token: token, fetchMs: fetchMs, wallTime: fetchStart}
+				if err != nil {
+					if errors.Is(err, fetcher.ErrChallenge) {
+						r.challenge = true
+					} else {
+						r.err = err
+					}
+				}
+				results = append(results, r)
+			}
+			resultsChan <- results
+		}(job)
+	}
+
+	// Collect results from all workers.
+	var allResults []fetchResult
+	for i := 0; i < workers; i++ {
+		workerResults := <-resultsChan
+		allResults = append(allResults, workerResults...)
+	}
+
+	// Sort by wall time to compute rolling windows correctly.
+	// Use a simple bubble sort since we're not sorting millions of items.
+	for i := 0; i < len(allResults)-1; i++ {
+		for j := 0; j < len(allResults)-i-1; j++ {
+			if allResults[j].wallTime.After(allResults[j+1].wallTime) {
+				allResults[j], allResults[j+1] = allResults[j+1], allResults[j]
+			}
+		}
+	}
+
+	// Print rolling 30s windows.
+	if len(allResults) == 0 {
+		return allResults
+	}
+
+	start := allResults[0].wallTime
+	windowStart := start
+	var wSucceeded, wChallenges, wErrors int
+	var wFetchTotal int64
+	windowNum := 0
+
+	for _, r := range allResults {
+		if r.challenge {
+			wChallenges++
+		} else if r.err != nil {
+			wErrors++
+		} else {
+			wSucceeded++
+			wFetchTotal += r.fetchMs
+		}
+
+		if r.wallTime.Sub(windowStart) >= 30*time.Second {
+			total := wSucceeded + wChallenges + wErrors
+			var avgMs float64
+			if wSucceeded > 0 {
+				avgMs = float64(wFetchTotal) / float64(wSucceeded)
+			}
+			elapsed := r.wallTime.Sub(windowStart).Seconds()
+			fmt.Printf("  %d:%02d-%d:%02d  fetched=%-3d  challenges=%-2d  errors=%-2d  avg=%3.0fms  rate=%.1f/s\n",
+				windowNum*30/60, windowNum*30%60,
+				(windowNum+1)*30/60, (windowNum+1)*30%60,
+				total, wChallenges, wErrors, avgMs, float64(total)/elapsed)
+
+			windowNum++
+			windowStart = r.wallTime
+			wSucceeded, wChallenges, wErrors, wFetchTotal = 0, 0, 0, 0
+		}
+	}
+
+	// Flush remaining window.
+	if total := wSucceeded + wChallenges + wErrors; total > 0 {
+		var avgMs float64
+		if wSucceeded > 0 {
+			avgMs = float64(wFetchTotal) / float64(wSucceeded)
+		}
+		lastTime := allResults[len(allResults)-1].wallTime
+		elapsed := lastTime.Sub(windowStart).Seconds()
+		if elapsed == 0 {
+			elapsed = 0.001 // Avoid division by zero.
+		}
+		fmt.Printf("  %d:%02d-end   fetched=%-3d  challenges=%-2d  errors=%-2d  avg=%3.0fms  rate=%.1f/s\n",
+			windowNum*30/60, windowNum*30%60,
+			total, wChallenges, wErrors, avgMs, float64(total)/elapsed)
+	}
+
+	return allResults
+}
+
+func runRamp(ctx context.Context, f *yad2.Yad2Fetcher, allTokens []string, workers int) {
 	delays := []time.Duration{
 		1000 * time.Millisecond,
 		500 * time.Millisecond,
@@ -262,7 +411,11 @@ func runRamp(ctx context.Context, f *yad2.Yad2Fetcher, allTokens []string) {
 	// sliding-window rate limits that trigger after sustained load.
 	tokensPerStep := 50
 	fmt.Printf("=== Ramp-Down Test ===\n")
-	fmt.Printf("Tokens per step: %d  Steps: %d  (jittered delays)\n\n", tokensPerStep, len(delays))
+	if workers > 1 {
+		fmt.Printf("Tokens per step: %d  Steps: %d  Workers: %d  (jittered delays)\n\n", tokensPerStep, len(delays), workers)
+	} else {
+		fmt.Printf("Tokens per step: %d  Steps: %d  (jittered delays)\n\n", tokensPerStep, len(delays))
+	}
 
 	offset := 0
 	var sweetSpot time.Duration
@@ -281,7 +434,12 @@ func runRamp(ctx context.Context, f *yad2.Yad2Fetcher, allTokens []string) {
 
 		fmt.Printf("--- Delay: %v (tokens %d-%d) ---\n", d, offset-tokensPerStep+1, offset)
 
-		results := fetchBatch(ctx, f, stepTokens, d)
+		var results []fetchResult
+		if workers > 1 {
+			results = fetchBatchConcurrent(ctx, f, stepTokens, d, workers)
+		} else {
+			results = fetchBatch(ctx, f, stepTokens, d)
+		}
 		s := summarize(results)
 
 		fmt.Printf("  Succeeded: %d/%d  Challenges: %d  Errors: %d  Avg fetch: %.0fms  Throughput: %.1f/s\n\n",
@@ -308,10 +466,19 @@ func runRamp(ctx context.Context, f *yad2.Yad2Fetcher, allTokens []string) {
 		recommended = 100 * time.Millisecond
 	}
 	fmt.Printf("Recommended base_delay:          %v (with safety buffer)\n", recommended)
-	fmt.Printf("Note: bench runs in isolation. Production has 3 concurrent\n")
-	fmt.Printf("      Yad2 sources — apply additional buffer if needed.\n")
-	fmt.Printf("\nNext step: run sustained test at the recommended delay:\n")
-	fmt.Printf("  enrich-bench --config config.yaml --delay %v --count 200\n", recommended)
+
+	if workers == 1 {
+		fmt.Printf("\nNote: ramp ran with 1 worker. Production has 3 concurrent\n")
+		fmt.Printf("      Yad2 sources. Run sustained test with --concurrent 3:\n")
+		fmt.Printf("  enrich-bench --config config.yaml --delay %v --count 200 --concurrent 3\n", recommended)
+	} else if workers < 3 {
+		fmt.Printf("\nNote: ramp ran with %d workers. Production has 3 concurrent\n", workers)
+		fmt.Printf("      Yad2 sources. Run sustained test with --concurrent 3:\n")
+		fmt.Printf("  enrich-bench --config config.yaml --delay %v --count 200 --concurrent 3\n", recommended)
+	} else {
+		fmt.Printf("\nNext step: run sustained test at the recommended delay:\n")
+		fmt.Printf("  enrich-bench --config config.yaml --delay %v --count 200 --concurrent %d\n", recommended, workers)
+	}
 }
 
 func fetchBatch(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, delay time.Duration) []fetchResult {
@@ -358,6 +525,91 @@ func fetchBatch(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, delay
 	return results
 }
 
+func fetchBatchConcurrent(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, delay time.Duration, workers int) []fetchResult {
+	// Split tokens across workers.
+	tokensPerWorker := len(tokens) / workers
+	remainder := len(tokens) % workers
+
+	type workerJob struct {
+		id     int
+		tokens []string
+	}
+
+	jobs := make([]workerJob, workers)
+	offset := 0
+	for i := 0; i < workers; i++ {
+		count := tokensPerWorker
+		if i < remainder {
+			count++
+		}
+		jobs[i] = workerJob{
+			id:     i + 1,
+			tokens: tokens[offset : offset+count],
+		}
+		offset += count
+	}
+
+	// Channel to collect all results.
+	resultsChan := make(chan []fetchResult, workers)
+
+	// Launch workers.
+	for _, job := range jobs {
+		go func(j workerJob) {
+			results := make([]fetchResult, 0, len(j.tokens))
+			for i, token := range j.tokens {
+				if ctx.Err() != nil {
+					break
+				}
+
+				// Independent jittered delay per worker.
+				if i > 0 {
+					wait := jitteredDelay(delay)
+					if wait > 0 {
+						select {
+						case <-ctx.Done():
+							resultsChan <- results
+							return
+						case <-time.After(wait):
+						}
+					}
+				}
+
+				fetchStart := time.Now()
+				_, err := f.FetchItem(ctx, token)
+				fetchMs := time.Since(fetchStart).Milliseconds()
+
+				r := fetchResult{token: token, fetchMs: fetchMs}
+				if err != nil {
+					if errors.Is(err, fetcher.ErrChallenge) {
+						r.challenge = true
+					} else {
+						r.err = err
+					}
+				}
+				results = append(results, r)
+
+				status := "ok"
+				if r.challenge {
+					status = "CHALLENGE"
+				} else if r.err != nil {
+					status = "ERR"
+				}
+				fmt.Printf("    [w%d] #%-2d  fetch=%4dms  %s\n", j.id, i+1, fetchMs, status)
+			}
+			resultsChan <- results
+		}(job)
+	}
+
+	// Collect results from all workers.
+	var allResults []fetchResult
+	for i := 0; i < workers; i++ {
+		workerResults := <-resultsChan
+		allResults = append(allResults, workerResults...)
+	}
+
+	return allResults
+}
+
 type summary struct {
 	succeeded  int
 	challenges int
@@ -388,7 +640,7 @@ func summarize(results []fetchResult) summary {
 	return s
 }
 
-func printTotal(results []fetchResult, delay time.Duration) {
+func printTotal(results []fetchResult, delay time.Duration, workers int) {
 	s := summarize(results)
 	total := len(results)
 
@@ -400,6 +652,9 @@ func printTotal(results []fetchResult, delay time.Duration) {
 	wallTime := results[len(results)-1].wallTime.Sub(results[0].wallTime) + time.Duration(results[len(results)-1].fetchMs)*time.Millisecond
 
 	fmt.Printf("\n=== TOTAL ===\n")
+	if workers > 1 {
+		fmt.Printf("Workers: %d  ", workers)
+	}
 	fmt.Printf("Succeeded: %d/%d  Challenges: %d  Errors: %d\n", s.succeeded, total, s.challenges, s.errors)
 	fmt.Printf("Avg fetch: %.0fms  Wall time: %s  Throughput: %.1f listings/sec\n",
 		s.avgFetchMs, wallTime.Round(time.Second), float64(s.succeeded)/wallTime.Seconds())
@@ -409,8 +664,19 @@ func printTotal(results []fetchResult, delay time.Duration) {
 	} else {
 		fmt.Printf("\n✓ No challenges — delay %v is safe\n", delay)
 	}
-	fmt.Println("\nNote: bench runs in isolation. Production has 3 concurrent")
-	fmt.Println("      Yad2 sources — apply additional buffer if needed.")
+
+	if workers == 1 {
+		fmt.Println("\nNote: bench ran with 1 worker. Production has 3 concurrent")
+		fmt.Println("      Yad2 sources — consider running with --concurrent 3")
+		fmt.Println("      to simulate production conditions.")
+	} else if workers < 3 {
+		fmt.Printf("\nNote: bench ran with %d workers. Production has 3 concurrent\n", workers)
+		fmt.Println("      Yad2 sources — consider running with --concurrent 3")
+		fmt.Println("      to match production conditions.")
+	} else {
+		fmt.Printf("\nNote: bench ran with %d workers matching production's\n", workers)
+		fmt.Println("      3 concurrent Yad2 sources.")
+	}
 }
 
 func discardLogger() *slog.Logger {

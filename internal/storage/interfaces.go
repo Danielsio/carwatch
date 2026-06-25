@@ -276,6 +276,10 @@ type ListingStore interface {
 	CountUnenrichedTokens(ctx context.Context) (int64, error)
 	LookupListingIdentity(ctx context.Context, token string) (*ListingIdentity, error)
 	IncrementEnrichAttempt(ctx context.Context, token string) error
+	// ListEnrichExhaustedTokens returns a map of tokens (from the input slice)
+	// that have enrich_attempts >= maxAttempts. Used to skip publishing enrich
+	// requests for tokens that have exhausted retries.
+	ListEnrichExhaustedTokens(ctx context.Context, tokens []string, maxAttempts int) (map[string]bool, error)
 	PruneListings(ctx context.Context, olderThan time.Duration) (int64, error)
 	DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error)
 	// DropListingByToken removes a listing that no longer exists at the source
