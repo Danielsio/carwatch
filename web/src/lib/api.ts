@@ -116,6 +116,12 @@ export interface CreateSearchRequest {
   photo_only?: boolean;
 }
 
+export interface ScoreBreakdown {
+  condition: number;
+  value: number;
+  engine: number;
+}
+
 export interface Listing {
   token: string;
   manufacturer: string;
@@ -135,6 +141,8 @@ export interface Listing {
   gear_box?: string;
   description?: string;
   fitness_score?: number;
+  score_breakdown?: ScoreBreakdown;
+  original_ownership?: string | null;
   median_price?: number;
   base_price?: number;
   cohort_size?: number;

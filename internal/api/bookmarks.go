@@ -264,6 +264,16 @@ func toListingResponses(records []storage.ListingRecord, saved, seen map[string]
 			Seen:         seenFlag,
 			IsCommercial: l.IsCommercial,
 		}
+		if l.ScoreCondition != nil && l.ScoreValue != nil && l.ScoreEngine != nil {
+			resp.ScoreBreakdown = &scoreBreakdownResponse{
+				Condition: *l.ScoreCondition,
+				Value:     *l.ScoreValue,
+				Engine:    *l.ScoreEngine,
+			}
+		}
+		if l.OriginalOwnership != nil && *l.OriginalOwnership != "" {
+			resp.OriginalOwnership = l.OriginalOwnership
+		}
 		if l.PostedAt != nil {
 			resp.PostedAt = l.PostedAt.UTC().Format("2006-01-02T15:04:05Z")
 		}

@@ -13,32 +13,34 @@ import (
 )
 
 type listingResponse struct {
-	Token        string   `json:"token"`
-	SearchName   string   `json:"search_name,omitempty"`
-	Manufacturer string   `json:"manufacturer"`
-	Model        string   `json:"model"`
-	SubModel     string   `json:"sub_model,omitempty"`
-	BodyType     string   `json:"body_type,omitempty"`
-	Year         int      `json:"year"`
-	Price        int      `json:"price"`
-	Km           int      `json:"km"`
-	Hand         int      `json:"hand"`
-	City         string   `json:"city"`
-	PageLink     string   `json:"page_link"`
-	ImageURL     string   `json:"image_url,omitempty"`
-	EngineVolume float64  `json:"engine_volume,omitempty"`
-	HorsePower   int      `json:"horse_power,omitempty"`
-	EngineType   string   `json:"engine_type,omitempty"`
-	GearBox      string   `json:"gear_box,omitempty"`
-	Description  string   `json:"description,omitempty"`
-	FitnessScore *float64 `json:"fitness_score,omitempty"`
-	MedianPrice  *int     `json:"median_price,omitempty"`
-	CohortSize   *int     `json:"cohort_size,omitempty"`
-	DealScore    *int     `json:"deal_score,omitempty"`
-	BasePrice    *int     `json:"base_price,omitempty"`
-	FirstSeenAt  string   `json:"first_seen_at"`
-	PostedAt     string   `json:"posted_at,omitempty"`
-	Saved        bool     `json:"saved,omitempty"`
+	Token             string                  `json:"token"`
+	SearchName        string                  `json:"search_name,omitempty"`
+	Manufacturer      string                  `json:"manufacturer"`
+	Model             string                  `json:"model"`
+	SubModel          string                  `json:"sub_model,omitempty"`
+	BodyType          string                  `json:"body_type,omitempty"`
+	Year              int                     `json:"year"`
+	Price             int                     `json:"price"`
+	Km                int                     `json:"km"`
+	Hand              int                     `json:"hand"`
+	City              string                  `json:"city"`
+	PageLink          string                  `json:"page_link"`
+	ImageURL          string                  `json:"image_url,omitempty"`
+	EngineVolume      float64                 `json:"engine_volume,omitempty"`
+	HorsePower        int                     `json:"horse_power,omitempty"`
+	EngineType        string                  `json:"engine_type,omitempty"`
+	GearBox           string                  `json:"gear_box,omitempty"`
+	Description       string                  `json:"description,omitempty"`
+	FitnessScore      *float64                `json:"fitness_score,omitempty"`
+	ScoreBreakdown    *scoreBreakdownResponse `json:"score_breakdown,omitempty"`
+	OriginalOwnership *string                 `json:"original_ownership,omitempty"`
+	MedianPrice       *int                    `json:"median_price,omitempty"`
+	CohortSize        *int                    `json:"cohort_size,omitempty"`
+	DealScore         *int                    `json:"deal_score,omitempty"`
+	BasePrice         *int                    `json:"base_price,omitempty"`
+	FirstSeenAt       string                  `json:"first_seen_at"`
+	PostedAt          string                  `json:"posted_at,omitempty"`
+	Saved             bool                    `json:"saved,omitempty"`
 	// Seen: user dismissed this listing from the new-items feed (notifications).
 	Seen bool `json:"seen,omitempty"`
 	// IsCommercial: omitted when unknown; false = private seller; true = dealer/commercial.
@@ -47,6 +49,12 @@ type listingResponse struct {
 	RemovedAt *string `json:"removed_at,omitempty"`
 	// SuspiciousReasons: reasons the listing was flagged as suspicious.
 	SuspiciousReasons []string `json:"suspicious_reasons,omitempty"`
+}
+
+type scoreBreakdownResponse struct {
+	Condition float64 `json:"condition"`
+	Value     float64 `json:"value"`
+	Engine    float64 `json:"engine"`
 }
 
 type listingsPageResponse struct {
@@ -284,6 +292,16 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		Saved:        savedFlag,
 		Seen:         seenFlag,
 		IsCommercial: l.IsCommercial,
+	}
+	if l.ScoreCondition != nil && l.ScoreValue != nil && l.ScoreEngine != nil {
+		resp.ScoreBreakdown = &scoreBreakdownResponse{
+			Condition: *l.ScoreCondition,
+			Value:     *l.ScoreValue,
+			Engine:    *l.ScoreEngine,
+		}
+	}
+	if l.OriginalOwnership != nil && *l.OriginalOwnership != "" {
+		resp.OriginalOwnership = l.OriginalOwnership
 	}
 	if l.PostedAt != nil {
 		resp.PostedAt = l.PostedAt.UTC().Format("2006-01-02T15:04:05Z")

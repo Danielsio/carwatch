@@ -1593,6 +1593,11 @@ func TestPostgres_UnenrichedBacklogFilters(t *testing.T) {
 	save("has-image", 0, "", "https://img.example/1.jpg")
 	save("has-km", 120000, "", "")
 	save("fully-enriched", 120000, "Tel Aviv", "https://img.example/2.jpg")
+	// Mark fully-enriched with original_ownership so it's excluded from the backlog.
+	if _, err := store.DB().ExecContext(ctx,
+		`UPDATE listing_history SET original_ownership = 'private' WHERE token = $1 AND chat_id = $2`, "fully-enriched", int64(100)); err != nil {
+		t.Fatalf("set original_ownership: %v", err)
+	}
 	save("maxed-attempts", 0, "", "")
 	save("cooldown", 0, "", "")
 
@@ -1609,8 +1614,8 @@ func TestPostgres_UnenrichedBacklogFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUnenrichedTokens: %v", err)
 	}
-	// OR-based filter: listings missing ANY of km/city/image are unenriched.
-	// Excluded: fully-enriched (has all), maxed-attempts (>=10), cooldown (recent).
+	// OR-based filter: listings missing ANY of km/city/image/original_ownership are unenriched.
+	// Excluded: fully-enriched (has all including ownership), maxed-attempts (>=10), cooldown (recent).
 	want := map[string]bool{"unenriched-ok": true, "has-city": true, "has-image": true, "has-km": true}
 	if len(tokens) != len(want) {
 		t.Fatalf("ListUnenrichedTokens returned %d tokens, want %d: %v", len(tokens), len(want), tokens)
