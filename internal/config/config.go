@@ -220,7 +220,7 @@ func applyDefaults(cfg *Config) {
 		cfg.Enricher.MaxDelay = 60 * time.Second
 	}
 	if cfg.Enricher.CooldownDuration == 0 {
-		cfg.Enricher.CooldownDuration = 5 * time.Minute
+		cfg.Enricher.CooldownDuration = 15 * time.Minute
 	}
 	if cfg.Enricher.MaxPerMinute == 0 {
 		cfg.Enricher.MaxPerMinute = 60
