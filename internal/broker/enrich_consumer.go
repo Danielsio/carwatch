@@ -163,6 +163,7 @@ func (c *EnrichConsumer) processBatch(ctx context.Context, msgs []redis.XMessage
 			continue
 		}
 		c.ack(ctx, item.msg.ID)
+		c.removePending(ctx, item.req.Token)
 	}
 }
 
@@ -241,6 +242,7 @@ func (c *EnrichConsumer) deadLetter(ctx context.Context, id string) {
 	c.logger.Warn("enrich message dead-lettered after max retries",
 		"id", id, "token", token, "max_retries", enrichMaxRetries)
 	c.ack(ctx, id)
+	c.removePending(ctx, token)
 }
 
 func (c *EnrichConsumer) reclaimOrphans(ctx context.Context) {
@@ -321,5 +323,14 @@ func (c *EnrichConsumer) Close() error { return c.client.Close() }
 func (c *EnrichConsumer) ack(ctx context.Context, id string) {
 	if err := c.client.XAck(ctx, EnrichStreamName, EnrichGroupName, id).Err(); err != nil {
 		c.logger.Error("enrich ack failed", "id", id, "error", err)
+	}
+}
+
+func (c *EnrichConsumer) removePending(ctx context.Context, token string) {
+	if token == "" {
+		return
+	}
+	if err := c.client.SRem(ctx, EnrichPendingSet, token).Err(); err != nil {
+		c.logger.Error("remove from pending set failed", "token", token, "error", err)
 	}
 }
