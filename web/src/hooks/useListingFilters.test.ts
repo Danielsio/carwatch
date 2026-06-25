@@ -85,6 +85,18 @@ describe("filterListings", () => {
     ).toHaveLength(2);
   });
 
+  it("filters by selected body types", () => {
+    const items = [
+      listing({ body_type: "sedan" }),
+      listing({ body_type: "hatchback" }),
+      listing({ body_type: undefined }),
+    ];
+    expect(filterListings(items, f({ bodyTypes: ["sedan"] }))).toHaveLength(1);
+    expect(
+      filterListings(items, f({ bodyTypes: ["sedan", "hatchback"] })),
+    ).toHaveLength(2);
+  });
+
   it("filters by price/year ceilings and floors", () => {
     const items = [
       listing({ price: 50000, year: 2015 }),
@@ -135,6 +147,17 @@ describe("deriveFacets", () => {
     expect(facets.yearMax).toBe(2021);
   });
 
+  it("collects distinct body types (skipping empty)", () => {
+    const items = [
+      listing({ body_type: "sedan" }),
+      listing({ body_type: "hatchback" }),
+      listing({ body_type: "sedan" }),
+      listing({ body_type: undefined }),
+    ];
+    const facets = deriveFacets(items);
+    expect(facets.bodyTypes).toEqual(["hatchback", "sedan"]);
+  });
+
   it("is safe on an empty set", () => {
     const facets = deriveFacets([]);
     expect(facets.fuels).toEqual([]);
@@ -149,6 +172,12 @@ describe("activeFilterCount", () => {
       activeFilterCount(f({ text: "x", dealsOnly: true, priceMax: 100000 })),
     ).toBe(3);
     expect(activeFilterCount(f({ text: "   " }))).toBe(0);
+  });
+
+  it("counts bodyTypes as active", () => {
+    expect(
+      activeFilterCount(f({ bodyTypes: ["sedan"] })),
+    ).toBe(1);
   });
 });
 

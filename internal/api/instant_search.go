@@ -246,6 +246,7 @@ func (s *Server) instantSearch(w http.ResponseWriter, r *http.Request) {
 			Manufacturer:      l.Manufacturer,
 			Model:             l.Model,
 			SubModel:          l.SubModel,
+			BodyType:          l.BodyType,
 			Year:              l.Year,
 			Price:             l.Price,
 			Km:                l.Km,

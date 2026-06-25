@@ -241,6 +241,7 @@ func toListingResponses(records []storage.ListingRecord, saved, seen map[string]
 			Manufacturer: l.Manufacturer,
 			Model:        l.Model,
 			SubModel:     l.SubModel,
+			BodyType:     l.BodyType,
 			Year:         l.Year,
 			Price:        l.Price,
 			Km:           l.Km,

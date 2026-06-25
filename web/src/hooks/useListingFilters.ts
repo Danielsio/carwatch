@@ -15,6 +15,8 @@ export type ListingFilters = {
   fuels: string[];
   /** Selected gearboxes (gear_box); empty = any. */
   gearboxes: string[];
+  /** Selected body types (body_type); empty = any. */
+  bodyTypes: string[];
   /** Inclusive upper bound on price; null = no bound. */
   priceMax: number | null;
   /** Inclusive lower bound on year; null = no bound. */
@@ -30,6 +32,7 @@ export const EMPTY_FILTERS: ListingFilters = {
   photoOnly: false,
   fuels: [],
   gearboxes: [],
+  bodyTypes: [],
   priceMax: null,
   yearMin: null,
   kmMax: null,
@@ -53,6 +56,7 @@ export function activeFilterCount(f: ListingFilters): number {
   if (f.photoOnly) n++;
   if (f.fuels.length) n++;
   if (f.gearboxes.length) n++;
+  if (f.bodyTypes.length) n++;
   if (f.priceMax != null) n++;
   if (f.yearMin != null) n++;
   if (f.kmMax != null) n++;
@@ -62,6 +66,7 @@ export function activeFilterCount(f: ListingFilters): number {
 export type ListingFacets = {
   fuels: string[];
   gearboxes: string[];
+  bodyTypes: string[];
   /** Whole-shekel max price across the set (for slider bounds). */
   priceMax: number;
   yearMin: number;
@@ -73,6 +78,7 @@ export type ListingFacets = {
 export function deriveFacets(listings: Listing[]): ListingFacets {
   const fuels = new Set<string>();
   const gearboxes = new Set<string>();
+  const bodyTypes = new Set<string>();
   let priceMax = 0;
   let kmMax = 0;
   let yearMin = Number.POSITIVE_INFINITY;
@@ -81,6 +87,7 @@ export function deriveFacets(listings: Listing[]): ListingFacets {
   for (const l of listings) {
     if (l.engine_type) fuels.add(l.engine_type);
     if (l.gear_box) gearboxes.add(l.gear_box);
+    if (l.body_type) bodyTypes.add(l.body_type);
     if (l.price > priceMax) priceMax = l.price;
     if (l.km > kmMax) kmMax = l.km;
     if (l.year > 0 && l.year < yearMin) yearMin = l.year;
@@ -90,6 +97,7 @@ export function deriveFacets(listings: Listing[]): ListingFacets {
   return {
     fuels: [...fuels].sort(),
     gearboxes: [...gearboxes].sort(),
+    bodyTypes: [...bodyTypes].sort(),
     priceMax,
     kmMax,
     yearMin: Number.isFinite(yearMin) ? yearMin : 0,
@@ -117,6 +125,11 @@ export function filterListings(
     if (
       f.gearboxes.length > 0 &&
       (!l.gear_box || !f.gearboxes.includes(l.gear_box))
+    )
+      return false;
+    if (
+      f.bodyTypes.length > 0 &&
+      (!l.body_type || !f.bodyTypes.includes(l.body_type))
     )
       return false;
     if (f.priceMax != null && l.price > f.priceMax) return false;

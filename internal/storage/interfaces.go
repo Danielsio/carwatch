@@ -152,6 +152,7 @@ type ListingRecord struct {
 	Model        string
 	SubModel     string
 	SubModelID   int
+	BodyType     string
 	Year         int
 	Price        int
 	Km           int

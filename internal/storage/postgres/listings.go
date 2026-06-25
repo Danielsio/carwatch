@@ -38,8 +38,8 @@ GROUP BY lh.search_id`
 
 const upsertListingSQL = `
 	INSERT INTO listing_history
-	(token, chat_id, search_id, search_name, manufacturer, model, sub_model, sub_model_id, year, price, km, hand, city, page_link, image_url, engine_volume, horse_power, engine_type, gear_box, description, is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, posted_at, score_condition, score_value, score_engine, original_ownership)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32)
+	(token, chat_id, search_id, search_name, manufacturer, model, sub_model, sub_model_id, body_type, year, price, km, hand, city, page_link, image_url, engine_volume, horse_power, engine_type, gear_box, description, is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, posted_at, score_condition, score_value, score_engine, original_ownership)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
 	ON CONFLICT (token, chat_id) DO UPDATE SET
 		search_id = CASE WHEN EXCLUDED.search_id > 0 THEN EXCLUDED.search_id ELSE listing_history.search_id END,
 		search_name = CASE WHEN EXCLUDED.search_id > 0 THEN EXCLUDED.search_name ELSE listing_history.search_name END,
@@ -47,6 +47,7 @@ const upsertListingSQL = `
 		model = CASE WHEN EXCLUDED.model != '' THEN EXCLUDED.model ELSE listing_history.model END,
 		sub_model = CASE WHEN EXCLUDED.sub_model != '' THEN EXCLUDED.sub_model ELSE listing_history.sub_model END,
 		sub_model_id = CASE WHEN EXCLUDED.sub_model_id > 0 THEN EXCLUDED.sub_model_id ELSE listing_history.sub_model_id END,
+		body_type = CASE WHEN EXCLUDED.body_type != '' THEN EXCLUDED.body_type ELSE listing_history.body_type END,
 		year = CASE WHEN EXCLUDED.year > 0 THEN EXCLUDED.year ELSE listing_history.year END,
 		price = EXCLUDED.price,
 		km = CASE WHEN EXCLUDED.km > 0 THEN EXCLUDED.km ELSE listing_history.km END,
@@ -91,7 +92,7 @@ func scanListingRow(sc listingScanner) (storage.ListingRecord, error) {
 	var ic, mp, cs, ds, bp sql.NullInt64
 	var removedAt, postedAt sql.NullTime
 	var origOwn sql.NullString
-	if err := sc.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model, &l.SubModel, &l.SubModelID,
+	if err := sc.Scan(&l.Token, &l.SearchName, &l.Manufacturer, &l.Model, &l.SubModel, &l.SubModelID, &l.BodyType,
 		&l.Year, &l.Price, &l.Km, &l.Hand, &l.City, &l.PageLink, &l.ImageURL,
 		&l.EngineVolume, &l.HorsePower, &l.EngineType, &l.GearBox, &l.Description,
 		&ic, &fs, &mp, &cs, &ds, &bp, &l.FirstSeenAt, &postedAt, &removedAt,
@@ -145,7 +146,7 @@ func scanListingRow(sc listingScanner) (storage.ListingRecord, error) {
 
 func upsertListingArgs(r storage.ListingRecord) []any {
 	return []any{
-		r.Token, r.ChatID, r.SearchID, r.SearchName, r.Manufacturer, r.Model, r.SubModel, r.SubModelID, r.Year, r.Price,
+		r.Token, r.ChatID, r.SearchID, r.SearchName, r.Manufacturer, r.Model, r.SubModel, r.SubModelID, r.BodyType, r.Year, r.Price,
 		r.Km, r.Hand, r.City, r.PageLink, r.ImageURL,
 		r.EngineVolume, r.HorsePower, r.EngineType, r.GearBox, r.Description,
 		storage.ListingCommercialToSQL(r.IsCommercial),
@@ -290,7 +291,7 @@ func (s *Store) LookupListingIdentity(ctx context.Context, token string) (*stora
 
 func (s *Store) GetListing(ctx context.Context, chatID int64, token string) (*storage.ListingRecord, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
+		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, body_type, year, price,
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
 			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, posted_at, removed_at,
@@ -311,7 +312,7 @@ func (s *Store) GetListing(ctx context.Context, chatID int64, token string) (*st
 
 func (s *Store) ListUserListings(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
+		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, body_type, year, price,
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
 			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, posted_at, removed_at,
@@ -440,7 +441,7 @@ func (s *Store) ListSearchListings(ctx context.Context, chatID int64, searchID i
 	args = append(args, limit, offset)
 
 	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
-		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, year, price,
+		SELECT token, search_name, manufacturer, model, sub_model, sub_model_id, body_type, year, price,
 			km, hand, city, page_link, image_url,
 			engine_volume, horse_power, engine_type, gear_box, description,
 			is_commercial, fitness_score, median_price, cohort_size, deal_score, base_price, first_seen_at, posted_at, removed_at,
@@ -764,7 +765,7 @@ func (s *Store) RemoveBookmark(ctx context.Context, chatID int64, token string) 
 
 func (s *Store) ListSaved(ctx context.Context, chatID int64, limit, offset int) ([]storage.ListingRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.sub_model, lh.sub_model_id, lh.year, lh.price,
+		SELECT lh.token, lh.search_name, lh.manufacturer, lh.model, lh.sub_model, lh.sub_model_id, lh.body_type, lh.year, lh.price,
 			lh.km, lh.hand, lh.city, lh.page_link, lh.image_url,
 			lh.engine_volume, lh.horse_power, lh.engine_type, lh.gear_box, lh.description,
 			lh.is_commercial, lh.fitness_score, lh.median_price, lh.cohort_size, lh.deal_score, lh.base_price, lh.first_seen_at, lh.posted_at, lh.removed_at,

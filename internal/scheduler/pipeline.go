@@ -334,6 +334,7 @@ func (p *ListingPipeline) buildRecord(listing model.Listing, params ProcessParam
 		Model:        listing.Model,
 		SubModel:     listing.SubModel,
 		SubModelID:   listing.SubModelID,
+		BodyType:     listing.BodyType,
 		Year:         listing.Year,
 		Price:        listing.Price,
 		Km:           listing.Km,

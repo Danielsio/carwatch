@@ -6,6 +6,7 @@ import { EMPTY_FILTERS, type ListingFacets } from "@/hooks/useListingFilters";
 const facets: ListingFacets = {
   fuels: ["בנזין", "היברידי"],
   gearboxes: ["אוטומטית"],
+  bodyTypes: ["sedan", "hatchback"],
   priceMax: 200000,
   yearMin: 2015,
   yearMax: 2023,
@@ -52,6 +53,20 @@ describe("ListingsFilterBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "היברידי" }));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ fuels: ["היברידי"] }),
+    );
+  });
+
+  it("renders body type chips with Hebrew labels", () => {
+    setup();
+    expect(screen.getByRole("button", { name: "סדאן" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "האצ'בק" })).toBeInTheDocument();
+  });
+
+  it("toggles a body type filter", () => {
+    const { onChange } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "סדאן" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ bodyTypes: ["sedan"] }),
     );
   });
 

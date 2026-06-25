@@ -24,6 +24,17 @@ function toggleInArray(arr: string[], value: string): string[] {
     : [...arr, value];
 }
 
+const bodyTypeLabels: Record<string, string> = {
+  sedan: "סדאן",
+  hatchback: "האצ'בק",
+  suv: "SUV",
+  wagon: "סטיישן",
+  coupe: "קופה",
+  convertible: "קבריולה",
+  minivan: "מיניוון",
+  pickup: "טנדר",
+};
+
 export function ListingsFilterBar({
   filters,
   onChange,
@@ -138,6 +149,19 @@ export function ListingsFilterBar({
             }
           >
             {gb}
+          </Toggle>
+        ))}
+        {facets.bodyTypes.map((bt) => (
+          <Toggle
+            key={bt}
+            variant="outline"
+            size="sm"
+            pressed={filters.bodyTypes.includes(bt)}
+            onPressedChange={() =>
+              set({ bodyTypes: toggleInArray(filters.bodyTypes, bt) })
+            }
+          >
+            {bodyTypeLabels[bt] ?? bt}
           </Toggle>
         ))}
       </div>
