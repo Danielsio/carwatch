@@ -730,6 +730,55 @@ func (s *Store) IncrementEnrichAttempt(ctx context.Context, token string) error 
 	return err
 }
 
+func (s *Store) ListEnrichExhaustedTokens(ctx context.Context, tokens []string, maxAttempts int) (map[string]bool, error) {
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+
+	exhausted := make(map[string]bool, len(tokens))
+	const batchSize = 500
+
+	for start := 0; start < len(tokens); start += batchSize {
+		end := start + batchSize
+		if end > len(tokens) {
+			end = len(tokens)
+		}
+		batch := tokens[start:end]
+
+		placeholders := make([]string, len(batch))
+		args := make([]any, len(batch)+1)
+		for i, t := range batch {
+			args[i] = t
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+		}
+		args[len(batch)] = maxAttempts
+
+		q := `SELECT DISTINCT token FROM listing_history
+			WHERE token IN (` + strings.Join(placeholders, ", ") + `)
+			  AND enrich_attempts >= $` + fmt.Sprintf("%d", len(batch)+1)
+
+		rows, err := s.db.QueryContext(ctx, q, args...)
+		if err != nil {
+			return nil, fmt.Errorf("list enrich exhausted tokens: %w", err)
+		}
+
+		for rows.Next() {
+			var tok string
+			if err := rows.Scan(&tok); err != nil {
+				_ = rows.Close()
+				return nil, fmt.Errorf("scan exhausted token: %w", err)
+			}
+			exhausted[tok] = true
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("exhausted tokens rows: %w", err)
+		}
+		_ = rows.Close()
+	}
+	return exhausted, nil
+}
+
 func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
 	result, err := s.db.ExecContext(ctx, `
