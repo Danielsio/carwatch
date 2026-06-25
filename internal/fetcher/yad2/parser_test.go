@@ -587,3 +587,59 @@ func TestParseNextData_PreservesExplicitHPAndGearbox(t *testing.T) {
 		t.Errorf("GearBox = %q, want ידני (explicit field takes priority)", l.GearBox)
 	}
 }
+
+func TestParseNextData_ExtractsBodyTypeFromSubModel(t *testing.T) {
+	data := []byte(`{
+		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+			"data":{"feed":{"feed_items":[{
+				"token":"bt-test",
+				"manufacturer":{"id":27,"text":"מאזדה"},
+				"model":{"id":10332,"text":"3"},
+				"subModel":{"id":105280,"text":"Excite Plus היברידי אוט׳ האצ'בק 5 דל 1.8 (98 כ״ס)"},
+				"vehicleDates":{"yearOfProduction":2021},
+				"engineVolume":1798,
+				"price":95000,
+				"hand":{"id":2},
+				"metaData":{"coverImage":"https://img.yad2.co.il/test.jpg"}
+			}]}}
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].BodyType != "hatchback" {
+		t.Errorf("BodyType = %q, want 'hatchback'", listings[0].BodyType)
+	}
+}
+
+func TestParseNextData_BodyTypeEmptyWhenNoMatch(t *testing.T) {
+	data := []byte(`{
+		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+			"data":{"feed":{"feed_items":[{
+				"token":"bt-empty",
+				"manufacturer":{"id":27,"text":"מאזדה"},
+				"model":{"id":10332,"text":"3"},
+				"subModel":{"id":105280,"text":"Premium אוט׳ 2.0 (165 כ״ס)"},
+				"vehicleDates":{"yearOfProduction":2020},
+				"price":90000,
+				"metaData":{"coverImage":"https://img.yad2.co.il/test.jpg"}
+			}]}}
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].BodyType != "" {
+		t.Errorf("BodyType = %q, want empty string", listings[0].BodyType)
+	}
+}

@@ -12,6 +12,7 @@ type RawListing struct {
 	ModelNameHe        string
 	SubModel           string
 	SubModelID         int
+	BodyType           string
 	Year               int
 	Month              int
 	EngineVolume       float64

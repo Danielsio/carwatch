@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dsionov/carwatch/internal/bodytype"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
 )
@@ -252,6 +253,8 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 	if listing.GearBox == "" && subModelGearRe.MatchString(subModelText) {
 		listing.GearBox = "אוטומט"
 	}
+
+	listing.BodyType = bodytype.Parse(subModelText)
 
 	listing.City = textFromField(item.Address.City)
 	listing.Area = textFromField(item.Address.Area)
