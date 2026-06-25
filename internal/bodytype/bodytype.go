@@ -16,71 +16,65 @@ const (
 	Pickup      = "pickup"
 )
 
-var All = []string{Sedan, Hatchback, SUV, Coupe, Wagon, Convertible, Minivan, Pickup}
+var all = [...]string{Sedan, Hatchback, SUV, Coupe, Wagon, Convertible, Minivan, Pickup}
+
+func All() []string {
+	out := make([]string, len(all))
+	copy(out, all[:])
+	return out
+}
 
 type matcher struct {
 	bodyType string
 	match    func(lower string) bool
 }
 
-func contains(substr string) func(string) bool {
-	return func(s string) bool { return strings.Contains(s, substr) }
+func substr(s string) func(string) bool {
+	return func(input string) bool { return strings.Contains(input, s) }
 }
 
-func wordBoundary(word string) func(string) bool {
-	re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(word) + `\b`)
-	return func(s string) bool { return re.MatchString(s) }
+func word(w string) func(string) bool {
+	re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(w) + `\b`)
+	return func(input string) bool { return re.MatchString(input) }
 }
 
-var matchers []matcher
+var matchers = []matcher{
+	{Hatchback, substr("האצ'בק")},
+	{Hatchback, substr("האצ׳בק")},
+	{Hatchback, substr("hatchback")},
+	{Hatchback, word("HB")},
 
-func init() {
-	matchers = []matcher{
-		// Hatchback (before sedan — more specific)
-		{Hatchback, contains("האצ'בק")},
-		{Hatchback, contains("האצ׳בק")}, // modified letter geresh ׳
-		{Hatchback, contains("hatchback")},
-		{Hatchback, wordBoundary("HB")},
+	{Sedan, substr("סדאן")},
+	{Sedan, substr("sedan")},
 
-		// Sedan
-		{Sedan, contains("סדאן")},
-		{Sedan, contains("sedan")},
+	{SUV, substr("קרוסאובר")},
+	{SUV, substr("crossover")},
+	{SUV, substr("ג'יפ")},
+	{SUV, substr("ג׳יפ")},
+	{SUV, word("SUV")},
 
-		// SUV / Crossover
-		{SUV, contains("קרוסאובר")},
-		{SUV, contains("crossover")},
-		{SUV, contains("ג'יפ")},
-		{SUV, contains("ג׳יפ")}, // modified letter geresh ׳
-		{SUV, wordBoundary("SUV")},
+	{Wagon, substr("סטיישן")},
+	{Wagon, substr("טורר")},
+	{Wagon, substr("station")},
+	{Wagon, substr("touring")},
+	{Wagon, substr("wagon")},
+	{Wagon, word("SW")},
 
-		// Wagon / Station / Touring
-		{Wagon, contains("סטיישן")},
-		{Wagon, contains("טורר")},
-		{Wagon, contains("station")},
-		{Wagon, contains("touring")},
-		{Wagon, contains("wagon")},
-		{Wagon, wordBoundary("SW")},
+	{Coupe, substr("קופה")},
+	{Coupe, substr("קופא")},
+	{Coupe, substr("coupe")},
 
-		// Coupe
-		{Coupe, contains("קופה")},
-		{Coupe, contains("קופא")},
-		{Coupe, contains("coupe")},
+	{Convertible, substr("קבריולה")},
+	{Convertible, substr("קבריולט")},
+	{Convertible, substr("convertible")},
+	{Convertible, substr("cabrio")},
 
-		// Convertible
-		{Convertible, contains("קבריולה")},
-		{Convertible, contains("קבריולט")},
-		{Convertible, contains("convertible")},
-		{Convertible, contains("cabrio")},
+	{Minivan, substr("מיניוון")},
+	{Minivan, substr("minivan")},
+	{Minivan, word("MPV")},
 
-		// Minivan
-		{Minivan, contains("מיניוון")},
-		{Minivan, contains("minivan")},
-		{Minivan, wordBoundary("MPV")},
-
-		// Pickup
-		{Pickup, contains("טנדר")},
-		{Pickup, contains("pickup")},
-	}
+	{Pickup, substr("טנדר")},
+	{Pickup, substr("pickup")},
 }
 
 func Parse(subModel string) string {
