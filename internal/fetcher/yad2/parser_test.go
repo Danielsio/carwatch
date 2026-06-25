@@ -643,3 +643,32 @@ func TestParseNextData_BodyTypeEmptyWhenNoMatch(t *testing.T) {
 		t.Errorf("BodyType = %q, want empty string", listings[0].BodyType)
 	}
 }
+
+func TestParseNextData_BodyTypeFallsBackToHebrewText(t *testing.T) {
+	data := []byte(`{
+		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+			"data":{"feed":{"feed_items":[{
+				"token":"bt-hebrew-fallback",
+				"manufacturer":{"id":53,"text":"טויוטה","english_text":"Toyota"},
+				"model":{"id":10399,"text":"קורולה","english_text":"Corolla"},
+				"subModel":{"id":105280,"text":"Excite Plus היברידי אוט׳ האצ'בק 5 דל 1.8 (98 כ״ס)","english_text":"Excite Plus"},
+				"vehicleDates":{"yearOfProduction":2019},
+				"engineVolume":1798,
+				"price":87000,
+				"hand":{"id":1},
+				"metaData":{"coverImage":"https://img.yad2.co.il/test.jpg"}
+			}]}}
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].BodyType != "hatchback" {
+		t.Errorf("BodyType = %q, want 'hatchback' (from Hebrew text fallback when english_text lacks body type)", listings[0].BodyType)
+	}
+}
