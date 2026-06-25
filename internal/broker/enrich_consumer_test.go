@@ -199,6 +199,124 @@ func TestEnrichConsumer_ConnectionFailure(t *testing.T) {
 	}
 }
 
+func TestEnrichConsumer_AckRemovesPendingSet(t *testing.T) {
+	s := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	defer func() { _ = client.Close() }()
+
+	pub := NewEnrichPublisher(client)
+	ctx := context.Background()
+
+	req := EnrichRequest{Token: "tok-ack-pending", Priority: 1, Source: "test"}
+	published, err := pub.PublishEnrichDedup(ctx, req)
+	if err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	if !published {
+		t.Fatal("expected token to be published")
+	}
+
+	// Verify token is in pending set
+	isMember, err := client.SIsMember(ctx, EnrichPendingSet, "tok-ack-pending").Result()
+	if err != nil {
+		t.Fatalf("sismember before: %v", err)
+	}
+	if !isMember {
+		t.Fatal("token should be in pending set before processing")
+	}
+
+	fn := func(_ context.Context, r EnrichRequest) error {
+		if r.Token != "tok-ack-pending" {
+			t.Errorf("token = %q, want tok-ack-pending", r.Token)
+		}
+		return nil
+	}
+
+	cons, err := NewEnrichConsumer(s.Addr(), "", 0, fn, testLogger())
+	if err != nil {
+		t.Fatalf("create consumer: %v", err)
+	}
+	defer func() { _ = cons.Close() }()
+
+	runCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	_ = cons.Run(runCtx)
+
+	// Verify token was removed from pending set
+	isMember, err = client.SIsMember(ctx, EnrichPendingSet, "tok-ack-pending").Result()
+	if err != nil {
+		t.Fatalf("sismember after: %v", err)
+	}
+	if isMember {
+		t.Error("token should be removed from pending set after processing")
+	}
+}
+
+func TestEnrichConsumer_DeadLetterRemovesPendingSet(t *testing.T) {
+	s := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	defer func() { _ = client.Close() }()
+
+	pub := NewEnrichPublisher(client)
+	ctx := context.Background()
+
+	req := EnrichRequest{Token: "tok-dlq-pending", Priority: 3, Source: "test"}
+	published, err := pub.PublishEnrichDedup(ctx, req)
+	if err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	if !published {
+		t.Fatal("expected token to be published")
+	}
+
+	// Verify token is in pending set
+	isMember, err := client.SIsMember(ctx, EnrichPendingSet, "tok-dlq-pending").Result()
+	if err != nil {
+		t.Fatalf("sismember before: %v", err)
+	}
+	if !isMember {
+		t.Fatal("token should be in pending set before dead-lettering")
+	}
+
+	fn := func(_ context.Context, _ EnrichRequest) error {
+		return fmt.Errorf("persistent error")
+	}
+
+	cons, err := NewEnrichConsumer(s.Addr(), "", 0, fn, testLogger())
+	if err != nil {
+		t.Fatalf("create consumer: %v", err)
+	}
+	defer func() { _ = cons.Close() }()
+	cons.reclaimIdleThreshold = 0
+
+	// Initial read creates PEL entry
+	streams, err := cons.client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    EnrichGroupName,
+		Consumer: cons.consumer,
+		Streams:  []string{EnrichStreamName, ">"},
+		Count:    10,
+		Block:    time.Second,
+	}).Result()
+	if err != nil {
+		t.Fatalf("xreadgroup: %v", err)
+	}
+	cons.processBatch(ctx, streams[0].Messages)
+
+	// Reclaim until dead-lettered
+	for i := 0; i < enrichMaxRetries+1; i++ {
+		cons.reclaimPending(ctx)
+	}
+
+	// Verify token was removed from pending set
+	isMember, err = client.SIsMember(ctx, EnrichPendingSet, "tok-dlq-pending").Result()
+	if err != nil {
+		t.Fatalf("sismember after: %v", err)
+	}
+	if isMember {
+		t.Error("token should be removed from pending set after dead-lettering")
+	}
+}
+
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(&discardWriter{}, &slog.HandlerOptions{Level: slog.LevelError}))
 }

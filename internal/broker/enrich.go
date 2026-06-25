@@ -17,6 +17,9 @@ const EnrichGroupName = "enricher-workers"
 // EnrichDeadLetterStream holds messages that exceeded retry limits.
 const EnrichDeadLetterStream = "carwatch:enrich:dead"
 
+// EnrichPendingSet is the Redis SET key that tracks tokens currently pending enrichment.
+const EnrichPendingSet = "carwatch:enrich:pending"
+
 // EnrichStreamMaxLen caps the enrichment stream via approximate XAdd trimming.
 // When the stream exceeds this, the OLDEST entries are silently evicted —
 // producers must therefore check EnrichQueueLen before bulk publishing (see the
@@ -57,6 +60,53 @@ func (p *EnrichPublisher) PublishEnrich(ctx context.Context, req EnrichRequest) 
 		Approx: true,
 		Values: map[string]any{"data": string(data)},
 	}).Err()
+}
+
+// PublishEnrichDedup adds an enrichment request to the stream only if the token
+// is not already pending. It returns (true, nil) if published, (false, nil) if
+// skipped due to deduplication, or (false, error) on failure.
+func (p *EnrichPublisher) PublishEnrichDedup(ctx context.Context, req EnrichRequest) (bool, error) {
+	if p == nil || p.client == nil {
+		return false, errors.New("enrich publisher not initialized")
+	}
+
+	// Check if token is already pending
+	isPending, err := p.client.SIsMember(ctx, EnrichPendingSet, req.Token).Result()
+	if err != nil {
+		return false, err
+	}
+	if isPending {
+		return false, nil
+	}
+
+	// Marshal and publish to stream
+	data, err := json.Marshal(req)
+	if err != nil {
+		return false, err
+	}
+	if err := p.client.XAdd(ctx, &redis.XAddArgs{
+		Stream: EnrichStreamName,
+		MaxLen: EnrichStreamMaxLen,
+		Approx: true,
+		Values: map[string]any{"data": string(data)},
+	}).Err(); err != nil {
+		return false, err
+	}
+
+	// Add token to pending set
+	if err := p.client.SAdd(ctx, EnrichPendingSet, req.Token).Err(); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// RemovePending removes a token from the pending set.
+func (p *EnrichPublisher) RemovePending(ctx context.Context, token string) error {
+	if p == nil || p.client == nil {
+		return errors.New("enrich publisher not initialized")
+	}
+	return p.client.SRem(ctx, EnrichPendingSet, token).Err()
 }
 
 // EnrichQueueLen returns the current length of the enrichment stream.

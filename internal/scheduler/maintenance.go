@@ -89,6 +89,7 @@ func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 	)
 
 	published := 0
+	skipped := 0
 	for _, t := range tokens {
 		req := broker.EnrichRequest{
 			Token:      t,
@@ -96,16 +97,19 @@ func (s *Scheduler) backfillUnenrichedListings(ctx context.Context) {
 			Source:     "backfill",
 			EnqueuedAt: time.Now().UTC().Format(time.RFC3339),
 		}
-		if err := s.enrichPublisher.PublishEnrich(ctx, req); err != nil {
+		ok, err := s.enrichPublisher.PublishEnrichDedup(ctx, req)
+		if err != nil {
 			s.logger.Warn("failed to publish backfill enrichment request to stream",
 				"token", t, "error", err)
-		} else {
+		} else if ok {
 			published++
+		} else {
+			skipped++
 		}
 	}
-	if published > 0 {
+	if published > 0 || skipped > 0 {
 		s.logger.Info("published backfill enrichment requests to stream",
-			"published", published, "candidates", len(tokens))
+			"published", published, "skipped_dedup", skipped, "candidates", len(tokens))
 	}
 }
 
