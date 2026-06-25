@@ -142,3 +142,42 @@ func (s *Scheduler) processExpiredPremium(ctx context.Context) {
 		)
 	}
 }
+
+func (s *Scheduler) purgeStaleEnrichMessages(ctx context.Context) {
+	if s.enrichPublisher == nil || s.stores.Listings == nil {
+		return
+	}
+
+	// Checker callback: check if tokens are fully enriched
+	checker := func(ctx context.Context, tokens []string) (map[string]bool, error) {
+		enrichmentData, err := s.stores.Listings.LookupEnrichmentData(ctx, tokens)
+		if err != nil {
+			return nil, err
+		}
+
+		result := make(map[string]bool)
+		for _, token := range tokens {
+			data, exists := enrichmentData[token]
+			if !exists {
+				result[token] = false
+				continue
+			}
+			// Consider fully enriched if Km > 0 && City != "" && ImageURL != ""
+			isEnriched := data.Km > 0 && data.City != "" && data.ImageURL != ""
+			result[token] = isEnriched
+		}
+		return result, nil
+	}
+
+	purged, err := s.enrichPublisher.PurgeEnrichedEntries(ctx, checker)
+	if err != nil {
+		s.logger.Error("purge stale enrichment messages failed", "error", err)
+		return
+	}
+	if purged > 0 {
+		s.logger.Info("purged stale enrichment messages from stream",
+			"count", purged,
+			"impact", "removed entries for tokens already fully enriched",
+		)
+	}
+}

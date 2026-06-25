@@ -116,3 +116,97 @@ func (p *EnrichPublisher) EnrichQueueLen(ctx context.Context) (int64, error) {
 	}
 	return p.client.XLen(ctx, EnrichStreamName).Result()
 }
+
+// PurgeEnrichedEntries reads the stream in batches and removes entries
+// whose tokens the checker reports as fully enriched. Returns the count
+// of purged entries.
+func (p *EnrichPublisher) PurgeEnrichedEntries(ctx context.Context, checker func(ctx context.Context, tokens []string) (map[string]bool, error)) (int, error) {
+	if p == nil || p.client == nil {
+		return 0, errors.New("enrich publisher not initialized")
+	}
+	if checker == nil {
+		return 0, errors.New("checker function is required")
+	}
+
+	const batchSize = 200
+	purged := 0
+	lastID := "-"
+
+	for {
+		// Read batch from stream
+		msgs, err := p.client.XRange(ctx, EnrichStreamName, lastID, "+").Result()
+		if err != nil {
+			return purged, err
+		}
+		if len(msgs) == 0 {
+			break
+		}
+
+		// If lastID was inclusive, skip the first message to avoid reprocessing
+		if lastID != "-" && len(msgs) > 0 && msgs[0].ID == lastID {
+			msgs = msgs[1:]
+		}
+
+		// Take up to batchSize messages
+		if len(msgs) > batchSize {
+			msgs = msgs[:batchSize]
+		}
+		if len(msgs) == 0 {
+			break
+		}
+
+		// Extract tokens from batch
+		tokens := make([]string, 0, len(msgs))
+		msgMap := make(map[string]string) // token -> msgID
+		for _, msg := range msgs {
+			data, ok := msg.Values["data"].(string)
+			if !ok {
+				continue
+			}
+			var req EnrichRequest
+			if err := json.Unmarshal([]byte(data), &req); err != nil {
+				continue
+			}
+			tokens = append(tokens, req.Token)
+			msgMap[req.Token] = msg.ID
+		}
+
+		// Check which tokens are fully enriched
+		enrichedMap, err := checker(ctx, tokens)
+		if err != nil {
+			return purged, err
+		}
+
+		// Delete enriched entries from stream and pending set
+		for token, isEnriched := range enrichedMap {
+			if isEnriched {
+				msgID, exists := msgMap[token]
+				if !exists {
+					continue
+				}
+				// XDEL the message
+				if err := p.client.XDel(ctx, EnrichStreamName, msgID).Err(); err != nil {
+					return purged, err
+				}
+				// SREM from pending set
+				if err := p.client.SRem(ctx, EnrichPendingSet, token).Err(); err != nil {
+					return purged, err
+				}
+				purged++
+			}
+		}
+
+		// Move to next batch
+		lastID = msgs[len(msgs)-1].ID
+	}
+
+	return purged, nil
+}
+
+// TrimDeadLetterStream caps the dead-letter stream to maxLen entries.
+func (p *EnrichPublisher) TrimDeadLetterStream(ctx context.Context, maxLen int64) error {
+	if p == nil || p.client == nil {
+		return errors.New("enrich publisher not initialized")
+	}
+	return p.client.XTrimMaxLen(ctx, EnrichDeadLetterStream, maxLen).Err()
+}
