@@ -1,6 +1,6 @@
 "use client";
 
-import type { ScoreBreakdown } from "@/lib/api";
+import type { Listing, ScoreBreakdown } from "@/lib/api";
 import { MatchScoreBox } from "@/components/ui/MatchScoreBox";
 import {
   Popover,
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 type ScoreBreakdownPopoverProps = {
   score: number;
   breakdown?: ScoreBreakdown;
-  originalOwnership?: string | null;
+  listing: Listing;
   size?: "sm" | "md" | "lg";
   className?: string;
 };
@@ -30,10 +30,143 @@ const OWNERSHIP_LABELS: Record<string, string> = {
   rental: "השכרה",
 };
 
+type Insight = {
+  text: string;
+  sentiment: "positive" | "neutral" | "negative";
+};
+
+const EXPECTED_KM_PER_YEAR = 15_000;
+const EXPECTED_YEARS_PER_HAND = 5;
+
+function fmtNum(n: number): string {
+  return n.toLocaleString("he-IL");
+}
+
+function conditionInsights(listing: Listing): Insight[] {
+  const insights: Insight[] = [];
+  const carAge = Math.max(1, new Date().getFullYear() - listing.year);
+
+  if (listing.km > 0) {
+    const kmPerYear = Math.round(listing.km / carAge);
+    const ratio = kmPerYear / EXPECTED_KM_PER_YEAR;
+
+    let tag: string;
+    let sentiment: Insight["sentiment"];
+    if (ratio <= 0.5) {
+      tag = "נמוך מאוד";
+      sentiment = "positive";
+    } else if (ratio <= 0.85) {
+      tag = "נמוך";
+      sentiment = "positive";
+    } else if (ratio <= 1.15) {
+      tag = "ממוצע";
+      sentiment = "neutral";
+    } else if (ratio <= 1.5) {
+      tag = "גבוה";
+      sentiment = "negative";
+    } else {
+      tag = "גבוה מאוד";
+      sentiment = "negative";
+    }
+
+    insights.push({
+      text: `${fmtNum(listing.km)} ק"מ ב-${carAge} שנים = ${fmtNum(kmPerYear)} ק"מ/שנה · ${tag}`,
+      sentiment,
+    });
+  }
+
+  if (listing.hand > 0) {
+    if (listing.hand === 1) {
+      const ownerLabel = listing.original_ownership
+        ? OWNERSHIP_LABELS[listing.original_ownership]
+        : null;
+      insights.push({
+        text: ownerLabel ? `יד ראשונה · ${ownerLabel}` : "יד ראשונה",
+        sentiment: listing.original_ownership === "rental" ? "negative" : "positive",
+      });
+    } else {
+      const expectedHands = 1 + carAge / EXPECTED_YEARS_PER_HAND;
+      if (listing.hand <= Math.ceil(expectedHands)) {
+        insights.push({
+          text: `יד ${listing.hand} · סביר לרכב בן ${carAge}`,
+          sentiment: "neutral",
+        });
+      } else {
+        insights.push({
+          text: `יד ${listing.hand} · גבוה לרכב בן ${carAge}`,
+          sentiment: "negative",
+        });
+      }
+    }
+  }
+
+  return insights;
+}
+
+function valueInsights(listing: Listing): Insight[] {
+  const insights: Insight[] = [];
+
+  if (listing.median_price && listing.median_price > 0 && listing.price > 0) {
+    const diffPct = Math.round(
+      ((listing.median_price - listing.price) / listing.median_price) * 100,
+    );
+
+    insights.push({
+      text: `${fmtNum(listing.price)} ₪ מול חציון ${fmtNum(listing.median_price)} ₪`,
+      sentiment: "neutral",
+    });
+
+    if (diffPct > 5) {
+      insights.push({ text: `${diffPct}% מתחת לשוק`, sentiment: "positive" });
+    } else if (diffPct >= -5) {
+      insights.push({ text: "במחיר שוק", sentiment: "neutral" });
+    } else {
+      insights.push({
+        text: `${-diffPct}% מעל השוק`,
+        sentiment: "negative",
+      });
+    }
+  } else {
+    insights.push({
+      text: "אין מספיק נתוני שוק להשוואה",
+      sentiment: "neutral",
+    });
+  }
+
+  return insights;
+}
+
+function engineInsights(listing: Listing): Insight[] {
+  const parts: string[] = [];
+  if (listing.engine_volume) {
+    parts.push(`${(listing.engine_volume / 1000).toFixed(1)}L`);
+  }
+  if (listing.engine_type) {
+    parts.push(listing.engine_type);
+  }
+  if (parts.length === 0) return [];
+  return [{ text: parts.join(" · "), sentiment: "neutral" }];
+}
+
+const INSIGHTS_BY_DIM: Record<
+  "condition" | "value" | "engine",
+  (l: Listing) => Insight[]
+> = {
+  condition: conditionInsights,
+  value: valueInsights,
+  engine: engineInsights,
+};
+
+const SENTIMENT_CLASSES: Record<Insight["sentiment"], string> = {
+  positive: "text-emerald-400",
+  neutral: "text-muted-foreground",
+  negative: "text-orange-400",
+};
+
 export function ScoreBreakdownPopover({
   score,
   breakdown,
-  originalOwnership,
+  listing,
   size = "md",
   className,
 }: ScoreBreakdownPopoverProps) {
@@ -49,7 +182,7 @@ export function ScoreBreakdownPopover({
       >
         <MatchScoreBox score={score} size={size} />
       </PopoverTrigger>
-      <PopoverContent side="bottom" align="start" className="w-[280px] p-0">
+      <PopoverContent side="bottom" align="start" className="w-[300px] p-0">
         <div className="p-3 space-y-3">
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -63,11 +196,12 @@ export function ScoreBreakdownPopover({
           </div>
 
           {/* Dimension rows */}
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {DIMENSIONS.map((dim) => {
               const value = breakdown[dim.key];
               const barColor = scoreHsl(value * 10);
               const barBg = scoreHslAlpha(value * 10, 0.15);
+              const insights = INSIGHTS_BY_DIM[dim.key](listing);
               return (
                 <div key={dim.key} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
@@ -98,20 +232,26 @@ export function ScoreBreakdownPopover({
                       }}
                     />
                   </div>
+                  {/* Insights */}
+                  {insights.length > 0 && (
+                    <div className="space-y-0.5 pt-0.5">
+                      {insights.map((ins, i) => (
+                        <p
+                          key={i}
+                          className={cn(
+                            "text-[11px] leading-tight",
+                            SENTIMENT_CLASSES[ins.sentiment],
+                          )}
+                        >
+                          {ins.text}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
-
-          {/* Ownership chip */}
-          {originalOwnership && OWNERSHIP_LABELS[originalOwnership] ? (
-            <div className="flex items-center gap-1.5 pt-1 border-t border-border/30 text-xs text-muted-foreground">
-              <span>בעלות מקורית:</span>
-              <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
-                {OWNERSHIP_LABELS[originalOwnership]}
-              </span>
-            </div>
-          ) : null}
         </div>
       </PopoverContent>
     </Popover>
