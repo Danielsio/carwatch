@@ -77,14 +77,16 @@ var matchers = []matcher{
 	{Pickup, substr("pickup")},
 }
 
-func Parse(subModel string) string {
-	if subModel == "" {
-		return ""
-	}
-	lower := strings.ToLower(subModel)
-	for _, m := range matchers {
-		if m.match(lower) {
-			return m.bodyType
+func Parse(texts ...string) string {
+	for _, text := range texts {
+		if text == "" {
+			continue
+		}
+		lower := strings.ToLower(text)
+		for _, m := range matchers {
+			if m.match(lower) {
+				return m.bodyType
+			}
 		}
 	}
 	return ""

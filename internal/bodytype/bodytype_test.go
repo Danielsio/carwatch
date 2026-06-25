@@ -72,3 +72,26 @@ func TestParse(t *testing.T) {
 		})
 	}
 }
+
+func TestParse_MultipleTexts(t *testing.T) {
+	tests := []struct {
+		name  string
+		texts []string
+		want  string
+	}{
+		{"english hit", []string{"Sport hatchback 1.4", "ספורט האצ'בק 1.4"}, "hatchback"},
+		{"english miss falls back to hebrew", []string{"Excite Plus", "Excite Plus היברידי אוט׳ האצ'בק 5 דל 1.8"}, "hatchback"},
+		{"both empty", []string{"", ""}, ""},
+		{"first empty second hit", []string{"", "סדאן 1.6"}, "sedan"},
+		{"single text", []string{"SUV Premium"}, "suv"},
+		{"no match in any", []string{"Excite Plus", "Premium אוט׳ 2.0"}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Parse(tt.texts...)
+			if got != tt.want {
+				t.Errorf("Parse(%v) = %q, want %q", tt.texts, got, tt.want)
+			}
+		})
+	}
+}

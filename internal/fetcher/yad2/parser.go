@@ -254,7 +254,7 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 		listing.GearBox = "אוטומט"
 	}
 
-	listing.BodyType = bodytype.Parse(subModelText)
+	listing.BodyType = bodytype.Parse(subModelText, item.SubModel.Text)
 
 	listing.City = textFromField(item.Address.City)
 	listing.Area = textFromField(item.Address.Area)
