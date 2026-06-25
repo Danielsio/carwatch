@@ -18,6 +18,7 @@ type listingResponse struct {
 	Manufacturer string   `json:"manufacturer"`
 	Model        string   `json:"model"`
 	SubModel     string   `json:"sub_model,omitempty"`
+	BodyType     string   `json:"body_type,omitempty"`
 	Year         int      `json:"year"`
 	Price        int      `json:"price"`
 	Km           int      `json:"km"`
@@ -261,6 +262,7 @@ func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
 		Manufacturer: l.Manufacturer,
 		Model:        l.Model,
 		SubModel:     l.SubModel,
+		BodyType:     l.BodyType,
 		Year:         l.Year,
 		Price:        l.Price,
 		Km:           l.Km,

@@ -121,6 +121,7 @@ export interface Listing {
   manufacturer: string;
   model: string;
   sub_model?: string;
+  body_type?: string;
   year: number;
   price: number;
   km: number;
