@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/fetcher"
@@ -28,19 +30,23 @@ type ItemFetcher interface {
 // Worker processes enrichment requests from a Redis stream by fetching
 // individual listing pages and updating the database.
 type Worker struct {
-	fetcher  ItemFetcher
-	listings storage.ListingStore
-	limiter  *AdaptiveRateLimiter
-	logger   *slog.Logger
+	fetcher       ItemFetcher
+	listings      storage.ListingStore
+	limiter       *AdaptiveRateLimiter
+	logger        *slog.Logger
+	resetMu       sync.Mutex
+	lastResetAt   time.Time
+	resetInterval time.Duration
 }
 
 // NewWorker creates an enrichment worker.
 func NewWorker(f ItemFetcher, ls storage.ListingStore, rl *AdaptiveRateLimiter, logger *slog.Logger) *Worker {
 	return &Worker{
-		fetcher:  f,
-		listings: ls,
-		limiter:  rl,
-		logger:   logger,
+		fetcher:       f,
+		listings:      ls,
+		limiter:       rl,
+		logger:        logger,
+		resetInterval: 5 * time.Minute,
 	}
 }
 
@@ -129,13 +135,7 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 	}
 
 	if details.Km > 0 && details.City != "" && details.ImageURL != "" {
-		if resetCount, resetErr := w.listings.ResetUnenrichedAttempts(ctx); resetErr != nil {
-			w.logger.WarnContext(ctx, "failed to reset unenriched attempt counters",
-				"error", resetErr.Error())
-		} else if resetCount > 0 {
-			w.logger.InfoContext(ctx, "reset enrich_attempts for unenriched listings after successful enrichment",
-				"reset_count", resetCount)
-		}
+		w.maybeResetUnenriched(ctx)
 	} else if details.Km <= 0 {
 		if incErr := w.listings.IncrementEnrichAttempt(ctx, req.Token); incErr != nil {
 			w.logger.ErrorContext(ctx, "failed to increment enrich attempt for km-unavailable listing",
@@ -176,4 +176,22 @@ func (w *Worker) carAttrs(ctx context.Context, req broker.EnrichRequest, existin
 	return append(attrs,
 		"manufacturer", id.Manufacturer, "model", id.Model,
 		"year", id.Year, "price", id.Price, "search_name", id.SearchName)
+}
+
+func (w *Worker) maybeResetUnenriched(ctx context.Context) {
+	w.resetMu.Lock()
+	if time.Since(w.lastResetAt) < w.resetInterval {
+		w.resetMu.Unlock()
+		return
+	}
+	w.lastResetAt = time.Now()
+	w.resetMu.Unlock()
+
+	if resetCount, err := w.listings.ResetUnenrichedAttempts(ctx); err != nil {
+		w.logger.WarnContext(ctx, "failed to reset unenriched attempt counters",
+			"error", err.Error())
+	} else if resetCount > 0 {
+		w.logger.InfoContext(ctx, "reset enrich_attempts for unenriched listings after successful enrichment",
+			"reset_count", resetCount)
+	}
 }
