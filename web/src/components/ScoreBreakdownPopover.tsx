@@ -44,9 +44,9 @@ function fmtNum(n: number): string {
 
 function conditionInsights(listing: Listing): Insight[] {
   const insights: Insight[] = [];
-  const carAge = Math.max(1, new Date().getFullYear() - listing.year);
+  const carAge = new Date().getFullYear() - listing.year;
 
-  if (listing.km > 0) {
+  if (listing.km > 0 && carAge > 0) {
     const kmPerYear = Math.round(listing.km / carAge);
     const ratio = kmPerYear / EXPECTED_KM_PER_YEAR;
 
@@ -75,14 +75,20 @@ function conditionInsights(listing: Listing): Insight[] {
     });
   }
 
-  if (listing.hand > 0) {
+  if (listing.hand > 0 && carAge > 0) {
     if (listing.hand === 1) {
       const ownerLabel = listing.original_ownership
         ? OWNERSHIP_LABELS[listing.original_ownership]
         : null;
+      const ownershipSentiment: Insight["sentiment"] =
+        listing.original_ownership == null || listing.original_ownership === "private"
+          ? "positive"
+          : listing.original_ownership === "rental"
+            ? "negative"
+            : "neutral";
       insights.push({
         text: ownerLabel ? `יד ראשונה · ${ownerLabel}` : "יד ראשונה",
-        sentiment: listing.original_ownership === "rental" ? "negative" : "positive",
+        sentiment: ownershipSentiment,
       });
     } else {
       const expectedHands = 1 + carAge / EXPECTED_YEARS_PER_HAND;
