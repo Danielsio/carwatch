@@ -784,8 +784,7 @@ func (s *Store) ResetUnenrichedAttempts(ctx context.Context) (int64, error) {
 		`UPDATE listing_history SET enrich_attempts = 0
 		 WHERE (`+unenrichedMissingFieldsWhereSQL+`)
 		   AND enrich_attempts > 0
-		   AND enrich_attempts < 30
-		   AND first_seen_at > NOW() - INTERVAL '7 days'`)
+		   AND enrich_attempts < 30`)
 	if err != nil {
 		return 0, err
 	}
