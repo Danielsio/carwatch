@@ -779,6 +779,19 @@ func (s *Store) ListEnrichExhaustedTokens(ctx context.Context, tokens []string, 
 	return exhausted, nil
 }
 
+func (s *Store) ResetUnenrichedAttempts(ctx context.Context) (int64, error) {
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE listing_history SET enrich_attempts = 0
+		 WHERE (`+unenrichedMissingFieldsWhereSQL+`)
+		   AND enrich_attempts > 0
+		   AND enrich_attempts < 30
+		   AND first_seen_at > NOW() - INTERVAL '7 days'`)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
 	result, err := s.db.ExecContext(ctx, `

@@ -128,6 +128,14 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 		return err
 	}
 
+	if resetCount, resetErr := w.listings.ResetUnenrichedAttempts(ctx); resetErr != nil {
+		w.logger.WarnContext(ctx, "failed to reset unenriched attempt counters",
+			"error", resetErr.Error())
+	} else if resetCount > 0 {
+		w.logger.InfoContext(ctx, "reset enrich_attempts for unenriched listings after successful enrichment",
+			"reset_count", resetCount)
+	}
+
 	// Count toward the enrich_attempts cap when km is genuinely unavailable
 	// on the source page, so backfill stops re-queuing this token.
 	if details.Km <= 0 {

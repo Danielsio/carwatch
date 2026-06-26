@@ -81,6 +81,10 @@ func (m *mockListingStore) IncrementEnrichAttempt(_ context.Context, token strin
 	return nil
 }
 
+func (m *mockListingStore) ResetUnenrichedAttempts(_ context.Context) (int64, error) {
+	return 0, nil
+}
+
 func (m *mockListingStore) SaveListing(_ context.Context, _ storage.ListingRecord) error { return nil }
 func (m *mockListingStore) SaveListings(_ context.Context, _ []storage.ListingRecord) error {
 	return nil

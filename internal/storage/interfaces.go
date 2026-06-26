@@ -280,6 +280,7 @@ type ListingStore interface {
 	// that have enrich_attempts >= maxAttempts. Used to skip publishing enrich
 	// requests for tokens that have exhausted retries.
 	ListEnrichExhaustedTokens(ctx context.Context, tokens []string, maxAttempts int) (map[string]bool, error)
+	ResetUnenrichedAttempts(ctx context.Context) (int64, error)
 	PruneListings(ctx context.Context, olderThan time.Duration) (int64, error)
 	DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error)
 	// DropListingByToken removes a listing that no longer exists at the source
