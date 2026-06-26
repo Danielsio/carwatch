@@ -110,6 +110,9 @@ func (m *mockListingStore) ListUnenrichedTokens(_ context.Context, _ int) ([]str
 	return nil, nil
 }
 func (m *mockListingStore) CountUnenrichedTokens(_ context.Context) (int64, error) { return 0, nil }
+func (m *mockListingStore) ListEnrichExhaustedTokens(_ context.Context, _ []string, _ int) (map[string]bool, error) {
+	return nil, nil
+}
 func (m *mockListingStore) PruneListings(_ context.Context, _ time.Duration) (int64, error) {
 	return 0, nil
 }

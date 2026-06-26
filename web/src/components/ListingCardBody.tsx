@@ -207,7 +207,7 @@ export function ListingCardBody({
               <ScoreBreakdownPopover
                 score={listing.fitness_score}
                 breakdown={listing.score_breakdown}
-                originalOwnership={listing.original_ownership}
+                listing={listing}
                 size="sm"
               />
               <span className="text-xs font-semibold" style={{ color: scoreHsl(listing.fitness_score) }}>

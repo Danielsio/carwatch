@@ -214,10 +214,10 @@ func applyDefaults(cfg *Config) {
 		cfg.Telemetry.MetricsPath = "/metrics"
 	}
 	if cfg.Enricher.BaseDelay == 0 {
-		cfg.Enricher.BaseDelay = 300 * time.Millisecond
+		cfg.Enricher.BaseDelay = 500 * time.Millisecond
 	}
 	if cfg.Enricher.MaxDelay == 0 {
-		cfg.Enricher.MaxDelay = 60 * time.Second
+		cfg.Enricher.MaxDelay = 10 * time.Minute
 	}
 	if cfg.Enricher.CooldownDuration == 0 {
 		cfg.Enricher.CooldownDuration = 15 * time.Minute
