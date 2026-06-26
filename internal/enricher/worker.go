@@ -68,6 +68,14 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 		return nil
 	}
 
+	if _, ok := existing[req.Token]; !ok {
+		if _, idErr := w.listings.LookupListingIdentity(ctx, req.Token); idErr != nil {
+			w.logger.WarnContext(ctx, "listing not found in database, dead-lettering",
+				"token", req.Token, "source", req.Source)
+			return fmt.Errorf("token %s not in database: %w", req.Token, broker.ErrPermanent)
+		}
+	}
+
 	if !w.limiter.Wait(ctx) {
 		return ctx.Err()
 	}

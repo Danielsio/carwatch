@@ -166,6 +166,12 @@ func (f *Yad2Fetcher) FetchItem(ctx context.Context, token string) (ItemDetails,
 
 	details, err := ParseItemPage(bytes.NewReader(result.Body))
 	if err != nil {
+		if looksLikeBotProtection(result.Body) {
+			if f.proxyPool != nil && usedProxy != "" {
+				f.proxyPool.MarkUnhealthy(usedProxy)
+			}
+			return ItemDetails{}, fmt.Errorf("fetch item %s: %w", token, fetcher.ErrChallenge)
+		}
 		return ItemDetails{}, fmt.Errorf("parse item %s: %w", token, err)
 	}
 
