@@ -37,6 +37,8 @@ type mockListingStore struct {
 	lookupErr      error
 	incrementErr   error
 	dropErr        error
+	resetCalled    bool
+	resetErr       error
 }
 
 func newMockListingStore() *mockListingStore {
@@ -79,6 +81,16 @@ func (m *mockListingStore) IncrementEnrichAttempt(_ context.Context, token strin
 	}
 	m.enrichAttempts[token]++
 	return nil
+}
+
+func (m *mockListingStore) ResetUnenrichedAttempts(_ context.Context) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.resetCalled = true
+	if m.resetErr != nil {
+		return 0, m.resetErr
+	}
+	return 1, nil
 }
 
 func (m *mockListingStore) SaveListing(_ context.Context, _ storage.ListingRecord) error { return nil }
