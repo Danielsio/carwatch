@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/dsionov/carwatch/internal/bodytype"
 )
 
 // ItemDetails holds enrichment data parsed from an individual listing page.
@@ -15,6 +17,7 @@ type ItemDetails struct {
 	Area              string
 	OriginalOwnership string
 	CurrentOwnership  string
+	BodyType          string
 }
 
 // ParseItemPage extracts listing details (primarily km) from a Yad2 item page.
@@ -110,6 +113,7 @@ type itemPageData struct {
 			TextEng string `json:"textEng"`
 		} `json:"area"`
 	} `json:"address"`
+	BodyType          *ownershipField `json:"bodyType"`
 	CurrentOwnership  *ownershipField `json:"currentOwnership"`
 	OriginalOwnership *ownershipField `json:"originalOwnership"`
 	Ownership         *ownershipField `json:"ownership"`
@@ -122,6 +126,13 @@ func detailsFromPageData(d itemPageData) (ItemDetails, bool) {
 		ImageURL: resolveItemImageURL(d),
 		City:     firstNonEmpty(d.Address.City.TextEng, d.Address.City.Text),
 		Area:     firstNonEmpty(d.Address.Area.TextEng, d.Address.Area.Text),
+	}
+
+	if d.BodyType != nil {
+		details.BodyType = bodytype.Parse(
+			firstNonEmpty(d.BodyType.TextEng, d.BodyType.Text),
+			d.BodyType.Text,
+		)
 	}
 
 	// Extract original ownership: try OriginalOwnership, PreviousOwnership, Ownership.
@@ -149,7 +160,7 @@ func detailsFromPageData(d itemPageData) (ItemDetails, bool) {
 	}
 
 	return details, details.Km > 0 || details.ImageURL != "" || details.City != "" || details.Area != "" ||
-		details.OriginalOwnership != "" || details.CurrentOwnership != ""
+		details.OriginalOwnership != "" || details.CurrentOwnership != "" || details.BodyType != ""
 }
 
 // normalizeOwnership canonicalizes a Hebrew or English ownership string to one

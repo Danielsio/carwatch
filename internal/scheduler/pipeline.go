@@ -279,13 +279,14 @@ func (p *ListingPipeline) inlineEnrich(ctx context.Context, listings []model.Raw
 	}
 
 	type snapshot struct {
-		km    int
-		city  string
-		image string
+		km       int
+		city     string
+		image    string
+		bodyType string
 	}
 	before := make([]snapshot, len(listings))
 	for i := range listings {
-		before[i] = snapshot{listings[i].Km, listings[i].City, listings[i].ImageURL}
+		before[i] = snapshot{listings[i].Km, listings[i].City, listings[i].ImageURL, listings[i].BodyType}
 	}
 
 	log.InfoContext(ctx, "starting inline enrichment",
@@ -306,12 +307,13 @@ func (p *ListingPipeline) inlineEnrich(ctx context.Context, listings []model.Raw
 
 	var backfill []storage.ListingRecord
 	for i := range listings {
-		if listings[i].Km != before[i].km || listings[i].City != before[i].city || listings[i].ImageURL != before[i].image {
+		if listings[i].Km != before[i].km || listings[i].City != before[i].city || listings[i].ImageURL != before[i].image || listings[i].BodyType != before[i].bodyType {
 			backfill = append(backfill, storage.ListingRecord{
 				Token:    listings[i].Token,
 				Km:       listings[i].Km,
 				City:     listings[i].City,
 				ImageURL: listings[i].ImageURL,
+				BodyType: listings[i].BodyType,
 			})
 		}
 	}

@@ -241,6 +241,59 @@ func TestParseItemPage_OwnershipFallbackToOwnership(t *testing.T) {
 	}
 }
 
+func TestParseItemPage_BodyType(t *testing.T) {
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "km": 33000,
+  "bodyType": {"text": "האצ'בק", "textEng": "Hatchback", "id": 5}
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.BodyType != "hatchback" {
+		t.Errorf("BodyType = %q, want hatchback", details.BodyType)
+	}
+}
+
+func TestParseItemPage_BodyTypeHebrewOnly(t *testing.T) {
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "km": 50000,
+  "bodyType": {"text": "סדאן", "id": 1}
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.BodyType != "sedan" {
+		t.Errorf("BodyType = %q, want sedan", details.BodyType)
+	}
+}
+
+func TestParseItemPage_BodyTypeAbsent(t *testing.T) {
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "km": 80000
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.BodyType != "" {
+		t.Errorf("BodyType = %q, want empty when field absent", details.BodyType)
+	}
+}
+
 func TestParseItemPage_ImagesArrayFallback(t *testing.T) {
 	html := `<html><body>
 <script id="__NEXT_DATA__" type="application/json">

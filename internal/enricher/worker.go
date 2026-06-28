@@ -20,6 +20,7 @@ type ItemDetails struct {
 	ImageURL string
 	City     string
 	Area     string
+	BodyType string
 }
 
 // ItemFetcher fetches detailed data for a single listing by token.
@@ -135,6 +136,7 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 		Km:       details.Km,
 		City:     details.City,
 		ImageURL: details.ImageURL,
+		BodyType: details.BodyType,
 	}
 	if err := w.listings.BackfillListings(ctx, []storage.ListingRecord{rec}); err != nil {
 		w.logger.ErrorContext(ctx, "failed to backfill enriched data to database",
