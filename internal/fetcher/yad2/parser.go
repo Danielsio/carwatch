@@ -254,7 +254,7 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 		listing.GearBox = "אוטומט"
 	}
 
-	listing.BodyType = bodytype.Parse(subModelText, item.SubModel.Text)
+	listing.BodyType = bodytype.Parse(textFromField(item.BodyType), item.BodyType.Text, subModelText, item.SubModel.Text)
 
 	listing.City = textFromField(item.Address.City)
 	listing.Area = textFromField(item.Address.Area)
@@ -375,6 +375,7 @@ type feedItem struct {
 	HorsePower      int             `json:"horsePower"`
 	EngineType      field           `json:"engineType"`
 	GearBox         field           `json:"gearBox"`
+	BodyType        field           `json:"bodyType"`
 	Km              int             `json:"km"`
 	Hand            json.RawMessage `json:"hand"`
 	Price           int             `json:"price"`

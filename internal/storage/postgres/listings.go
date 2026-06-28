@@ -195,8 +195,9 @@ const backfillListingSQL = `
 	UPDATE listing_history SET
 		km = CASE WHEN $2 > 0 AND listing_history.km <= 0 THEN $2 ELSE listing_history.km END,
 		city = CASE WHEN $3 != '' AND listing_history.city = '' THEN $3 ELSE listing_history.city END,
-		image_url = CASE WHEN $4 != '' AND listing_history.image_url = '' THEN $4 ELSE listing_history.image_url END
-	WHERE token = $1 AND (listing_history.km <= 0 OR listing_history.city = '' OR listing_history.image_url = '')`
+		image_url = CASE WHEN $4 != '' AND listing_history.image_url = '' THEN $4 ELSE listing_history.image_url END,
+		body_type = CASE WHEN $5 != '' AND listing_history.body_type = '' THEN $5 ELSE listing_history.body_type END
+	WHERE token = $1 AND (listing_history.km <= 0 OR listing_history.city = '' OR listing_history.image_url = '' OR listing_history.body_type = '')`
 
 func (s *Store) BackfillListings(ctx context.Context, records []storage.ListingRecord) error {
 	if len(records) == 0 {
@@ -213,7 +214,7 @@ func (s *Store) BackfillListings(ctx context.Context, records []storage.ListingR
 	}
 	defer func() { _ = stmt.Close() }()
 	for _, r := range records {
-		if _, err := stmt.ExecContext(ctx, r.Token, r.Km, r.City, r.ImageURL); err != nil {
+		if _, err := stmt.ExecContext(ctx, r.Token, r.Km, r.City, r.ImageURL, r.BodyType); err != nil {
 			return fmt.Errorf("backfill exec: %w", err)
 		}
 	}

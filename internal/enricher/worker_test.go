@@ -388,6 +388,30 @@ func TestWorker_LookupErrorReturnsError(t *testing.T) {
 	}
 }
 
+func TestWorker_EnrichesBodyType(t *testing.T) {
+	f := &mockItemFetcher{details: ItemDetails{
+		Km: 50000, City: "Tel Aviv", ImageURL: "https://img.yad2.co.il/test.jpg",
+		BodyType: "hatchback",
+	}}
+	ls := newMockListingStore()
+	rl := NewAdaptiveRateLimiter(time.Millisecond, time.Second, time.Second)
+	w := NewWorker(f, ls, rl, testWorkerLogger())
+
+	req := broker.EnrichRequest{Token: "tok-bt", Priority: 1, Source: "match"}
+	if err := w.HandleRequest(context.Background(), req); err != nil {
+		t.Fatalf("HandleRequest: %v", err)
+	}
+
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	if len(ls.backfilled) != 1 {
+		t.Fatalf("expected 1 backfilled record, got %d", len(ls.backfilled))
+	}
+	if ls.backfilled[0].BodyType != "hatchback" {
+		t.Errorf("backfilled body_type = %q, want hatchback", ls.backfilled[0].BodyType)
+	}
+}
+
 func TestWorker_ContextCancellation(t *testing.T) {
 	f := &mockItemFetcher{details: ItemDetails{Km: 50000}}
 	ls := newMockListingStore()
