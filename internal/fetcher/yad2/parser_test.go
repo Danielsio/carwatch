@@ -703,6 +703,35 @@ func TestParseNextData_BodyTypeEmptyWhenNoMatch(t *testing.T) {
 	}
 }
 
+func TestParseNextData_BodyTypeUnrecognizedDirectField(t *testing.T) {
+	data := []byte(`{
+		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+			"data":{"feed":{"feed_items":[{
+				"token":"bt-unknown",
+				"manufacturer":{"id":27,"text":"מאזדה"},
+				"model":{"id":10332,"text":"3"},
+				"subModel":{"id":105280,"text":"LUXURY"},
+				"bodyType":{"id":99,"text":"עגלה","english_text":"Cart"},
+				"vehicleDates":{"yearOfProduction":2021},
+				"price":95000,
+				"hand":{"id":2},
+				"metaData":{"coverImage":"https://img.yad2.co.il/test.jpg"}
+			}]}}
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].BodyType != "" {
+		t.Errorf("BodyType = %q, want empty (unrecognized value falls through)", listings[0].BodyType)
+	}
+}
+
 func TestParseNextData_BodyTypeFallsBackToHebrewText(t *testing.T) {
 	data := []byte(`{
 		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
