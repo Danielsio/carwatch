@@ -75,10 +75,10 @@ type ProcessResult struct {
 // Steps performed:
 //  1. Prefill km/city/image from DB (if listings store is available)
 //  2. Inline enrichment — fetch missing data from source (if inline enricher is set)
-//  3. Compute fitness score
-//  4. Compute deal score (if market cache is available)
-//  5. Detect suspicious listings (if market cache is available)
-//  6. Enrich with base price (if pricelist service is available)
+//  3. Enrich with base price (if pricelist service is available)
+//  4. Compute fitness score (uses base price as value-dimension fallback when market data is thin)
+//  5. Compute deal score (if market cache is available)
+//  6. Detect suspicious listings (if market cache is available)
 //  7. Build ListingRecords
 func (p *ListingPipeline) Process(ctx context.Context, raw []model.RawListing, params ProcessParams) ProcessResult {
 	log := p.logger.With("op", "pipeline", "search_id", params.SearchID, "chat_id", params.ChatID, "search_name", params.SearchName)
@@ -120,6 +120,10 @@ func (p *ListingPipeline) scoreAndEnrich(ctx context.Context, l model.RawListing
 		medianPrice, medianKm, cohort, marketOK = params.MarketCache.Lookup(l.Manufacturer, l.Model, l.Year)
 	}
 
+	// Enrich with base price before scoring so the value dimension can
+	// use it as a fallback when market median data is unavailable.
+	p.enrichWithBasePrice(ctx, &listing, log)
+
 	fp := scoring.FitnessParams{
 		Price:             l.Price,
 		Km:                l.Km,
@@ -139,6 +143,9 @@ func (p *ListingPipeline) scoreAndEnrich(ctx context.Context, l model.RawListing
 		fp.MedianPrice = medianPrice
 		fp.MedianKm = medianKm
 	}
+	if listing.BasePrice != nil {
+		fp.BasePrice = *listing.BasePrice
+	}
 
 	detailed := scoring.FitnessScoreDetailed(fp)
 	listing.FitnessScore = detailed.Total
@@ -157,9 +164,6 @@ func (p *ListingPipeline) scoreAndEnrich(ctx context.Context, l model.RawListing
 		}
 		listing.SuspiciousReasons = scoring.DetectSuspicious(l, medianPrice)
 	}
-
-	// Enrich with base price.
-	p.enrichWithBasePrice(ctx, &listing, log)
 
 	return listing
 }

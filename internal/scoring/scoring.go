@@ -276,6 +276,15 @@ const (
 	budgetLowPenalty   = 0.5
 	budgetOverPenalty  = 1.0
 
+	// Pricelist (BasePrice) fallback — wider tolerance, dampened bounds
+	basePriceNeutralLo      = 0.88
+	basePriceNeutralHi      = 1.10
+	basePriceMaxBonus       = 1.8
+	basePriceMaxPenalty     = -2.8
+	basePriceNeutralPenalty = 0.2
+	basePriceOverpaySpan    = 0.30
+	basePriceKmAdjFactor    = 0.12
+
 	// Engine delta
 	engineDeltaMax = 0.1
 
@@ -301,6 +310,7 @@ type FitnessParams struct {
 
 	MedianPrice int
 	MedianKm    int
+	BasePrice   int
 
 	IsCommercial      bool
 	OriginalOwnership string
@@ -479,6 +489,47 @@ func computeValueDelta(p FitnessParams, carAge int, condScore01 float64) (delta 
 		if delta > 0 && condScore01 < valCondGateThreshold {
 			delta *= condScore01 / valCondGateThreshold
 		}
+	} else if p.BasePrice > 0 {
+		adjExpected := float64(p.BasePrice) * basePriceDiscount(carAge)
+
+		if p.Km > 0 && carAge > 0 {
+			expectedKm := float64(carAge) * expectedKmPerYear
+			kmDeltaPct := (expectedKm - float64(p.Km)) / expectedKm
+			adjExpected *= clampRange(1.0+kmDeltaPct*basePriceKmAdjFactor, 0.70, 1.30)
+		}
+
+		expectedHands := 1.0 + float64(carAge)/handExpectedRate
+		if p.Hand == 1 && carAge >= 3 {
+			adjExpected *= (1.0 + handFirstPricePremium)
+		} else if p.Hand > 0 && float64(p.Hand) > expectedHands {
+			excess := float64(p.Hand) - expectedHands
+			adjExpected *= math.Max(0.85, 1.0-excess*handExcessPriceDisc)
+		}
+
+		switch p.OriginalOwnership {
+		case "lease":
+			adjExpected *= (1.0 - leaseOriginPriceDisc)
+		case "rental":
+			adjExpected *= (1.0 - rentalOriginPriceDisc)
+		}
+
+		ratio := float64(p.Price) / adjExpected
+
+		switch {
+		case ratio < 0.75:
+			delta = basePriceMaxBonus
+		case ratio < basePriceNeutralLo:
+			delta = basePriceMaxBonus * (basePriceNeutralLo - ratio) / (basePriceNeutralLo - 0.75)
+		case ratio <= basePriceNeutralHi:
+			delta = -basePriceNeutralPenalty * (ratio - basePriceNeutralLo) / (basePriceNeutralHi - basePriceNeutralLo)
+		default:
+			overpay := (ratio - basePriceNeutralHi) / basePriceOverpaySpan
+			delta = clampRange(-basePriceNeutralPenalty-(-basePriceMaxPenalty-basePriceNeutralPenalty)*math.Pow(math.Min(overpay, 1.0), 0.7), basePriceMaxPenalty, -basePriceNeutralPenalty)
+		}
+
+		if delta > 0 && condScore01 < valCondGateThreshold {
+			delta *= condScore01 / valCondGateThreshold
+		}
 	} else if p.PriceMax > 0 {
 		headroom := 1.0 - float64(p.Price)/float64(p.PriceMax)
 		switch {
@@ -498,6 +549,19 @@ func computeValueDelta(p FitnessParams, carAge int, condScore01 float64) (delta 
 	delta = clampRange(delta, valDeltaMin, valDeltaMax)
 	score01 = clamp01(0.5 + delta/5.0)
 	return delta, score01
+}
+
+func basePriceDiscount(carAge int) float64 {
+	switch {
+	case carAge <= 1:
+		return 0.97
+	case carAge <= 3:
+		return 0.94
+	case carAge <= 6:
+		return 0.90
+	default:
+		return 0.85
+	}
 }
 
 func computeEngineDelta(engineVolume float64, engineMinCC int) (delta float64, score01 float64) {
