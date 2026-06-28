@@ -94,4 +94,40 @@ describe("ScoreBreakdownPopover", () => {
 
     expect(screen.queryByText("לא נכלל בציון")).not.toBeInTheDocument();
   });
+
+  it("shows value dimension with pricelist comparison when only base_price exists", async () => {
+    const listing: Listing = { ...baseListing(), base_price: 120000 };
+    render(
+      <ScoreBreakdownPopover
+        score={7.0}
+        breakdown={breakdown}
+        listing={listing}
+      />,
+    );
+    await openPopover();
+
+    expect(await screen.findByText("35%")).toBeInTheDocument();
+    expect(screen.getByText(/מול מחירון/)).toBeInTheDocument();
+    expect(screen.getByText(/מתחת למחירון/)).toBeInTheDocument();
+    expect(screen.queryByText("לא נכלל בציון")).not.toBeInTheDocument();
+  });
+
+  it("prefers market median over pricelist when both exist", async () => {
+    const listing: Listing = {
+      ...baseListing(),
+      median_price: 100000,
+      base_price: 120000,
+    };
+    render(
+      <ScoreBreakdownPopover
+        score={8.5}
+        breakdown={breakdown}
+        listing={listing}
+      />,
+    );
+    await openPopover();
+
+    expect(await screen.findByText(/מול חציון/)).toBeInTheDocument();
+    expect(screen.queryByText(/מול מחירון/)).not.toBeInTheDocument();
+  });
 });

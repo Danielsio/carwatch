@@ -113,13 +113,22 @@ function conditionInsights(listing: Listing): Insight[] {
 // backend only sets median_price once the cohort reaches MinCohortSize. A real
 // value *comparison* additionally needs a positive listing price (the insight
 // divides against it), so callers pair this guard with `listing.price > 0`.
-// Without a comparison the value dimension contributes a neutral delta to the
-// additive score, so the UI must not present it as a weighted contributor (see
-// the `excluded` handling below).
 function hasMarketData(
   listing: Listing,
 ): listing is Listing & { median_price: number } {
   return typeof listing.median_price === "number" && listing.median_price > 0;
+}
+
+function hasBasePrice(
+  listing: Listing,
+): listing is Listing & { base_price: number } {
+  return typeof listing.base_price === "number" && listing.base_price > 0;
+}
+
+function hasValueReference(listing: Listing): boolean {
+  return (
+    (hasMarketData(listing) || hasBasePrice(listing)) && listing.price > 0
+  );
 }
 
 function valueInsights(listing: Listing): Insight[] {
@@ -142,6 +151,29 @@ function valueInsights(listing: Listing): Insight[] {
     } else {
       insights.push({
         text: `${-diffPct}% מעל השוק`,
+        sentiment: "negative",
+      });
+    }
+  } else if (hasBasePrice(listing) && listing.price > 0) {
+    const diffPct = Math.round(
+      ((listing.base_price - listing.price) / listing.base_price) * 100,
+    );
+
+    insights.push({
+      text: `${fmtNum(listing.price)} ₪ מול מחירון ${fmtNum(listing.base_price)} ₪`,
+      sentiment: "neutral",
+    });
+
+    if (diffPct > 5) {
+      insights.push({
+        text: `${diffPct}% מתחת למחירון`,
+        sentiment: "positive",
+      });
+    } else if (diffPct >= -5) {
+      insights.push({ text: "קרוב למחירון", sentiment: "neutral" });
+    } else {
+      insights.push({
+        text: `${-diffPct}% מעל המחירון`,
         sentiment: "negative",
       });
     }
@@ -228,8 +260,7 @@ export function ScoreBreakdownPopover({
               // imply a contribution that never happened. A value comparison
               // needs both a market cohort and a positive price.
               const excluded =
-                dim.key === "value" &&
-                !(hasMarketData(listing) && listing.price > 0);
+                dim.key === "value" && !hasValueReference(listing);
               return (
                 <div
                   key={dim.key}

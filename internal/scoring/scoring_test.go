@@ -478,6 +478,113 @@ func TestComputeValueDelta_BudgetFallback(t *testing.T) {
 	})
 }
 
+func TestComputeValueDelta_PricelistFallback(t *testing.T) {
+	stubCurrentYear(t, 2026)
+
+	t.Run("below pricelist bonus", func(t *testing.T) {
+		p := FitnessParams{
+			Price: 65000, Year: 2019, Km: 80000, Hand: 2,
+			BasePrice: 100000,
+		}
+		delta, _ := computeValueDelta(p, 7, 0.8)
+		if delta < 0.5 {
+			t.Errorf("below-pricelist delta=%.3f, want >= 0.5", delta)
+		}
+	})
+
+	t.Run("at pricelist neutral", func(t *testing.T) {
+		p := FitnessParams{
+			Price: 85000, Year: 2019, Km: 105000, Hand: 2,
+			BasePrice: 100000,
+		}
+		delta, _ := computeValueDelta(p, 7, 0.5)
+		if delta < -0.5 || delta > 0.5 {
+			t.Errorf("at-pricelist delta=%.3f, want near zero", delta)
+		}
+	})
+
+	t.Run("above pricelist penalty", func(t *testing.T) {
+		p := FitnessParams{
+			Price: 110000, Year: 2019, Km: 105000, Hand: 2,
+			BasePrice: 100000,
+		}
+		delta, _ := computeValueDelta(p, 7, 0.5)
+		if delta > -0.2 {
+			t.Errorf("above-pricelist delta=%.3f, want <= -0.2", delta)
+		}
+	})
+
+	t.Run("low km adjusts expected price up", func(t *testing.T) {
+		base := FitnessParams{
+			Price: 80000, Year: 2022, Km: 60000, Hand: 1,
+			BasePrice: 100000,
+		}
+		lowKm := FitnessParams{
+			Price: 80000, Year: 2022, Km: 20000, Hand: 1,
+			BasePrice: 100000,
+		}
+		baseDelta, _ := computeValueDelta(base, 4, 0.8)
+		lowKmDelta, _ := computeValueDelta(lowKm, 4, 0.8)
+		if lowKmDelta <= baseDelta {
+			t.Errorf("low-km car should score better: lowKm=%.3f, normal=%.3f", lowKmDelta, baseDelta)
+		}
+	})
+
+	t.Run("pricelist preferred over budget", func(t *testing.T) {
+		withBase := FitnessParams{
+			Price: 95000, Year: 2022, Km: 50000, Hand: 1,
+			BasePrice: 100000, PriceMax: 120000,
+		}
+		budgetOnly := FitnessParams{
+			Price: 95000, Year: 2022, Km: 50000, Hand: 1,
+			PriceMax: 120000,
+		}
+		baseDelta, _ := computeValueDelta(withBase, 4, 0.5)
+		budgetDelta, _ := computeValueDelta(budgetOnly, 4, 0.5)
+		if baseDelta == budgetDelta {
+			t.Errorf("pricelist and budget should produce different deltas: base=%.3f, budget=%.3f", baseDelta, budgetDelta)
+		}
+	})
+
+	t.Run("dampened vs market mode", func(t *testing.T) {
+		viaMedian := FitnessParams{
+			Price: 60000, Year: 2022, Km: 50000, Hand: 1,
+			MedianPrice: 85000, MedianKm: 60000,
+		}
+		viaPricelist := FitnessParams{
+			Price: 60000, Year: 2022, Km: 50000, Hand: 1,
+			BasePrice: 100000,
+		}
+		medianDelta, _ := computeValueDelta(viaMedian, 4, 0.8)
+		pricelistDelta, _ := computeValueDelta(viaPricelist, 4, 0.8)
+		if pricelistDelta >= medianDelta {
+			t.Errorf("pricelist mode should be dampened: pricelist=%.3f, median=%.3f", pricelistDelta, medianDelta)
+		}
+	})
+}
+
+func TestBasePriceDiscount(t *testing.T) {
+	tests := []struct {
+		age  int
+		want float64
+	}{
+		{0, 0.97},
+		{1, 0.97},
+		{2, 0.94},
+		{3, 0.94},
+		{4, 0.90},
+		{6, 0.90},
+		{7, 0.85},
+		{15, 0.85},
+	}
+	for _, tt := range tests {
+		got := basePriceDiscount(tt.age)
+		if got != tt.want {
+			t.Errorf("basePriceDiscount(%d) = %.2f, want %.2f", tt.age, got, tt.want)
+		}
+	}
+}
+
 func TestComputeEngineDelta(t *testing.T) {
 	tests := []struct {
 		name    string
