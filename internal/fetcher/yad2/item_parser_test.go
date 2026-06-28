@@ -277,6 +277,23 @@ func TestParseItemPage_BodyTypeHebrewOnly(t *testing.T) {
 	}
 }
 
+func TestParseItemPage_BodyTypeOnly(t *testing.T) {
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "bodyType": {"text": "קרוסאובר", "textEng": "Crossover", "id": 3}
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.BodyType != "suv" {
+		t.Errorf("BodyType = %q, want suv (from crossover)", details.BodyType)
+	}
+}
+
 func TestParseItemPage_BodyTypeAbsent(t *testing.T) {
 	html := `<html><body>
 <script id="__NEXT_DATA__" type="application/json">
