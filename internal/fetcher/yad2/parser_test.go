@@ -617,6 +617,65 @@ func TestParseNextData_ExtractsBodyTypeFromSubModel(t *testing.T) {
 	}
 }
 
+func TestParseNextData_BodyTypeFromDirectField(t *testing.T) {
+	data := []byte(`{
+		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+			"data":{"feed":{"feed_items":[{
+				"token":"bt-direct",
+				"manufacturer":{"id":27,"text":"מאזדה"},
+				"model":{"id":10332,"text":"3"},
+				"subModel":{"id":105280,"text":"LUXURY"},
+				"bodyType":{"id":5,"text":"סדאן","english_text":"Sedan"},
+				"vehicleDates":{"yearOfProduction":2021},
+				"engineVolume":1998,
+				"price":95000,
+				"hand":{"id":2},
+				"metaData":{"coverImage":"https://img.yad2.co.il/test.jpg"}
+			}]}}
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].BodyType != "sedan" {
+		t.Errorf("BodyType = %q, want 'sedan' (from direct bodyType field)", listings[0].BodyType)
+	}
+}
+
+func TestParseNextData_BodyTypeDirectFieldOverridesSubModel(t *testing.T) {
+	data := []byte(`{
+		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+			"data":{"feed":{"feed_items":[{
+				"token":"bt-override",
+				"manufacturer":{"id":27,"text":"מאזדה"},
+				"model":{"id":10332,"text":"3"},
+				"subModel":{"id":105280,"text":"Premium אוט׳ האצ'בק 2.0 (165 כ״ס)"},
+				"bodyType":{"id":1,"text":"סדאן","english_text":"Sedan"},
+				"vehicleDates":{"yearOfProduction":2021},
+				"price":95000,
+				"hand":{"id":2},
+				"metaData":{"coverImage":"https://img.yad2.co.il/test.jpg"}
+			}]}}
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].BodyType != "sedan" {
+		t.Errorf("BodyType = %q, want 'sedan' (direct field takes priority over subModel text)", listings[0].BodyType)
+	}
+}
+
 func TestParseNextData_BodyTypeEmptyWhenNoMatch(t *testing.T) {
 	data := []byte(`{
 		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{

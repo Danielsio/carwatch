@@ -229,6 +229,7 @@ func (a *yad2ItemFetcherAdapter) FetchItem(ctx context.Context, token string) (e
 		ImageURL: details.ImageURL,
 		City:     details.City,
 		Area:     details.Area,
+		BodyType: details.BodyType,
 	}, nil
 }
 
