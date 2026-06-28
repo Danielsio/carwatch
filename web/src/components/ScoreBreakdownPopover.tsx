@@ -109,10 +109,23 @@ function conditionInsights(listing: Listing): Insight[] {
   return insights;
 }
 
+// hasMarketData reports whether a market cohort exists to compare against. The
+// backend only sets median_price once the cohort reaches MinCohortSize. A real
+// value *comparison* additionally needs a positive listing price (the insight
+// divides against it), so callers pair this guard with `listing.price > 0`.
+// Without a comparison the value dimension contributes a neutral delta to the
+// additive score, so the UI must not present it as a weighted contributor (see
+// the `excluded` handling below).
+function hasMarketData(
+  listing: Listing,
+): listing is Listing & { median_price: number } {
+  return typeof listing.median_price === "number" && listing.median_price > 0;
+}
+
 function valueInsights(listing: Listing): Insight[] {
   const insights: Insight[] = [];
 
-  if (listing.median_price && listing.median_price > 0 && listing.price > 0) {
+  if (hasMarketData(listing) && listing.price > 0) {
     const diffPct = Math.round(
       ((listing.median_price - listing.price) / listing.median_price) * 100,
     );
@@ -208,36 +221,58 @@ export function ScoreBreakdownPopover({
               const barColor = scoreHsl(value * 10);
               const barBg = scoreHslAlpha(value * 10, 0.15);
               const insights = INSIGHTS_BY_DIM[dim.key](listing);
+              // The score is additive (5.0 + per-dimension deltas), not a
+              // weighted average. When the value dimension has no market cohort
+              // it contributes a neutral delta — i.e. it did not move the score.
+              // Render it as excluded so the weight chip and a filled bar don't
+              // imply a contribution that never happened. A value comparison
+              // needs both a market cohort and a positive price.
+              const excluded =
+                dim.key === "value" &&
+                !(hasMarketData(listing) && listing.price > 0);
               return (
-                <div key={dim.key} className="space-y-1">
+                <div
+                  key={dim.key}
+                  className={cn("space-y-1", excluded && "opacity-60")}
+                >
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-1.5">
                       <span className="font-medium text-foreground">
                         {dim.label}
                       </span>
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                        {dim.weight}
-                      </span>
+                      {!excluded && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                          {dim.weight}
+                        </span>
+                      )}
                     </div>
-                    <span
-                      className="font-bold tabular-nums"
-                      style={{ color: barColor }}
-                    >
-                      {Math.round(value * 100)}%
-                    </span>
+                    {excluded ? (
+                      <span className="text-[10px] font-medium text-muted-foreground">
+                        לא נכלל בציון
+                      </span>
+                    ) : (
+                      <span
+                        className="font-bold tabular-nums"
+                        style={{ color: barColor }}
+                      >
+                        {Math.round(value * 100)}%
+                      </span>
+                    )}
                   </div>
-                  <div
-                    className="h-1.5 w-full overflow-hidden rounded-full"
-                    style={{ backgroundColor: barBg }}
-                  >
+                  {!excluded && (
                     <div
-                      className="h-full rounded-full transition-all duration-300"
-                      style={{
-                        width: `${Math.round(value * 100)}%`,
-                        backgroundColor: barColor,
-                      }}
-                    />
-                  </div>
+                      className="h-1.5 w-full overflow-hidden rounded-full"
+                      style={{ backgroundColor: barBg }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.round(value * 100)}%`,
+                          backgroundColor: barColor,
+                        }}
+                      />
+                    </div>
+                  )}
                   {/* Insights */}
                   {insights.length > 0 && (
                     <div className="space-y-0.5 pt-0.5">
