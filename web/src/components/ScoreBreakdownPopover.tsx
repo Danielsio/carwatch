@@ -109,23 +109,23 @@ function conditionInsights(listing: Listing): Insight[] {
   return insights;
 }
 
-// hasMarketData reports whether the value dimension had a real market cohort to
-// compare against. The backend only sets median_price once the cohort reaches
-// MinCohortSize; without it the value dimension contributes a neutral delta and
-// does not move the additive score, so the UI must not present it as a weighted
-// contributor (see the `excluded` handling below).
+// hasMarketData reports whether a market cohort exists to compare against. The
+// backend only sets median_price once the cohort reaches MinCohortSize. A real
+// value *comparison* additionally needs a positive listing price (the insight
+// divides against it), so callers pair this guard with `listing.price > 0`.
+// Without a comparison the value dimension contributes a neutral delta to the
+// additive score, so the UI must not present it as a weighted contributor (see
+// the `excluded` handling below).
 function hasMarketData(
   listing: Listing,
 ): listing is Listing & { median_price: number } {
-  return Boolean(
-    listing.median_price && listing.median_price > 0 && listing.price > 0,
-  );
+  return typeof listing.median_price === "number" && listing.median_price > 0;
 }
 
 function valueInsights(listing: Listing): Insight[] {
   const insights: Insight[] = [];
 
-  if (hasMarketData(listing)) {
+  if (hasMarketData(listing) && listing.price > 0) {
     const diffPct = Math.round(
       ((listing.median_price - listing.price) / listing.median_price) * 100,
     );
@@ -225,8 +225,11 @@ export function ScoreBreakdownPopover({
               // weighted average. When the value dimension has no market cohort
               // it contributes a neutral delta — i.e. it did not move the score.
               // Render it as excluded so the weight chip and a filled bar don't
-              // imply a contribution that never happened.
-              const excluded = dim.key === "value" && !hasMarketData(listing);
+              // imply a contribution that never happened. A value comparison
+              // needs both a market cohort and a positive price.
+              const excluded =
+                dim.key === "value" &&
+                !(hasMarketData(listing) && listing.price > 0);
               return (
                 <div
                   key={dim.key}

@@ -61,6 +61,21 @@ describe("ScoreBreakdownPopover", () => {
     expect(screen.getByText("60%")).toBeInTheDocument();
   });
 
+  it("excludes the value dimension when market data exists but price is missing", async () => {
+    // Edge case: a cohort median is known but the listing has no usable price
+    // (e.g. "contact for price"). The numeric comparison divides against price,
+    // so we must not render it — exclude the row instead of showing a bogus bar.
+    const listing: Listing = { ...baseListing(), price: 0, median_price: 100000 };
+    render(
+      <ScoreBreakdownPopover score={8.5} breakdown={breakdown} listing={listing} />,
+    );
+    await openPopover();
+
+    expect(await screen.findByText("לא נכלל בציון")).toBeInTheDocument();
+    expect(screen.queryByText("35%")).not.toBeInTheDocument();
+    expect(screen.queryByText(/מתחת לשוק/)).not.toBeInTheDocument();
+  });
+
   it("shows the value dimension as a weighted contributor when market data exists", async () => {
     const listing: Listing = { ...baseListing(), median_price: 100000 };
     render(
