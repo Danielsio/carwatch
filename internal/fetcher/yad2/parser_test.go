@@ -884,3 +884,70 @@ func TestParseNextData_BodyTypeFallsBackToHebrewText(t *testing.T) {
 		t.Errorf("BodyType = %q, want 'hatchback' (from Hebrew text fallback when english_text lacks body type)", listings[0].BodyType)
 	}
 }
+
+// TestParseNextData_BodyTypeYad2VocabularyOverSubModel covers the cases the old
+// keyword matcher missed: Yad2's official "פנאי-שטח" (crossover/SUV), "ג'יפ שטח
+// קשוח" and "ליפטבק" were absent from the keyword list, so they silently fell
+// back to guessing from the sub-model. The structured Yad2 field now wins.
+func TestParseNextData_BodyTypeYad2VocabularyOverSubModel(t *testing.T) {
+	tests := []struct {
+		name     string
+		bodyType string // raw JSON for the bodyType field
+		subModel string
+		want     string
+	}{
+		{
+			name:     "crossover leisure (id 7), sub-model has no body keyword",
+			bodyType: `{"id":7,"text":"פנאי-שטח"}`,
+			subModel: "Premium אוט׳ 2.0 (165 כ״ס)",
+			want:     "suv",
+		},
+		{
+			name:     "rugged jeep (id 6)",
+			bodyType: `{"id":6,"text":"ג'יפ שטח קשוח"}`,
+			subModel: "Limited 2.8 (204 כ״ס)",
+			want:     "suv",
+		},
+		{
+			name:     "liftback (id 14) classified, not left empty",
+			bodyType: `{"id":14,"text":"ליפטבק"}`,
+			subModel: "Sport אוט׳ 1.8",
+			want:     "hatchback",
+		},
+		{
+			name:     "Yad2 SUV wins over a sub-model that says האצ'בק",
+			bodyType: `{"id":7,"text":"פנאי-שטח"}`,
+			subModel: "Cross האצ'בק 1.5",
+			want:     "suv",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := []byte(`{
+				"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+					"data":{"feed":{"feed_items":[{
+						"token":"bt-vocab",
+						"manufacturer":{"id":27,"text":"מאזדה"},
+						"model":{"id":10332,"text":"3"},
+						"subModel":{"id":105280,"text":"` + tt.subModel + `"},
+						"bodyType":` + tt.bodyType + `,
+						"vehicleDates":{"yearOfProduction":2021},
+						"price":95000,
+						"hand":{"id":2},
+						"metaData":{"coverImage":"https://img.yad2.co.il/test.jpg"}
+					}]}}
+				}}}]}}}
+			}`)
+			listings, err := parseNextData(data, nil)
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			if len(listings) != 1 {
+				t.Fatalf("expected 1 listing, got %d", len(listings))
+			}
+			if listings[0].BodyType != tt.want {
+				t.Errorf("BodyType = %q, want %q", listings[0].BodyType, tt.want)
+			}
+		})
+	}
+}

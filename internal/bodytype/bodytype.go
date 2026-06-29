@@ -41,12 +41,17 @@ func word(w string) func(string) bool {
 var matchers = []matcher{
 	{Hatchback, substr("האצ'בק")},
 	{Hatchback, substr("האצ׳בק")},
+	{Hatchback, substr("ליפטבק")}, // Yad2 "ליפטבק" (liftback) — grouped with hatchback
 	{Hatchback, substr("hatchback")},
+	{Hatchback, substr("liftback")},
 	{Hatchback, word("HB")},
 
 	{Sedan, substr("סדאן")},
 	{Sedan, substr("sedan")},
 
+	{SUV, substr("פנאי-שטח")}, // Yad2 "פנאי-שטח" — the most common crossover/SUV category
+	{SUV, substr("פנאי שטח")}, // spacing variant
+	{SUV, substr("שטח קשוח")}, // Yad2 "ג'יפ שטח קשוח" (rugged off-roader)
 	{SUV, substr("קרוסאובר")},
 	{SUV, substr("crossover")},
 	{SUV, substr("ג'יפ")},
@@ -70,6 +75,7 @@ var matchers = []matcher{
 	{Convertible, substr("cabrio")},
 
 	{Minivan, substr("מיניוון")},
+	{Minivan, substr("מיניוואן")},
 	{Minivan, substr("minivan")},
 	{Minivan, word("MPV")},
 
@@ -77,16 +83,71 @@ var matchers = []matcher{
 	{Pickup, substr("pickup")},
 }
 
+// yad2IDToType maps Yad2's numeric bodyType ids (from the vehicle feed) to our
+// canonical body types. These ids were verified against live feed data and are
+// stable, so they back up text matching when Yad2 uses a term we don't yet
+// recognize. Ids 5 and 8–13 have not been observed; text matching covers them.
+// Implemented as a switch (not a package-level map) so the lookup is immutable.
+func yad2IDToType(id int) string {
+	switch id {
+	case 1:
+		return Sedan // סדאן
+	case 2:
+		return Hatchback // האצ'בק
+	case 3:
+		return Wagon // סטיישן / טורר
+	case 4:
+		return Coupe // קופה
+	case 6:
+		return SUV // ג'יפ שטח קשוח
+	case 7:
+		return SUV // פנאי-שטח
+	case 14:
+		return Hatchback // ליפטבק (liftback)
+	default:
+		return ""
+	}
+}
+
+// FromYad2 classifies a listing from Yad2's own bodyType field (id + texts).
+// Yad2 sets this attribute editorially, so it is far more reliable than guessing
+// from free-text sub-model names — prefer it.
+//
+// Pass every text variant Yad2 provides (e.g. english_text, textEng, Hebrew
+// text); they are matched in order. Text is tried before the numeric id because
+// the same words appear on both the search feed and the item page, whereas ids
+// are only verified for the feed. The id is a fallback for terms our vocabulary
+// doesn't recognize yet. Returns "" when nothing matches (caller should then
+// fall back to sub-model parsing).
+func FromYad2(id int, texts ...string) string {
+	for _, t := range texts {
+		if bt := matchText(t); bt != "" {
+			return bt
+		}
+	}
+	return yad2IDToType(id)
+}
+
+// Parse scans free-text strings (e.g. sub-model names) for body-type keywords,
+// returning the first match. Use this only as a fallback when Yad2's structured
+// bodyType field is unavailable; prefer FromYad2.
 func Parse(texts ...string) string {
 	for _, text := range texts {
-		if text == "" {
-			continue
+		if bt := matchText(text); bt != "" {
+			return bt
 		}
-		lower := strings.ToLower(text)
-		for _, m := range matchers {
-			if m.match(lower) {
-				return m.bodyType
-			}
+	}
+	return ""
+}
+
+func matchText(text string) string {
+	if text == "" {
+		return ""
+	}
+	lower := strings.ToLower(text)
+	for _, m := range matchers {
+		if m.match(lower) {
+			return m.bodyType
 		}
 	}
 	return ""

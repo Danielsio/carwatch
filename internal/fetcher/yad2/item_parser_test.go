@@ -259,6 +259,26 @@ func TestParseItemPage_BodyType(t *testing.T) {
 	}
 }
 
+func TestParseItemPage_BodyTypeYad2Vocabulary(t *testing.T) {
+	// "פנאי-שטח" is Yad2's most common SUV/crossover label; the old keyword
+	// matcher missed it, leaving body type empty on the enrichment path too.
+	html := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+  "km": 41000,
+  "bodyType": {"text": "פנאי-שטח", "id": 7}
+}}}]}}}}
+</script>
+</body></html>`
+	details, err := ParseItemPage(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if details.BodyType != "suv" {
+		t.Errorf("BodyType = %q, want suv (from Yad2 פנאי-שטח)", details.BodyType)
+	}
+}
+
 func TestParseItemPage_BodyTypeHebrewOnly(t *testing.T) {
 	html := `<html><body>
 <script id="__NEXT_DATA__" type="application/json">
