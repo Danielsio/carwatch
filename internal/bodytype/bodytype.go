@@ -87,29 +87,45 @@ var matchers = []matcher{
 // canonical body types. These ids were verified against live feed data and are
 // stable, so they back up text matching when Yad2 uses a term we don't yet
 // recognize. Ids 5 and 8–13 have not been observed; text matching covers them.
-var yad2IDToType = map[int]string{
-	1:  Sedan,     // סדאן
-	2:  Hatchback, // האצ'בק
-	3:  Wagon,     // סטיישן / טורר
-	4:  Coupe,     // קופה
-	6:  SUV,       // ג'יפ שטח קשוח
-	7:  SUV,       // פנאי-שטח
-	14: Hatchback, // ליפטבק (liftback)
+// Implemented as a switch (not a package-level map) so the lookup is immutable.
+func yad2IDToType(id int) string {
+	switch id {
+	case 1:
+		return Sedan // סדאן
+	case 2:
+		return Hatchback // האצ'בק
+	case 3:
+		return Wagon // סטיישן / טורר
+	case 4:
+		return Coupe // קופה
+	case 6:
+		return SUV // ג'יפ שטח קשוח
+	case 7:
+		return SUV // פנאי-שטח
+	case 14:
+		return Hatchback // ליפטבק (liftback)
+	default:
+		return ""
+	}
 }
 
-// FromYad2 classifies a listing from Yad2's own bodyType field (id + Hebrew
-// text). Yad2 sets this attribute editorially, so it is far more reliable than
-// guessing from free-text sub-model names — prefer it.
+// FromYad2 classifies a listing from Yad2's own bodyType field (id + texts).
+// Yad2 sets this attribute editorially, so it is far more reliable than guessing
+// from free-text sub-model names — prefer it.
 //
-// Text is matched first because the Hebrew text is identical across the search
-// feed and the item page, whereas numeric ids are only verified for the feed.
-// The id map is a fallback for terms our vocabulary doesn't recognize yet.
-// Returns "" when neither yields a match (caller should fall back to sub-model).
-func FromYad2(id int, text string) string {
-	if bt := matchText(text); bt != "" {
-		return bt
+// Pass every text variant Yad2 provides (e.g. english_text, textEng, Hebrew
+// text); they are matched in order. Text is tried before the numeric id because
+// the same words appear on both the search feed and the item page, whereas ids
+// are only verified for the feed. The id is a fallback for terms our vocabulary
+// doesn't recognize yet. Returns "" when nothing matches (caller should then
+// fall back to sub-model parsing).
+func FromYad2(id int, texts ...string) string {
+	for _, t := range texts {
+		if bt := matchText(t); bt != "" {
+			return bt
+		}
 	}
-	return yad2IDToType[id]
+	return yad2IDToType(id)
 }
 
 // Parse scans free-text strings (e.g. sub-model names) for body-type keywords,

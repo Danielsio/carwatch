@@ -256,7 +256,9 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 
 	// Prefer Yad2's structured bodyType field (authoritative); only guess from
 	// the free-text sub-model name when Yad2 gives us no usable classification.
-	listing.BodyType = bodytype.FromYad2(item.BodyType.ID, item.BodyType.Text)
+	// textFromField prefers the English variants, with the raw Hebrew text as a
+	// further fallback so we match whichever Yad2 populated.
+	listing.BodyType = bodytype.FromYad2(item.BodyType.ID, textFromField(item.BodyType), item.BodyType.Text)
 	if listing.BodyType == "" {
 		listing.BodyType = bodytype.Parse(subModelText, item.SubModel.Text)
 	}

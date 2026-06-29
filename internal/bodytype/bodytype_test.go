@@ -119,6 +119,21 @@ func TestFromYad2(t *testing.T) {
 	}
 }
 
+func TestFromYad2_MatchesAcrossTexts(t *testing.T) {
+	// English variant present, Hebrew empty — must still classify.
+	if got := FromYad2(0, "Sedan", ""); got != "sedan" {
+		t.Errorf(`FromYad2(0, "Sedan", "") = %q, want "sedan"`, got)
+	}
+	// First text unrecognized, later text matches.
+	if got := FromYad2(0, "weird-value", "פנאי-שטח"); got != "suv" {
+		t.Errorf(`FromYad2(0, "weird-value", "פנאי-שטח") = %q, want "suv"`, got)
+	}
+	// No text matches but a verified id does (defense-in-depth).
+	if got := FromYad2(7, "weird-value", ""); got != "suv" {
+		t.Errorf(`FromYad2(7, "weird-value", "") = %q, want "suv"`, got)
+	}
+}
+
 func TestParse_MultipleTexts(t *testing.T) {
 	tests := []struct {
 		name  string

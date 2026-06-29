@@ -129,8 +129,9 @@ func detailsFromPageData(d itemPageData) (ItemDetails, bool) {
 	}
 
 	if d.BodyType != nil {
-		// Yad2's structured bodyType is authoritative; classify directly from it.
-		details.BodyType = bodytype.FromYad2(d.BodyType.ID, firstNonEmpty(d.BodyType.Text, d.BodyType.TextEng))
+		// Yad2's structured bodyType is authoritative; classify directly from it,
+		// matching both the English and Hebrew text variants.
+		details.BodyType = bodytype.FromYad2(d.BodyType.ID, d.BodyType.TextEng, d.BodyType.Text)
 	}
 
 	// Extract original ownership: try OriginalOwnership, PreviousOwnership, Ownership.
