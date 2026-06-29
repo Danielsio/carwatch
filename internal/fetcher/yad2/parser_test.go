@@ -1,11 +1,14 @@
 package yad2
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dsionov/carwatch/internal/fetcher"
 )
@@ -197,6 +200,127 @@ func TestParseNextData_FeedWithNullItems(t *testing.T) {
 	}
 	if len(listings) != 0 {
 		t.Errorf("expected 0 listings, got %d", len(listings))
+	}
+}
+
+func TestParseFlexTime_Formats(t *testing.T) {
+	// want, when set, asserts the exact instant — guarding against a regression
+	// that parses a value in the wrong timezone (e.g. zone-less as UTC).
+	tests := []struct {
+		name string
+		in   string
+		zero bool
+		want time.Time
+	}{
+		{"zoneless seconds (current feed)", "2025-02-09T10:31:37", false, time.Date(2025, 2, 9, 10, 31, 37, 0, israelTZ)},
+		{"zoneless with millis", "2025-02-09T10:31:37.123", false, time.Date(2025, 2, 9, 10, 31, 37, 123_000_000, israelTZ)},
+		{"rfc3339 Z", "2025-02-09T10:31:37Z", false, time.Date(2025, 2, 9, 10, 31, 37, 0, time.UTC)},
+		{"rfc3339 offset", "2025-02-09T10:31:37+02:00", false, time.Date(2025, 2, 9, 8, 31, 37, 0, time.UTC)},
+		{"rfc3339 Z with millis", "2025-02-09T10:31:37.123Z", false, time.Date(2025, 2, 9, 10, 31, 37, 123_000_000, time.UTC)},
+		{"space separated", "2025-02-09 10:31:37", false, time.Date(2025, 2, 9, 10, 31, 37, 0, israelTZ)},
+		{"date only", "2025-02-09", false, time.Date(2025, 2, 9, 0, 0, 0, 0, israelTZ)},
+		{"surrounding whitespace", "  2025-02-09T10:31:37  ", false, time.Date(2025, 2, 9, 10, 31, 37, 0, israelTZ)},
+		{"empty", "", true, time.Time{}},
+		{"garbage", "not-a-date", true, time.Time{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseFlexTime(tt.in)
+			if got.IsZero() != tt.zero {
+				t.Fatalf("parseFlexTime(%q) zero=%v, want zero=%v", tt.in, got.IsZero(), tt.zero)
+			}
+			if !tt.want.IsZero() && !got.Equal(tt.want) {
+				t.Errorf("parseFlexTime(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestParseNextData_PostedAtUsesOriginalCreatedAt locks in the real Yad2 feed
+// semantics: dates.createdAt is the per-listing original publish date, while
+// dates.updatedAt / rebouncedAt are a single feed-wide "refreshed" timestamp.
+// posted_at (CreatedAt) must track createdAt so a re-bumped month-old listing
+// does not read as posted "today".
+func TestParseNextData_PostedAtUsesOriginalCreatedAt(t *testing.T) {
+	data := []byte(`{
+		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+			"private":[{
+				"token":"posted-at-1",
+				"manufacturer":{"text":"Honda"},
+				"model":{"text":"Civic"},
+				"price":89000,
+				"hand":2,
+				"dates":{
+					"createdAt":"2025-02-09T10:31:37",
+					"updatedAt":"2025-02-14T21:30:57",
+					"endsAt":"2025-03-26T00:00:00",
+					"rebouncedAt":"2025-02-14T23:30:57"
+				}
+			}]
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	l := listings[0]
+	if l.CreatedAt.IsZero() {
+		t.Fatal("CreatedAt should be set from dates.createdAt")
+	}
+	if want := parseFlexTime("2025-02-09T10:31:37"); !l.CreatedAt.Equal(want) {
+		t.Errorf("CreatedAt = %v, want original createdAt %v", l.CreatedAt, want)
+	}
+	if l.CreatedAt.Equal(parseFlexTime("2025-02-14T21:30:57")) ||
+		l.CreatedAt.Equal(parseFlexTime("2025-02-14T23:30:57")) {
+		t.Error("CreatedAt must not equal the feed-wide updatedAt/rebouncedAt bump stamp")
+	}
+	if l.UpdatedAt.IsZero() {
+		t.Error("UpdatedAt should be set from dates.updatedAt")
+	}
+}
+
+// TestParseNextData_UnparseableCreatedAtWarns covers the fallback path: an
+// unrecognized dates.createdAt must not drop the listing, must leave CreatedAt
+// unset (so the UI falls back to first-seen rather than a wrong date), and must
+// emit a warning so a future Yad2 format change is visible instead of silent.
+func TestParseNextData_UnparseableCreatedAtWarns(t *testing.T) {
+	data := []byte(`{
+		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+			"private":[{
+				"token":"bad-date-1",
+				"manufacturer":{"text":"Honda"},
+				"model":{"text":"Civic"},
+				"price":89000,
+				"hand":2,
+				"dates":{"createdAt":"29/05/2026"}
+			}]
+		}}}]}}}
+	}`)
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	listings, err := parseNextData(data, logger)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected listing to survive unparseable date, got %d listings", len(listings))
+	}
+	if !listings[0].CreatedAt.IsZero() {
+		t.Errorf("CreatedAt = %v, want zero for unparseable createdAt", listings[0].CreatedAt)
+	}
+
+	logged := buf.String()
+	if !strings.Contains(logged, "unparseable listing created-at") {
+		t.Errorf("expected warning about unparseable created-at, got logs: %q", logged)
+	}
+	if !strings.Contains(logged, "29/05/2026") {
+		t.Errorf("expected warning to include the raw value, got logs: %q", logged)
 	}
 }
 

@@ -259,6 +259,11 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 	listing.City = textFromField(item.Address.City)
 	listing.Area = textFromField(item.Address.Area)
 
+	// posted_at must be the listing's ORIGINAL publish date ("פורסם ב" on the
+	// item page). In the Yad2 feed that is dates.createdAt, which is unique per
+	// listing. Do NOT fall back to dates.updatedAt / rebouncedAt: those carry a
+	// single feed-wide "refreshed" timestamp (what drives the "חדש היום" badge),
+	// so using them would make every listing look like it was posted today.
 	createdAt := item.Dates.CreatedAt
 	if createdAt == "" {
 		createdAt = item.VehicleDates.CreatedAt
@@ -269,6 +274,13 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 	}
 	if createdAt != "" {
 		listing.CreatedAt = parseFlexTime(createdAt)
+		if listing.CreatedAt.IsZero() && logger != nil {
+			// A non-empty value we cannot parse means Yad2 changed its date
+			// format. Surface it loudly: silently dropping it makes posted_at
+			// NULL and the UI falls back to first-seen ("today").
+			logger.Warn("yad2: unparseable listing created-at; posted_at will be empty",
+				"token", item.Token, "raw_created_at", createdAt)
+		}
 	}
 	if updatedAt != "" {
 		listing.UpdatedAt = parseFlexTime(updatedAt)
@@ -322,13 +334,29 @@ var israelTZ = func() *time.Location {
 	return loc
 }()
 
+// parseFlexTime parses the timestamp formats Yad2 has been observed to emit.
+// Yad2's feed dates are zone-less local time (e.g. "2025-02-09T10:31:37"), but
+// it has historically drifted between "Z"/offset-suffixed and fractional-second
+// variants, so we accept all of them rather than silently dropping the date.
 func parseFlexTime(s string) time.Time {
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}
 	}
+	// Zone-bearing formats ("...Z" or "...+02:00"), with or without fractional
+	// seconds. RFC3339Nano covers the fractional case; RFC3339 the rest.
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t
+		}
+	}
+	// Zone-less formats — interpret as Israel local time, matching the feed.
 	for _, layout := range []string{
+		"2006-01-02T15:04:05.999999999",
 		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05.999999999",
 		"2006-01-02 15:04:05",
+		"2006-01-02",
 	} {
 		if t, err := time.ParseInLocation(layout, s, israelTZ); err == nil {
 			return t
