@@ -254,7 +254,12 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 		listing.GearBox = "אוטומט"
 	}
 
-	listing.BodyType = bodytype.Parse(textFromField(item.BodyType), item.BodyType.Text, subModelText, item.SubModel.Text)
+	// Prefer Yad2's structured bodyType field (authoritative); only guess from
+	// the free-text sub-model name when Yad2 gives us no usable classification.
+	listing.BodyType = bodytype.FromYad2(item.BodyType.ID, item.BodyType.Text)
+	if listing.BodyType == "" {
+		listing.BodyType = bodytype.Parse(subModelText, item.SubModel.Text)
+	}
 
 	listing.City = textFromField(item.Address.City)
 	listing.Area = textFromField(item.Address.Area)

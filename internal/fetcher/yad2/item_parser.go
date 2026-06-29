@@ -129,10 +129,8 @@ func detailsFromPageData(d itemPageData) (ItemDetails, bool) {
 	}
 
 	if d.BodyType != nil {
-		details.BodyType = bodytype.Parse(
-			firstNonEmpty(d.BodyType.TextEng, d.BodyType.Text),
-			d.BodyType.Text,
-		)
+		// Yad2's structured bodyType is authoritative; classify directly from it.
+		details.BodyType = bodytype.FromYad2(d.BodyType.ID, firstNonEmpty(d.BodyType.Text, d.BodyType.TextEng))
 	}
 
 	// Extract original ownership: try OriginalOwnership, PreviousOwnership, Ownership.
