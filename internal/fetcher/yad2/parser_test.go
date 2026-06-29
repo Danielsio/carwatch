@@ -200,6 +200,80 @@ func TestParseNextData_FeedWithNullItems(t *testing.T) {
 	}
 }
 
+func TestParseFlexTime_Formats(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		zero bool
+	}{
+		{"zoneless seconds (current feed)", "2025-02-09T10:31:37", false},
+		{"zoneless with millis", "2025-02-09T10:31:37.123", false},
+		{"rfc3339 Z", "2025-02-09T10:31:37Z", false},
+		{"rfc3339 offset", "2025-02-09T10:31:37+02:00", false},
+		{"rfc3339 Z with millis", "2025-02-09T10:31:37.123Z", false},
+		{"space separated", "2025-02-09 10:31:37", false},
+		{"date only", "2025-02-09", false},
+		{"surrounding whitespace", "  2025-02-09T10:31:37  ", false},
+		{"empty", "", true},
+		{"garbage", "not-a-date", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseFlexTime(tt.in)
+			if got.IsZero() != tt.zero {
+				t.Fatalf("parseFlexTime(%q) zero=%v, want zero=%v", tt.in, got.IsZero(), tt.zero)
+			}
+		})
+	}
+}
+
+// TestParseNextData_PostedAtUsesOriginalCreatedAt locks in the real Yad2 feed
+// semantics: dates.createdAt is the per-listing original publish date, while
+// dates.updatedAt / rebouncedAt are a single feed-wide "refreshed" timestamp.
+// posted_at (CreatedAt) must track createdAt so a re-bumped month-old listing
+// does not read as posted "today".
+func TestParseNextData_PostedAtUsesOriginalCreatedAt(t *testing.T) {
+	data := []byte(`{
+		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
+			"private":[{
+				"token":"posted-at-1",
+				"manufacturer":{"text":"Honda"},
+				"model":{"text":"Civic"},
+				"price":89000,
+				"hand":2,
+				"dates":{
+					"createdAt":"2025-02-09T10:31:37",
+					"updatedAt":"2025-02-14T21:30:57",
+					"endsAt":"2025-03-26T00:00:00",
+					"rebouncedAt":"2025-02-14T23:30:57"
+				}
+			}]
+		}}}]}}}
+	}`)
+
+	listings, err := parseNextData(data, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	l := listings[0]
+	if l.CreatedAt.IsZero() {
+		t.Fatal("CreatedAt should be set from dates.createdAt")
+	}
+	if want := parseFlexTime("2025-02-09T10:31:37"); !l.CreatedAt.Equal(want) {
+		t.Errorf("CreatedAt = %v, want original createdAt %v", l.CreatedAt, want)
+	}
+	if l.CreatedAt.Equal(parseFlexTime("2025-02-14T21:30:57")) ||
+		l.CreatedAt.Equal(parseFlexTime("2025-02-14T23:30:57")) {
+		t.Error("CreatedAt must not equal the feed-wide updatedAt/rebouncedAt bump stamp")
+	}
+	if l.UpdatedAt.IsZero() {
+		t.Error("UpdatedAt should be set from dates.updatedAt")
+	}
+}
+
 func TestParseHand(t *testing.T) {
 	tests := []struct {
 		name string
