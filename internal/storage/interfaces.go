@@ -210,8 +210,8 @@ type DBPoolStats struct {
 	WaitDuration       string `json:"wait_duration"`
 }
 
-// EnrichmentRecord holds km/city/image data previously learned for a listing token,
-// along with car-identifying fields for log context.
+// EnrichmentRecord holds km/city/image/body-type data previously learned for a
+// listing token, along with car-identifying fields for log context.
 type EnrichmentRecord struct {
 	Manufacturer string
 	Model        string
@@ -221,6 +221,7 @@ type EnrichmentRecord struct {
 	Km           int
 	City         string
 	ImageURL     string
+	BodyType     string
 }
 
 // ListingIdentity holds car-identifying fields for a listing token.

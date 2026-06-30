@@ -73,8 +73,13 @@ const upsertListingSQL = `
 		score_engine = COALESCE(EXCLUDED.score_engine, listing_history.score_engine),
 		original_ownership = COALESCE(EXCLUDED.original_ownership, listing_history.original_ownership)`
 
+// Note: body_type is intentionally in the backlog selection but NOT in
+// unenrichedMissingFieldsWhereSQL (which drives ResetUnenrichedAttempts). This
+// lets the enricher re-fetch listings missing only a body type, while the
+// 10-attempt cap still bounds listings whose item page never yields one
+// (otherwise the reset query would keep clearing their attempts → re-fetch loop).
 const unenrichedBacklogWhereSQL = `
-(km <= 0 OR COALESCE(city, '') = '' OR COALESCE(image_url, '') = '' OR COALESCE(original_ownership, '') = '')
+(km <= 0 OR COALESCE(city, '') = '' OR COALESCE(image_url, '') = '' OR COALESCE(original_ownership, '') = '' OR COALESCE(body_type, '') = '')
 AND enrich_attempts < 10
 AND (last_enrich_at IS NULL OR last_enrich_at < NOW() - INTERVAL '1 hour')
 AND first_seen_at > NOW() - INTERVAL '7 days'`
@@ -243,7 +248,7 @@ func (s *Store) LookupEnrichmentData(ctx context.Context, tokens []string) (map[
 			placeholders[i] = fmt.Sprintf("$%d", i+1)
 		}
 
-		q := `SELECT DISTINCT ON (token) token, manufacturer, model, year, price, search_name, km, city, image_url
+		q := `SELECT DISTINCT ON (token) token, manufacturer, model, year, price, search_name, km, city, image_url, COALESCE(body_type, '')
 			FROM listing_history
 			WHERE token IN (` + strings.Join(placeholders, ", ") + `) AND (km > 0 OR city != '' OR image_url != '')
 			ORDER BY token, first_seen_at DESC`
@@ -254,20 +259,18 @@ func (s *Store) LookupEnrichmentData(ctx context.Context, tokens []string) (map[
 		}
 
 		for rows.Next() {
-			var tok, manufacturer, model, searchName, city, img string
+			var tok, manufacturer, model, searchName, city, img, bodyType string
 			var year, price, km int
-			if err := rows.Scan(&tok, &manufacturer, &model, &year, &price, &searchName, &km, &city, &img); err != nil {
-				_ = rows.Close()
-				return nil, fmt.Errorf("scan enrichment data: %w", err)
+			if err := rows.Scan(&tok, &manufacturer, &model, &year, &price, &searchName, &km, &city, &img, &bodyType); err != nil {
+				return nil, errors.Join(fmt.Errorf("scan enrichment data: %w", err), rows.Close())
 			}
 			out[tok] = storage.EnrichmentRecord{
 				Manufacturer: manufacturer, Model: model, Year: year, Price: price, SearchName: searchName,
-				Km: km, City: city, ImageURL: img,
+				Km: km, City: city, ImageURL: img, BodyType: bodyType,
 			}
 		}
 		if err := rows.Err(); err != nil {
-			_ = rows.Close()
-			return nil, fmt.Errorf("enrichment rows: %w", err)
+			return nil, errors.Join(fmt.Errorf("enrichment rows: %w", err), rows.Close())
 		}
 		_ = rows.Close()
 	}

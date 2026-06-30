@@ -153,7 +153,7 @@ type discardWriter struct{}
 func (d *discardWriter) Write(p []byte) (int, error) { return len(p), nil }
 
 func TestWorker_EnrichesSuccessfully(t *testing.T) {
-	f := &mockItemFetcher{details: ItemDetails{Km: 50000, City: "Tel Aviv", ImageURL: "https://img.yad2.co.il/test.jpg"}}
+	f := &mockItemFetcher{details: ItemDetails{Km: 50000, City: "Tel Aviv", ImageURL: "https://img.yad2.co.il/test.jpg", BodyType: "sedan"}}
 	ls := newMockListingStore()
 	rl := NewAdaptiveRateLimiter(time.Millisecond, time.Second, time.Second)
 	w := NewWorker(f, ls, rl, testWorkerLogger())
@@ -183,7 +183,7 @@ func TestWorker_EnrichesSuccessfully(t *testing.T) {
 func TestWorker_SkipsAlreadyEnriched(t *testing.T) {
 	f := &mockItemFetcher{details: ItemDetails{Km: 99999}}
 	ls := newMockListingStore()
-	ls.enrichmentData["tok-1"] = storage.EnrichmentRecord{Km: 50000, City: "Tel Aviv", ImageURL: "https://img.example/1.jpg"}
+	ls.enrichmentData["tok-1"] = storage.EnrichmentRecord{Km: 50000, City: "Tel Aviv", ImageURL: "https://img.example/1.jpg", BodyType: "sedan"}
 	rl := NewAdaptiveRateLimiter(time.Millisecond, time.Second, time.Second)
 	w := NewWorker(f, ls, rl, testWorkerLogger())
 
@@ -207,31 +207,36 @@ func TestWorker_ContinuesWhenOnlyPartiallyEnriched(t *testing.T) {
 	}{
 		{
 			name:   "missing km",
-			record: storage.EnrichmentRecord{Km: 0, City: "Tel Aviv", ImageURL: "https://img.example/1.jpg"},
+			record: storage.EnrichmentRecord{Km: 0, City: "Tel Aviv", ImageURL: "https://img.example/1.jpg", BodyType: "sedan"},
 		},
 		{
 			name:   "missing city",
-			record: storage.EnrichmentRecord{Km: 50000, City: "", ImageURL: "https://img.example/1.jpg"},
+			record: storage.EnrichmentRecord{Km: 50000, City: "", ImageURL: "https://img.example/1.jpg", BodyType: "sedan"},
 		},
 		{
 			name:   "missing image",
-			record: storage.EnrichmentRecord{Km: 50000, City: "Tel Aviv", ImageURL: ""},
+			record: storage.EnrichmentRecord{Km: 50000, City: "Tel Aviv", ImageURL: "", BodyType: "sedan"},
+		},
+		{
+			// The case this PR fixes: core data present, only body type missing.
+			name:   "missing only body type",
+			record: storage.EnrichmentRecord{Km: 50000, City: "Tel Aviv", ImageURL: "https://img.example/1.jpg", BodyType: ""},
 		},
 		{
 			name:   "missing km and city",
-			record: storage.EnrichmentRecord{Km: 0, City: "", ImageURL: "https://img.example/1.jpg"},
+			record: storage.EnrichmentRecord{Km: 0, City: "", ImageURL: "https://img.example/1.jpg", BodyType: "sedan"},
 		},
 		{
 			name:   "missing km and image",
-			record: storage.EnrichmentRecord{Km: 0, City: "Tel Aviv", ImageURL: ""},
+			record: storage.EnrichmentRecord{Km: 0, City: "Tel Aviv", ImageURL: "", BodyType: "sedan"},
 		},
 		{
 			name:   "missing city and image",
-			record: storage.EnrichmentRecord{Km: 50000, City: "", ImageURL: ""},
+			record: storage.EnrichmentRecord{Km: 50000, City: "", ImageURL: "", BodyType: "sedan"},
 		},
 		{
 			name:   "all missing",
-			record: storage.EnrichmentRecord{Km: 0, City: "", ImageURL: ""},
+			record: storage.EnrichmentRecord{Km: 0, City: "", ImageURL: "", BodyType: ""},
 		},
 	}
 
@@ -409,6 +414,40 @@ func TestWorker_EnrichesBodyType(t *testing.T) {
 	}
 	if ls.backfilled[0].BodyType != "hatchback" {
 		t.Errorf("backfilled body_type = %q, want hatchback", ls.backfilled[0].BodyType)
+	}
+}
+
+// TestWorker_RefetchesWhenOnlyBodyTypeMissing verifies the listing is re-fetched
+// (not skipped) when only its body type is missing, and that a successful fetch
+// which still yields no body type stamps an enrich attempt — engaging the 1h
+// backlog throttle / 10-attempt cap so it isn't re-fetched every cycle.
+func TestWorker_RefetchesWhenOnlyBodyTypeMissing(t *testing.T) {
+	f := &mockItemFetcher{details: ItemDetails{
+		Km: 50000, City: "Tel Aviv", ImageURL: "https://img.yad2.co.il/x.jpg",
+		// item page yielded no body type
+	}}
+	ls := newMockListingStore()
+	ls.enrichmentData["tok-bt"] = storage.EnrichmentRecord{
+		Km: 50000, City: "Tel Aviv", ImageURL: "https://img.yad2.co.il/x.jpg", BodyType: "",
+	}
+	rl := NewAdaptiveRateLimiter(time.Millisecond, time.Second, time.Second)
+	w := NewWorker(f, ls, rl, testWorkerLogger())
+
+	if err := w.HandleRequest(context.Background(), broker.EnrichRequest{Token: "tok-bt", Source: "backfill"}); err != nil {
+		t.Fatalf("HandleRequest: %v", err)
+	}
+
+	f.mu.Lock()
+	calls := f.calls
+	f.mu.Unlock()
+	if calls != 1 {
+		t.Errorf("expected 1 fetch (body type missing), got %d", calls)
+	}
+
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	if ls.enrichAttempts["tok-bt"] != 1 {
+		t.Errorf("expected enrich attempt stamped to throttle re-fetch, got %d", ls.enrichAttempts["tok-bt"])
 	}
 }
 
