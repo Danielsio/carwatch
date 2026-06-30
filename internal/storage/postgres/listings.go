@@ -262,8 +262,7 @@ func (s *Store) LookupEnrichmentData(ctx context.Context, tokens []string) (map[
 			var tok, manufacturer, model, searchName, city, img, bodyType string
 			var year, price, km int
 			if err := rows.Scan(&tok, &manufacturer, &model, &year, &price, &searchName, &km, &city, &img, &bodyType); err != nil {
-				_ = rows.Close()
-				return nil, fmt.Errorf("scan enrichment data: %w", err)
+				return nil, errors.Join(fmt.Errorf("scan enrichment data: %w", err), rows.Close())
 			}
 			out[tok] = storage.EnrichmentRecord{
 				Manufacturer: manufacturer, Model: model, Year: year, Price: price, SearchName: searchName,
@@ -271,8 +270,7 @@ func (s *Store) LookupEnrichmentData(ctx context.Context, tokens []string) (map[
 			}
 		}
 		if err := rows.Err(); err != nil {
-			_ = rows.Close()
-			return nil, fmt.Errorf("enrichment rows: %w", err)
+			return nil, errors.Join(fmt.Errorf("enrichment rows: %w", err), rows.Close())
 		}
 		_ = rows.Close()
 	}

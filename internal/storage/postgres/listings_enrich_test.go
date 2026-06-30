@@ -76,13 +76,27 @@ func TestPostgres_LookupEnrichmentData(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// en-3 is enriched for km/city/image but predates body_type — a legacy row
+	// with a NULL body_type. It must still be returned, with BodyType == ""
+	// (exercising the COALESCE(body_type, '') in LookupEnrichmentData).
+	if err := store.SaveListing(ctx, storage.ListingRecord{
+		Token: "en-3", ChatID: 100, SearchName: "search-c",
+		Manufacturer: "Mazda", Model: "3", Year: 2021, Price: 90000,
+		Km: 60000, City: "Haifa", ImageURL: "https://img/en3", FirstSeenAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB().ExecContext(ctx,
+		`UPDATE listing_history SET body_type = NULL WHERE token = $1 AND chat_id = $2`, "en-3", int64(100)); err != nil {
+		t.Fatalf("null out body_type: %v", err)
+	}
 
-	m, err := store.LookupEnrichmentData(ctx, []string{"en-1", "en-2", "missing"})
+	m, err := store.LookupEnrichmentData(ctx, []string{"en-1", "en-2", "en-3", "missing"})
 	if err != nil {
 		t.Fatalf("LookupEnrichmentData: %v", err)
 	}
-	if len(m) != 1 {
-		t.Fatalf("expected 1 enriched token, got %d (%+v)", len(m), m)
+	if len(m) != 2 {
+		t.Fatalf("expected 2 enriched tokens, got %d (%+v)", len(m), m)
 	}
 	rec, ok := m["en-1"]
 	if !ok {
@@ -93,6 +107,17 @@ func TestPostgres_LookupEnrichmentData(t *testing.T) {
 	}
 	if rec.BodyType != "sedan" {
 		t.Errorf("enrichment record body_type = %q, want sedan", rec.BodyType)
+	}
+
+	legacy, ok := m["en-3"]
+	if !ok {
+		t.Fatal("en-3 (NULL body_type) missing from result")
+	}
+	if legacy.Km != 60000 || legacy.City != "Haifa" {
+		t.Errorf("legacy enrichment record = %+v", legacy)
+	}
+	if legacy.BodyType != "" {
+		t.Errorf("legacy body_type = %q, want \"\" (NULL coalesced)", legacy.BodyType)
 	}
 }
 
