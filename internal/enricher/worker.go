@@ -67,7 +67,7 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 
 	carAttrs := w.carAttrs(ctx, req, existing)
 
-	if rec, ok := existing[req.Token]; ok && rec.Km > 0 && rec.City != "" && rec.ImageURL != "" {
+	if rec, ok := existing[req.Token]; ok && rec.Km > 0 && rec.City != "" && rec.ImageURL != "" && rec.BodyType != "" {
 		w.logger.DebugContext(ctx, "listing already enriched, skipping", carAttrs...)
 		if telemetry.EnrichSkipped != nil {
 			telemetry.EnrichSkipped.Add(ctx, 1)
@@ -146,6 +146,15 @@ func (w *Worker) HandleRequest(ctx context.Context, req broker.EnrichRequest) er
 
 	if details.Km > 0 && details.City != "" && details.ImageURL != "" {
 		w.maybeResetUnenriched(ctx)
+		if details.BodyType == "" {
+			// Core fields are present but the item page yielded no body type.
+			// Stamp the attempt (last_enrich_at) so the 1h backlog throttle and
+			// the 10-attempt cap prevent re-fetching this listing every cycle.
+			if incErr := w.listings.IncrementEnrichAttempt(ctx, req.Token); incErr != nil {
+				w.logger.ErrorContext(ctx, "failed to increment enrich attempt for body-type-missing listing",
+					"token", req.Token, "error", incErr.Error())
+			}
+		}
 	} else if details.Km <= 0 {
 		if incErr := w.listings.IncrementEnrichAttempt(ctx, req.Token); incErr != nil {
 			w.logger.ErrorContext(ctx, "failed to increment enrich attempt for km-unavailable listing",

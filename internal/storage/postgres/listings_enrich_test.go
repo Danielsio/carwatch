@@ -65,7 +65,7 @@ func TestPostgres_LookupEnrichmentData(t *testing.T) {
 	if err := store.SaveListing(ctx, storage.ListingRecord{
 		Token: "en-1", ChatID: 100, SearchName: "search-a",
 		Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 80000,
-		Km: 50000, City: "Tel Aviv", ImageURL: "https://img/en1", FirstSeenAt: time.Now(),
+		Km: 50000, City: "Tel Aviv", ImageURL: "https://img/en1", BodyType: "sedan", FirstSeenAt: time.Now(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -90,6 +90,9 @@ func TestPostgres_LookupEnrichmentData(t *testing.T) {
 	}
 	if rec.Km != 50000 || rec.City != "Tel Aviv" || rec.ImageURL != "https://img/en1" || rec.SearchName != "search-a" {
 		t.Errorf("enrichment record = %+v", rec)
+	}
+	if rec.BodyType != "sedan" {
+		t.Errorf("enrichment record body_type = %q, want sedan", rec.BodyType)
 	}
 }
 
