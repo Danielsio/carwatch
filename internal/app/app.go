@@ -80,6 +80,7 @@ func BuildFetchers(cfg *config.Config, logger *slog.Logger) (*FetcherBundle, err
 	if err != nil {
 		return nil, fmt.Errorf("create fetcher: %w", err)
 	}
+	yad2Fetcher.SetUseGwFeed(cfg.HTTP.UseGwFeed)
 
 	paginatingFetcher := fetcher.NewPaginatingFetcher(yad2Fetcher, cfg.HTTP.MaxPages)
 	cachingFetcher := fetcher.NewCachingFetcher(paginatingFetcher, 5*time.Minute)

@@ -117,6 +117,11 @@ type HTTPConfig struct {
 	Proxy      string   `yaml:"proxy"`
 	Proxies    []string `yaml:"proxies"`
 	MaxPages   int      `yaml:"max_pages"`
+	// UseGwFeed switches the listing feed source from the HTML page
+	// (lean __NEXT_DATA__) to Yad2's gw JSON API, which returns rich
+	// per-listing data (km, city, bodyType) and lets us skip most
+	// per-item enrichment fetches.
+	UseGwFeed bool `yaml:"use_gw_feed"`
 }
 
 func Load(path string) (*Config, error) {

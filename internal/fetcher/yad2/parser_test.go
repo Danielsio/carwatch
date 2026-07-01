@@ -203,6 +203,88 @@ func TestParseNextData_FeedWithNullItems(t *testing.T) {
 	}
 }
 
+func TestParseGwFeed_RichFields(t *testing.T) {
+	// The gw feed carries the rich per-listing fields the HTML page dropped:
+	// km, city, bodyType, gearBox, dates.
+	body := `{
+		"data": {"feed": {"feed_items": [
+			{
+				"token": "gw-1",
+				"manufacturer": {"id": 53, "text": "טויוטה", "english_text": "Toyota"},
+				"model": {"id": 10399, "text": "קורולה", "english_text": "Corolla"},
+				"subModel": {"id": 117698, "text": "Sun היברידי אוט׳ 1.8 (98 כ״ס)"},
+				"vehicleDates": {"yearOfProduction": 2021},
+				"km": 66000,
+				"hand": {"id": 2, "text": "יד שנייה"},
+				"price": 89000,
+				"bodyType": {"id": 1, "text": "סדאן"},
+				"gearBox": {"id": 2, "text": "אוטומטית"},
+				"engineType": {"id": 1, "text": "היברידי בנזין"},
+				"address": {"city": {"id": 8600, "text": "אור יהודה"}, "area": {"id": 9, "text": "מרכז"}},
+				"dates": {"createdAt": "2025-02-09T10:31:37"},
+				"metaData": {"coverImage": "https://img.yad2.co.il/gw1.jpg"}
+			},
+			{"token": "", "price": 0}
+		]}}
+	}`
+
+	listings, err := ParseGwFeed(strings.NewReader(body), nil)
+	if err != nil {
+		t.Fatalf("ParseGwFeed: %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing (empty token skipped), got %d", len(listings))
+	}
+	l := listings[0]
+	if l.Token != "gw-1" {
+		t.Errorf("token = %q", l.Token)
+	}
+	if l.Km != 66000 {
+		t.Errorf("km = %d, want 66000 (from gw feed, no enrichment)", l.Km)
+	}
+	if l.BodyType != "sedan" {
+		t.Errorf("body_type = %q, want sedan (from bodyType id/סדאן)", l.BodyType)
+	}
+	if l.City != "אור יהודה" {
+		t.Errorf("city = %q, want אור יהודה", l.City)
+	}
+	if l.GearBox != "אוטומטית" {
+		t.Errorf("gear_box = %q, want אוטומטית", l.GearBox)
+	}
+	if l.Manufacturer != "Toyota" {
+		t.Errorf("manufacturer = %q, want Toyota", l.Manufacturer)
+	}
+	if l.Year != 2021 {
+		t.Errorf("year = %d, want 2021", l.Year)
+	}
+	if l.CreatedAt.IsZero() {
+		t.Error("CreatedAt should be parsed from dates.createdAt")
+	}
+}
+
+func TestParseGwFeed_Challenge(t *testing.T) {
+	_, err := ParseGwFeed(strings.NewReader(`<html>are you for real</html>`), nil)
+	if !errors.Is(err, fetcher.ErrChallenge) {
+		t.Errorf("expected ErrChallenge, got %v", err)
+	}
+}
+
+func TestParseGwFeed_InvalidJSON(t *testing.T) {
+	if _, err := ParseGwFeed(strings.NewReader(`{not json`), nil); err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestParseGwFeed_EmptyFeed(t *testing.T) {
+	listings, err := ParseGwFeed(strings.NewReader(`{"data":{"feed":{"feed_items":[]}}}`), nil)
+	if err != nil {
+		t.Fatalf("ParseGwFeed: %v", err)
+	}
+	if len(listings) != 0 {
+		t.Errorf("expected 0 listings, got %d", len(listings))
+	}
+}
+
 func TestParseFlexTime_Formats(t *testing.T) {
 	// want, when set, asserts the exact instant — guarding against a regression
 	// that parses a value in the wrong timezone (e.g. zone-less as UTC).

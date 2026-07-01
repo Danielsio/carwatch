@@ -99,6 +99,69 @@ func TestYad2Fetcher_Fetch(t *testing.T) {
 	}
 }
 
+func TestYad2Fetcher_Fetch_GwFeed(t *testing.T) {
+	const gwJSON = `{"data":{"feed":{"feed_items":[
+		{"token":"gw-x","manufacturer":{"text":"Toyota"},"model":{"text":"Corolla"},
+		 "km":66000,"price":89000,"hand":{"id":2},"bodyType":{"id":1,"text":"סדאן"},
+		 "address":{"city":{"text":"אור יהודה"}},"vehicleDates":{"yearOfProduction":2021},
+		 "metaData":{"coverImage":"https://img/x.jpg"}}
+	]}}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, gwJSON)
+	}))
+	defer server.Close()
+
+	// baseURL points nowhere usable; with useGwFeed the gw path must serve the
+	// request from the rich JSON — including km + bodyType (no enrichment).
+	f := newTestFetcher(t, "http://unused.invalid/vehicles/cars")
+	f.gwBaseURL = server.URL
+	f.useGwFeed = true
+
+	listings, err := f.Fetch(context.Background(), defaultParams())
+	if err != nil {
+		t.Fatalf("Fetch (gw): %v", err)
+	}
+	if len(listings) != 1 {
+		t.Fatalf("expected 1 listing, got %d", len(listings))
+	}
+	if listings[0].Km != 66000 {
+		t.Errorf("km = %d, want 66000 (from gw feed)", listings[0].Km)
+	}
+	if listings[0].BodyType != "sedan" {
+		t.Errorf("body_type = %q, want sedan (from gw feed)", listings[0].BodyType)
+	}
+	if listings[0].City != "אור יהודה" {
+		t.Errorf("city = %q, want אור יהודה", listings[0].City)
+	}
+}
+
+func TestYad2Fetcher_Fetch_GwFeedFallsBackToHTML(t *testing.T) {
+	// gw returns malformed JSON (a non-challenge failure) → Fetch must fall back
+	// to the HTML page and still return listings.
+	gwSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{ broken json`)
+	}))
+	defer gwSrv.Close()
+	htmlSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(validPageHTML()))
+	}))
+	defer htmlSrv.Close()
+
+	f := newTestFetcher(t, htmlSrv.URL) // HTML fallback target
+	f.gwBaseURL = gwSrv.URL
+	f.useGwFeed = true
+
+	listings, err := f.Fetch(context.Background(), defaultParams())
+	if err != nil {
+		t.Fatalf("Fetch (gw fallback): %v", err)
+	}
+	if len(listings) != 1 || listings[0].Token != "tok-1" {
+		t.Fatalf("expected HTML fallback listing tok-1, got %+v", listings)
+	}
+}
+
 func TestYad2Fetcher_Fetch_GzipResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
