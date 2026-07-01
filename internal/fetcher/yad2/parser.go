@@ -84,6 +84,12 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 		logger.Debug("raw feed item sample", "json", string(items[0].raw))
 	}
 
+	return buildListings(items, logger), nil
+}
+
+// buildListings converts tagged feed items into de-duplicated RawListings via
+// itemToListing. Shared by the HTML (__NEXT_DATA__) and gw JSON feed parsers.
+func buildListings(items []feedTaggedItem, logger *slog.Logger) []model.RawListing {
 	listings := make([]model.RawListing, 0, len(items))
 	seen := make(map[string]struct{}, len(items))
 	skipped := 0
@@ -111,6 +117,64 @@ func parseNextData(data []byte, logger *slog.Logger) ([]model.RawListing, error)
 		)
 	}
 
+	return listings
+}
+
+// gwFeedResponse is the shape of Yad2's gw JSON feed API response. FeedItems is
+// a pointer so we can distinguish an empty feed ([] — a valid "no results")
+// from a missing/changed shape (nil — treat as an error so Fetch falls back).
+type gwFeedResponse struct {
+	Data struct {
+		Feed struct {
+			FeedItems *[]json.RawMessage `json:"feed_items"`
+		} `json:"feed"`
+	} `json:"data"`
+}
+
+// ParseGwFeed parses Yad2's gw feed API response (data.feed.feed_items). Those
+// items carry the rich fields (km, city, bodyType, gearBox) that the HTML
+// page's __NEXT_DATA__ no longer includes, so this lets us skip most per-item
+// enrichment. Field mapping is shared with the HTML feed via itemToListing.
+func ParseGwFeed(body io.Reader, logger *slog.Logger) ([]model.RawListing, error) {
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		return nil, fmt.Errorf("read gw feed body: %w", err)
+	}
+	if looksLikeBotProtection(raw) {
+		return nil, fmt.Errorf("yad2 gw feed: %w", fetcher.ErrChallenge)
+	}
+
+	var resp gwFeedResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal gw feed: %w", err)
+	}
+	if resp.Data.Feed.FeedItems == nil {
+		return nil, fmt.Errorf("gw feed missing data.feed.feed_items")
+	}
+	feedItems := *resp.Data.Feed.FeedItems
+
+	items := make([]feedTaggedItem, 0, len(feedItems))
+	for _, it := range feedItems {
+		items = append(items, feedTaggedItem{raw: it, commercial: nil})
+	}
+	listings := buildListings(items, logger)
+
+	if logger != nil {
+		withKm, withBody := 0, 0
+		for i := range listings {
+			if listings[i].Km > 0 {
+				withKm++
+			}
+			if listings[i].BodyType != "" {
+				withBody++
+			}
+		}
+		// Confirms the gw feed's richness in prod: with_km/with_body_type ≈
+		// listings means per-item enrichment is largely unnecessary.
+		logger.Debug("parsed gw feed",
+			"items", len(feedItems), "listings", len(listings),
+			"with_km", withKm, "with_body_type", withBody)
+	}
 	return listings, nil
 }
 

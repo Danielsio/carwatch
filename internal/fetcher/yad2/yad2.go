@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -20,6 +21,12 @@ import (
 const (
 	defaultBaseURL  = "https://www.yad2.co.il/vehicles/cars"
 	maxResponseSize = 10 * 1024 * 1024 // 10 MB
+
+	// gwFeedURL is Yad2's JSON feed API. Unlike the HTML page's __NEXT_DATA__
+	// (which Yad2 stripped down to identity/price/image), it returns the rich
+	// per-listing fields — km, city, bodyType, gearBox — so we can skip most
+	// per-item enrichment fetches.
+	gwFeedURL = "https://gw.yad2.co.il/feed-search-legacy/vehicles/cars"
 )
 
 type Yad2Fetcher struct {
@@ -30,7 +37,12 @@ type Yad2Fetcher struct {
 	userAgents []string
 	proxyPool  *fetcher.ProxyPool
 	clientPool *ClientPool
+	useGwFeed  bool   // fetch the rich gw JSON feed instead of the HTML page
+	gwBaseURL  string // gw JSON feed endpoint (overridable in tests)
 }
+
+// SetUseGwFeed toggles fetching the rich gw JSON feed (with HTML-page fallback).
+func (f *Yad2Fetcher) SetUseGwFeed(v bool) { f.useGwFeed = v }
 
 func NewFetcher(userAgents []string, proxy string, logger *slog.Logger) (*Yad2Fetcher, error) {
 	client, err := NewClient(userAgents, proxy)
@@ -42,7 +54,7 @@ func NewFetcher(userAgents []string, proxy string, logger *slog.Logger) (*Yad2Fe
 		client.Close()
 		return nil, err
 	}
-	return &Yad2Fetcher{client: client, itemClient: ic, baseURL: defaultBaseURL, logger: logger, userAgents: userAgents}, nil
+	return &Yad2Fetcher{client: client, itemClient: ic, baseURL: defaultBaseURL, gwBaseURL: gwFeedURL, logger: logger, userAgents: userAgents}, nil
 }
 
 func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logger *slog.Logger) (*Yad2Fetcher, error) {
@@ -67,6 +79,7 @@ func NewFetcherWithProxyPool(userAgents []string, pool *fetcher.ProxyPool, logge
 		client:     client,
 		itemClient: ic,
 		baseURL:    defaultBaseURL,
+		gwBaseURL:  gwFeedURL,
 		logger:     logger,
 		userAgents: userAgents,
 		proxyPool:  pool,
@@ -201,6 +214,28 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 		}
 	}
 
+	// Prefer the rich gw JSON feed when enabled. On a bot challenge / rate
+	// limit we do NOT fall back to the HTML page in the same call (it is behind
+	// the same anti-bot and would just double the load); only a non-block
+	// failure (e.g. an unexpected JSON shape) falls through to the HTML feed.
+	if f.useGwFeed {
+		listings, gwErr := f.fetchGwFeed(ctx, client, params)
+		if gwErr == nil {
+			return listings, nil
+		}
+		if errors.Is(gwErr, fetcher.ErrChallenge) {
+			if f.proxyPool != nil && usedProxy != "" {
+				f.proxyPool.MarkUnhealthy(usedProxy)
+			}
+			return nil, gwErr
+		}
+		if errors.Is(gwErr, fetcher.ErrRateLimited) {
+			return nil, gwErr
+		}
+		f.logger.Warn("gw feed fetch failed, falling back to HTML page",
+			"manufacturer", params.Manufacturer, "model", params.Model, "error", gwErr)
+	}
+
 	reqURL := buildURL(f.baseURL, params)
 	fetchStart := time.Now()
 	f.logger.Debug("fetching listings",
@@ -252,6 +287,43 @@ func (f *Yad2Fetcher) Fetch(ctx context.Context, params model.SourceParams) ([]m
 		"status", result.StatusCode,
 		"duration_ms", time.Since(fetchStart).Milliseconds(),
 	)
+	return listings, nil
+}
+
+// fetchGwFeed fetches and parses the rich gw JSON feed for the given params.
+func (f *Yad2Fetcher) fetchGwFeed(ctx context.Context, client HTTPDoer, params model.SourceParams) ([]model.RawListing, error) {
+	gwBase := f.gwBaseURL
+	if gwBase == "" {
+		gwBase = gwFeedURL
+	}
+	reqURL := buildURL(gwBase, params)
+	start := time.Now()
+	f.logger.Debug("fetching gw feed",
+		"url", reqURL, "manufacturer", params.Manufacturer, "model", params.Model, "page", params.Page)
+
+	result, err := client.Get(ctx, reqURL)
+	if err != nil {
+		return nil, fmt.Errorf("gw feed request: %w", err)
+	}
+	// A challenge can arrive either as a non-200 or as a 200 serving the
+	// anti-bot HTML page in place of JSON.
+	if looksLikeBotProtection(result.Body) {
+		return nil, fmt.Errorf("gw feed: %w", fetcher.ErrChallenge)
+	}
+	if result.StatusCode != http.StatusOK {
+		if result.StatusCode == http.StatusBadRequest || result.StatusCode == http.StatusTooManyRequests {
+			return nil, fmt.Errorf("gw feed status %d: %w", result.StatusCode, fetcher.ErrRateLimited)
+		}
+		return nil, fmt.Errorf("gw feed unexpected status %d", result.StatusCode)
+	}
+
+	listings, err := ParseGwFeed(bytes.NewReader(result.Body), f.logger)
+	if err != nil {
+		return nil, err
+	}
+	f.logger.Debug("fetched gw feed",
+		"count", len(listings), "manufacturer", params.Manufacturer, "model", params.Model,
+		"page", params.Page, "duration_ms", time.Since(start).Milliseconds())
 	return listings, nil
 }
 
