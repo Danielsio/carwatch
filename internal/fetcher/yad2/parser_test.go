@@ -285,6 +285,17 @@ func TestParseGwFeed_EmptyFeed(t *testing.T) {
 	}
 }
 
+func TestParseGwFeed_MissingFeedItems(t *testing.T) {
+	// Missing feed_items (vs an empty array) signals an unexpected/changed shape;
+	// it must error so Fetch falls back to the HTML page instead of returning
+	// empty results.
+	for _, body := range []string{`{}`, `{"data":{"feed":{}}}`, `{"data":{}}`} {
+		if _, err := ParseGwFeed(strings.NewReader(body), nil); err == nil {
+			t.Errorf("expected error for missing feed_items in %q", body)
+		}
+	}
+}
+
 func TestParseFlexTime_Formats(t *testing.T) {
 	// want, when set, asserts the exact instant — guarding against a regression
 	// that parses a value in the wrong timezone (e.g. zone-less as UTC).

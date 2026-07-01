@@ -120,11 +120,13 @@ func buildListings(items []feedTaggedItem, logger *slog.Logger) []model.RawListi
 	return listings
 }
 
-// gwFeedResponse is the shape of Yad2's gw JSON feed API response.
+// gwFeedResponse is the shape of Yad2's gw JSON feed API response. FeedItems is
+// a pointer so we can distinguish an empty feed ([] — a valid "no results")
+// from a missing/changed shape (nil — treat as an error so Fetch falls back).
 type gwFeedResponse struct {
 	Data struct {
 		Feed struct {
-			FeedItems []json.RawMessage `json:"feed_items"`
+			FeedItems *[]json.RawMessage `json:"feed_items"`
 		} `json:"feed"`
 	} `json:"data"`
 }
@@ -146,9 +148,13 @@ func ParseGwFeed(body io.Reader, logger *slog.Logger) ([]model.RawListing, error
 	if err := json.Unmarshal(raw, &resp); err != nil {
 		return nil, fmt.Errorf("unmarshal gw feed: %w", err)
 	}
+	if resp.Data.Feed.FeedItems == nil {
+		return nil, fmt.Errorf("gw feed missing data.feed.feed_items")
+	}
+	feedItems := *resp.Data.Feed.FeedItems
 
-	items := make([]feedTaggedItem, 0, len(resp.Data.Feed.FeedItems))
-	for _, it := range resp.Data.Feed.FeedItems {
+	items := make([]feedTaggedItem, 0, len(feedItems))
+	for _, it := range feedItems {
 		items = append(items, feedTaggedItem{raw: it, commercial: nil})
 	}
 	listings := buildListings(items, logger)
@@ -166,7 +172,7 @@ func ParseGwFeed(body io.Reader, logger *slog.Logger) ([]model.RawListing, error
 		// Confirms the gw feed's richness in prod: with_km/with_body_type ≈
 		// listings means per-item enrichment is largely unnecessary.
 		logger.Debug("parsed gw feed",
-			"items", len(resp.Data.Feed.FeedItems), "listings", len(listings),
+			"items", len(feedItems), "listings", len(listings),
 			"with_km", withKm, "with_body_type", withBody)
 	}
 	return listings, nil

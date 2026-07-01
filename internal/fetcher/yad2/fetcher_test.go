@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/dsionov/carwatch/internal/fetcher"
@@ -116,7 +117,7 @@ func TestYad2Fetcher_Fetch_GwFeed(t *testing.T) {
 	// request from the rich JSON — including km + bodyType (no enrichment).
 	f := newTestFetcher(t, "http://unused.invalid/vehicles/cars")
 	f.gwBaseURL = server.URL
-	f.useGwFeed = true
+	f.SetUseGwFeed(true)
 
 	listings, err := f.Fetch(context.Background(), defaultParams())
 	if err != nil {
@@ -151,7 +152,7 @@ func TestYad2Fetcher_Fetch_GwFeedFallsBackToHTML(t *testing.T) {
 
 	f := newTestFetcher(t, htmlSrv.URL) // HTML fallback target
 	f.gwBaseURL = gwSrv.URL
-	f.useGwFeed = true
+	f.SetUseGwFeed(true)
 
 	listings, err := f.Fetch(context.Background(), defaultParams())
 	if err != nil {
@@ -159,6 +160,58 @@ func TestYad2Fetcher_Fetch_GwFeedFallsBackToHTML(t *testing.T) {
 	}
 	if len(listings) != 1 || listings[0].Token != "tok-1" {
 		t.Fatalf("expected HTML fallback listing tok-1, got %+v", listings)
+	}
+}
+
+func TestYad2Fetcher_Fetch_GwBlockDoesNotFallBack(t *testing.T) {
+	// A bot challenge / rate limit on the gw feed must surface directly — the
+	// HTML page is behind the same wall, so falling back would just double the
+	// load. Assert the sentinel error and that the HTML server is never hit.
+	cases := []struct {
+		name    string
+		handler http.HandlerFunc
+		wantErr error
+	}{
+		{
+			name: "challenge",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.WriteString(w, `<html>Are you for real</html>`)
+			},
+			wantErr: fetcher.ErrChallenge,
+		},
+		{
+			name:    "rate_limited",
+			handler: func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusTooManyRequests) },
+			wantErr: fetcher.ErrRateLimited,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gwSrv := httptest.NewServer(tc.handler)
+			defer gwSrv.Close()
+			var htmlHit atomic.Bool
+			htmlSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				htmlHit.Store(true)
+				w.Header().Set("Content-Type", "text/html")
+				_, _ = w.Write([]byte(validPageHTML()))
+			}))
+			defer htmlSrv.Close()
+
+			f := newTestFetcher(t, htmlSrv.URL)
+			f.gwBaseURL = gwSrv.URL
+			f.SetUseGwFeed(true)
+
+			listings, err := f.Fetch(context.Background(), defaultParams())
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if listings != nil {
+				t.Errorf("expected nil listings on gw block, got %+v", listings)
+			}
+			if htmlHit.Load() {
+				t.Error("HTML fallback must NOT be hit when gw is blocked")
+			}
+		})
 	}
 }
 
