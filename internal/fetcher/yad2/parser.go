@@ -318,14 +318,11 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 		listing.GearBox = "אוטומט"
 	}
 
-	// Prefer Yad2's structured bodyType field (authoritative); only guess from
-	// the free-text sub-model name when Yad2 gives us no usable classification.
-	// textFromField prefers the English variants, with the raw Hebrew text as a
-	// further fallback so we match whichever Yad2 populated.
+	// Body type comes ONLY from Yad2's structured bodyType field (id + label).
+	// We deliberately do not guess from the free-text sub-model name — that gave
+	// wrong/partial results (it only classified trims that happened to contain a
+	// body keyword). When Yad2 provides no bodyType, body_type stays empty.
 	listing.BodyType = bodytype.FromYad2(item.BodyType.ID, textFromField(item.BodyType), item.BodyType.Text)
-	if listing.BodyType == "" {
-		listing.BodyType = bodytype.Parse(subModelText, item.SubModel.Text)
-	}
 
 	listing.City = textFromField(item.Address.City)
 	listing.Area = textFromField(item.Address.Area)
