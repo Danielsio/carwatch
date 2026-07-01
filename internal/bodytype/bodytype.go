@@ -117,8 +117,8 @@ func yad2IDToType(id int) string {
 // text); they are matched in order. Text is tried before the numeric id because
 // the same words appear on both the search feed and the item page, whereas ids
 // are only verified for the feed. The id is a fallback for terms our vocabulary
-// doesn't recognize yet. Returns "" when nothing matches (caller should then
-// fall back to sub-model parsing).
+// doesn't recognize yet. Returns "" when Yad2 provides no recognizable body
+// type — the caller must leave body_type empty rather than guess from free text.
 func FromYad2(id int, texts ...string) string {
 	for _, t := range texts {
 		if bt := matchText(t); bt != "" {
@@ -126,18 +126,6 @@ func FromYad2(id int, texts ...string) string {
 		}
 	}
 	return yad2IDToType(id)
-}
-
-// Parse scans free-text strings (e.g. sub-model names) for body-type keywords,
-// returning the first match. Use this only as a fallback when Yad2's structured
-// bodyType field is unavailable; prefer FromYad2.
-func Parse(texts ...string) string {
-	for _, text := range texts {
-		if bt := matchText(text); bt != "" {
-			return bt
-		}
-	}
-	return ""
 }
 
 func matchText(text string) string {
