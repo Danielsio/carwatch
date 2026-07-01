@@ -72,7 +72,12 @@ func BuildFetchers(cfg *config.Config, logger *slog.Logger) (*FetcherBundle, err
 	yad2Logger := logger.With("component", "yad2")
 	var yad2Fetcher *yad2.Yad2Fetcher
 	var err error
-	if proxyPool != nil {
+	if cfg.HTTP.RelayURL != "" {
+		feedClient := yad2.NewRelayClient(cfg.HTTP.RelayURL, cfg.HTTP.RelaySecret, cfg.HTTP.UserAgents)
+		itemClient := yad2.NewRelayClient(cfg.HTTP.RelayURL, cfg.HTTP.RelaySecret, cfg.HTTP.UserAgents)
+		yad2Fetcher = yad2.NewFetcherWithClients(feedClient, itemClient, cfg.HTTP.UserAgents, yad2Logger)
+		logger.Info("using cloudflare relay", "relay_url", cfg.HTTP.RelayURL)
+	} else if proxyPool != nil {
 		yad2Fetcher, err = yad2.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, yad2Logger)
 	} else {
 		yad2Fetcher, err = yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, yad2Logger)
@@ -256,9 +261,15 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 
 // BuildPriceListService creates the pricelist HTTP client and service.
 func BuildPriceListService(cfg *config.Config, store *postgres.Store, logger *slog.Logger) (*pricelist.Service, func(), error) {
-	plClient, err := yad2.NewClient(cfg.HTTP.UserAgents, cfg.HTTP.Proxy)
-	if err != nil {
-		return nil, nil, fmt.Errorf("create pricelist client: %w", err)
+	var plClient yad2.HTTPDoer
+	if cfg.HTTP.RelayURL != "" {
+		plClient = yad2.NewRelayClient(cfg.HTTP.RelayURL, cfg.HTTP.RelaySecret, cfg.HTTP.UserAgents)
+	} else {
+		c, err := yad2.NewClient(cfg.HTTP.UserAgents, cfg.HTTP.Proxy)
+		if err != nil {
+			return nil, nil, fmt.Errorf("create pricelist client: %w", err)
+		}
+		plClient = c
 	}
 	plHTTP := pricelist.NewYad2Client(plClient)
 	svc := pricelist.NewService(store, plHTTP, logger.With("component", "api-pricelist"))
