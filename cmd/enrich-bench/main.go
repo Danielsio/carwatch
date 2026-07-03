@@ -28,7 +28,6 @@ import (
 
 	"github.com/dsionov/carwatch/internal/app"
 	"github.com/dsionov/carwatch/internal/fetcher"
-	"github.com/dsionov/carwatch/internal/fetcher/yad2"
 	"github.com/dsionov/carwatch/internal/model"
 )
 
@@ -117,7 +116,7 @@ func jitteredDelay(base time.Duration) time.Duration {
 	return base + jitter
 }
 
-func collectTokens(ctx context.Context, f *yad2.Yad2Fetcher, target int) []string {
+func collectTokens(ctx context.Context, f app.Yad2Source, target int) []string {
 	seen := make(map[string]bool)
 	var tokens []string
 
@@ -170,7 +169,7 @@ type fetchResult struct {
 	wallTime  time.Time
 }
 
-func runSustained(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, delay time.Duration) []fetchResult {
+func runSustained(ctx context.Context, f app.Yad2Source, tokens []string, delay time.Duration) []fetchResult {
 	fmt.Printf("=== Sustained Benchmark ===\n")
 	fmt.Printf("Delay: %v (with jitter)  Count: %d\n\n", delay, len(tokens))
 
@@ -250,7 +249,7 @@ func runSustained(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, del
 	return results
 }
 
-func runSustainedConcurrent(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, delay time.Duration, workers int) []fetchResult {
+func runSustainedConcurrent(ctx context.Context, f app.Yad2Source, tokens []string, delay time.Duration, workers int) []fetchResult {
 	fmt.Printf("=== Sustained Concurrent Benchmark ===\n")
 	fmt.Printf("Delay: %v (with jitter)  Count: %d  Workers: %d\n\n", delay, len(tokens), workers)
 
@@ -395,7 +394,7 @@ func runSustainedConcurrent(ctx context.Context, f *yad2.Yad2Fetcher, tokens []s
 	return allResults
 }
 
-func runRamp(ctx context.Context, f *yad2.Yad2Fetcher, allTokens []string, workers int) {
+func runRamp(ctx context.Context, f app.Yad2Source, allTokens []string, workers int) {
 	delays := []time.Duration{
 		1000 * time.Millisecond,
 		500 * time.Millisecond,
@@ -481,7 +480,7 @@ func runRamp(ctx context.Context, f *yad2.Yad2Fetcher, allTokens []string, worke
 	}
 }
 
-func fetchBatch(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, delay time.Duration) []fetchResult {
+func fetchBatch(ctx context.Context, f app.Yad2Source, tokens []string, delay time.Duration) []fetchResult {
 	results := make([]fetchResult, 0, len(tokens))
 
 	for i, token := range tokens {
@@ -525,7 +524,7 @@ func fetchBatch(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, delay
 	return results
 }
 
-func fetchBatchConcurrent(ctx context.Context, f *yad2.Yad2Fetcher, tokens []string, delay time.Duration, workers int) []fetchResult {
+func fetchBatchConcurrent(ctx context.Context, f app.Yad2Source, tokens []string, delay time.Duration, workers int) []fetchResult {
 	// Split tokens across workers.
 	tokensPerWorker := len(tokens) / workers
 	remainder := len(tokens) % workers

@@ -214,9 +214,9 @@ func consumerLoop(ctx context.Context, cons runner, logger *slog.Logger) {
 	}
 }
 
-// yad2ItemFetcherAdapter adapts yad2.Yad2Fetcher to the enricher.ItemFetcher interface.
+// yad2ItemFetcherAdapter adapts yad2.ItemFetcher to the enricher.ItemFetcher interface.
 type yad2ItemFetcherAdapter struct {
-	fetcher *yad2.Yad2Fetcher
+	fetcher yad2.ItemFetcher
 }
 
 func (a *yad2ItemFetcherAdapter) FetchItem(ctx context.Context, token string) (enricher.ItemDetails, error) {

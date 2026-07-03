@@ -122,6 +122,10 @@ type HTTPConfig struct {
 	// per-listing data (km, city, bodyType) and lets us skip most
 	// per-item enrichment fetches.
 	UseGwFeed bool `yaml:"use_gw_feed"`
+	// ChromeBin is the path to a Chrome/Chromium binary. When set, the scraper
+	// uses a real headless Chrome instance (via rod) instead of the HTTP stealth
+	// client. This bypasses Radware's TLS fingerprint detection.
+	ChromeBin string `yaml:"chrome_bin"`
 }
 
 func Load(path string) (*Config, error) {
