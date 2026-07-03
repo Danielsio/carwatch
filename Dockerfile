@@ -30,7 +30,9 @@ RUN CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/api-server ./cmd/api-se
 
 FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata chromium \
-    && adduser -D -u 1000 carwatch
+    && adduser -D -u 1000 carwatch \
+    && mkdir -p /home/carwatch/.local/share/chromium/Crashpad \
+    && chown -R carwatch:carwatch /home/carwatch
 USER carwatch
 COPY --from=builder /bin/api-server /bin/bot-poller /bin/scraper /bin/notifier /bin/enricher /bin/enrich-bench /usr/local/bin/
 COPY --from=builder /app/migrations /migrations

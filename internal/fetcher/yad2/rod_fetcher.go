@@ -52,6 +52,7 @@ func (f *RodFetcher) ensureBrowser() error {
 		Set("disable-breakpad").
 		Set("no-zygote").
 		Set("disable-gpu").
+		Set("user-data-dir", "/tmp/chromium-data").
 		Set("headless", "new")
 
 	u, err := l.Launch()
