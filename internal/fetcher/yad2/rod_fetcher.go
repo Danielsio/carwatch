@@ -45,6 +45,7 @@ func (f *RodFetcher) ensureBrowser() error {
 	}
 
 	l := launcher.New().Bin(f.binPath).
+		Leakless(false).
 		Set("disable-blink-features", "AutomationControlled").
 		Set("no-sandbox").
 		Set("disable-dev-shm-usage").
