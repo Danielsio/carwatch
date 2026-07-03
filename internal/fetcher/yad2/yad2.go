@@ -44,6 +44,19 @@ type Yad2Fetcher struct {
 // SetUseGwFeed toggles fetching the rich gw JSON feed (with HTML-page fallback).
 func (f *Yad2Fetcher) SetUseGwFeed(v bool) { f.useGwFeed = v }
 
+// NewFetcherWithClients creates a Yad2Fetcher using pre-built HTTPDoer clients.
+// Used when the caller controls the transport (e.g. routing through a relay).
+func NewFetcherWithClients(client, itemClient HTTPDoer, userAgents []string, logger *slog.Logger) *Yad2Fetcher {
+	return &Yad2Fetcher{
+		client:     client,
+		itemClient: itemClient,
+		baseURL:    defaultBaseURL,
+		gwBaseURL:  gwFeedURL,
+		logger:     logger,
+		userAgents: userAgents,
+	}
+}
+
 func NewFetcher(userAgents []string, proxy string, logger *slog.Logger) (*Yad2Fetcher, error) {
 	client, err := NewClient(userAgents, proxy)
 	if err != nil {

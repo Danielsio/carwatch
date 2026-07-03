@@ -805,7 +805,10 @@ func TestParseNextData_PreservesExplicitHPAndGearbox(t *testing.T) {
 	}
 }
 
-func TestParseNextData_ExtractsBodyTypeFromSubModel(t *testing.T) {
+// TestParseNextData_IgnoresSubModelBodyKeyword locks in that body type is never
+// inferred from the free-text sub-model: a listing whose sub-model contains a
+// body keyword (האצ'בק) but has no structured bodyType field stays empty.
+func TestParseNextData_IgnoresSubModelBodyKeyword(t *testing.T) {
 	data := []byte(`{
 		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
 			"data":{"feed":{"feed_items":[{
@@ -829,8 +832,8 @@ func TestParseNextData_ExtractsBodyTypeFromSubModel(t *testing.T) {
 	if len(listings) != 1 {
 		t.Fatalf("expected 1 listing, got %d", len(listings))
 	}
-	if listings[0].BodyType != "hatchback" {
-		t.Errorf("BodyType = %q, want 'hatchback'", listings[0].BodyType)
+	if listings[0].BodyType != "" {
+		t.Errorf("BodyType = %q, want empty (sub-model text must not be used)", listings[0].BodyType)
 	}
 }
 
@@ -946,35 +949,6 @@ func TestParseNextData_BodyTypeUnrecognizedDirectField(t *testing.T) {
 	}
 	if listings[0].BodyType != "" {
 		t.Errorf("BodyType = %q, want empty (unrecognized value falls through)", listings[0].BodyType)
-	}
-}
-
-func TestParseNextData_BodyTypeFallsBackToHebrewText(t *testing.T) {
-	data := []byte(`{
-		"props":{"pageProps":{"dehydratedState":{"queries":[{"state":{"data":{
-			"data":{"feed":{"feed_items":[{
-				"token":"bt-hebrew-fallback",
-				"manufacturer":{"id":53,"text":"טויוטה","english_text":"Toyota"},
-				"model":{"id":10399,"text":"קורולה","english_text":"Corolla"},
-				"subModel":{"id":105280,"text":"Excite Plus היברידי אוט׳ האצ'בק 5 דל 1.8 (98 כ״ס)","english_text":"Excite Plus"},
-				"vehicleDates":{"yearOfProduction":2019},
-				"engineVolume":1798,
-				"price":87000,
-				"hand":{"id":1},
-				"metaData":{"coverImage":"https://img.yad2.co.il/test.jpg"}
-			}]}}
-		}}}]}}}
-	}`)
-
-	listings, err := parseNextData(data, nil)
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if len(listings) != 1 {
-		t.Fatalf("expected 1 listing, got %d", len(listings))
-	}
-	if listings[0].BodyType != "hatchback" {
-		t.Errorf("BodyType = %q, want 'hatchback' (from Hebrew text fallback when english_text lacks body type)", listings[0].BodyType)
 	}
 }
 
