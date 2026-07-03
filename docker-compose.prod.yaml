@@ -154,7 +154,7 @@ services:
     cap_drop:
       - ALL
     tmpfs:
-      - /tmp
+      - /tmp:exec
       - /dev/shm:size=128m
     networks:
       - carwatch-net
@@ -185,7 +185,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 768M
 
   notifier:
     image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
@@ -237,7 +237,7 @@ services:
     cap_drop:
       - ALL
     tmpfs:
-      - /tmp
+      - /tmp:exec
       - /dev/shm:size=128m
     networks:
       - carwatch-net

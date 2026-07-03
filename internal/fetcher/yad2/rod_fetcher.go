@@ -49,8 +49,9 @@ func (f *RodFetcher) ensureBrowser() error {
 		Set("disable-blink-features", "AutomationControlled").
 		Set("no-sandbox").
 		Set("disable-dev-shm-usage").
-		Set("disable-crash-reporter").
-		Set("crash-dumps-dir", "/tmp").
+		Set("disable-breakpad").
+		Set("no-zygote").
+		Set("disable-gpu").
 		Set("headless", "new")
 
 	u, err := l.Launch()
