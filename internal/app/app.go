@@ -52,9 +52,18 @@ func OpenStore(cfg *config.Config, skipMigrate ...bool) (*postgres.Store, error)
 	return postgres.New(cfg.Storage.DSN, migrationsPath)
 }
 
+// Yad2Source abstracts the Yad2 fetcher so both the HTTP-based Yad2Fetcher
+// and the Chrome-based RodFetcher can be used interchangeably.
+type Yad2Source interface {
+	fetcher.Fetcher
+	FetchItem(ctx context.Context, token string) (yad2.ItemDetails, error)
+	FetchRawPage(ctx context.Context, url string) ([]byte, error)
+	Close()
+}
+
 // FetcherBundle groups all fetcher-related objects returned by BuildFetchers.
 type FetcherBundle struct {
-	Yad2     *yad2.Yad2Fetcher
+	Yad2     Yad2Source
 	Caching  fetcher.Fetcher // full chain: CircuitBreaker → Cache → Paginator → Yad2
 	Targeted fetcher.Fetcher // without circuit breaker: Cache → Paginator → Yad2
 	Factory  *fetcher.Factory
@@ -70,24 +79,37 @@ func BuildFetchers(cfg *config.Config, logger *slog.Logger) (*FetcherBundle, err
 	}
 
 	yad2Logger := logger.With("component", "yad2")
-	var yad2Fetcher *yad2.Yad2Fetcher
-	var err error
-	if cfg.HTTP.RelayURL != "" {
+	var yad2Source Yad2Source
+	if cfg.HTTP.ChromeBin != "" {
+		rodFetcher, err := yad2.NewRodFetcher(cfg.HTTP.ChromeBin, yad2Logger)
+		if err != nil {
+			return nil, fmt.Errorf("create rod fetcher: %w", err)
+		}
+		yad2Source = rodFetcher
+		logger.Info("using chrome browser fetcher", "bin", cfg.HTTP.ChromeBin)
+	} else if cfg.HTTP.RelayURL != "" {
 		feedClient := yad2.NewRelayClient(cfg.HTTP.RelayURL, cfg.HTTP.RelaySecret, cfg.HTTP.UserAgents)
 		itemClient := yad2.NewRelayClient(cfg.HTTP.RelayURL, cfg.HTTP.RelaySecret, cfg.HTTP.UserAgents)
-		yad2Fetcher = yad2.NewFetcherWithClients(feedClient, itemClient, cfg.HTTP.UserAgents, yad2Logger)
+		yad2Fetcher := yad2.NewFetcherWithClients(feedClient, itemClient, cfg.HTTP.UserAgents, yad2Logger)
+		yad2Fetcher.SetUseGwFeed(cfg.HTTP.UseGwFeed)
+		yad2Source = yad2Fetcher
 		logger.Info("using cloudflare relay", "relay_url", cfg.HTTP.RelayURL)
-	} else if proxyPool != nil {
-		yad2Fetcher, err = yad2.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, yad2Logger)
 	} else {
-		yad2Fetcher, err = yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, yad2Logger)
+		var yad2Fetcher *yad2.Yad2Fetcher
+		var err error
+		if proxyPool != nil {
+			yad2Fetcher, err = yad2.NewFetcherWithProxyPool(cfg.HTTP.UserAgents, proxyPool, yad2Logger)
+		} else {
+			yad2Fetcher, err = yad2.NewFetcher(cfg.HTTP.UserAgents, cfg.HTTP.Proxy, yad2Logger)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("create fetcher: %w", err)
+		}
+		yad2Fetcher.SetUseGwFeed(cfg.HTTP.UseGwFeed)
+		yad2Source = yad2Fetcher
 	}
-	if err != nil {
-		return nil, fmt.Errorf("create fetcher: %w", err)
-	}
-	yad2Fetcher.SetUseGwFeed(cfg.HTTP.UseGwFeed)
 
-	paginatingFetcher := fetcher.NewPaginatingFetcher(yad2Fetcher, cfg.HTTP.MaxPages)
+	paginatingFetcher := fetcher.NewPaginatingFetcher(yad2Source, cfg.HTTP.MaxPages)
 	cachingFetcher := fetcher.NewCachingFetcher(paginatingFetcher, 5*time.Minute)
 	yad2CB := fetcher.NewCircuitBreaker(cachingFetcher, 5, 10*time.Minute,
 		fetcher.WithCBLogger(logger.With("component", "circuit_breaker", "source", "yad2")))
@@ -96,7 +118,7 @@ func BuildFetchers(cfg *config.Config, logger *slog.Logger) (*FetcherBundle, err
 	fetcherFactory.Register("yad2", yad2CB)
 
 	return &FetcherBundle{
-		Yad2:     yad2Fetcher,
+		Yad2:     yad2Source,
 		Caching:  yad2CB,
 		Targeted: cachingFetcher,
 		Factory:  fetcherFactory,
@@ -189,10 +211,10 @@ func BuildMultiNotifier(cfg *config.Config, userStore storage.UserStore, subStor
 
 // BuildDynamicCatalog creates and loads the dynamic catalog from the Yad2
 // fetcher.
-func BuildDynamicCatalog(ctx context.Context, yad2Fetcher *yad2.Yad2Fetcher, logger *slog.Logger) *catalog.DynamicCatalog {
+func BuildDynamicCatalog(ctx context.Context, yad2Source Yad2Source, logger *slog.Logger) *catalog.DynamicCatalog {
 	dynCatalog := catalog.NewDynamic(logger)
 	pageFetcher := &catalog.HTTPPageFetcher{
-		GetPage: yad2Fetcher.FetchRawPage,
+		GetPage: yad2Source.FetchRawPage,
 	}
 	dynCatalog.Load(ctx, pageFetcher)
 	logger.Info("dynamic catalog loaded")
@@ -200,7 +222,7 @@ func BuildDynamicCatalog(ctx context.Context, yad2Fetcher *yad2.Yad2Fetcher, log
 }
 
 // BuildAPI creates the API server with all REST endpoints.
-func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, logger *slog.Logger, fetcherFactory *fetcher.Factory, yad2Fetcher *yad2.Yad2Fetcher, plSvc *pricelist.Service, logHub *logstream.Hub, logLevel *slog.LevelVar) (*api.Server, error) {
+func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.DynamicCatalog, logger *slog.Logger, fetcherFactory *fetcher.Factory, yad2Source Yad2Source, plSvc *pricelist.Service, logHub *logstream.Hub, logLevel *slog.LevelVar) (*api.Server, error) {
 	if api.IsNonLocalBind(cfg.HTTP.Bind) && cfg.Telemetry.AuthToken == "" {
 		return nil, fmt.Errorf("telemetry.auth_token must be configured for non-local bind address %q", cfg.HTTP.Bind)
 	}
@@ -250,7 +272,7 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		Activity:         store,
 		PollingInterval:  cfg.Polling.Interval,
 		Fetchers:         fetcherFactory,
-		Yad2Fetcher:      yad2Fetcher,
+		Yad2Fetcher:      yad2Source,
 		EnricherConfig:   cfg.Enricher,
 		PriceListSvc:     plSvc,
 		Bind:             cfg.HTTP.Bind,

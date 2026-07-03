@@ -126,7 +126,7 @@ type Config struct {
 	FirebaseAuth     TokenVerifier
 	BotUsername      string
 	Fetchers         *fetcher.Factory
-	Yad2Fetcher      *yad2.Yad2Fetcher
+	Yad2Fetcher      yad2.ItemFetcher
 	EnricherConfig   config.EnricherConfig
 	LogHub           *logstream.Hub
 	LogLevel         *slog.LevelVar

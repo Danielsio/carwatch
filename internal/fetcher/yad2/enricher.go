@@ -35,15 +35,21 @@ type EnricherConfig struct {
 	ChallengeBackoff time.Duration
 }
 
+// ItemFetcher abstracts individual listing page fetches so both the HTTP-based
+// Yad2Fetcher and the Chrome-based RodFetcher can be used for enrichment.
+type ItemFetcher interface {
+	FetchItem(ctx context.Context, token string) (ItemDetails, error)
+}
+
 // Enricher fills in missing km data by fetching individual listing pages.
 type Enricher struct {
-	fetcher *Yad2Fetcher
+	fetcher ItemFetcher
 	logger  *slog.Logger
 	cfg     EnricherConfig
 }
 
-// NewEnricher creates an Enricher backed by the given Yad2Fetcher.
-func NewEnricher(fetcher *Yad2Fetcher, logger *slog.Logger, cfg EnricherConfig) *Enricher {
+// NewEnricher creates an Enricher backed by the given item fetcher.
+func NewEnricher(fetcher ItemFetcher, logger *slog.Logger, cfg EnricherConfig) *Enricher {
 	if cfg.Delay == 0 {
 		cfg.Delay = defaultEnrichDelay
 	}

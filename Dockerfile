@@ -29,7 +29,7 @@ RUN CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/api-server ./cmd/api-se
     CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/enrich-bench ./cmd/enrich-bench
 
 FROM alpine:3.24
-RUN apk add --no-cache ca-certificates tzdata \
+RUN apk add --no-cache ca-certificates tzdata chromium \
     && adduser -D -u 1000 carwatch
 USER carwatch
 COPY --from=builder /bin/api-server /bin/bot-poller /bin/scraper /bin/notifier /bin/enricher /bin/enrich-bench /usr/local/bin/

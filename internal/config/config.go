@@ -126,6 +126,10 @@ type HTTPConfig struct {
 	// bypassing IP-based anti-bot blocks by using Cloudflare edge IPs.
 	RelayURL    string `yaml:"relay_url"`
 	RelaySecret string `yaml:"relay_secret"`
+	// ChromeBin is the path to a Chrome/Chromium binary. When set, the scraper
+	// uses a real headless Chrome instance (via rod) instead of the HTTP stealth
+	// client. This bypasses Radware's TLS fingerprint detection.
+	ChromeBin string `yaml:"chrome_bin"`
 }
 
 func Load(path string) (*Config, error) {
