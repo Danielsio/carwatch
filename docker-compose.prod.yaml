@@ -154,9 +154,9 @@ services:
     cap_drop:
       - ALL
     tmpfs:
-      - /tmp:exec
+      - /tmp:exec,uid=1000,gid=1000
       - /dev/shm:size=128m
-      - /home/carwatch
+      - /home/carwatch:uid=1000,gid=1000
     networks:
       - carwatch-net
     depends_on:
@@ -238,9 +238,9 @@ services:
     cap_drop:
       - ALL
     tmpfs:
-      - /tmp:exec
+      - /tmp:exec,uid=1000,gid=1000
       - /dev/shm:size=128m
-      - /home/carwatch
+      - /home/carwatch:uid=1000,gid=1000
     networks:
       - carwatch-net
     depends_on:
