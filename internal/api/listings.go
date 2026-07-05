@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -222,6 +223,142 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 		Items:   toListingResponses(listings, savedMap, seenMap),
 		Total:   total,
 		Removed: removed,
+	})
+}
+
+type ingestRequest struct {
+	Listings []ingestListing `json:"listings"`
+}
+
+type ingestListing struct {
+	Token          string  `json:"token"`
+	Manufacturer   string  `json:"manufacturer"`
+	ManufacturerID int     `json:"manufacturer_id"`
+	Model          string  `json:"model"`
+	ModelID        int     `json:"model_id"`
+	SubModel       string  `json:"sub_model"`
+	SubModelID     int     `json:"sub_model_id"`
+	BodyType       string  `json:"body_type"`
+	Year           int     `json:"year"`
+	Price          int     `json:"price"`
+	Km             int     `json:"km"`
+	Hand           int     `json:"hand"`
+	City           string  `json:"city"`
+	Area           string  `json:"area"`
+	ImageURL       string  `json:"image_url"`
+	PageLink       string  `json:"page_link"`
+	EngineVolume   float64 `json:"engine_volume"`
+	EngineType     string  `json:"engine_type"`
+	GearBox        string  `json:"gear_box"`
+	Description    string  `json:"description"`
+	IsCommercial   *bool   `json:"is_commercial"`
+	CreatedAt      string  `json:"created_at"`
+}
+
+type ingestResponse struct {
+	Processed  int `json:"processed"`
+	NewMatches int `json:"new_matches"`
+}
+
+func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
+	chatID, ok := s.requireResolvedChatID(w, r)
+	if !ok {
+		return
+	}
+
+	log := s.handlerLogger(r, "op", "ingest")
+
+	var req ingestRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+
+	if len(req.Listings) == 0 {
+		writeJSON(w, http.StatusOK, ingestResponse{})
+		return
+	}
+
+	if len(req.Listings) > 500 {
+		writeError(w, http.StatusBadRequest, "too many listings (max 500)")
+		return
+	}
+
+	raw := make([]model.RawListing, 0, len(req.Listings))
+	for _, l := range req.Listings {
+		if l.Token == "" {
+			continue
+		}
+		rl := model.RawListing{
+			Token:          l.Token,
+			Manufacturer:   l.Manufacturer,
+			ManufacturerID: l.ManufacturerID,
+			Model:          l.Model,
+			ModelID:        l.ModelID,
+			SubModel:       l.SubModel,
+			SubModelID:     l.SubModelID,
+			BodyType:       l.BodyType,
+			Year:           l.Year,
+			Price:          l.Price,
+			Km:             l.Km,
+			Hand:           l.Hand,
+			City:           l.City,
+			Area:           l.Area,
+			ImageURL:       l.ImageURL,
+			PageLink:       l.PageLink,
+			EngineVolume:   l.EngineVolume,
+			EngineType:     l.EngineType,
+			GearBox:        l.GearBox,
+			Description:    l.Description,
+			Commercial:     l.IsCommercial,
+		}
+		if l.CreatedAt != "" {
+			for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05", "2006-01-02"} {
+				if t, err := time.Parse(layout, l.CreatedAt); err == nil {
+					rl.CreatedAt = t
+					break
+				}
+			}
+		}
+		raw = append(raw, rl)
+	}
+
+	searches, err := s.searches.ListSearches(r.Context(), chatID)
+	if err != nil {
+		log.Error("list searches failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to list searches")
+		return
+	}
+
+	totalNew := 0
+	for _, sr := range searches {
+		if !sr.Active || (sr.Manufacturer == 0 && sr.Model == 0) {
+			continue
+		}
+
+		criteria := model.FilterCriteriaFromSearch(&sr)
+		filtered := filter.Apply(criteria, raw)
+		if len(filtered) == 0 {
+			continue
+		}
+
+		params := scheduler.ProcessParamsFromSearch(sr, nil)
+		params.ChatID = chatID
+		pr := s.pipeline.Process(r.Context(), filtered, params)
+		if len(pr.Records) > 0 {
+			if err := s.listings.SaveListings(r.Context(), pr.Records); err != nil {
+				log.Error("save listings failed", "search_id", sr.ID, "error", err)
+				continue
+			}
+			totalNew += len(pr.Records)
+		}
+	}
+
+	log.Info("ingest complete", "submitted", len(req.Listings), "parsed", len(raw), "new_matches", totalNew)
+
+	writeJSON(w, http.StatusOK, ingestResponse{
+		Processed:  len(raw),
+		NewMatches: totalNew,
 	})
 }
 

@@ -273,6 +273,7 @@ func (s *Server) Routes() http.Handler {
 	authMux.HandleFunc("POST /api/v1/searches/{id}/refresh", s.refreshListings)
 	authMux.HandleFunc("GET /api/v1/listings/{token}", s.getListing)
 	authMux.HandleFunc("GET /api/v1/listings/{token}/price-history", s.listingPriceHistory)
+	authMux.HandleFunc("POST /api/v1/ext/ingest", s.ingestListings)
 
 	if s.cycleStats != nil {
 		authMux.HandleFunc("GET /api/v1/searches/cycle-stats", s.listSearchCycleStats)
