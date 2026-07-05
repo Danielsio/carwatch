@@ -156,6 +156,7 @@ services:
     tmpfs:
       - /tmp:exec
       - /dev/shm:size=128m
+      - /home/carwatch
     networks:
       - carwatch-net
     depends_on:
@@ -239,6 +240,7 @@ services:
     tmpfs:
       - /tmp:exec
       - /dev/shm:size=128m
+      - /home/carwatch
     networks:
       - carwatch-net
     depends_on:
