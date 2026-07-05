@@ -39,24 +39,30 @@ document.addEventListener("DOMContentLoaded", async () => {
       "listings",
       "error",
     ]);
-    let html = "";
+    statusDiv.textContent = "";
+    const lines = [];
     if (data.lastRun) {
-      const ago = timeSince(new Date(data.lastRun));
-      html += `<div>Last run: <strong>${ago} ago</strong></div>`;
+      lines.push(`Last run: ${timeSince(new Date(data.lastRun))} ago`);
     }
     if (data.searches !== undefined) {
-      html += `<div>Searches: ${data.searches}</div>`;
+      lines.push(`Searches: ${data.searches}`);
     }
     if (data.listings !== undefined) {
-      html += `<div class="ok">Listings found: ${data.listings}</div>`;
+      lines.push(`Listings found: ${data.listings}`);
     }
     if (data.error) {
-      html += `<div class="error">Error: ${data.error}</div>`;
+      lines.push(`Error: ${data.error}`);
     }
-    if (!html) {
-      html = "No data yet. Click Fetch Now to start.";
+    if (lines.length === 0) {
+      lines.push("No data yet. Click Fetch Now to start.");
     }
-    statusDiv.innerHTML = html;
+    for (const line of lines) {
+      const div = document.createElement("div");
+      div.textContent = line;
+      if (line.startsWith("Error:")) div.className = "error";
+      if (line.startsWith("Listings")) div.className = "ok";
+      statusDiv.appendChild(div);
+    }
   }
 
   function timeSince(date) {

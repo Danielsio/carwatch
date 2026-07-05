@@ -4,6 +4,9 @@ const ALARM_NAME = "carwatch-fetch";
 const FETCH_INTERVAL_MINUTES = 15;
 const INTER_SEARCH_DELAY_MS = 3000;
 const DEFAULT_API_URL = "https://carwatch.duckdns.org";
+const FETCH_TIMEOUT_MS = 15000;
+
+let isRunning = false;
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(ALARM_NAME, { periodInMinutes: FETCH_INTERVAL_MINUTES });
@@ -56,17 +59,33 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 async function runFetchCycle() {
-  const config = await getConfig();
-  if (!config.authToken) {
-    setBadge("!", "#F44");
-    await saveStatus({ error: "No auth token configured" });
+  if (isRunning) {
+    console.log("[CarWatch] Cycle already running, skipping");
     return;
   }
-
-  setBadge("...", "#888");
+  isRunning = true;
 
   try {
+    const config = await getConfig();
+    if (!config.authToken) {
+      setBadge("!", "#F44");
+      await saveStatus({ error: "No auth token configured" });
+      return;
+    }
+
+    setBadge("...", "#888");
+
     const searches = await fetchSearches(config);
     const activeSearches = searches.filter(
       (s) => s.active && s.manufacturer_id > 0 && s.model_id > 0,
@@ -89,7 +108,7 @@ async function runFetchCycle() {
         const url = buildYad2URL(search);
         console.log(`[CarWatch] Fetching: ${search.name || search.id}`, url);
 
-        const resp = await fetch(url);
+        const resp = await fetchWithTimeout(url);
         if (!resp.ok) {
           console.warn(`[CarWatch] Yad2 returned ${resp.status} for search ${search.id}`);
           continue;
@@ -124,11 +143,13 @@ async function runFetchCycle() {
     console.error("[CarWatch] Cycle error:", err);
     setBadge("!", "#F44");
     await saveStatus({ error: err.message });
+  } finally {
+    isRunning = false;
   }
 }
 
 async function fetchSearches(config) {
-  const resp = await fetch(`${config.apiUrl}/api/v1/searches`, {
+  const resp = await fetchWithTimeout(`${config.apiUrl}/api/v1/searches`, {
     headers: { Authorization: `Bearer ${config.authToken}` },
   });
   if (!resp.ok) throw new Error(`API returned ${resp.status}`);
@@ -136,21 +157,31 @@ async function fetchSearches(config) {
 }
 
 async function pushListings(config, listings) {
-  const resp = await fetch(`${config.apiUrl}/api/v1/ext/ingest`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.authToken}`,
-    },
-    body: JSON.stringify({ listings }),
-  });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`Ingest failed: ${resp.status} ${text}`);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(2000 * attempt);
+    const resp = await fetchWithTimeout(
+      `${config.apiUrl}/api/v1/ext/ingest`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.authToken}`,
+        },
+        body: JSON.stringify({ listings }),
+      },
+      30000,
+    );
+    if (resp.ok) {
+      const result = await resp.json();
+      console.log("[CarWatch] Ingest result:", result);
+      return result;
+    }
+    if (attempt === 2) {
+      const text = await resp.text();
+      throw new Error(`Ingest failed: ${resp.status} ${text}`);
+    }
+    console.warn(`[CarWatch] Ingest attempt ${attempt + 1} failed: ${resp.status}`);
   }
-  const result = await resp.json();
-  console.log("[CarWatch] Ingest result:", result);
-  return result;
 }
 
 function setBadge(text, color) {

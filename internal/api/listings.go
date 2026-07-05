@@ -313,8 +313,11 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 			Commercial:     l.IsCommercial,
 		}
 		if l.CreatedAt != "" {
-			if t, err := time.Parse(time.RFC3339, l.CreatedAt); err == nil {
-				rl.CreatedAt = t
+			for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05", "2006-01-02"} {
+				if t, err := time.Parse(layout, l.CreatedAt); err == nil {
+					rl.CreatedAt = t
+					break
+				}
 			}
 		}
 		raw = append(raw, rl)
