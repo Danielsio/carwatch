@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       div.className = "ok";
     } else {
       div.textContent =
-        "Not authenticated — open carwatch.duckdns.org and log in";
+        "Not authenticated — open carwatch.duckdns.org and navigate any page";
       div.className = "warn";
     }
     authDiv.appendChild(div);

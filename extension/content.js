@@ -1,63 +1,34 @@
-// Content script injected into CarWatch web app pages.
-// Extracts the Firebase auth token from IndexedDB and sends it to the
-// background service worker so the extension can authenticate API calls.
+// Content script running in MAIN world (same context as the page).
+// Intercepts fetch() to capture the Firebase Bearer token from API calls
+// and posts it via window.postMessage for the bridge script to pick up.
 
-const POLL_INTERVAL_MS = 30000;
+const API_PATH = "/api/v1/";
+const originalFetch = window.fetch;
 
-async function extractToken() {
+window.fetch = function (...args) {
   try {
-    const dbs = await indexedDB.databases();
-    const firebaseDB = dbs.find(
-      (db) => db.name && db.name.startsWith("firebaseLocalStorage"),
-    );
-    if (!firebaseDB) return null;
+    const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
+    if (url.includes(API_PATH)) {
+      const options = args[1] || {};
+      const headers = options.headers || {};
+      let authHeader = null;
 
-    return new Promise((resolve) => {
-      const req = indexedDB.open(firebaseDB.name);
-      req.onsuccess = () => {
-        const db = req.result;
-        const storeNames = Array.from(db.objectStoreNames);
-        const storeName = storeNames.find((s) =>
-          s.includes("firebaseLocalStorage"),
+      if (headers instanceof Headers) {
+        authHeader = headers.get("Authorization");
+      } else if (typeof headers === "object") {
+        authHeader =
+          headers["Authorization"] || headers["authorization"] || null;
+      }
+
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        window.postMessage(
+          { type: "CW_AUTH_TOKEN", token: authHeader.slice(7) },
+          "*",
         );
-        if (!storeName) {
-          db.close();
-          resolve(null);
-          return;
-        }
-
-        const tx = db.transaction(storeName, "readonly");
-        const store = tx.objectStore(storeName);
-        const getAll = store.getAll();
-        getAll.onsuccess = () => {
-          db.close();
-          for (const entry of getAll.result) {
-            const val = entry?.value;
-            if (val?.stsTokenManager?.accessToken) {
-              resolve(val.stsTokenManager.accessToken);
-              return;
-            }
-          }
-          resolve(null);
-        };
-        getAll.onerror = () => {
-          db.close();
-          resolve(null);
-        };
-      };
-      req.onerror = () => resolve(null);
-    });
+      }
+    }
   } catch {
-    return null;
+    // ignore
   }
-}
-
-async function syncToken() {
-  const token = await extractToken();
-  if (token) {
-    chrome.storage.sync.set({ authToken: token });
-  }
-}
-
-syncToken();
-setInterval(syncToken, POLL_INTERVAL_MS);
+  return originalFetch.apply(this, args);
+};
