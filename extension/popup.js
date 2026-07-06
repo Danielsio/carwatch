@@ -1,23 +1,7 @@
 document.addEventListener("DOMContentLoaded", async () => {
-  const apiUrlInput = document.getElementById("apiUrl");
-  const authTokenInput = document.getElementById("authToken");
-  const saveBtn = document.getElementById("saveBtn");
   const fetchBtn = document.getElementById("fetchBtn");
   const statusDiv = document.getElementById("status");
-  const saveMsg = document.getElementById("saveMsg");
-
-  const config = await chrome.storage.sync.get(["apiUrl", "authToken"]);
-  apiUrlInput.value = config.apiUrl || "https://carwatch.duckdns.org";
-  authTokenInput.value = config.authToken || "";
-
-  saveBtn.addEventListener("click", async () => {
-    await chrome.storage.sync.set({
-      apiUrl: apiUrlInput.value.replace(/\/+$/, ""),
-      authToken: authTokenInput.value,
-    });
-    saveMsg.style.display = "block";
-    setTimeout(() => (saveMsg.style.display = "none"), 2000);
-  });
+  const authDiv = document.getElementById("auth");
 
   fetchBtn.addEventListener("click", () => {
     fetchBtn.disabled = true;
@@ -26,11 +10,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     setTimeout(() => {
       fetchBtn.disabled = false;
       fetchBtn.textContent = "Fetch Now";
+      refreshAuth();
       refreshStatus();
     }, 10000);
   });
 
+  refreshAuth();
   refreshStatus();
+
+  async function refreshAuth() {
+    const data = await chrome.storage.sync.get(["authToken"]);
+    authDiv.textContent = "";
+    const div = document.createElement("div");
+    if (data.authToken) {
+      div.textContent = "Authenticated (token present)";
+      div.className = "ok";
+    } else {
+      div.textContent =
+        "Not authenticated — open carwatch.duckdns.org and navigate any page";
+      div.className = "warn";
+    }
+    authDiv.appendChild(div);
+  }
 
   async function refreshStatus() {
     const data = await chrome.storage.local.get([
@@ -42,16 +43,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     statusDiv.textContent = "";
     const lines = [];
     if (data.lastRun) {
-      lines.push(`Last run: ${timeSince(new Date(data.lastRun))} ago`);
+      lines.push("Last run: " + timeSince(new Date(data.lastRun)) + " ago");
     }
     if (data.searches !== undefined) {
-      lines.push(`Searches: ${data.searches}`);
+      lines.push("Searches: " + data.searches);
     }
     if (data.listings !== undefined) {
-      lines.push(`Listings found: ${data.listings}`);
+      lines.push("Listings found: " + data.listings);
     }
     if (data.error) {
-      lines.push(`Error: ${data.error}`);
+      lines.push("Error: " + data.error);
     }
     if (lines.length === 0) {
       lines.push("No data yet. Click Fetch Now to start.");
@@ -67,10 +68,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function timeSince(date) {
     const seconds = Math.floor((new Date() - date) / 1000);
-    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 60) return seconds + "s";
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m`;
+    if (minutes < 60) return minutes + "m";
     const hours = Math.floor(minutes / 60);
-    return `${hours}h ${minutes % 60}m`;
+    return hours + "h " + (minutes % 60) + "m";
   }
 });

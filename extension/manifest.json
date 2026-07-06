@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CarWatch Scraper",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Fetches Yad2 listings in the background and pushes them to CarWatch",
   "permissions": ["alarms", "storage"],
   "host_permissions": [
@@ -11,6 +11,19 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://carwatch.duckdns.org/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://carwatch.duckdns.org/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
+    }
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "CarWatch Scraper"
