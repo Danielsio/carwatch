@@ -275,25 +275,43 @@ async function runFetchCycle() {
     );
     toEnrich = shuffle(toEnrich).slice(0, MAX_ENRICH_PER_CYCLE);
 
+    // Diagnostics surfaced in the popup so failures are visible without DevTools.
+    let itemGot = 0, itemOk = 0, itemBlocked = 0, itemParseErr = 0, gotKm = 0, itemErr = "";
     if (toEnrich.length) {
       const itemResults = await fetchViaYad2Tab(
         tabId,
         toEnrich.map((l) => `${GW_ITEM_URL}/${l.token}`),
       );
+      itemGot = itemResults.length;
       for (const r of itemResults) {
-        if (looksBlocked(r)) continue;
+        if (looksBlocked(r)) {
+          itemBlocked++;
+          if (!itemErr) itemErr = `blk s${r.status}${r.error ? " " + r.error : ""}`;
+          continue;
+        }
         const parsed = parseItemDetail(r.body);
-        if (parsed.error) continue;
+        if (parsed.error) {
+          itemParseErr++;
+          if (!itemErr) itemErr = "perr:" + parsed.error;
+          continue;
+        }
+        itemOk++;
         const l = byToken.get(parsed.fields.token);
         if (!l) continue;
         for (const [k, v] of Object.entries(parsed.fields)) {
           if (k === "token") continue;
           if (v !== undefined && v !== "" && v !== 0) l[k] = v;
         }
-        if ((l.km || 0) > 0) known.add(l.token);
+        if ((l.km || 0) > 0) {
+          gotKm++;
+          known.add(l.token);
+        }
       }
       await saveKnownTokens(known);
     }
+    console.log(
+      `[CarWatch] enrich tried=${toEnrich.length} returned=${itemGot} ok=${itemOk} blocked=${itemBlocked} parseErr=${itemParseErr} gotKm=${gotKm} ${itemErr}`,
+    );
 
     const listings = [...byToken.values()];
     if (listings.length > 0) await pushListings(config, listings);
@@ -304,6 +322,7 @@ async function runFetchCycle() {
       searches: activeSearches.length,
       listings: listings.length,
       enriched,
+      diag: `feeds ${feedResults.length - blocked}/${feedResults.length} ok · enrich try:${toEnrich.length} ret:${itemGot} ok:${itemOk} blk:${itemBlocked} perr:${itemParseErr} km:${gotKm}${itemErr ? " · " + itemErr : ""}`,
       error: blocked ? `${blocked} feed(s) blocked by anti-bot` : null,
     });
   } catch (err) {

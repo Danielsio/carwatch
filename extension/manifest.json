@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CarWatch Scraper",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Fetches Yad2 listings via its gateway JSON API (from a real yad2 tab) and pushes them to CarWatch",
   "permissions": ["alarms", "storage", "scripting", "tabs"],
   "host_permissions": [

@@ -39,6 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       "searches",
       "listings",
       "enriched",
+      "diag",
       "error",
     ]);
     statusDiv.textContent = "";
@@ -54,6 +55,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (data.enriched !== undefined) {
       lines.push("With mileage (km): " + data.enriched);
+    }
+    if (data.diag) {
+      lines.push(data.diag);
     }
     if (data.error) {
       lines.push("Error: " + data.error);
