@@ -4,10 +4,12 @@ A self-hosted bot that monitors Israeli car listing sites (Yad2) and sends notif
 
 ## What it does
 
-1. Polls Yad2 on a schedule (every 10-20 minutes)
+1. Ingests Yad2 car listings via a browser extension that calls Yad2's own
+   gateway JSON API from a real browser tab (see [Data flow](#data-flow))
 2. Filters results by engine size, mileage, ownership count, keywords
 3. Deduplicates using PostgreSQL so you only get notified once per listing
-4. Sends formatted notifications with specs, price, and a direct link via Telegram and Web Push
+4. Serves a web UI to browse scored listings, and sends formatted
+   notifications (specs, price, direct link) via Telegram and Web Push
 
 ## Quick start
 
@@ -88,33 +90,90 @@ docker exec carwatch-enricher wget -q --spider http://localhost:8084/healthz
 
 See [`config.example.yaml`](config.example.yaml) for all options.
 
-## Architecture
+## Data flow
 
-See [docs/architecture.md](docs/architecture.md) for the full breakdown.
+Where the data comes from, where it's processed and stored, and how it reaches
+you. Yad2 now serves listings from a Radware-protected gateway JSON API and no
+longer embeds them in server-rendered HTML, so a **browser extension** running
+in your own Chrome is the ingestion engine: it calls Yad2's gateway API from a
+real tab (carrying the browser's TLS fingerprint and Radware clearance cookie),
+which server-side scrapers can no longer do.
 
+```mermaid
+flowchart TB
+    subgraph SRC["1 · Source — Yad2 gateway API (Radware-protected)"]
+        FEED["gw.yad2.co.il/feed-search-vehicles/cars<br/>list feed → token, price, seller, dates"]
+        ITEM["gw.yad2.co.il/vehicles-item/{token}<br/>per-listing detail → mileage (km), city, images"]
+    end
+
+    subgraph ING["2 · Ingestion — Chrome extension (runs in your browser)"]
+        SW["service worker · alarm every 15 min"]
+        TAB["open yad2.co.il tab<br/>real Chrome TLS + Radware clearance cookie"]
+        PJS["parser.js<br/>parseFeed + parseItemDetail → listings"]
+        TOK["content.js + bridge.js<br/>capture Firebase auth token from the CarWatch web app"]
+    end
+
+    subgraph VM["3 · Processing and storage — Oracle Cloud VM, Jerusalem (Docker + Caddy)"]
+        CADDY["Caddy · HTTPS reverse proxy<br/>carwatch.duckdns.org"]
+        API["api (Go) · POST /api/v1/ext/ingest<br/>filter → score (fitness / deal / base price) → dedup"]
+        PG[("PostgreSQL<br/>listing_history · searches · users")]
+        REDIS[("Redis<br/>alert stream · rate-limit · caches")]
+        NOTIF["notifier · consumes alert stream"]
+        BOT["bot-poller · Telegram commands + search wizards"]
+    end
+
+    subgraph DEL["4 · Delivery"]
+        WEB["Web UI (React SPA)<br/>browse scored listings · manage searches"]
+        TG["Telegram alerts"]
+        PUSH["Web Push (VAPID)"]
+    end
+
+    SW -->|"executeScript (MAIN world)"| TAB
+    TAB -->|fetch feed| FEED
+    TAB -->|fetch item detail| ITEM
+    FEED --> PJS
+    ITEM --> PJS
+    TOK -.->|Bearer token| SW
+    PJS -->|"POST listings + Bearer token"| CADDY
+    CADDY --> API
+    API --> PG
+    API <--> REDIS
+    API --> WEB
+    CADDY --> WEB
+    BOT <--> TG
+    BOT --- PG
+    REDIS --> NOTIF
+    NOTIF --> TG
+    NOTIF --> PUSH
 ```
-Scheduler (interval + jitter + adaptive backoff)
-    |
-    v
-Fetcher -----> Parser (HTML -> JSON -> RawListing)
-    |
-    v
-Filter (engine, km, hand, keywords)
-    |
-    v
-Dedup Store (PostgreSQL: atomic claim)
-    |
-    v
-Pipeline (fitness score, deal score, base price)
-    |
-    v
-Notifier (Telegram + WebPush)
-    |
-    v
-User
-```
 
-All components communicate through interfaces, making each layer independently testable and swappable.
+**Stages**
+
+1. **Source** — Yad2's gateway API. The list feed gives one row per listing;
+   most rows omit mileage, so each is enriched with a per-item detail call.
+2. **Ingestion** — the extension's service worker wakes every 15 min, fetches
+   the feed + item details from an open Yad2 tab, parses them, and `POST`s the
+   listings to the API authenticated with a Firebase token it captured from the
+   CarWatch web app. (This replaced the old server-side `scraper`/`enricher`
+   containers, which Radware now blocks; they are stopped.)
+3. **Processing & storage** — `POST /api/v1/ext/ingest` runs each active search's
+   filter, scores every match (fitness, deal vs. market median, catalog base
+   price), deduplicates, and writes to PostgreSQL. Redis backs the alert stream,
+   rate limiting, and caches.
+4. **Delivery** — the **web UI** reads listings straight from PostgreSQL (works
+   today). **Telegram / Web Push** alerts are emitted by the `notifier`, which
+   consumes the Redis **alert stream**.
+
+> **Note — alerts vs. web UI.** The alert stream is currently published only by
+> the scheduler that drove the old `scraper` (now stopped). The extension's
+> ingest path saves listings (so the **web UI is live**) but does **not** yet
+> publish to the alert stream, so Telegram/Push alerts won't fire from it until
+> `POST /api/v1/ext/ingest` is wired to publish new matches. That is the one
+> remaining piece for full parity.
+
+See [docs/architecture.md](docs/architecture.md) for the full component
+breakdown. All components communicate through interfaces, making each layer
+independently testable and swappable.
 
 ## Project structure
 

@@ -1,124 +1,166 @@
-const BUCKET_KEYS = ["private", "commercial", "platinum", "boost", "solo"];
+// Parses Yad2's gateway JSON feed
+// (GET https://gw.yad2.co.il/feed-search-vehicles/cars?...).
+//
+// Yad2 retired the server-rendered __NEXT_DATA__ blob on the /vehicles/cars
+// HTML route (it is now a Radware bot-challenge shell), so we consume the same
+// JSON API the site's own SPA calls. The response groups ads into seller
+// buckets; each item carries all fields we need INLINE (km, city, image,
+// publish date) — no per-item enrichment required.
 
+const BUCKET_KEYS = ["private", "commercial", "platinum", "boost", "solo"];
 const COMMERCIAL_BUCKETS = new Set(["commercial", "platinum", "solo", "boost"]);
 
-function textFromField(field) {
+// Prefer the English label, fall back to Hebrew text. Handles Yad2's
+// {id, text, text_eng} field shape (text_eng is frequently null).
+function label(field) {
   if (!field) return "";
-  return field.english_text || field.textEng || field.text || "";
+  return field.text_eng || field.textEng || field.text || "";
 }
 
-function parseHand(raw) {
-  if (typeof raw === "number") return raw;
-  if (raw && typeof raw === "object" && raw.id) return raw.id;
+function fieldId(field) {
+  if (!field) return 0;
+  const id = field.id;
+  if (typeof id === "number") return id;
+  if (typeof id === "string" && id.trim() !== "") {
+    const n = Number(id);
+    return Number.isFinite(n) ? n : 0;
+  }
   return 0;
 }
 
-function resolveImageURL(item) {
-  const md = item.metaData || {};
-  return (
-    md.coverImage ||
-    md.cover_image ||
-    item.coverImage ||
-    item.cover_image ||
-    (md.images && md.images[0]) ||
-    (item.images && item.images[0]) ||
-    ""
-  );
+function resolveImage(item) {
+  const md = item.meta_data || {};
+  if (md.cover_image) return md.cover_image;
+  if (Array.isArray(md.images) && md.images.length) return md.images[0];
+  return "";
 }
 
 function itemToListing(item, isCommercial) {
   const token = item.token;
   if (!token) return null;
 
-  const year =
-    item.year_of_production ||
-    (item.vehicleDates && item.vehicleDates.yearOfProduction) ||
-    0;
+  const sf = item.search_fields || {};
+  const md = item.meta_data || {};
+  const dates = item.dates || {};
 
   const listing = {
     token,
-    manufacturer: textFromField(item.manufacturer),
-    manufacturer_id: item.manufacturer?.id || 0,
-    model: textFromField(item.model),
-    model_id: item.model?.id || 0,
-    sub_model: textFromField(item.subModel),
-    sub_model_id: item.subModel?.id || 0,
-    year,
+    manufacturer: label(sf.manufacturer),
+    manufacturer_id: fieldId(sf.manufacturer),
+    model: label(sf.model),
+    model_id: fieldId(sf.model),
+    sub_model: label(sf.sub_model),
+    sub_model_id: fieldId(sf.sub_model),
+    year: sf.year || 0,
     price: item.price || 0,
-    km: item.km || item.kilometers || 0,
-    hand: parseHand(item.hand),
-    city: textFromField(item.address?.city),
-    area: textFromField(item.address?.area),
-    image_url: resolveImageURL(item),
+    km: typeof sf.km === "number" ? sf.km : 0,
+    hand: fieldId(sf.hand),
+    city: label(item.address && item.address.city),
+    area: label(item.address && item.address.area),
+    image_url: resolveImage(item),
     page_link: `https://www.yad2.co.il/vehicles/item/${token}`,
-    engine_volume: item.engine_volume || item.engineVolume || 0,
-    engine_type: textFromField(item.engineType),
-    gear_box: textFromField(item.gearBox),
-    body_type: textFromField(item.bodyType),
-    description: item.metaData?.description || "",
+    engine_volume: sf.engine_volume || 0,
+    engine_type: label(sf.engine_type),
+    gear_box: label(sf.gear_box) || label(md.gear_box_item),
+    body_type: label(sf.body_type),
+    description: (md.description || "").trim(),
     is_commercial: isCommercial,
   };
 
-  if (item.dates?.createdAt || item.createdAt) {
-    listing.created_at = item.dates?.createdAt || item.createdAt;
+  // dates.start is the ORIGINAL publish date (unique per ad). dates.update /
+  // dates.rebounce are the feed-wide "refreshed" timestamp — do NOT use them,
+  // or every ad looks like it was posted today.
+  if (dates.start) {
+    listing.created_at = dates.start;
   }
 
   return listing;
 }
 
-function parseNextData(html) {
-  const match = html.match(
-    /<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i,
-  );
-  if (!match || !match[1]) return { error: "no __NEXT_DATA__" };
-
+// Accepts the raw gw response (object or JSON string). Buckets live under
+// `.data`, but tolerate a top-level bucket object too.
+function parseFeed(json) {
   let data;
   try {
-    data = JSON.parse(match[1]);
+    data = typeof json === "string" ? JSON.parse(json) : json;
   } catch {
-    return { error: "invalid __NEXT_DATA__ JSON" };
+    return { error: "invalid feed JSON" };
   }
+  if (!data || typeof data !== "object") return { error: "empty feed" };
 
-  const queries =
-    data?.props?.pageProps?.dehydratedState?.queries || [];
+  const buckets = data.data && typeof data.data === "object" ? data.data : data;
 
-  for (const q of queries) {
-    const stateData = q?.state?.data;
-    if (!stateData) continue;
-
-    const listings = [];
-    let found = false;
-
-    for (const key of BUCKET_KEYS) {
-      const items = stateData[key];
-      if (!Array.isArray(items)) continue;
-      found = true;
-      const isCommercial = COMMERCIAL_BUCKETS.has(key);
-      for (const item of items) {
-        const listing = itemToListing(item, isCommercial);
-        if (listing) listings.push(listing);
-      }
-    }
-
-    if (found) {
-      const seen = new Set();
-      const deduped = listings.filter((l) => {
-        if (seen.has(l.token)) return false;
-        seen.add(l.token);
-        return true;
-      });
-      return { listings: deduped };
-    }
-
-    // Legacy format: data.feed.feed_items
-    const feedItems = stateData?.data?.feed?.feed_items;
-    if (Array.isArray(feedItems)) {
-      const listings = feedItems
-        .map((item) => itemToListing(item, null))
-        .filter(Boolean);
-      return { listings };
+  const listings = [];
+  let found = false;
+  for (const key of BUCKET_KEYS) {
+    const items = buckets[key];
+    if (!Array.isArray(items)) continue;
+    found = true;
+    const isCommercial = COMMERCIAL_BUCKETS.has(key);
+    for (const item of items) {
+      const listing = itemToListing(item, isCommercial);
+      if (listing) listings.push(listing);
     }
   }
 
-  return { error: "no feed items found" };
+  if (!found) return { error: "no known buckets in feed" };
+
+  const seen = new Set();
+  const deduped = listings.filter((l) => {
+    if (seen.has(l.token)) return false;
+    seen.add(l.token);
+    return true;
+  });
+  return { listings: deduped };
+}
+
+// Parses the per-item detail endpoint
+// (GET https://gw.yad2.co.il/vehicles-item/{token}) into the fields the list
+// feed omits — chiefly `km`, `city`, and `image_url`. The detail payload is
+// camelCase (vs the feed's snake_case); `label()` already tolerates both.
+// Returns only the fields that are present, so the caller can overlay them onto
+// the feed listing without wiping known values with blanks.
+function parseItemDetail(json) {
+  let d;
+  try {
+    d = typeof json === "string" ? JSON.parse(json) : json;
+  } catch {
+    return { error: "invalid item JSON" };
+  }
+  if (!d || typeof d !== "object") return { error: "empty item" };
+  d = d.data && typeof d.data === "object" ? d.data : d;
+  if (!d.token) return { error: "item missing token" };
+
+  const md = d.metaData || d.meta_data || {};
+  const vd = d.vehicleDates || {};
+  const dates = d.dates || {};
+  const fields = { token: d.token };
+
+  if (typeof d.km === "number") fields.km = d.km;
+  const city = label(d.address && d.address.city);
+  if (city) fields.city = city;
+  const area = label(d.address && d.address.area);
+  if (area) fields.area = area;
+  const image = md.coverImage || md.cover_image || (Array.isArray(md.images) && md.images[0]);
+  if (image) fields.image_url = image;
+  if (vd.yearOfProduction) fields.year = vd.yearOfProduction;
+  if (d.hand) fields.hand = fieldId(d.hand);
+  if (typeof d.price === "number" && d.price > 0) fields.price = d.price;
+  if (d.engineVolume) fields.engine_volume = d.engineVolume;
+  const engineType = label(d.engineType);
+  if (engineType) fields.engine_type = engineType;
+  const gearBox = label(d.gearBox);
+  if (gearBox) fields.gear_box = gearBox;
+  const bodyType = label(d.bodyType);
+  if (bodyType) fields.body_type = bodyType;
+  const desc = (md.description || "").trim();
+  if (desc) fields.description = desc;
+  if (dates.createdAt) fields.created_at = dates.createdAt;
+
+  return { fields };
+}
+
+// Export for Node-based tests; harmless in the service worker.
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { parseFeed, parseItemDetail, itemToListing };
 }

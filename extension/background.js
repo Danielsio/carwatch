@@ -2,9 +2,24 @@ importScripts("parser.js");
 
 const ALARM_NAME = "carwatch-fetch";
 const FETCH_INTERVAL_MINUTES = 15;
-const INTER_SEARCH_DELAY_MS = 3000;
 const DEFAULT_API_URL = "https://carwatch.duckdns.org";
 const FETCH_TIMEOUT_MS = 15000;
+
+// Yad2's own gateway JSON API. We call these from within a real yad2.co.il tab
+// (MAIN world) so the request carries the browser's Radware clearance cookie +
+// Chrome TLS fingerprint — the HTML /vehicles/cars route is a Radware challenge
+// shell and cannot be scraped, and a plain background fetch (no browser
+// fingerprint) is blocked. See extension/README notes / parser.js.
+const GW_FEED_URL = "https://gw.yad2.co.il/feed-search-vehicles/cars";
+const GW_ITEM_URL = "https://gw.yad2.co.il/vehicles-item";
+const YAD2_HOME = "https://www.yad2.co.il/";
+
+// Bound per-cycle request volume: one feed call per search, plus at most this
+// many item-detail (enrichment) calls. km/city/image are absent from most feed
+// rows, so we enrich tokens we have not resolved before.
+const MAX_ENRICH_PER_CYCLE = 30;
+const KNOWN_TOKENS_CAP = 3000;
+const ENRICH_DELAY_MS = 1500; // jittered inside the injected fetcher
 
 let isRunning = false;
 
@@ -14,15 +29,11 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === ALARM_NAME) {
-    runFetchCycle();
-  }
+  if (alarm.name === ALARM_NAME) runFetchCycle();
 });
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.action === "fetchNow") {
-    runFetchCycle();
-  }
+  if (msg.action === "fetchNow") runFetchCycle();
 });
 
 async function getConfig() {
@@ -33,7 +44,7 @@ async function getConfig() {
   };
 }
 
-function buildYad2URL(search) {
+function buildFeedURL(search) {
   const params = new URLSearchParams();
   if (search.manufacturer_id) params.set("manufacturer", search.manufacturer_id);
   if (search.model_id) params.set("model", search.model_id);
@@ -52,7 +63,7 @@ function buildYad2URL(search) {
   if (search.photo_only) params.set("imgOnly", "1");
   params.set("Order", "1");
   params.set("page", "1");
-  return `https://www.yad2.co.il/vehicles/cars?${params}`;
+  return `${GW_FEED_URL}?${params}`;
 }
 
 function sleep(ms) {
@@ -69,6 +80,138 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS)
   }
 }
 
+// ---- Yad2 tab management ---------------------------------------------------
+
+function waitForTabComplete(tabId, timeoutMs) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    function listener(id, info) {
+      if (id === tabId && info.status === "complete") {
+        clearTimeout(timer);
+        finish();
+      }
+    }
+    chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs
+      .get(tabId)
+      .then((t) => {
+        if (t && t.status === "complete") {
+          clearTimeout(timer);
+          finish();
+        }
+      })
+      .catch(() => {});
+  });
+}
+
+// Returns the id of a live yad2 tab whose session has cleared Radware, creating
+// a pinned background tab if the user has none open. Reuses the same managed
+// tab across cycles so we don't spawn a new tab every 15 minutes.
+async function ensureYad2Tab() {
+  const { yad2TabId } = await chrome.storage.local.get("yad2TabId");
+  if (yad2TabId != null) {
+    try {
+      const t = await chrome.tabs.get(yad2TabId);
+      if (t && /yad2\.co\.il/.test(t.url || "")) return t.id;
+    } catch {
+      // tab was closed; fall through
+    }
+  }
+
+  const existing = await chrome.tabs.query({ url: "*://*.yad2.co.il/*" });
+  if (existing.length) {
+    await chrome.storage.local.set({ yad2TabId: existing[0].id });
+    return existing[0].id;
+  }
+
+  const tab = await chrome.tabs.create({ url: YAD2_HOME, active: false, pinned: true });
+  await chrome.storage.local.set({ yad2TabId: tab.id });
+  await waitForTabComplete(tab.id, 45000);
+  await sleep(3500); // let the Radware JS challenge settle a clearance cookie
+  return tab.id;
+}
+
+async function reloadYad2Tab(tabId) {
+  try {
+    await chrome.tabs.reload(tabId);
+    await waitForTabComplete(tabId, 45000);
+    await sleep(3500);
+  } catch (err) {
+    console.warn("[CarWatch] tab reload failed:", err);
+  }
+}
+
+// Runs inside the yad2 tab's MAIN world: fetches each gw URL with the page's
+// credentials and returns the raw text. Must be fully self-contained.
+function inPageFetchAll(urls, delayMs) {
+  return (async () => {
+    const out = [];
+    for (let i = 0; i < urls.length; i++) {
+      if (i > 0) {
+        await new Promise((r) => setTimeout(r, delayMs + Math.random() * delayMs));
+      }
+      try {
+        const resp = await fetch(urls[i], {
+          credentials: "include",
+          headers: { accept: "application/json" },
+        });
+        out.push({ url: urls[i], status: resp.status, body: await resp.text() });
+      } catch (e) {
+        out.push({ url: urls[i], status: 0, error: String(e) });
+      }
+    }
+    return out;
+  })();
+}
+
+async function fetchViaYad2Tab(tabId, urls) {
+  if (urls.length === 0) return [];
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: inPageFetchAll,
+    args: [urls, ENRICH_DELAY_MS],
+  });
+  return (results && results[0] && results[0].result) || [];
+}
+
+// A response whose body is HTML (Radware "302/verifying" shell) rather than
+// JSON means the tab's clearance lapsed.
+function looksBlocked(r) {
+  const b = (r && r.body ? r.body : "").trimStart();
+  return r && r.status !== 200 ? true : b.startsWith("<");
+}
+
+// ---- known-token cache (client-side mirror of DB pre-fill) -----------------
+
+async function getKnownTokens() {
+  const { knownTokens } = await chrome.storage.local.get("knownTokens");
+  return new Set(Array.isArray(knownTokens) ? knownTokens : []);
+}
+
+async function saveKnownTokens(set) {
+  let arr = [...set];
+  if (arr.length > KNOWN_TOKENS_CAP) arr = arr.slice(arr.length - KNOWN_TOKENS_CAP);
+  await chrome.storage.local.set({ knownTokens: arr });
+}
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ---- main cycle ------------------------------------------------------------
+
 async function runFetchCycle() {
   if (isRunning) {
     console.log("[CarWatch] Cycle already running, skipping");
@@ -80,7 +223,7 @@ async function runFetchCycle() {
     const config = await getConfig();
     if (!config.authToken) {
       setBadge("!", "#F44");
-      await saveStatus({ error: "No auth token configured" });
+      await saveStatus({ error: "No auth token — open carwatch.duckdns.org while logged in" });
       return;
     }
 
@@ -90,54 +233,97 @@ async function runFetchCycle() {
     const activeSearches = searches.filter(
       (s) => s.active && s.manufacturer_id > 0 && s.model_id > 0,
     );
-
     if (activeSearches.length === 0) {
       setBadge("0", "#888");
       await saveStatus({ searches: 0, listings: 0, error: null });
       return;
     }
 
-    let totalListings = 0;
-    const allListings = [];
+    const tabId = await ensureYad2Tab();
 
-    for (let i = 0; i < activeSearches.length; i++) {
-      const search = activeSearches[i];
-      if (i > 0) await sleep(INTER_SEARCH_DELAY_MS);
+    // 1) Fetch each search's list feed.
+    let feedResults = await fetchViaYad2Tab(tabId, activeSearches.map(buildFeedURL));
+    if (feedResults.length && feedResults.every(looksBlocked)) {
+      console.warn("[CarWatch] all feeds blocked; reloading yad2 tab and retrying");
+      await reloadYad2Tab(tabId);
+      feedResults = await fetchViaYad2Tab(tabId, activeSearches.map(buildFeedURL));
+    }
 
-      try {
-        const url = buildYad2URL(search);
-        console.log(`[CarWatch] Fetching: ${search.name || search.id}`, url);
-
-        const resp = await fetchWithTimeout(url);
-        if (!resp.ok) {
-          console.warn(`[CarWatch] Yad2 returned ${resp.status} for search ${search.id}`);
-          continue;
-        }
-
-        const html = await resp.text();
-        const result = parseNextData(html);
-        if (result.error) {
-          console.warn(`[CarWatch] Parse error for search ${search.id}:`, result.error);
-          continue;
-        }
-
-        console.log(`[CarWatch] Found ${result.listings.length} listings for ${search.name || search.id}`);
-        totalListings += result.listings.length;
-        allListings.push(...result.listings);
-      } catch (err) {
-        console.error(`[CarWatch] Fetch error for search ${search.id}:`, err);
+    // Merge into a token->listing map, preferring the row that already has km.
+    const byToken = new Map();
+    let blocked = 0;
+    for (const r of feedResults) {
+      if (looksBlocked(r)) {
+        blocked++;
+        continue;
+      }
+      const parsed = parseFeed(r.body);
+      if (parsed.error) {
+        console.warn("[CarWatch] feed parse:", parsed.error, r.url);
+        continue;
+      }
+      for (const l of parsed.listings) {
+        const prev = byToken.get(l.token);
+        if (!prev || ((prev.km || 0) <= 0 && (l.km || 0) > 0)) byToken.set(l.token, l);
       }
     }
 
-    if (allListings.length > 0) {
-      await pushListings(config, allListings);
-    }
+    // 2) Enrich listings missing km (skip tokens we've resolved before).
+    const known = await getKnownTokens();
+    let toEnrich = [...byToken.values()].filter(
+      (l) => (l.km || 0) <= 0 && !known.has(l.token),
+    );
+    toEnrich = shuffle(toEnrich).slice(0, MAX_ENRICH_PER_CYCLE);
 
-    setBadge(String(totalListings), "#4CAF50");
+    // Diagnostics surfaced in the popup so failures are visible without DevTools.
+    let itemGot = 0, itemOk = 0, itemBlocked = 0, itemParseErr = 0, gotKm = 0, itemErr = "";
+    if (toEnrich.length) {
+      const itemResults = await fetchViaYad2Tab(
+        tabId,
+        toEnrich.map((l) => `${GW_ITEM_URL}/${l.token}`),
+      );
+      itemGot = itemResults.length;
+      for (const r of itemResults) {
+        if (looksBlocked(r)) {
+          itemBlocked++;
+          if (!itemErr) itemErr = `blk s${r.status}${r.error ? " " + r.error : ""}`;
+          continue;
+        }
+        const parsed = parseItemDetail(r.body);
+        if (parsed.error) {
+          itemParseErr++;
+          if (!itemErr) itemErr = "perr:" + parsed.error;
+          continue;
+        }
+        itemOk++;
+        const l = byToken.get(parsed.fields.token);
+        if (!l) continue;
+        for (const [k, v] of Object.entries(parsed.fields)) {
+          if (k === "token") continue;
+          if (v !== undefined && v !== "" && v !== 0) l[k] = v;
+        }
+        if ((l.km || 0) > 0) {
+          gotKm++;
+          known.add(l.token);
+        }
+      }
+      await saveKnownTokens(known);
+    }
+    console.log(
+      `[CarWatch] enrich tried=${toEnrich.length} returned=${itemGot} ok=${itemOk} blocked=${itemBlocked} parseErr=${itemParseErr} gotKm=${gotKm} ${itemErr}`,
+    );
+
+    const listings = [...byToken.values()];
+    if (listings.length > 0) await pushListings(config, listings);
+
+    const enriched = listings.filter((l) => (l.km || 0) > 0).length;
+    setBadge(String(listings.length), blocked ? "#E65100" : "#4CAF50");
     await saveStatus({
       searches: activeSearches.length,
-      listings: totalListings,
-      error: null,
+      listings: listings.length,
+      enriched,
+      diag: `feeds ${feedResults.length - blocked}/${feedResults.length} ok · enrich try:${toEnrich.length} ret:${itemGot} ok:${itemOk} blk:${itemBlocked} perr:${itemParseErr} km:${gotKm}${itemErr ? " · " + itemErr : ""}`,
+      error: blocked ? `${blocked} feed(s) blocked by anti-bot` : null,
     });
   } catch (err) {
     console.error("[CarWatch] Cycle error:", err);
@@ -152,7 +338,7 @@ async function fetchSearches(config) {
   const resp = await fetchWithTimeout(`${config.apiUrl}/api/v1/searches`, {
     headers: { Authorization: `Bearer ${config.authToken}` },
   });
-  if (!resp.ok) throw new Error(`API returned ${resp.status}`);
+  if (!resp.ok) throw new Error(`searches API returned ${resp.status}`);
   return resp.json();
 }
 

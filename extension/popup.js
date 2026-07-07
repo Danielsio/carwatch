@@ -38,6 +38,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       "lastRun",
       "searches",
       "listings",
+      "enriched",
+      "diag",
       "error",
     ]);
     statusDiv.textContent = "";
@@ -50,6 +52,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (data.listings !== undefined) {
       lines.push("Listings found: " + data.listings);
+    }
+    if (data.enriched !== undefined) {
+      lines.push("With mileage (km): " + data.enriched);
+    }
+    if (data.diag) {
+      lines.push(data.diag);
     }
     if (data.error) {
       lines.push("Error: " + data.error);
