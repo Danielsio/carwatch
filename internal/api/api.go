@@ -18,6 +18,7 @@ import (
 	fbauth "firebase.google.com/go/v4/auth"
 
 	"github.com/dsionov/carwatch/internal/botcore"
+	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/cwlog"
@@ -57,6 +58,9 @@ type Server struct {
 	saved            storage.SavedListingStore
 	hidden           storage.HiddenListingStore
 	notifs           storage.NotificationStore
+	dedup            storage.DedupStore
+	digests          storage.DigestStore
+	alertPublisher   *broker.Publisher
 	poller           PollTrigger
 	logger           *slog.Logger
 	cfg              config.APIConfig
@@ -109,17 +113,23 @@ func (s *Server) Shutdown() {
 }
 
 type Config struct {
-	Catalog          catalog.Catalog
-	Searches         storage.SearchStore
-	Listings         storage.ListingStore
-	Users            storage.UserStore
-	LinkTokens       storage.LinkTokenStore
-	Prices           storage.PriceTracker
-	Admin            storage.AdminStore
-	Saved            storage.SavedListingStore
-	Hidden           storage.HiddenListingStore
-	Notifs           storage.NotificationStore
-	PushSubs         storage.PushSubscriptionStore
+	Catalog    catalog.Catalog
+	Searches   storage.SearchStore
+	Listings   storage.ListingStore
+	Users      storage.UserStore
+	LinkTokens storage.LinkTokenStore
+	Prices     storage.PriceTracker
+	Admin      storage.AdminStore
+	Saved      storage.SavedListingStore
+	Hidden     storage.HiddenListingStore
+	Notifs     storage.NotificationStore
+	PushSubs   storage.PushSubscriptionStore
+	// Dedup, Digests and AlertPublisher wire the extension ingest path into the
+	// same notification delivery the scheduler uses. All optional: nil disables
+	// alerting from ingest (listings are still saved and shown in the web UI).
+	Dedup            storage.DedupStore
+	Digests          storage.DigestStore
+	AlertPublisher   *broker.Publisher
 	Logger           *slog.Logger
 	API              config.APIConfig
 	Push             config.PushConfig
@@ -190,6 +200,9 @@ func New(c Config) *Server {
 		saved:           c.Saved,
 		hidden:          c.Hidden,
 		notifs:          c.Notifs,
+		dedup:           c.Dedup,
+		digests:         c.Digests,
+		alertPublisher:  c.AlertPublisher,
 		pushSubs:        c.PushSubs,
 		vapidPublicKey:  c.Push.VAPIDPublicKey,
 		logger:          c.Logger,
