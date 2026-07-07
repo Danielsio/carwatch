@@ -61,7 +61,6 @@ docker exec carwatch-api wget -q --spider http://localhost:8080/healthz
 docker exec carwatch-bot-poller wget -q --spider http://localhost:8082/healthz
 docker exec carwatch-scraper wget -q --spider http://localhost:8081/healthz
 docker exec carwatch-notifier wget -q --spider http://localhost:8083/healthz
-docker exec carwatch-enricher wget -q --spider http://localhost:8084/healthz
 ```
 
 If any check fails, rollback deterministically to the last known-good image tag:
@@ -75,15 +74,14 @@ if grep -q '^CARWATCH_IMAGE_TAG=' .env; then
 else
   echo "CARWATCH_IMAGE_TAG=${PREV_TAG}" >> .env
 fi
-CARWATCH_IMAGE_TAG="${PREV_TAG}" docker compose -f docker-compose.prod.yaml pull postgres redis api bot-poller scraper notifier enricher
-CARWATCH_IMAGE_TAG="${PREV_TAG}" docker compose -f docker-compose.prod.yaml up -d postgres redis api bot-poller scraper notifier enricher
+CARWATCH_IMAGE_TAG="${PREV_TAG}" docker compose -f docker-compose.prod.yaml pull postgres redis api bot-poller scraper notifier
+CARWATCH_IMAGE_TAG="${PREV_TAG}" docker compose -f docker-compose.prod.yaml up -d postgres redis api bot-poller scraper notifier
 
 # verify rollback health
 docker exec carwatch-api wget -q --spider http://localhost:8080/healthz
 docker exec carwatch-bot-poller wget -q --spider http://localhost:8082/healthz
 docker exec carwatch-scraper wget -q --spider http://localhost:8081/healthz
 docker exec carwatch-notifier wget -q --spider http://localhost:8083/healthz
-docker exec carwatch-enricher wget -q --spider http://localhost:8084/healthz
 ```
 
 ## Configuration
