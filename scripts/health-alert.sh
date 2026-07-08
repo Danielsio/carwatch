@@ -20,8 +20,8 @@ COMPOSE_DIR="${1:-/home/ubuntu/carwatch}"
 STATE_DIR="${CARWATCH_STATE_DIR:-/var/lib/carwatch}"
 STATE_FILE="${STATE_DIR}/health-alert.state"
 
-SERVICES=(api bot-poller scraper notifier enricher)
-HEALTH_PORTS=(8080 8082 8081 8083 8084)
+SERVICES=(api bot-poller scraper notifier)
+HEALTH_PORTS=(8080 8082 8081 8083)
 
 TOKEN=$(grep -oP 'TELEGRAM_BOT_TOKEN=\K[^\s]+' "${COMPOSE_DIR}/.env" 2>/dev/null || echo "")
 ADMIN_CHAT=$(grep -oP 'admin_chat_id:\s*\K[0-9]+' "${COMPOSE_DIR}/config.yaml" 2>/dev/null || echo "")

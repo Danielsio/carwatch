@@ -229,7 +229,7 @@ jobs:
               echo ".env is missing in ~/carwatch"
               exit 1
             fi
-            APP_SERVICES="postgres redis api bot-poller scraper notifier enricher"
+            APP_SERVICES="postgres redis api bot-poller scraper notifier"
             if [ -f .deploy_recreate_started ]; then
               echo "==> Found stale deploy marker; restoring previously known-good services before continuing"
               RECOVERY_TAG=$(cat prev_image_tag 2>/dev/null || echo 'none')
@@ -310,13 +310,12 @@ jobs:
             fi
 
             echo "==> Waiting for worker health checks..."
-            for svc in bot-poller scraper notifier enricher; do
+            for svc in bot-poller scraper notifier; do
               container="carwatch-$svc"
               port=$(case "$svc" in
                 bot-poller) echo 8082 ;;
                 scraper) echo 8081 ;;
                 notifier) echo 8083 ;;
-                enricher) echo 8084 ;;
               esac)
               ok=0
               for i in $(seq 1 15); do
@@ -397,7 +396,7 @@ jobs:
             PREV="${PREV##*:}"
             if [ "$PREV" != 'none' ]; then
               echo "==> Rolling back to previous image tag: $PREV"
-              APP_SERVICES="postgres redis api bot-poller scraper notifier enricher"
+              APP_SERVICES="postgres redis api bot-poller scraper notifier"
               CARWATCH_IMAGE_TAG="$PREV" docker compose -f docker-compose.prod.yaml pull $APP_SERVICES
               CARWATCH_IMAGE_TAG="$PREV" docker compose -f docker-compose.prod.yaml up -d $APP_SERVICES
 
@@ -411,13 +410,12 @@ jobs:
                 echo "==> Rollback API health check failed"
                 exit 1
               fi
-              for svc in bot-poller scraper notifier enricher; do
+              for svc in bot-poller scraper notifier; do
                 container="carwatch-$svc"
                 port=$(case "$svc" in
                   bot-poller) echo 8082 ;;
                   scraper) echo 8081 ;;
                   notifier) echo 8083 ;;
-                  enricher) echo 8084 ;;
                 esac)
                 ok=0
                 for i in $(seq 1 15); do

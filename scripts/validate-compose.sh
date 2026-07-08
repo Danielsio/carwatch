@@ -13,7 +13,7 @@
 set -euo pipefail
 
 COMPOSE_FILE="${1:-docker-compose.prod.yaml}"
-APP_SERVICES="api bot-poller scraper notifier enricher"
+APP_SERVICES="api bot-poller scraper notifier"
 
 # render runs `docker compose config` with the full set of required env vars.
 render() {
@@ -71,8 +71,8 @@ fi
 
 echo "==> all app services use CARWATCH_IMAGE_TAG"
 count=$(grep -c "ghcr.io/danielsio/carwatch:\${CARWATCH_IMAGE_TAG" "$COMPOSE_FILE" || true)
-if [ "$count" -ne 5 ]; then
-  echo "Expected api/bot-poller/scraper/notifier/enricher to use CARWATCH_IMAGE_TAG (found $count)"
+if [ "$count" -ne 4 ]; then
+  echo "Expected api/bot-poller/scraper/notifier to use CARWATCH_IMAGE_TAG (found $count)"
   exit 1
 fi
 
