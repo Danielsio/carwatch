@@ -4,7 +4,7 @@
        vm-check-env vm-ssh vm-logs logs vm-restart vm-stop vm-start vm-status vm-smoke vm-deploy vm-deploy-all vm-sync \
        vm-backup vm-backup-list vm-pg-shell \
        vm-setup-backup vm-backup-status \
-       web-install web-dev web-build \
+       web-install web-dev web-build web-bench \
        catalog-refresh \
        bench bench-fast bench-yad2 bench-profile bench-go
 
@@ -74,7 +74,7 @@ lint:
 ci: lint test
 
 clean:
-	rm -f api-server bot-poller scraper notifier-worker bench
+	rm -f api-server bot-poller scraper notifier-worker bench bench-amd64
 	rm -rf $(COVER_DIR) bench-profiles bench-results.json
 
 web-install:
@@ -85,6 +85,15 @@ web-dev:
 
 web-build:
 	cd web && npm run build
+
+# Measure web delivery latency (app-shell / static asset / API) for the current
+# origin, or compare it against another deployment:
+#   make web-bench
+#   make web-bench BENCH_TARGETS="current=https://carwatch.duckdns.org other=https://…"
+WEB_BENCH_N ?= 25
+BENCH_TARGETS ?=
+web-bench:
+	bash scripts/web-bench.sh -n $(WEB_BENCH_N) $(BENCH_TARGETS)
 
 dev-db:
 	docker compose -f docker-compose.dev.yaml up -d
@@ -129,22 +138,23 @@ bench-profile: build-bench
 bench-go:
 	go test -bench=. -benchmem -count=3 -run='^$$' ./internal/percolator/ ./internal/scoring/
 
-# Cross-compile for Oracle ARM VM and run remotely.
+# Cross-compile for the Oracle x86_64 VM and run remotely.
+# (The Always-Free prod VM is amd64 AMD EPYC — NOT ARM, despite older docs.)
 #   make vm-bench              — all phases
 #   make vm-bench BENCH_PHASES=percolator,scoring  — specific phases
 BENCH_PHASES ?= all
 BENCH_ARGS ?=
 
 vm-bench: vm-bench-build vm-bench-upload vm-bench-run vm-bench-fetch
-	@rm -f bench-arm64
+	@rm -f bench-amd64
 
 vm-bench-build:
-	@echo "=== Cross-compiling bench for linux/arm64..."
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o bench-arm64 ./cmd/bench
+	@echo "=== Cross-compiling bench for linux/amd64..."
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o bench-amd64 ./cmd/bench
 
 vm-bench-upload: vm-check-env
 	@echo "=== Uploading to VM..."
-	$(SCP) bench-arm64 $(VM_USER)@$(VM_IP):$(VM_DIR)/bench
+	$(SCP) bench-amd64 $(VM_USER)@$(VM_IP):$(VM_DIR)/bench
 	$(SSH) "chmod +x $(VM_DIR)/bench && mkdir -p $(VM_DIR)/bench-output"
 
 vm-bench-run: vm-check-env

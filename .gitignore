@@ -6,11 +6,13 @@ config.yaml
 /scraper
 /notifier-worker
 /bench
-/bench-arm64
+/bench-amd64
 /enricher
 /bot-poller
 /fetch-bench
 /enrich-bench
+# Windows build outputs (go build -o api-server.exe, etc.)
+*.exe
 bench-results.json
 bench-profiles/
 coverage.out
