@@ -8,8 +8,8 @@ set -euo pipefail
 COMPOSE_DIR="${1:-/home/ubuntu/carwatch}"
 COMPOSE="docker compose -f ${COMPOSE_DIR}/docker-compose.prod.yaml"
 
-SERVICES=(api bot-poller scraper notifier enricher)
-HEALTH_PORTS=(8080 8082 8081 8083 8084)
+SERVICES=(api bot-poller scraper notifier)
+HEALTH_PORTS=(8080 8082 8081 8083)
 
 fail=0
 

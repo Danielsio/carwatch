@@ -53,7 +53,7 @@ func (s *Scheduler) deliverResults(ctx context.Context, search storage.Search, l
 	)
 
 	if err := delivery.DeliverBatch(ctx, search.ChatID, sr.newListings); err != nil {
-		if errors.Is(err, errMalformedMessage) {
+		if errors.Is(err, ErrMalformedMessage) {
 			log.WarnContext(ctx, "batch message is malformed, keeping dedup claims to prevent infinite retry",
 				"count", len(sr.newListings), "search_name", search.Name)
 			return false

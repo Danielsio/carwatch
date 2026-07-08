@@ -119,7 +119,17 @@ async function ensureYad2Tab() {
   if (yad2TabId != null) {
     try {
       const t = await chrome.tabs.get(yad2TabId);
-      if (t && /yad2\.co\.il/.test(t.url || "")) return t.id;
+      if (t && /yad2\.co\.il/.test(t.url || "")) {
+        await keepTabAlive(t.id);
+        // Chrome's Memory Saver can discard an idle background tab between
+        // cycles. A discarded tab has no live page context, so executeScript
+        // fetches silently fail — reactivate it and let Radware re-clear.
+        if (t.discarded) {
+          console.warn("[CarWatch] yad2 tab was discarded; reactivating");
+          await reloadYad2Tab(t.id);
+        }
+        return t.id;
+      }
     } catch {
       // tab was closed; fall through
     }
@@ -128,14 +138,32 @@ async function ensureYad2Tab() {
   const existing = await chrome.tabs.query({ url: "*://*.yad2.co.il/*" });
   if (existing.length) {
     await chrome.storage.local.set({ yad2TabId: existing[0].id });
+    await keepTabAlive(existing[0].id);
+    if (existing[0].discarded) {
+      console.warn("[CarWatch] found existing yad2 tab but it was discarded; reactivating");
+      await reloadYad2Tab(existing[0].id);
+    }
     return existing[0].id;
   }
 
   const tab = await chrome.tabs.create({ url: YAD2_HOME, active: false, pinned: true });
   await chrome.storage.local.set({ yad2TabId: tab.id });
+  await keepTabAlive(tab.id);
   await waitForTabComplete(tab.id, 45000);
   await sleep(3500); // let the Radware JS challenge settle a clearance cookie
   return tab.id;
+}
+
+// Pin the scraping tab out of Chrome's Memory Saver reach. When the tab is
+// auto-discarded, its page context is gone and every executeScript fetch
+// (feed + km enrichment) returns nothing — the main reason enrichment lands
+// 0 km on a long-lived background tab that works fine when freshly opened.
+async function keepTabAlive(tabId) {
+  try {
+    await chrome.tabs.update(tabId, { autoDiscardable: false });
+  } catch {
+    // best-effort; older Chrome or races are non-fatal
+  }
 }
 
 async function reloadYad2Tab(tabId) {
@@ -187,6 +215,13 @@ async function fetchViaYad2Tab(tabId, urls) {
 function looksBlocked(r) {
   const b = (r && r.body ? r.body : "").trimStart();
   return r && r.status !== 200 ? true : b.startsWith("<");
+}
+
+// A fetch batch is unusable when executeScript returned nothing (a discarded
+// or broken tab yields an empty array, not looksBlocked-shaped results) or
+// when every result is a block/challenge page. Either warrants a tab reload.
+function batchUnusable(results) {
+  return results.length === 0 || results.every(looksBlocked);
 }
 
 // ---- known-token cache (client-side mirror of DB pre-fill) -----------------
@@ -243,8 +278,8 @@ async function runFetchCycle() {
 
     // 1) Fetch each search's list feed.
     let feedResults = await fetchViaYad2Tab(tabId, activeSearches.map(buildFeedURL));
-    if (feedResults.length && feedResults.every(looksBlocked)) {
-      console.warn("[CarWatch] all feeds blocked; reloading yad2 tab and retrying");
+    if (batchUnusable(feedResults)) {
+      console.warn("[CarWatch] feed batch unusable (empty or all blocked); reloading yad2 tab and retrying");
       await reloadYad2Tab(tabId);
       feedResults = await fetchViaYad2Tab(tabId, activeSearches.map(buildFeedURL));
     }
@@ -278,10 +313,17 @@ async function runFetchCycle() {
     // Diagnostics surfaced in the popup so failures are visible without DevTools.
     let itemGot = 0, itemOk = 0, itemBlocked = 0, itemParseErr = 0, gotKm = 0, itemErr = "";
     if (toEnrich.length) {
-      const itemResults = await fetchViaYad2Tab(
-        tabId,
-        toEnrich.map((l) => `${GW_ITEM_URL}/${l.token}`),
-      );
+      const itemURLs = toEnrich.map((l) => `${GW_ITEM_URL}/${l.token}`);
+      let itemResults = await fetchViaYad2Tab(tabId, itemURLs);
+      // If the batch was unusable — empty (a discarded/broken tab makes
+      // executeScript return nothing) or every result blocked (stale clearance
+      // / Radware challenge) — reload the tab once and retry, same recovery the
+      // feed path uses. Without this a single bad tab state zeroes out km.
+      if (batchUnusable(itemResults)) {
+        console.warn("[CarWatch] item batch unusable (empty or all blocked); reloading yad2 tab and retrying enrichment");
+        await reloadYad2Tab(tabId);
+        itemResults = await fetchViaYad2Tab(tabId, itemURLs);
+      }
       itemGot = itemResults.length;
       for (const r of itemResults) {
         if (looksBlocked(r)) {

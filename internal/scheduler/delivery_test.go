@@ -348,8 +348,8 @@ func TestInstantDelivery_DeliverRaw_BlocksMalformed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := d.DeliverRaw(context.Background(), 100, tt.msg)
-			if !errors.Is(err, errMalformedMessage) {
-				t.Errorf("expected errMalformedMessage, got: %v", err)
+			if !errors.Is(err, ErrMalformedMessage) {
+				t.Errorf("expected ErrMalformedMessage, got: %v", err)
 			}
 		})
 	}
@@ -381,8 +381,8 @@ func TestDigestDelivery_DeliverRaw_BlocksMalformed(t *testing.T) {
 	d := NewDigestDelivery(ds, locale.English)
 
 	err := d.DeliverRaw(context.Background(), 100, "{{.}}")
-	if !errors.Is(err, errMalformedMessage) {
-		t.Errorf("expected errMalformedMessage, got: %v", err)
+	if !errors.Is(err, ErrMalformedMessage) {
+		t.Errorf("expected ErrMalformedMessage, got: %v", err)
 	}
 
 	ds.mu.Lock()

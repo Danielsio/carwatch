@@ -351,6 +351,11 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			totalNew += len(pr.Records)
+
+			// Notify the user about genuinely new matches (dedup-gated) via the
+			// same delivery path the scheduler uses. Best-effort; never fails
+			// the ingest, which has already persisted the listings.
+			s.deliverIngestMatches(r.Context(), sr, pr.Listings, log)
 		}
 	}
 

@@ -19,6 +19,7 @@ import (
 
 	"github.com/dsionov/carwatch/internal/api"
 	cwbot "github.com/dsionov/carwatch/internal/bot"
+	"github.com/dsionov/carwatch/internal/broker"
 	"github.com/dsionov/carwatch/internal/catalog"
 	"github.com/dsionov/carwatch/internal/config"
 	"github.com/dsionov/carwatch/internal/fetcher"
@@ -248,6 +249,22 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 
 	cfg.API.AdminChatID = cfg.Telegram.AdminChatID
 	cfg.API.MaxSearches = cfg.Telegram.MaxSearches
+
+	// Alert publisher lets the extension ingest path emit notifications on the
+	// same Redis stream the scheduler uses (the notifier worker consumes it).
+	// Best-effort: if Redis is unavailable the API still serves; ingest just
+	// won't send alerts.
+	var alertPublisher *broker.Publisher
+	if cfg.Redis.Addr != "" {
+		p, err := broker.NewPublisher(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+		if err != nil {
+			logger.Warn("alert publisher unavailable; extension ingest will not send notifications",
+				"error", err)
+		} else {
+			alertPublisher = p
+		}
+	}
+
 	apiServer := api.New(api.Config{
 		Catalog:          dynCatalog,
 		Searches:         store,
@@ -260,6 +277,9 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		Hidden:           store,
 		Notifs:           store,
 		PushSubs:         store,
+		Dedup:            store,
+		Digests:          store,
+		AlertPublisher:   alertPublisher,
 		Logger:           logger,
 		API:              cfg.API,
 		Push:             cfg.Push,

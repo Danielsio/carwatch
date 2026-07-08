@@ -2,7 +2,7 @@ module github.com/dsionov/carwatch
 
 go 1.25.8
 
-toolchain go1.25.11
+toolchain go1.25.12
 
 require (
 	firebase.google.com/go/v4 v4.20.0

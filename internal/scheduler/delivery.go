@@ -15,7 +15,11 @@ import (
 	"github.com/dsionov/carwatch/internal/storage"
 )
 
-var errMalformedMessage = errors.New("blocked malformed message")
+// ErrMalformedMessage is returned by a delivery when the rendered message is
+// malformed and was blocked before hitting the transport. It is a permanent
+// failure — callers should not release dedup claims and retry, or they will
+// replay the same bad batch every cycle.
+var ErrMalformedMessage = errors.New("blocked malformed message")
 
 const maxBatchSize = 10
 
@@ -106,7 +110,7 @@ func (d *InstantDelivery) DeliverBatch(ctx context.Context, chatID int64, listin
 		if notifier.IsMalformedMessage(msg) {
 			d.logger.ErrorContext(ctx, "blocked delivery of malformed batch message, skipping to prevent Telegram API errors",
 				"chat_id", chatID, "msg_len", len(msg))
-			return errMalformedMessage
+			return ErrMalformedMessage
 		}
 		tokens := make([]string, 0, len(listings))
 		for _, l := range listings {
@@ -147,7 +151,7 @@ func (d *InstantDelivery) DeliverRaw(ctx context.Context, chatID int64, message 
 		d.logger.ErrorContext(ctx, "blocked delivery of malformed raw message, skipping to prevent Telegram API errors",
 			"chat_id", chatID, "msg_len", len(message),
 			"msg_preview", truncateStr(message, 200))
-		return errMalformedMessage
+		return ErrMalformedMessage
 	}
 
 	if d.publisher != nil {
@@ -197,7 +201,7 @@ func (d *DigestDelivery) DeliverBatch(ctx context.Context, chatID int64, listing
 		msg += locale.Tf(d.lang, "fmt_batch_overflow", truncated)
 	}
 	if notifier.IsMalformedMessage(msg) {
-		return errMalformedMessage
+		return ErrMalformedMessage
 	}
 	tokens := make([]string, 0, len(listings))
 	for _, l := range listings {
@@ -208,7 +212,7 @@ func (d *DigestDelivery) DeliverBatch(ctx context.Context, chatID int64, listing
 
 func (d *DigestDelivery) DeliverRaw(ctx context.Context, chatID int64, message string) error {
 	if notifier.IsMalformedMessage(message) {
-		return errMalformedMessage
+		return ErrMalformedMessage
 	}
 	// Raw digest items (e.g. price drops) carry no per-listing token.
 	return d.store.AddDigestItem(ctx, chatID, message, nil)
