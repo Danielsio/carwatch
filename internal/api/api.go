@@ -110,6 +110,11 @@ func (s *Server) Shutdown() {
 	if s.guestRL != nil {
 		s.guestRL.stop()
 	}
+	if s.alertPublisher != nil {
+		if err := s.alertPublisher.Close(); err != nil && s.logger != nil {
+			s.logger.Warn("failed to close alert publisher on shutdown", "error", err)
+		}
+	}
 }
 
 type Config struct {

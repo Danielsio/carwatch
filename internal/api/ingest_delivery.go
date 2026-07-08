@@ -2,10 +2,12 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/dsionov/carwatch/internal/locale"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/notifier"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage"
 )
@@ -59,7 +61,15 @@ func (s *Server) claimAndDeliver(ctx context.Context, sr storage.Search, listing
 	}
 
 	if err := delivery.DeliverBatch(ctx, sr.ChatID, newOnes); err != nil {
-		log.ErrorContext(ctx, "ingest delivery: batch failed, releasing claims for retry",
+		// Permanent failures (malformed message, recipient blocked the bot)
+		// will fail identically forever — keep the claims so we don't replay
+		// the same batch on every ingest. Only transient failures are retried.
+		if errors.Is(err, scheduler.ErrMalformedMessage) || errors.Is(err, notifier.ErrRecipientBlocked) {
+			log.ErrorContext(ctx, "ingest delivery: permanent failure, keeping claims (no retry)",
+				"count", len(newOnes), "search_id", sr.ID, "error", err)
+			return
+		}
+		log.ErrorContext(ctx, "ingest delivery: transient failure, releasing claims for retry",
 			"count", len(newOnes), "search_id", sr.ID, "error", err)
 		for _, l := range newOnes {
 			if relErr := s.dedup.ReleaseClaim(ctx, l.Token, sr.ChatID, sr.ID); relErr != nil {

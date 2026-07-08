@@ -139,6 +139,10 @@ async function ensureYad2Tab() {
   if (existing.length) {
     await chrome.storage.local.set({ yad2TabId: existing[0].id });
     await keepTabAlive(existing[0].id);
+    if (existing[0].discarded) {
+      console.warn("[CarWatch] found existing yad2 tab but it was discarded; reactivating");
+      await reloadYad2Tab(existing[0].id);
+    }
     return existing[0].id;
   }
 
@@ -213,6 +217,13 @@ function looksBlocked(r) {
   return r && r.status !== 200 ? true : b.startsWith("<");
 }
 
+// A fetch batch is unusable when executeScript returned nothing (a discarded
+// or broken tab yields an empty array, not looksBlocked-shaped results) or
+// when every result is a block/challenge page. Either warrants a tab reload.
+function batchUnusable(results) {
+  return results.length === 0 || results.every(looksBlocked);
+}
+
 // ---- known-token cache (client-side mirror of DB pre-fill) -----------------
 
 async function getKnownTokens() {
@@ -267,8 +278,8 @@ async function runFetchCycle() {
 
     // 1) Fetch each search's list feed.
     let feedResults = await fetchViaYad2Tab(tabId, activeSearches.map(buildFeedURL));
-    if (feedResults.length && feedResults.every(looksBlocked)) {
-      console.warn("[CarWatch] all feeds blocked; reloading yad2 tab and retrying");
+    if (batchUnusable(feedResults)) {
+      console.warn("[CarWatch] feed batch unusable (empty or all blocked); reloading yad2 tab and retrying");
       await reloadYad2Tab(tabId);
       feedResults = await fetchViaYad2Tab(tabId, activeSearches.map(buildFeedURL));
     }
@@ -304,11 +315,12 @@ async function runFetchCycle() {
     if (toEnrich.length) {
       const itemURLs = toEnrich.map((l) => `${GW_ITEM_URL}/${l.token}`);
       let itemResults = await fetchViaYad2Tab(tabId, itemURLs);
-      // If the whole batch came back blocked (stale clearance / discarded tab /
-      // Radware challenge), reload the tab once and retry — same recovery the
-      // feed path uses. Without this, a single bad tab state zeroes out km.
-      if (itemResults.length && itemResults.every(looksBlocked)) {
-        console.warn("[CarWatch] all item fetches blocked; reloading yad2 tab and retrying enrichment");
+      // If the batch was unusable — empty (a discarded/broken tab makes
+      // executeScript return nothing) or every result blocked (stale clearance
+      // / Radware challenge) — reload the tab once and retry, same recovery the
+      // feed path uses. Without this a single bad tab state zeroes out km.
+      if (batchUnusable(itemResults)) {
+        console.warn("[CarWatch] item batch unusable (empty or all blocked); reloading yad2 tab and retrying enrichment");
         await reloadYad2Tab(tabId);
         itemResults = await fetchViaYad2Tab(tabId, itemURLs);
       }

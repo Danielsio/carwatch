@@ -8,8 +8,28 @@ import (
 	"time"
 
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage"
 )
+
+// fakeDigest implements storage.DigestStore; only GetDigestMode is meaningful.
+type fakeDigest struct{ mode string }
+
+func (f *fakeDigest) GetDigestMode(context.Context, int64) (string, string, error) {
+	return f.mode, "", nil
+}
+func (f *fakeDigest) SetDigestMode(context.Context, int64, string, string) error { return nil }
+func (f *fakeDigest) AddDigestItem(context.Context, int64, string, []string) error {
+	return nil
+}
+func (f *fakeDigest) PeekDigest(context.Context, int64) ([]string, time.Time, error) {
+	return nil, time.Time{}, nil
+}
+func (f *fakeDigest) AckDigest(context.Context, int64, time.Time) error   { return nil }
+func (f *fakeDigest) PendingDigestUsers(context.Context) ([]int64, error) { return nil, nil }
+func (f *fakeDigest) DigestLastFlushed(context.Context, int64) (time.Time, error) {
+	return time.Time{}, nil
+}
 
 // fakeDedup implements storage.DedupStore; `seen` holds already-claimed tokens.
 type fakeDedup struct {
@@ -115,5 +135,15 @@ func TestIngestDeliveryFor_NilWithoutPublisher(t *testing.T) {
 	got := s.ingestDeliveryFor(context.Background(), storage.Search{ChatID: 1}, slog.Default())
 	if got != nil {
 		t.Fatalf("expected nil delivery strategy without a publisher, got %T", got)
+	}
+}
+
+// A digest-mode user gets a DigestDelivery even without an alert publisher —
+// digest items are accumulated in the store, not published to the stream.
+func TestIngestDeliveryFor_DigestMode(t *testing.T) {
+	s := &Server{digests: &fakeDigest{mode: "digest"}} // no publisher
+	got := s.ingestDeliveryFor(context.Background(), storage.Search{ChatID: 1}, slog.Default())
+	if _, ok := got.(*scheduler.DigestDelivery); !ok {
+		t.Fatalf("expected *scheduler.DigestDelivery for a digest-mode user, got %T", got)
 	}
 }
