@@ -25,8 +25,12 @@ function label(field) {
 // scraper does (parser.go subModelGearRe): the sub-model text carries an "אוט׳"
 // marker for automatics. Non-automatics stay empty, which the filter skips.
 const AUTO_GEARBOX_RE = /אוט[׳']/;
-function deriveGearBox(subModelText) {
-  return AUTO_GEARBOX_RE.test(subModelText || "") ? "אוטומט" : "";
+// Test the RAW Hebrew sub-model text (field.text), not label(): label() prefers
+// text_eng, so it would miss the Hebrew "אוט׳" marker whenever English text is
+// present and wrongly leave gearbox empty.
+function deriveGearBox(subModelField) {
+  const text = (subModelField && subModelField.text) || "";
+  return AUTO_GEARBOX_RE.test(text) ? "אוטומט" : "";
 }
 
 function fieldId(field) {
@@ -73,7 +77,7 @@ function itemToListing(item, isCommercial) {
     page_link: `https://www.yad2.co.il/vehicles/item/${token}`,
     engine_volume: sf.engine_volume || 0,
     engine_type: label(sf.engine_type),
-    gear_box: deriveGearBox(label(sf.sub_model)),
+    gear_box: deriveGearBox(sf.sub_model),
     body_type: label(sf.body_type),
     description: (md.description || "").trim(),
     is_commercial: isCommercial,
@@ -164,7 +168,7 @@ function parseItemDetail(json) {
   // Derive gearbox from the sub-model marker (Hebrew "אוטומט"), never the
   // item's English gearBox.text_eng — see deriveGearBox. Using English here
   // made enriched listings fail the backend gearbox filter and drop their km.
-  const gearBox = deriveGearBox(label(d.subModel));
+  const gearBox = deriveGearBox(d.subModel);
   if (gearBox) fields.gear_box = gearBox;
   const bodyType = label(d.bodyType);
   if (bodyType) fields.body_type = bodyType;
