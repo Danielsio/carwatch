@@ -323,6 +323,16 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 		raw = append(raw, rl)
 	}
 
+	// How many of the pushed listings arrived with km — the key signal when
+	// debugging "extension enriched but km didn't land" (if this is high but
+	// nothing saves with km, the loss is at the per-search filter/save below).
+	submittedWithKm := 0
+	for i := range raw {
+		if raw[i].Km > 0 {
+			submittedWithKm++
+		}
+	}
+
 	searches, err := s.searches.ListSearches(r.Context(), chatID)
 	if err != nil {
 		log.Error("list searches failed", "error", err)
@@ -342,6 +352,13 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		matchedWithKm := 0
+		for i := range filtered {
+			if filtered[i].Km > 0 {
+				matchedWithKm++
+			}
+		}
+
 		params := scheduler.ProcessParamsFromSearch(sr, nil)
 		params.ChatID = chatID
 		pr := s.pipeline.Process(r.Context(), filtered, params)
@@ -357,9 +374,19 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 			// the ingest, which has already persisted the listings.
 			s.deliverIngestMatches(r.Context(), sr, pr.Listings, log)
 		}
+
+		// Per-search visibility: how many pushed listings matched this search,
+		// how many of those carried km, and how many were persisted. A gap
+		// between matched_with_km and saved points at the filter/pipeline.
+		log.Debug("ingest search processed",
+			"search_id", sr.ID, "search_name", sr.Name,
+			"matched", len(filtered), "matched_with_km", matchedWithKm,
+			"saved", len(pr.Records))
 	}
 
-	log.Info("ingest complete", "submitted", len(req.Listings), "parsed", len(raw), "new_matches", totalNew)
+	log.Info("ingest complete",
+		"submitted", len(req.Listings), "submitted_with_km", submittedWithKm,
+		"parsed", len(raw), "new_matches", totalNew)
 
 	writeJSON(w, http.StatusOK, ingestResponse{
 		Processed:  len(raw),
