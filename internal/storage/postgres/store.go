@@ -4,12 +4,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -43,7 +44,18 @@ func New(dsn string, migrationsPath string) (*Store, error) {
 			_ = db.Close()
 			return nil, fmt.Errorf("create migrate driver: %w", err)
 		}
-		m, err := migrate.NewWithDatabaseInstance("file://"+absPath, "pgx", driver)
+		// Use the iofs source over os.DirFS rather than a "file://" URL: the
+		// file source's URL parsing is broken on Windows (a `C:\…` path parses
+		// as an invalid port, and even when slash-normalized the source can't
+		// open it), which breaks `make dev` on Windows. iofs takes an fs.FS
+		// directly — no URL, no platform-specific path munging — and still
+		// reads migrations from disk at runtime (prod mounts ./migrations).
+		src, err := iofs.New(os.DirFS(absPath), ".")
+		if err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("open migrations source: %w", err)
+		}
+		m, err := migrate.NewWithInstance("iofs", src, "pgx", driver)
 		if err != nil {
 			_ = db.Close()
 			return nil, fmt.Errorf("create migrator: %w", err)
