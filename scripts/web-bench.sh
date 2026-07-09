@@ -96,7 +96,11 @@ bench_path() {
   local ttfbs=() totals=() size="" code="" enc_cdn=""
   enc_cdn="$(probe_headers "$url" || true)"
   for _ in $(seq 1 "$SAMPLES"); do
-    read -r dns conn tls ttfb total sz hc < <(curl "${CURL_OPTS[@]}" -o /dev/null -w "$TIMEFMT" "$url" 2>/dev/null || echo "0 0 0 0 0 0 000")
+    # On failure curl still writes the -w format with zeros + http_code 000;
+    # `|| true` just keeps set -e happy. (Do NOT `|| echo ...` — TIMEFMT has no
+    # trailing newline, so the echo would concatenate onto curl's output and
+    # corrupt the read.)
+    read -r dns conn tls ttfb total sz hc < <(curl "${CURL_OPTS[@]}" -o /dev/null -w "$TIMEFMT" "$url" 2>/dev/null || true)
     ttfbs+=("$(awk -v x="$ttfb" 'BEGIN{print x*1000}')")
     totals+=("$(awk -v x="$total" 'BEGIN{print x*1000}')")
     size="$sz"; code="$hc"
