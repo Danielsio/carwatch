@@ -326,10 +326,10 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 	// How many of the pushed listings arrived with km — the key signal when
 	// debugging "extension enriched but km didn't land" (if this is high but
 	// nothing saves with km, the loss is at the per-search filter/save below).
-	submittedWithKm := 0
+	parsedWithKm := 0
 	for i := range raw {
 		if raw[i].Km > 0 {
-			submittedWithKm++
+			parsedWithKm++
 		}
 	}
 
@@ -385,7 +385,7 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info("ingest complete",
-		"submitted", len(req.Listings), "submitted_with_km", submittedWithKm,
+		"submitted", len(req.Listings), "parsed_with_km", parsedWithKm,
 		"parsed", len(raw), "new_matches", totalNew)
 
 	writeJSON(w, http.StatusOK, ingestResponse{
