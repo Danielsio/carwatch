@@ -17,6 +17,18 @@ function label(field) {
   return field.text_eng || field.textEng || field.text || "";
 }
 
+// The search's gearbox is stored as the Hebrew "אוטומט" and the backend filter
+// (internal/filter/filter.go) matches on that exact string. The gw feed has no
+// clean gearbox field, and the item detail's gearBox.text_eng is English
+// ("Automatic") — using it made every enriched listing FAIL the gearbox filter
+// and get dropped (so km never saved). Derive gearbox the same way the Go
+// scraper does (parser.go subModelGearRe): the sub-model text carries an "אוט׳"
+// marker for automatics. Non-automatics stay empty, which the filter skips.
+const AUTO_GEARBOX_RE = /אוט[׳']/;
+function deriveGearBox(subModelText) {
+  return AUTO_GEARBOX_RE.test(subModelText || "") ? "אוטומט" : "";
+}
+
 function fieldId(field) {
   if (!field) return 0;
   const id = field.id;
@@ -61,7 +73,7 @@ function itemToListing(item, isCommercial) {
     page_link: `https://www.yad2.co.il/vehicles/item/${token}`,
     engine_volume: sf.engine_volume || 0,
     engine_type: label(sf.engine_type),
-    gear_box: label(sf.gear_box) || label(md.gear_box_item),
+    gear_box: deriveGearBox(label(sf.sub_model)),
     body_type: label(sf.body_type),
     description: (md.description || "").trim(),
     is_commercial: isCommercial,
@@ -149,7 +161,10 @@ function parseItemDetail(json) {
   if (d.engineVolume) fields.engine_volume = d.engineVolume;
   const engineType = label(d.engineType);
   if (engineType) fields.engine_type = engineType;
-  const gearBox = label(d.gearBox);
+  // Derive gearbox from the sub-model marker (Hebrew "אוטומט"), never the
+  // item's English gearBox.text_eng — see deriveGearBox. Using English here
+  // made enriched listings fail the backend gearbox filter and drop their km.
+  const gearBox = deriveGearBox(label(d.subModel));
   if (gearBox) fields.gear_box = gearBox;
   const bodyType = label(d.bodyType);
   if (bodyType) fields.body_type = bodyType;
