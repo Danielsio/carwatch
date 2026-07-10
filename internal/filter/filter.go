@@ -27,6 +27,12 @@ func Apply(criteria model.FilterCriteria, listings []model.RawListing) []model.R
 }
 
 func matches(c model.FilterCriteria, l model.RawListing) bool {
+	// Manufacturer must match when set. This matters for the extension ingest
+	// path, where one push carries listings from ALL of a user's searches, so a
+	// manufacturer-only search (ModelID == 0) would otherwise match every make.
+	if c.ManufacturerID > 0 && l.ManufacturerID != c.ManufacturerID {
+		return false
+	}
 	if c.ModelID > 0 && l.ModelID != c.ModelID {
 		return false
 	}
