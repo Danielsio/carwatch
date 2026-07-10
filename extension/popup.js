@@ -8,13 +8,15 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchBtn.addEventListener("click", () => {
     fetchBtn.disabled = true;
     fetchBtn.textContent = "Fetching…";
-    chrome.runtime.sendMessage({ action: "fetchNow" });
-    // A cycle (feed + ~30 item enrichments) takes ~60-90s; re-enable after.
-    setTimeout(() => {
+    // The background resolves this only when the cycle (feed + ~30 item
+    // enrichments, ~60-90s) actually finishes, so the button reflects real
+    // completion instead of a fixed timeout.
+    const done = () => {
       fetchBtn.disabled = false;
       fetchBtn.textContent = "Fetch Now";
       refresh();
-    }, 12000);
+    };
+    chrome.runtime.sendMessage({ action: "fetchNow" }).then(done, done);
   });
 
   el("diagToggle").addEventListener("click", () => {

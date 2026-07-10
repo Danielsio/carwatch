@@ -32,8 +32,19 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME) runFetchCycle();
 });
 
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.action === "fetchNow") runFetchCycle();
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.action === "fetchNow") {
+    // Respond only once the whole cycle finishes, so the popup can keep its
+    // button disabled for the real ~60-90s duration instead of a fixed guess.
+    runFetchCycle().finally(() => {
+      try {
+        sendResponse({ done: true });
+      } catch {
+        // popup closed before the cycle finished — nothing to respond to
+      }
+    });
+    return true; // keep the message channel open for the async sendResponse
+  }
 });
 
 async function getConfig() {

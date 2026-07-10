@@ -341,7 +341,6 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	totalNew := 0
-	var totalRemoved int64
 	for _, sr := range searches {
 		if !sr.Active || (sr.Manufacturer == 0 && sr.Model == 0) {
 			continue
@@ -376,37 +375,26 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 			s.deliverIngestMatches(r.Context(), sr, pr.Listings, log)
 		}
 
-		// Reconcile: drop this search's listings that are no longer in the feed
-		// (sold/delisted), the removal detection the retired scraper did. Guarded
-		// by len(filtered)>0 above, so a blocked or empty feed can never wipe a
-		// search. Self-correcting: a momentarily-partial feed re-adds the listing
-		// next cycle via the upsert (which clears removed_at), and dedup prevents
-		// a re-notification.
-		freshTokens := make([]string, len(filtered))
-		for i := range filtered {
-			freshTokens[i] = filtered[i].Token
-		}
-		var removed int64
-		if n, err := s.listings.DeleteStaleListings(r.Context(), chatID, sr.ID, freshTokens); err != nil {
-			log.Error("reconcile stale listings failed", "search_id", sr.ID, "error", err)
-		} else {
-			removed = n
-			totalRemoved += n
-		}
+		// NOTE: removal/reconciliation (deleting a search's listings absent from
+		// the feed, as the retired scraper did) is intentionally NOT done here.
+		// The extension pushes page 1 of each feed, and the backend can't tell a
+		// complete feed from a paginated/partial one (the per-search filter
+		// decouples `filtered` from the raw feed size), so reconciling could
+		// delete valid listings. Safe removal needs the extension to signal
+		// per-search feed completeness — tracked as a follow-up.
 
 		// Per-search visibility: how many pushed listings matched this search,
-		// how many carried km, how many were persisted, and how many stale ones
-		// were reconciled. A gap between matched_with_km and saved points at the
-		// filter/pipeline.
+		// how many of those carried km, and how many were persisted. A gap
+		// between matched_with_km and saved points at the filter/pipeline.
 		log.Debug("ingest search processed",
 			"search_id", sr.ID, "search_name", sr.Name,
 			"matched", len(filtered), "matched_with_km", matchedWithKm,
-			"saved", len(pr.Records), "removed", removed)
+			"saved", len(pr.Records))
 	}
 
 	log.Info("ingest complete",
 		"submitted", len(req.Listings), "parsed_with_km", parsedWithKm,
-		"parsed", len(raw), "new_matches", totalNew, "removed", totalRemoved)
+		"parsed", len(raw), "new_matches", totalNew)
 
 	writeJSON(w, http.StatusOK, ingestResponse{
 		Processed:  len(raw),
