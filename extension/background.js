@@ -422,7 +422,20 @@ async function fetchSearches(config) {
   return resp.json();
 }
 
+// The ingest endpoint rejects > 500 listings per request, so push in chunks.
+// A user with many/broad searches can exceed that; without chunking the whole
+// cycle's ingestion would 400 and be lost.
+const MAX_INGEST_BATCH = 400;
+
 async function pushListings(config, listings) {
+  let last;
+  for (let i = 0; i < listings.length; i += MAX_INGEST_BATCH) {
+    last = await pushBatch(config, listings.slice(i, i + MAX_INGEST_BATCH));
+  }
+  return last;
+}
+
+async function pushBatch(config, listings) {
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await sleep(2000 * attempt);
     const resp = await fetchWithTimeout(
