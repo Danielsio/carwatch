@@ -32,8 +32,19 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME) runFetchCycle();
 });
 
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.action === "fetchNow") runFetchCycle();
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.action === "fetchNow") {
+    // Respond only once the whole cycle finishes, so the popup can keep its
+    // button disabled for the real ~60-90s duration instead of a fixed guess.
+    runFetchCycle().finally(() => {
+      try {
+        sendResponse({ done: true });
+      } catch {
+        // popup closed before the cycle finished — nothing to respond to
+      }
+    });
+    return true; // keep the message channel open for the async sendResponse
+  }
 });
 
 async function getConfig() {
@@ -224,17 +235,36 @@ function batchUnusable(results) {
   return results.length === 0 || results.every(looksBlocked);
 }
 
-// ---- known-token cache (client-side mirror of DB pre-fill) -----------------
+// ---- enrichment cache (token -> resolved item fields) ----------------------
+//
+// Maps a token to the fields we resolved from the item endpoint (km, city,
+// image, gearbox, ...). We RE-APPLY it to the feed listings every cycle and
+// push the values, so a listing's km survives even if a single backend save
+// was dropped (self-healing — no more remove+re-add), and we never re-fetch
+// what we already have. Replaces the old token-only "known" set, whose
+// one-shot nature stranded any listing whose km failed to persist once.
 
-async function getKnownTokens() {
-  const { knownTokens } = await chrome.storage.local.get("knownTokens");
-  return new Set(Array.isArray(knownTokens) ? knownTokens : []);
+async function getEnrichedCache() {
+  const { enrichedCache } = await chrome.storage.local.get("enrichedCache");
+  return enrichedCache && typeof enrichedCache === "object" ? enrichedCache : {};
 }
 
-async function saveKnownTokens(set) {
-  let arr = [...set];
-  if (arr.length > KNOWN_TOKENS_CAP) arr = arr.slice(arr.length - KNOWN_TOKENS_CAP);
-  await chrome.storage.local.set({ knownTokens: arr });
+async function saveEnrichedCache(cache) {
+  const tokens = Object.keys(cache);
+  if (tokens.length > KNOWN_TOKENS_CAP) {
+    // Object keys keep insertion order — drop the oldest overflow.
+    for (const t of tokens.slice(0, tokens.length - KNOWN_TOKENS_CAP)) delete cache[t];
+  }
+  await chrome.storage.local.set({ enrichedCache: cache });
+}
+
+// Overlay resolved fields onto a feed listing without wiping known values with
+// blanks/zeros (the feed omits km/city/image; the item endpoint fills them).
+function applyEnrichment(listing, data) {
+  for (const [k, v] of Object.entries(data)) {
+    if (k === "token") continue;
+    if (v !== undefined && v !== "" && v !== 0) listing[k] = v;
+  }
 }
 
 function shuffle(a) {
@@ -303,11 +333,19 @@ async function runFetchCycle() {
       }
     }
 
-    // 2) Enrich listings missing km (skip tokens we've resolved before).
-    const known = await getKnownTokens();
-    let toEnrich = [...byToken.values()].filter(
-      (l) => (l.km || 0) <= 0 && !known.has(l.token),
-    );
+    // 2) Re-apply everything we've already resolved (self-healing: the km is
+    // re-pushed every cycle so a dropped save recovers), then enrich only what
+    // is STILL missing km.
+    const cache = await getEnrichedCache();
+    let cachedApplied = 0;
+    for (const l of byToken.values()) {
+      const c = cache[l.token];
+      if (c) {
+        applyEnrichment(l, c);
+        if ((l.km || 0) > 0) cachedApplied++;
+      }
+    }
+    let toEnrich = [...byToken.values()].filter((l) => (l.km || 0) <= 0);
     toEnrich = shuffle(toEnrich).slice(0, MAX_ENRICH_PER_CYCLE);
 
     // Diagnostics surfaced in the popup so failures are visible without DevTools.
@@ -340,19 +378,19 @@ async function runFetchCycle() {
         itemOk++;
         const l = byToken.get(parsed.fields.token);
         if (!l) continue;
-        for (const [k, v] of Object.entries(parsed.fields)) {
-          if (k === "token") continue;
-          if (v !== undefined && v !== "" && v !== 0) l[k] = v;
-        }
+        applyEnrichment(l, parsed.fields);
         if ((l.km || 0) > 0) {
           gotKm++;
-          known.add(l.token);
+          // Cache the resolved fields so future cycles re-push km without
+          // re-fetching, and recover from a dropped save.
+          const { token: _t, ...resolved } = parsed.fields;
+          cache[l.token] = resolved;
         }
       }
-      await saveKnownTokens(known);
+      await saveEnrichedCache(cache);
     }
     console.log(
-      `[CarWatch] enrich tried=${toEnrich.length} returned=${itemGot} ok=${itemOk} blocked=${itemBlocked} parseErr=${itemParseErr} gotKm=${gotKm} ${itemErr}`,
+      `[CarWatch] enrich cacheApplied=${cachedApplied} tried=${toEnrich.length} returned=${itemGot} ok=${itemOk} blocked=${itemBlocked} parseErr=${itemParseErr} gotKm=${gotKm} ${itemErr}`,
     );
 
     const listings = [...byToken.values()];
@@ -364,7 +402,7 @@ async function runFetchCycle() {
       searches: activeSearches.length,
       listings: listings.length,
       enriched,
-      diag: `feeds ${feedResults.length - blocked}/${feedResults.length} ok · enrich try:${toEnrich.length} ret:${itemGot} ok:${itemOk} blk:${itemBlocked} perr:${itemParseErr} km:${gotKm}${itemErr ? " · " + itemErr : ""}`,
+      diag: `feeds ${feedResults.length - blocked}/${feedResults.length} ok · cache:${cachedApplied} · enrich try:${toEnrich.length} ret:${itemGot} ok:${itemOk} blk:${itemBlocked} perr:${itemParseErr} km:${gotKm}${itemErr ? " · " + itemErr : ""}`,
       error: blocked ? `${blocked} feed(s) blocked by anti-bot` : null,
     });
   } catch (err) {

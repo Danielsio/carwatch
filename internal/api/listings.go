@@ -375,6 +375,14 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 			s.deliverIngestMatches(r.Context(), sr, pr.Listings, log)
 		}
 
+		// NOTE: removal/reconciliation (deleting a search's listings absent from
+		// the feed, as the retired scraper did) is intentionally NOT done here.
+		// The extension pushes page 1 of each feed, and the backend can't tell a
+		// complete feed from a paginated/partial one (the per-search filter
+		// decouples `filtered` from the raw feed size), so reconciling could
+		// delete valid listings. Safe removal needs the extension to signal
+		// per-search feed completeness — tracked as a follow-up.
+
 		// Per-search visibility: how many pushed listings matched this search,
 		// how many of those carried km, and how many were persisted. A gap
 		// between matched_with_km and saved points at the filter/pipeline.

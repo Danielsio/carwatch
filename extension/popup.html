@@ -1,34 +1,77 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   <style>
-    body { width: 320px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 16px; margin: 0; color: #1a1a2e; }
-    h2 { margin: 0 0 12px; font-size: 16px; }
-    .status { margin-top: 14px; padding: 10px; background: #f5f5f5; border-radius: 6px; font-size: 12px; }
-    .status div { margin: 2px 0; }
-    .error { color: #d32f2f; }
-    .ok { color: #2e7d32; }
-    .warn { color: #e65100; }
-    button { margin-top: 12px; width: 100%; padding: 8px; border: none; border-radius: 4px; background: #1a73e8; color: white; font-size: 13px; cursor: pointer; }
-    button:hover { background: #1557b0; }
-    button:disabled { background: #ccc; cursor: default; }
-    .hint { font-size: 11px; color: #888; margin-top: 6px; }
+    :root {
+      --bg: #ffffff; --fg: #14161a; --muted: #6b7280; --card: #f6f7f9;
+      --border: #e6e8eb; --accent: #1a73e8; --ok: #16a34a; --warn: #e0620d; --err: #dc2626;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1b1d22; --fg: #e8eaed; --muted: #9aa0a6; --card: #26282e;
+        --border: #34373e; --accent: #5b9bff; --ok: #4ade80; --warn: #fb923c; --err: #f87171;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { width: 328px; margin: 0; padding: 14px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--fg); background: var(--bg); }
+    .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .title { font-size: 15px; font-weight: 650; display: flex; align-items: center; gap: 7px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); }
+    .ver { font-size: 11px; color: var(--muted); }
+    .next { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 14px 12px; text-align: center; margin-bottom: 10px; }
+    .next .label { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .next .time { font-size: 30px; font-weight: 750; font-variant-numeric: tabular-nums; margin-top: 3px; line-height: 1.1; }
+    .next .sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 9px; padding: 9px 4px; text-align: center; }
+    .stat .n { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .k { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    button { width: 100%; padding: 10px; border: none; border-radius: 9px; background: var(--accent);
+      color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+    button:hover { filter: brightness(0.96); } button:disabled { opacity: .55; cursor: default; }
+    .row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); margin-top: 10px; }
+    .err { color: var(--err); font-size: 12px; margin-top: 8px; display: none; }
+    .toggle { font-size: 11px; color: var(--accent); cursor: pointer; user-select: none; }
+    .diag { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 10px;
+      color: var(--muted); background: var(--card); border: 1px solid var(--border); border-radius: 7px;
+      padding: 7px 8px; margin-top: 7px; word-break: break-word; line-height: 1.45; display: none; }
+    .diag.show { display: block; }
+    .hint { font-size: 11px; color: var(--muted); margin-top: 9px; line-height: 1.45; display: none; }
+    .hint b { color: var(--fg); }
   </style>
 </head>
 <body>
-  <h2>CarWatch Scraper</h2>
+  <div class="head">
+    <div class="title"><span class="dot" id="authDot"></span> CarWatch Scraper</div>
+    <div class="ver" id="ver"></div>
+  </div>
 
-  <div class="status" id="auth">Checking auth...</div>
+  <div class="next">
+    <div class="label">Next fetch in</div>
+    <div class="time" id="countdown">—</div>
+    <div class="sub" id="nextSub">every 15 min while Chrome is open</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="n" id="sSearches">—</div><div class="k">searches</div></div>
+    <div class="stat"><div class="n" id="sListings">—</div><div class="k">listings</div></div>
+    <div class="stat"><div class="n" id="sKm">—</div><div class="k">with km</div></div>
+  </div>
 
   <button id="fetchBtn">Fetch Now</button>
 
-  <div class="status" id="status">Loading...</div>
-
-  <div class="hint">
-    Auth token is captured automatically when you use the CarWatch web app.
-    Open carwatch.duckdns.org and navigate any page while logged in.
+  <div class="row">
+    <span id="lastRun">never run</span>
+    <span class="toggle" id="diagToggle">details</span>
   </div>
+  <div class="err" id="err"></div>
+  <div class="diag" id="diag">no data yet</div>
+  <div class="hint" id="hint">Not authenticated — open <b>carwatch.duckdns.org</b> while logged in so the token is captured, then Fetch&nbsp;Now.</div>
 
   <script src="popup.js"></script>
 </body>
