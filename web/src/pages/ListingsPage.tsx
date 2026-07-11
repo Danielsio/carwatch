@@ -41,6 +41,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useToast } from "@/components/ui/Toast";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 const SORT_OPTIONS = [
   { value: "newest", label: "חדשים" },
@@ -56,6 +57,7 @@ const REFRESH_COOLDOWN_S = 60;
 function RefreshButton({ searchId }: { searchId: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { live_search: liveSearch } = useCapabilities();
 
   const [cooldown, setCooldown] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -99,6 +101,11 @@ function RefreshButton({ searchId }: { searchId: number }) {
   });
 
   const isRefreshing = refreshMutation.isPending;
+
+  // Refresh fetches from the source on demand, which this deployment cannot do
+  // (see Capabilities in lib/api). Listings still arrive via the browser
+  // extension, so hide the button rather than offer one that always errors.
+  if (!liveSearch) return null;
 
   return (
     <button

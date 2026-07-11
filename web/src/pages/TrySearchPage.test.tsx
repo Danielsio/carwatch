@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import TrySearchPage from "./TrySearchPage";
+import { guestApi } from "@/lib/api";
 
 vi.mock("@/lib/api", () => ({
   guestApi: {
@@ -17,6 +18,7 @@ vi.mock("@/lib/api", () => ({
       ]),
     },
     instantSearch: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    capabilities: vi.fn().mockResolvedValue({ live_search: true }),
   },
   ApiError: class ApiError extends Error {
     status: number;
@@ -48,27 +50,46 @@ describe("TrySearchPage", () => {
     sessionStorage.clear();
   });
 
-  it("renders the form with header and submit button", () => {
+  it("renders the form with header and submit button", async () => {
     renderPage();
     expect(screen.getByText("נסה חיפוש חינם")).toBeInTheDocument();
-    expect(screen.getByText("חפש עכשיו")).toBeInTheDocument();
+    expect(await screen.findByText("חפש עכשיו")).toBeInTheDocument();
   });
 
-  it("renders manufacturer and model selects", () => {
+  // Instant search needs a live server-side fetch of Yad2, which is blocked in
+  // production. Offering the form there just produces a 503, so the page must
+  // explain and route the user to the flow that works (sign up + extension).
+  it("hides the search form and explains when live search is unavailable", async () => {
+    vi.mocked(guestApi.capabilities).mockResolvedValueOnce({
+      live_search: false,
+    });
     renderPage();
-    expect(screen.getByLabelText("יצרן")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText("חיפוש מיידי אינו זמין כרגע")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("חפש עכשיו")).not.toBeInTheDocument();
+    expect(screen.getByText("הירשם והתקן את התוסף")).toBeInTheDocument();
+    expect(guestApi.instantSearch).not.toHaveBeenCalled();
+  });
+
+  it("renders manufacturer and model selects", async () => {
+    renderPage();
+    expect(await screen.findByLabelText("יצרן")).toBeInTheDocument();
     expect(screen.getByLabelText("דגם")).toBeInTheDocument();
   });
 
-  it("has submit button disabled when manufacturer is not selected", () => {
+  it("has submit button disabled when manufacturer is not selected", async () => {
     renderPage();
-    const submitBtn = screen.getByText("חפש עכשיו").closest("button")!;
+    const submitBtn = (await screen.findByText("חפש עכשיו")).closest("button")!;
     expect(submitBtn).toBeDisabled();
   });
 
-  it("model select is disabled until manufacturer is chosen", () => {
+  it("model select is disabled until manufacturer is chosen", async () => {
     renderPage();
-    const modelSelect = screen.getByLabelText("דגם") as HTMLSelectElement;
+    const modelSelect = (await screen.findByLabelText(
+      "דגם",
+    )) as HTMLSelectElement;
     expect(modelSelect).toBeDisabled();
   });
 
