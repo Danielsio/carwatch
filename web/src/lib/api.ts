@@ -645,7 +645,21 @@ export interface InstantSearchResponse {
   total: number;
 }
 
+/**
+ * Which optional features this deployment can actually perform.
+ *
+ * `live_search` is false when the server cannot fetch listings from the source
+ * on demand — Yad2 is behind a bot challenge only a real browser clears — which
+ * makes per-search refresh and guest instant search return 503. Listings still
+ * arrive via the browser extension, so everything else works. The UI hides
+ * those two entry points rather than offering a button that only ever errors.
+ */
+export interface Capabilities {
+  live_search: boolean;
+}
+
 export const guestApi = {
+  capabilities: () => fetchGuestAPI<Capabilities>("/capabilities"),
   instantSearch: (data: InstantSearchRequest) =>
     fetchGuestAPI<InstantSearchResponse>("/guest/instant-search", {
       method: "POST",

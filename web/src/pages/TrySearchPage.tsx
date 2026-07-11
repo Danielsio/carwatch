@@ -10,6 +10,7 @@ import {
   type Model,
 } from "@/lib/api";
 import { formatPrice, safeHref } from "@/lib/utils";
+import { useCapabilities } from "@/hooks/useCapabilities";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Toggle } from "@/components/ui/toggle";
 
@@ -96,6 +97,7 @@ const STORAGE_KEY = "carwatch_try_search_form";
 
 export default function TrySearchPage() {
   useDocumentTitle("נסה חיפוש");
+  const { live_search: liveSearch, isLoading: capsLoading } = useCapabilities();
   const [form, setForm] = useState<GuestFormData>(() => {
     try {
       const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -170,6 +172,59 @@ export default function TrySearchPage() {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     search.mutate();
+  }
+
+  // Instant search fetches Yad2 live from the server, which this deployment
+  // cannot do (see Capabilities in lib/api) — the request would only ever 503.
+  // Explain that and point at the flow that does work: sign up, install the
+  // extension, and listings arrive automatically.
+  // Hold the page until we know whether live search works: rendering the form
+  // first would flash it and then yank it away.
+  if (capsLoading) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 dir-rtl">
+        <header className="mb-8 text-center">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            נסה חיפוש חינם
+          </h1>
+        </header>
+        <div className="h-64 animate-pulse rounded-2xl bg-muted" aria-busy />
+      </div>
+    );
+  }
+
+  if (!liveSearch) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 dir-rtl">
+        <header className="mb-8 text-center">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            נסה חיפוש חינם
+          </h1>
+        </header>
+        <div
+          className="rounded-2xl border border-border bg-card p-6 text-center"
+          role="status"
+        >
+          <ShieldAlert
+            className="mx-auto mb-3 h-6 w-6 text-muted-foreground"
+            aria-hidden
+          />
+          <h2 className="text-lg font-semibold text-foreground">
+            חיפוש מיידי אינו זמין כרגע
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+            יד2 חוסמת חיפוש ישיר מהשרת. לאחר ההרשמה, התוסף של CarWatch אוסף
+            עבורך את המודעות מהדפדפן ושולח התראה על כל מודעה חדשה.
+          </p>
+          <Link
+            to="/signup"
+            className="mt-5 inline-block rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-white shadow-lg"
+          >
+            הירשם והתקן את התוסף
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (

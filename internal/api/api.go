@@ -392,11 +392,19 @@ func (s *Server) Routes() http.Handler {
 
 	catalogChain := s.withMaxBody(catalogMux)
 
+	// --- Capabilities (no auth) ---
+	// Static, single-field, and needed before the UI renders, so it shares the
+	// unrate-limited catalog treatment.
+	capMux := http.NewServeMux()
+	capMux.HandleFunc("GET /api/v1/capabilities", s.capabilities)
+	capChain := s.withMaxBody(capMux)
+
 	// --- Top-level router ---
 	// More-specific prefixes are matched first by net/http.ServeMux.
 	top := http.NewServeMux()
 	top.Handle("/api/v1/guest/", guestChain)
 	top.Handle("/api/v1/catalog/", catalogChain)
+	top.Handle("GET /api/v1/capabilities", capChain)
 	top.Handle("GET /api/v1/me", optAuthChain)
 	top.Handle("GET /api/v1/searches", optAuthChain)
 	if s.notifs != nil {
