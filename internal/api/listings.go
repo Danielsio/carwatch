@@ -11,6 +11,7 @@ import (
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/dsionov/carwatch/internal/timeutil"
 )
 
 type listingResponse struct {
@@ -312,14 +313,9 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 			Description:    l.Description,
 			Commercial:     l.IsCommercial,
 		}
-		if l.CreatedAt != "" {
-			for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05", "2006-01-02"} {
-				if t, err := time.Parse(layout, l.CreatedAt); err == nil {
-					rl.CreatedAt = t
-					break
-				}
-			}
-		}
+		// Shared with the scraper: the Yad2 feed emits zone-less local
+		// timestamps, so parsing them as UTC would put posted_at ~2-3h early.
+		rl.CreatedAt = timeutil.ParseFlexTime(l.CreatedAt)
 		raw = append(raw, rl)
 	}
 

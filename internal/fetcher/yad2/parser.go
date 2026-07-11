@@ -9,11 +9,11 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/dsionov/carwatch/internal/bodytype"
 	"github.com/dsionov/carwatch/internal/fetcher"
 	"github.com/dsionov/carwatch/internal/model"
+	"github.com/dsionov/carwatch/internal/timeutil"
 )
 
 const challengeMarker = "Are you for real"
@@ -341,7 +341,7 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 		updatedAt = item.VehicleDates.UpdatedAt
 	}
 	if createdAt != "" {
-		listing.CreatedAt = parseFlexTime(createdAt)
+		listing.CreatedAt = timeutil.ParseFlexTime(createdAt)
 		if listing.CreatedAt.IsZero() && logger != nil {
 			// A non-empty value we cannot parse means Yad2 changed its date
 			// format. Surface it loudly: silently dropping it makes posted_at
@@ -351,7 +351,7 @@ func itemToListing(raw json.RawMessage, commercial *bool, logger *slog.Logger) (
 		}
 	}
 	if updatedAt != "" {
-		listing.UpdatedAt = parseFlexTime(updatedAt)
+		listing.UpdatedAt = timeutil.ParseFlexTime(updatedAt)
 	}
 	listing.Commercial = commercial
 	return listing, nil
@@ -392,45 +392,6 @@ func parseHand(raw json.RawMessage) int {
 		return f.ID
 	}
 	return 0
-}
-
-var israelTZ = func() *time.Location {
-	loc, err := time.LoadLocation("Asia/Jerusalem")
-	if err != nil {
-		return time.UTC
-	}
-	return loc
-}()
-
-// parseFlexTime parses the timestamp formats Yad2 has been observed to emit.
-// Yad2's feed dates are zone-less local time (e.g. "2025-02-09T10:31:37"), but
-// it has historically drifted between "Z"/offset-suffixed and fractional-second
-// variants, so we accept all of them rather than silently dropping the date.
-func parseFlexTime(s string) time.Time {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return time.Time{}
-	}
-	// Zone-bearing formats ("...Z" or "...+02:00"), with or without fractional
-	// seconds. RFC3339Nano covers the fractional case; RFC3339 the rest.
-	for _, layout := range []string{time.RFC3339Nano, time.RFC3339} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t
-		}
-	}
-	// Zone-less formats — interpret as Israel local time, matching the feed.
-	for _, layout := range []string{
-		"2006-01-02T15:04:05.999999999",
-		"2006-01-02T15:04:05",
-		"2006-01-02 15:04:05.999999999",
-		"2006-01-02 15:04:05",
-		"2006-01-02",
-	} {
-		if t, err := time.ParseInLocation(layout, s, israelTZ); err == nil {
-			return t
-		}
-	}
-	return time.Time{}
 }
 
 func textFromField(f field) string {

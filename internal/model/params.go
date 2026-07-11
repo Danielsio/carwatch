@@ -12,18 +12,19 @@ import (
 // replaces both.
 func FilterCriteriaFromSearch(s *storage.Search) FilterCriteria {
 	criteria := FilterCriteria{
-		ModelID:      s.Model,
-		YearMin:      s.YearMin,
-		YearMax:      s.YearMax,
-		PriceMin:     s.PriceMin,
-		PriceMax:     s.PriceMax,
-		EngineMinCC:  float64(s.EngineMinCC),
-		MaxKm:        s.MaxKm,
-		MaxHand:      s.MaxHand,
-		GearBox:      s.GearBox,
-		SellerFilter: s.SellerFilter,
-		PriceOnly:    s.PriceOnly,
-		PhotoOnly:    s.PhotoOnly,
+		ManufacturerID: s.Manufacturer,
+		ModelID:        s.Model,
+		YearMin:        s.YearMin,
+		YearMax:        s.YearMax,
+		PriceMin:       s.PriceMin,
+		PriceMax:       s.PriceMax,
+		EngineMinCC:    float64(s.EngineMinCC),
+		MaxKm:          s.MaxKm,
+		MaxHand:        s.MaxHand,
+		GearBox:        s.GearBox,
+		SellerFilter:   s.SellerFilter,
+		PriceOnly:      s.PriceOnly,
+		PhotoOnly:      s.PhotoOnly,
 	}
 
 	if s.Keywords != "" {
@@ -82,19 +83,20 @@ type SourceParams struct {
 // FilterCriteria defines the criteria used to filter raw listings
 // after they are fetched from a source.
 type FilterCriteria struct {
-	ModelID      int
-	YearMin      int
-	YearMax      int
-	PriceMin     int
-	PriceMax     int
-	EngineMinCC  float64
-	EngineMaxCC  float64
-	MaxKm        int
-	MaxHand      int
-	Keywords     []string
-	ExcludeKeys  []string
-	GearBox      string
-	SellerFilter string
-	PriceOnly    bool
-	PhotoOnly    bool
+	ManufacturerID int
+	ModelID        int
+	YearMin        int
+	YearMax        int
+	PriceMin       int
+	PriceMax       int
+	EngineMinCC    float64
+	EngineMaxCC    float64
+	MaxKm          int
+	MaxHand        int
+	Keywords       []string
+	ExcludeKeys    []string
+	GearBox        string
+	SellerFilter   string
+	PriceOnly      bool
+	PhotoOnly      bool
 }

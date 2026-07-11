@@ -25,6 +25,27 @@ func TestApply(t *testing.T) {
 			want: []string{"b"},
 		},
 		{
+			name:     "manufacturer filter",
+			criteria: model.FilterCriteria{ManufacturerID: 19},
+			listings: []model.RawListing{
+				{Token: "a", ManufacturerID: 19},
+				{Token: "b", ManufacturerID: 21},
+			},
+			want: []string{"a"},
+		},
+		{
+			// A manufacturer-only search (no ModelID) must not match other makes
+			// — the case the extension's combined push exposes.
+			name:     "manufacturer-only search excludes other makes",
+			criteria: model.FilterCriteria{ManufacturerID: 19, ModelID: 0},
+			listings: []model.RawListing{
+				{Token: "a", ManufacturerID: 19, ModelID: 100},
+				{Token: "b", ManufacturerID: 21, ModelID: 200},
+				{Token: "c", ManufacturerID: 19, ModelID: 300},
+			},
+			want: []string{"a", "c"},
+		},
+		{
 			name:     "engine max filter",
 			criteria: model.FilterCriteria{EngineMaxCC: 2100},
 			listings: []model.RawListing{
