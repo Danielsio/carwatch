@@ -115,6 +115,21 @@ func run(configPath string, skipMigrate bool, logger *slog.Logger) error {
 
 	dynCatalog := app.BuildDynamicCatalog(ctx, fb.Yad2, logger)
 
+	// The listing fetchers only reach the API's refresh / instant-search
+	// handlers when server-side fetching actually works; see
+	// config.PollingConfig.ServerFetch. Yad2 is behind a Radware bot challenge,
+	// so those fetches fail — withholding the factory makes both handlers
+	// answer "not available" immediately instead of retrying into a 502.
+	// (fb.Yad2 still backs the dynamic catalog above, which uses a different
+	// endpoint.)
+	listingFetchers := fb.Factory
+	if !cfg.Polling.ServerFetch {
+		listingFetchers = nil
+		logger.Info("server-side source fetching is disabled; search refresh and instant search are unavailable",
+			"reason", "Yad2 blocks server-side fetches (Radware); the browser extension ingests listings instead",
+		)
+	}
+
 	h := health.New()
 	h.SetVersion(version)
 	h.SetUserCounter(store)
@@ -127,7 +142,7 @@ func run(configPath string, skipMigrate bool, logger *slog.Logger) error {
 	}
 	defer plCleanup()
 
-	apiServer, err := app.BuildAPI(cfg, store, dynCatalog, logger, fb.Factory, fb.Yad2, plSvc, logHub, logLevelVar)
+	apiServer, err := app.BuildAPI(cfg, store, dynCatalog, logger, listingFetchers, fb.Yad2, plSvc, logHub, logLevelVar)
 	if err != nil {
 		return err
 	}

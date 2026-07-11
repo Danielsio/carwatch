@@ -129,6 +129,10 @@ func TestE2E_FullPipeline(t *testing.T) {
 			Interval: 1 * time.Minute,
 			Jitter:   0,
 			Timezone: "UTC",
+			// This suite drives the scheduler's fetch pipeline against a stub
+			// source, so it opts in. Production defaults this off: Yad2 blocks
+			// server-side fetches and listings arrive via the extension.
+			ServerFetch: true,
 		},
 		Telegram: config.TelegramConfig{
 			Token: "test-token",
