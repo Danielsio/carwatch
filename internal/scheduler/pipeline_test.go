@@ -59,6 +59,9 @@ func (s *prefillTrackingStore) DeleteStaleListings(_ context.Context, _ int64, _
 func (s *prefillTrackingStore) DropListingByToken(_ context.Context, _ string) (int64, error) {
 	return 0, nil
 }
+func (s *prefillTrackingStore) MarkListingsRemoved(_ context.Context, _ int64, tokens []string) (int64, error) {
+	return int64(len(tokens)), nil
+}
 func (s *prefillTrackingStore) ListUnenrichedTokens(_ context.Context, _ int) ([]string, error) {
 	return nil, nil
 }

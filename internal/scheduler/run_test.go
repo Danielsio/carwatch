@@ -317,6 +317,9 @@ func (m *mockListingStore) DeleteStaleListings(_ context.Context, _ int64, _ int
 func (m *mockListingStore) DropListingByToken(_ context.Context, _ string) (int64, error) {
 	return 0, nil
 }
+func (m *mockListingStore) MarkListingsRemoved(_ context.Context, _ int64, tokens []string) (int64, error) {
+	return int64(len(tokens)), nil
+}
 func (m *mockListingStore) ListUnenrichedTokens(_ context.Context, _ int) ([]string, error) {
 	return m.unenrichedTokens, nil
 }

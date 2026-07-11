@@ -140,6 +140,15 @@ func (m *mockListingStore) DropListingByToken(_ context.Context, token string) (
 	m.droppedTokens = append(m.droppedTokens, token)
 	return 1, nil
 }
+func (m *mockListingStore) MarkListingsRemoved(_ context.Context, _ int64, tokens []string) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.dropErr != nil {
+		return 0, m.dropErr
+	}
+	m.droppedTokens = append(m.droppedTokens, tokens...)
+	return int64(len(tokens)), nil
+}
 func (m *mockListingStore) LookupListingIdentity(_ context.Context, _ string) (*storage.ListingIdentity, error) {
 	return &storage.ListingIdentity{}, nil
 }

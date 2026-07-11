@@ -229,7 +229,15 @@ func (s *Server) refreshListings(w http.ResponseWriter, r *http.Request) {
 
 type ingestRequest struct {
 	Listings []ingestListing `json:"listings"`
+	// RemovedTokens are listings the extension CONFIRMED are gone from the
+	// source: absent from the feed *and* their item page returned 404. The
+	// confirmation matters — feed absence alone is not proof (a feed can be
+	// partial or paginated), and acting on it could retire live listings.
+	RemovedTokens []string `json:"removed_tokens,omitempty"`
 }
+
+// maxRemovedTokensPerIngest bounds the removal work one push can ask for.
+const maxRemovedTokensPerIngest = 100
 
 type ingestListing struct {
 	Token          string  `json:"token"`
@@ -257,8 +265,13 @@ type ingestListing struct {
 }
 
 type ingestResponse struct {
-	Processed  int `json:"processed"`
-	NewMatches int `json:"new_matches"`
+	Processed int `json:"processed"`
+	// NewMatches is really "listings upserted by this push": the same matches
+	// are re-pushed and re-upserted every cycle, so it is NOT a count of new
+	// listings. Alert dedup happens in deliverIngestMatches, not here. Kept
+	// under its original JSON name so existing clients keep working.
+	NewMatches int   `json:"new_matches"`
+	Removed    int64 `json:"removed,omitempty"`
 }
 
 func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
@@ -275,7 +288,9 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.Listings) == 0 {
+	// A push with no listings can still carry removals (every listing in a
+	// search sold), so only short-circuit when there is nothing at all to do.
+	if len(req.Listings) == 0 && len(req.RemovedTokens) == 0 {
 		writeJSON(w, http.StatusOK, ingestResponse{})
 		return
 	}
@@ -336,7 +351,10 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	totalNew := 0
+	// Listings upserted this push. NOT the number of NEW listings: the same
+	// matches are re-pushed and re-upserted every cycle. Alert dedup lives in
+	// deliverIngestMatches (seen_listings.ClaimNew), not here.
+	totalSaved := 0
 	for _, sr := range searches {
 		if !sr.Active || (sr.Manufacturer == 0 && sr.Model == 0) {
 			continue
@@ -363,7 +381,7 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 				log.Error("save listings failed", "search_id", sr.ID, "error", err)
 				continue
 			}
-			totalNew += len(pr.Records)
+			totalSaved += len(pr.Records)
 
 			// Notify the user about genuinely new matches (dedup-gated) via the
 			// same delivery path the scheduler uses. Best-effort; never fails
@@ -371,13 +389,12 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 			s.deliverIngestMatches(r.Context(), sr, pr.Listings, log)
 		}
 
-		// NOTE: removal/reconciliation (deleting a search's listings absent from
-		// the feed, as the retired scraper did) is intentionally NOT done here.
-		// The extension pushes page 1 of each feed, and the backend can't tell a
-		// complete feed from a paginated/partial one (the per-search filter
-		// decouples `filtered` from the raw feed size), so reconciling could
-		// delete valid listings. Safe removal needs the extension to signal
-		// per-search feed completeness — tracked as a follow-up.
+		// NOTE: removal is NOT inferred here from a listing's absence in this
+		// push. The extension sends page 1 of each feed, and the backend cannot
+		// tell a complete feed from a partial one, so reconciling against it
+		// could retire live listings. Removal instead arrives as
+		// req.RemovedTokens — tokens the extension confirmed are gone (404 on
+		// the item page) — and is applied once, after this loop.
 
 		// Per-search visibility: how many pushed listings matched this search,
 		// how many of those carried km, and how many were persisted. A gap
@@ -388,13 +405,33 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 			"saved", len(pr.Records))
 	}
 
+	// Retire listings the extension confirmed are gone from Yad2 (404 on the
+	// item page). Scoped to this chat, and bookmarked copies survive as
+	// removed_at ("likely sold"). Best-effort: the listings above are already
+	// saved, so a removal failure must not fail the push.
+	removed := int64(0)
+	if len(req.RemovedTokens) > 0 {
+		tokens := req.RemovedTokens
+		if len(tokens) > maxRemovedTokensPerIngest {
+			log.Warn("ingest sent more removed tokens than the cap, truncating",
+				"submitted", len(tokens), "cap", maxRemovedTokensPerIngest)
+			tokens = tokens[:maxRemovedTokensPerIngest]
+		}
+		var err error
+		if removed, err = s.listings.MarkListingsRemoved(r.Context(), chatID, tokens); err != nil {
+			log.Error("mark listings removed failed", "tokens", len(tokens), "error", err)
+		}
+	}
+
 	log.Info("ingest complete",
 		"submitted", len(req.Listings), "parsed_with_km", parsedWithKm,
-		"parsed", len(raw), "new_matches", totalNew)
+		"parsed", len(raw), "saved", totalSaved,
+		"removed_reported", len(req.RemovedTokens), "removed_deleted", removed)
 
 	writeJSON(w, http.StatusOK, ingestResponse{
 		Processed:  len(raw),
-		NewMatches: totalNew,
+		NewMatches: totalSaved,
+		Removed:    removed,
 	})
 }
 

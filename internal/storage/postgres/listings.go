@@ -584,6 +584,73 @@ func (s *Store) DropListingByToken(ctx context.Context, token string) (int64, er
 	return removed, nil
 }
 
+// MarkListingsRemoved retires listings the source no longer serves, for ONE
+// chat. Bookmarked copies keep their row with removed_at set ("likely sold")
+// so the user's saved car does not vanish; every other copy is hard-deleted.
+// Returns the number of rows hard-deleted.
+//
+// Scoped to chat_id on purpose: the tokens come from an extension ingest push,
+// so a buggy or hostile client must only ever be able to retire its own
+// listings, never another user's. (DropListingByToken, which is global, is an
+// admin operation.)
+func (s *Store) MarkListingsRemoved(ctx context.Context, chatID int64, tokens []string) (int64, error) {
+	if len(tokens) == 0 {
+		return 0, nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("mark removed begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	placeholders := make([]string, len(tokens))
+	args := []interface{}{chatID}
+	for i, t := range tokens {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args = append(args, t)
+	}
+	tokenFilter := fmt.Sprintf(" AND token IN (%s)", strings.Join(placeholders, ","))
+
+	markArgs := make([]interface{}, len(args))
+	copy(markArgs, args)
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE listing_history
+		SET removed_at = NOW()
+		WHERE chat_id = $1%s
+		  AND removed_at IS NULL
+		  AND EXISTS (
+		    SELECT 1 FROM saved_listings
+		    WHERE saved_listings.token = listing_history.token
+		      AND saved_listings.chat_id = listing_history.chat_id
+		  )`, tokenFilter), markArgs...); err != nil {
+		return 0, fmt.Errorf("mark removed_at: %w", err)
+	}
+
+	deleteArgs := make([]interface{}, len(args))
+	copy(deleteArgs, args)
+	result, err := tx.ExecContext(ctx, fmt.Sprintf(`
+		DELETE FROM listing_history
+		WHERE chat_id = $1%s
+		  AND NOT EXISTS (
+		    SELECT 1 FROM saved_listings
+		    WHERE saved_listings.token = listing_history.token
+		      AND saved_listings.chat_id = listing_history.chat_id
+		  )`, tokenFilter), deleteArgs...)
+	if err != nil {
+		return 0, fmt.Errorf("delete removed: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("mark removed commit: %w", err)
+	}
+	return deleted, nil
+}
+
 func (s *Store) DeleteStaleListings(ctx context.Context, chatID int64, searchID int64, keepTokens []string) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

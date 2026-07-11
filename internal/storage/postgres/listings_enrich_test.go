@@ -288,3 +288,68 @@ func TestPostgres_DropListingByToken(t *testing.T) {
 		t.Errorf("drop unknown token = %d, %v; want 0, nil", deleted, err)
 	}
 }
+
+func TestPostgres_MarkListingsRemoved(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 100)
+	seedPgUser(t, store, 200)
+
+	save := func(token string, chatID int64) {
+		if err := store.SaveListing(ctx, storage.ListingRecord{
+			Token: token, ChatID: chatID, SearchName: "s",
+			Manufacturer: "Toyota", Model: "Corolla", Year: 2020, Price: 80000,
+			FirstSeenAt: time.Now(),
+		}); err != nil {
+			t.Fatalf("save %s/%d: %v", token, chatID, err)
+		}
+	}
+
+	// "sold" is held by BOTH chats: chat 100 reports it gone, chat 200 must not
+	// be touched. This is the security property — an ingest push can only ever
+	// retire the pusher's own listings.
+	save("sold", 100)
+	save("sold", 200)
+	// "sold-saved" is bookmarked by chat 100, so it must survive as "likely sold".
+	save("sold-saved", 100)
+	if err := store.SaveBookmark(ctx, 100, "sold-saved"); err != nil {
+		t.Fatalf("SaveBookmark: %v", err)
+	}
+	// "still-listed" is not reported, so it must be left alone.
+	save("still-listed", 100)
+
+	deleted, err := store.MarkListingsRemoved(ctx, 100, []string{"sold", "sold-saved"})
+	if err != nil {
+		t.Fatalf("MarkListingsRemoved: %v", err)
+	}
+	if deleted != 1 {
+		t.Errorf("deleted = %d, want 1 (only the non-bookmarked copy for chat 100)", deleted)
+	}
+
+	if l, _ := store.GetListing(ctx, 100, "sold"); l != nil {
+		t.Error("sold should be deleted for the reporting chat")
+	}
+	if l, _ := store.GetListing(ctx, 200, "sold"); l == nil {
+		t.Error("sold must survive for chat 200 — one chat's push must not retire another's listings")
+	}
+
+	l, _ := store.GetListing(ctx, 100, "sold-saved")
+	if l == nil {
+		t.Fatal("bookmarked sold-saved should be preserved, not deleted")
+	}
+	if l.RemovedAt == nil {
+		t.Error("bookmarked sold-saved should be flagged removed_at")
+	}
+
+	if l, _ := store.GetListing(ctx, 100, "still-listed"); l == nil {
+		t.Error("still-listed was not reported and must be untouched")
+	}
+
+	// Empty and unknown token sets are no-ops.
+	if deleted, err := store.MarkListingsRemoved(ctx, 100, nil); err != nil || deleted != 0 {
+		t.Errorf("empty tokens = %d, %v; want 0, nil", deleted, err)
+	}
+	if deleted, err := store.MarkListingsRemoved(ctx, 100, []string{"never-existed"}); err != nil || deleted != 0 {
+		t.Errorf("unknown token = %d, %v; want 0, nil", deleted, err)
+	}
+}
