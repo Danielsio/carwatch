@@ -1063,20 +1063,27 @@ func TestRefreshListings_Cooldown(t *testing.T) {
 
 func TestBuildFilterCriteriaFromSearch(t *testing.T) {
 	sr := &storage.Search{
-		Model:       10226,
-		YearMin:     2020,
-		YearMax:     2024,
-		PriceMax:    200000,
-		EngineMinCC: 1800,
-		MaxKm:       100000,
-		MaxHand:     3,
-		PriceOnly:   true,
-		PhotoOnly:   true,
-		Keywords:    "automatic, sunroof",
-		ExcludeKeys: "salvage",
+		Manufacturer: 19,
+		Model:        10226,
+		YearMin:      2020,
+		YearMax:      2024,
+		PriceMax:     200000,
+		EngineMinCC:  1800,
+		MaxKm:        100000,
+		MaxHand:      3,
+		PriceOnly:    true,
+		PhotoOnly:    true,
+		Keywords:     "automatic, sunroof",
+		ExcludeKeys:  "salvage",
 	}
 	fc := model.FilterCriteriaFromSearch(sr)
 
+	// Manufacturer must carry through: the extension pushes every search's
+	// listings in one batch, so a dropped ManufacturerID lets a
+	// manufacturer-only search match every make.
+	if fc.ManufacturerID != 19 {
+		t.Errorf("ManufacturerID = %d, want 19", fc.ManufacturerID)
+	}
 	if fc.ModelID != 10226 {
 		t.Errorf("ModelID = %d, want 10226", fc.ModelID)
 	}

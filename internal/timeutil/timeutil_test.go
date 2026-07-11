@@ -5,94 +5,49 @@ import (
 	"time"
 )
 
-func TestParseFlexible_ValidFormats(t *testing.T) {
+func TestParseFlexTime_Formats(t *testing.T) {
+	// want, when set, asserts the exact instant — guarding against a regression
+	// that parses a value in the wrong timezone (e.g. zone-less as UTC).
 	tests := []struct {
-		name   string
-		input  string
-		expect time.Time
+		name string
+		in   string
+		zero bool
+		want time.Time
 	}{
-		{
-			name:   "datetime with fractional seconds",
-			input:  "2024-03-15 10:30:45.123456789",
-			expect: time.Date(2024, 3, 15, 10, 30, 45, 123456789, time.UTC),
-		},
-		{
-			name:   "datetime with timezone offset",
-			input:  "2024-03-15 10:30:45.123-05:00",
-			expect: time.Date(2024, 3, 15, 10, 30, 45, 123000000, time.FixedZone("", -5*3600)),
-		},
-		{
-			name:   "datetime without fractional seconds",
-			input:  "2024-03-15 10:30:45",
-			expect: time.Date(2024, 3, 15, 10, 30, 45, 0, time.UTC),
-		},
-		{
-			name:   "RFC3339Nano",
-			input:  "2024-03-15T10:30:45.123456789Z",
-			expect: time.Date(2024, 3, 15, 10, 30, 45, 123456789, time.UTC),
-		},
-		{
-			name:   "RFC3339",
-			input:  "2024-03-15T10:30:45Z",
-			expect: time.Date(2024, 3, 15, 10, 30, 45, 0, time.UTC),
-		},
-		{
-			name:   "RFC3339 with offset",
-			input:  "2024-03-15T10:30:45+03:00",
-			expect: time.Date(2024, 3, 15, 10, 30, 45, 0, time.FixedZone("", 3*3600)),
-		},
-		{
-			name:   "ISO datetime without timezone",
-			input:  "2024-03-15T10:30:45",
-			expect: time.Date(2024, 3, 15, 10, 30, 45, 0, time.UTC),
-		},
+		{"zoneless seconds (current feed)", "2025-02-09T10:31:37", false, time.Date(2025, 2, 9, 10, 31, 37, 0, IsraelTZ)},
+		{"zoneless with millis", "2025-02-09T10:31:37.123", false, time.Date(2025, 2, 9, 10, 31, 37, 123_000_000, IsraelTZ)},
+		{"rfc3339 Z", "2025-02-09T10:31:37Z", false, time.Date(2025, 2, 9, 10, 31, 37, 0, time.UTC)},
+		{"rfc3339 offset", "2025-02-09T10:31:37+02:00", false, time.Date(2025, 2, 9, 8, 31, 37, 0, time.UTC)},
+		{"rfc3339 Z with millis", "2025-02-09T10:31:37.123Z", false, time.Date(2025, 2, 9, 10, 31, 37, 123_000_000, time.UTC)},
+		{"space separated", "2025-02-09 10:31:37", false, time.Date(2025, 2, 9, 10, 31, 37, 0, IsraelTZ)},
+		{"space separated with nanos", "2025-02-09 10:31:37.5", false, time.Date(2025, 2, 9, 10, 31, 37, 500_000_000, IsraelTZ)},
+		{"date only", "2025-02-09", false, time.Date(2025, 2, 9, 0, 0, 0, 0, IsraelTZ)},
+		{"surrounding whitespace", "  2025-02-09T10:31:37  ", false, time.Date(2025, 2, 9, 10, 31, 37, 0, IsraelTZ)},
+		{"empty", "", true, time.Time{}},
+		{"garbage", "not-a-date", true, time.Time{}},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseFlexible(tt.input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			got := ParseFlexTime(tt.in)
+			if got.IsZero() != tt.zero {
+				t.Fatalf("ParseFlexTime(%q) zero=%v, want zero=%v", tt.in, got.IsZero(), tt.zero)
 			}
-			if !got.Equal(tt.expect) {
-				t.Errorf("got %v, want %v", got, tt.expect)
+			if !tt.want.IsZero() && !got.Equal(tt.want) {
+				t.Errorf("ParseFlexTime(%q) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestParseFlexible_InvalidFormats(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-	}{
-		{"empty string", ""},
-		{"plain date no time", "2024-03-15"},
-		{"garbage", "not-a-date"},
-		{"US format", "03/15/2024"},
-		{"unix timestamp", "1710500000"},
+// TestParseFlexTime_ZonelessIsNotUTC is the regression guard for the bug this
+// package exists to prevent: a zone-less feed timestamp read as UTC lands
+// ~2-3h early. Israel is UTC+2 (winter) / UTC+3 (summer), never UTC.
+func TestParseFlexTime_ZonelessIsNotUTC(t *testing.T) {
+	got := ParseFlexTime("2025-02-09T10:31:37")
+	if asUTC := time.Date(2025, 2, 9, 10, 31, 37, 0, time.UTC); got.Equal(asUTC) {
+		t.Errorf("zone-less timestamp parsed as UTC (%v) — must be Israel local time", got)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := ParseFlexible(tt.input)
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
-			if got := err.Error(); len(got) == 0 {
-				t.Error("error message should not be empty")
-			}
-		})
-	}
-}
-
-func TestParseFlexible_FirstMatchWins(t *testing.T) {
-	input := "2024-03-15 10:30:45.500000000"
-	got, err := ParseFlexible(input)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.Nanosecond() != 500000000 {
-		t.Errorf("expected fractional seconds to be preserved, got ns=%d", got.Nanosecond())
+	if _, offset := got.Zone(); offset == 0 {
+		t.Errorf("zone-less timestamp has zero UTC offset, want Israel local offset")
 	}
 }

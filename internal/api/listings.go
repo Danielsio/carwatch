@@ -11,6 +11,7 @@ import (
 	"github.com/dsionov/carwatch/internal/model"
 	"github.com/dsionov/carwatch/internal/scheduler"
 	"github.com/dsionov/carwatch/internal/storage"
+	"github.com/dsionov/carwatch/internal/timeutil"
 )
 
 type listingResponse struct {
@@ -260,15 +261,6 @@ type ingestResponse struct {
 	NewMatches int `json:"new_matches"`
 }
 
-// israelTZ interprets the Yad2 feed's zone-less local timestamps; falls back to
-// UTC if the zoneinfo is unavailable.
-var israelTZ = func() *time.Location {
-	if loc, err := time.LoadLocation("Asia/Jerusalem"); err == nil {
-		return loc
-	}
-	return time.UTC
-}()
-
 func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 	chatID, ok := s.requireResolvedChatID(w, r)
 	if !ok {
@@ -321,21 +313,9 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 			Description:    l.Description,
 			Commercial:     l.IsCommercial,
 		}
-		if l.CreatedAt != "" {
-			// Zone-bearing first; then zone-less as Israel local — the Yad2 feed
-			// emits zone-less local timestamps, so parsing them as UTC would put
-			// posted_at ~2-3h early (the scraper's parseFlexTime does the same).
-			if t, err := time.Parse(time.RFC3339, l.CreatedAt); err == nil {
-				rl.CreatedAt = t
-			} else {
-				for _, layout := range []string{"2006-01-02T15:04:05", "2006-01-02"} {
-					if t, err := time.ParseInLocation(layout, l.CreatedAt, israelTZ); err == nil {
-						rl.CreatedAt = t
-						break
-					}
-				}
-			}
-		}
+		// Shared with the scraper: the Yad2 feed emits zone-less local
+		// timestamps, so parsing them as UTC would put posted_at ~2-3h early.
+		rl.CreatedAt = timeutil.ParseFlexTime(l.CreatedAt)
 		raw = append(raw, rl)
 	}
 

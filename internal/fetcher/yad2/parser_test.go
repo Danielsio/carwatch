@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/dsionov/carwatch/internal/fetcher"
+	"github.com/dsionov/carwatch/internal/timeutil"
 )
 
 func TestParseListingsPage_ValidHTML(t *testing.T) {
@@ -296,39 +296,6 @@ func TestParseGwFeed_MissingFeedItems(t *testing.T) {
 	}
 }
 
-func TestParseFlexTime_Formats(t *testing.T) {
-	// want, when set, asserts the exact instant — guarding against a regression
-	// that parses a value in the wrong timezone (e.g. zone-less as UTC).
-	tests := []struct {
-		name string
-		in   string
-		zero bool
-		want time.Time
-	}{
-		{"zoneless seconds (current feed)", "2025-02-09T10:31:37", false, time.Date(2025, 2, 9, 10, 31, 37, 0, israelTZ)},
-		{"zoneless with millis", "2025-02-09T10:31:37.123", false, time.Date(2025, 2, 9, 10, 31, 37, 123_000_000, israelTZ)},
-		{"rfc3339 Z", "2025-02-09T10:31:37Z", false, time.Date(2025, 2, 9, 10, 31, 37, 0, time.UTC)},
-		{"rfc3339 offset", "2025-02-09T10:31:37+02:00", false, time.Date(2025, 2, 9, 8, 31, 37, 0, time.UTC)},
-		{"rfc3339 Z with millis", "2025-02-09T10:31:37.123Z", false, time.Date(2025, 2, 9, 10, 31, 37, 123_000_000, time.UTC)},
-		{"space separated", "2025-02-09 10:31:37", false, time.Date(2025, 2, 9, 10, 31, 37, 0, israelTZ)},
-		{"date only", "2025-02-09", false, time.Date(2025, 2, 9, 0, 0, 0, 0, israelTZ)},
-		{"surrounding whitespace", "  2025-02-09T10:31:37  ", false, time.Date(2025, 2, 9, 10, 31, 37, 0, israelTZ)},
-		{"empty", "", true, time.Time{}},
-		{"garbage", "not-a-date", true, time.Time{}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := parseFlexTime(tt.in)
-			if got.IsZero() != tt.zero {
-				t.Fatalf("parseFlexTime(%q) zero=%v, want zero=%v", tt.in, got.IsZero(), tt.zero)
-			}
-			if !tt.want.IsZero() && !got.Equal(tt.want) {
-				t.Errorf("parseFlexTime(%q) = %v, want %v", tt.in, got, tt.want)
-			}
-		})
-	}
-}
-
 // TestParseNextData_PostedAtUsesOriginalCreatedAt locks in the real Yad2 feed
 // semantics: dates.createdAt is the per-listing original publish date, while
 // dates.updatedAt / rebouncedAt are a single feed-wide "refreshed" timestamp.
@@ -364,11 +331,11 @@ func TestParseNextData_PostedAtUsesOriginalCreatedAt(t *testing.T) {
 	if l.CreatedAt.IsZero() {
 		t.Fatal("CreatedAt should be set from dates.createdAt")
 	}
-	if want := parseFlexTime("2025-02-09T10:31:37"); !l.CreatedAt.Equal(want) {
+	if want := timeutil.ParseFlexTime("2025-02-09T10:31:37"); !l.CreatedAt.Equal(want) {
 		t.Errorf("CreatedAt = %v, want original createdAt %v", l.CreatedAt, want)
 	}
-	if l.CreatedAt.Equal(parseFlexTime("2025-02-14T21:30:57")) ||
-		l.CreatedAt.Equal(parseFlexTime("2025-02-14T23:30:57")) {
+	if l.CreatedAt.Equal(timeutil.ParseFlexTime("2025-02-14T21:30:57")) ||
+		l.CreatedAt.Equal(timeutil.ParseFlexTime("2025-02-14T23:30:57")) {
 		t.Error("CreatedAt must not equal the feed-wide updatedAt/rebouncedAt bump stamp")
 	}
 	if l.UpdatedAt.IsZero() {
