@@ -265,7 +265,11 @@ type ingestListing struct {
 }
 
 type ingestResponse struct {
-	Processed  int   `json:"processed"`
+	Processed int `json:"processed"`
+	// NewMatches is really "listings upserted by this push": the same matches
+	// are re-pushed and re-upserted every cycle, so it is NOT a count of new
+	// listings. Alert dedup happens in deliverIngestMatches, not here. Kept
+	// under its original JSON name so existing clients keep working.
 	NewMatches int   `json:"new_matches"`
 	Removed    int64 `json:"removed,omitempty"`
 }
@@ -347,7 +351,10 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	totalNew := 0
+	// Listings upserted this push. NOT the number of NEW listings: the same
+	// matches are re-pushed and re-upserted every cycle. Alert dedup lives in
+	// deliverIngestMatches (seen_listings.ClaimNew), not here.
+	totalSaved := 0
 	for _, sr := range searches {
 		if !sr.Active || (sr.Manufacturer == 0 && sr.Model == 0) {
 			continue
@@ -374,7 +381,7 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 				log.Error("save listings failed", "search_id", sr.ID, "error", err)
 				continue
 			}
-			totalNew += len(pr.Records)
+			totalSaved += len(pr.Records)
 
 			// Notify the user about genuinely new matches (dedup-gated) via the
 			// same delivery path the scheduler uses. Best-effort; never fails
@@ -418,12 +425,12 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 
 	log.Info("ingest complete",
 		"submitted", len(req.Listings), "parsed_with_km", parsedWithKm,
-		"parsed", len(raw), "new_matches", totalNew,
+		"parsed", len(raw), "saved", totalSaved,
 		"removed_reported", len(req.RemovedTokens), "removed_deleted", removed)
 
 	writeJSON(w, http.StatusOK, ingestResponse{
 		Processed:  len(raw),
-		NewMatches: totalNew,
+		NewMatches: totalSaved,
 		Removed:    removed,
 	})
 }
