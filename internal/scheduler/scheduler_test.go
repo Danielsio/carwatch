@@ -159,6 +159,9 @@ func testConfig() *config.Config {
 			Interval: 1 * time.Minute,
 			Jitter:   0,
 			Timezone: "UTC",
+			// These tests exercise the polling/fetch path itself, so they opt in.
+			// Production defaults this off (Yad2 blocks server-side fetches).
+			ServerFetch: true,
 		},
 		Telegram: config.TelegramConfig{
 			Token: "test-token",

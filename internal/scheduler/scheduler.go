@@ -237,11 +237,18 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	s.cfgMu.RLock()
 	logInterval := s.cfg.Polling.Interval
 	logJitter := s.cfg.Polling.Jitter
+	logServerFetch := s.cfg.Polling.ServerFetch
 	s.cfgMu.RUnlock()
 	s.logger.Info("scheduler started, entering polling loop",
 		"check_interval", logInterval.String(),
 		"jitter", logJitter.String(),
+		"server_fetch", logServerFetch,
 	)
+	if !logServerFetch {
+		s.logger.Info("server-side source fetching is disabled; listings arrive via the browser extension (/ext/ingest)",
+			"impact", "cycles run maintenance only: prune, premium expiry, digests",
+		)
+	}
 
 	sighup := make(chan os.Signal, 1)
 	signal.Notify(sighup, syscall.SIGHUP)
@@ -554,34 +561,51 @@ func (s *Scheduler) runMultiTenantCycle(ctx context.Context) error {
 	s.pruneOldData(ctx)
 	s.processExpiredPremium(ctx)
 
+	// Server-side fetching (and the enrichment queue that depends on it) only
+	// runs when it can actually work; see config.PollingConfig.ServerFetch.
+	// With it off, listings arrive via the extension's /ext/ingest instead and
+	// this cycle is purely maintenance: prune, premium expiry, digests.
+	s.cfgMu.RLock()
+	serverFetch := s.cfg.Polling.ServerFetch
+	s.cfgMu.RUnlock()
+
 	if len(searches) == 0 {
-		s.backfillUnenrichedListings(ctx)
-		s.purgeStaleEnrichMessages(ctx)
+		if serverFetch {
+			s.backfillUnenrichedListings(ctx)
+			s.purgeStaleEnrichMessages(ctx)
+		}
 		s.logger.InfoContext(ctx, "scheduler cycle completed with no active searches", "scan", cycle, "elapsed", time.Since(cycleStart).Round(time.Millisecond))
 		s.observer.RecordSuccess()
 		return nil
 	}
 
-	// Phase 3: load all searches into the percolator for reverse matching.
-	s.percolator.Load(searches)
+	var stats cycleStats
+	var fetchErr error
 
-	marketCache := s.getOrBuildMarketCache(ctx)
-	s.logger.InfoContext(ctx, "loaded active searches into percolator for reverse matching",
-		"scan", cycle,
-		"searches", len(searches),
-		"db_duration_ms", searchLoadMs,
-	)
+	if serverFetch {
+		// Phase 3: load all searches into the percolator for reverse matching.
+		s.percolator.Load(searches)
 
-	stats, fetchErr := s.fetchAndMatch(ctx, searches, marketCache)
+		marketCache := s.getOrBuildMarketCache(ctx)
+		s.logger.InfoContext(ctx, "loaded active searches into percolator for reverse matching",
+			"scan", cycle,
+			"searches", len(searches),
+			"db_duration_ms", searchLoadMs,
+		)
 
-	if s.catalogIngester != nil {
-		s.catalogIngester.Flush(ctx)
+		stats, fetchErr = s.fetchAndMatch(ctx, searches, marketCache)
+
+		if s.catalogIngester != nil {
+			s.catalogIngester.Flush(ctx)
+		}
 	}
 
 	s.processDigests(ctx)
 	s.processDailyDigests(ctx)
-	s.backfillUnenrichedListings(ctx)
-	s.purgeStaleEnrichMessages(ctx)
+	if serverFetch {
+		s.backfillUnenrichedListings(ctx)
+		s.purgeStaleEnrichMessages(ctx)
+	}
 
 	s.logger.InfoContext(ctx, "scheduler cycle completed",
 		"scan", cycle,

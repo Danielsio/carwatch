@@ -92,6 +92,48 @@ func TestRunMultiTenantCycle_NoSearches(t *testing.T) {
 	}
 }
 
+// TestRunMultiTenantCycle_ServerFetchDisabled locks in the default production
+// posture: Yad2 blocks server-side fetches (Radware), so the cycle must not
+// fetch at all. Before this, every cycle retried every search 3x against a
+// source that could only fail -- pointless load on Yad2 from the host IP.
+// Maintenance work (digests, prune) must still run.
+func TestRunMultiTenantCycle_ServerFetchDisabled(t *testing.T) {
+	f := &paramAwareFetcher{
+		fallback: []model.RawListing{
+			{Token: "a", ManufacturerID: 27, Manufacturer: "Mazda", ModelID: 10332, Model: "3", Price: 90000, Year: 2020, EngineVolume: 2000},
+		},
+	}
+	n := &mockNotifier{}
+	cfg := testConfig()
+	cfg.Polling.ServerFetch = false
+
+	ss := &mockSearchStore{
+		searches: []storage.Search{
+			{ID: 1, ChatID: 100, Name: "user1-mazda3", Source: "yad2", Manufacturer: 27, Model: 10332,
+				YearMin: 2018, YearMax: 2024, PriceMax: 150000, Active: true},
+		},
+	}
+
+	s, _ := NewWithOptions(cfg, f, newMockDedup(), n, testLogger(), Options{SearchStore: ss})
+
+	if err := s.runMultiTenantCycle(context.Background()); err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
+	f.mu.Lock()
+	calls := len(f.calls)
+	f.mu.Unlock()
+	if calls != 0 {
+		t.Errorf("expected 0 source fetches with server_fetch disabled, got %d", calls)
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.messages) != 0 {
+		t.Errorf("expected 0 notifications (nothing was fetched), got %d", len(n.messages))
+	}
+}
+
 func TestRunMultiTenantCycle_WithSearches(t *testing.T) {
 	f := &mockFetcher{
 		listings: []model.RawListing{

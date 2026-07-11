@@ -88,6 +88,23 @@ type PollingConfig struct {
 	Timezone             string        `yaml:"timezone"`
 	MaxConcurrentFetches int           `yaml:"max_concurrent_fetches"`
 	EnrichGraceSeconds   int           `yaml:"enrich_grace_seconds"`
+
+	// ServerFetch enables fetching listings from the source (Yad2) directly
+	// from our servers: the scheduler's per-search polling cycle, the km
+	// enrichment queue, and the API's refresh / instant-search handlers.
+	//
+	// Defaults to false, because it does not work. Yad2 serves both its listing
+	// pages and its gw JSON API behind a Radware bot challenge that only a real
+	// browser clears, so every server-side fetch fails ("__NEXT_DATA__ script
+	// tag not found" / a 302 to the challenge). The browser extension
+	// (POST /api/v1/ext/ingest) is the sole ingestion path.
+	//
+	// Leaving it on does active harm: the scheduler retries every search every
+	// cycle, fetching nothing while hammering Yad2 from the host IP.
+	//
+	// Kept as a switch rather than deleted so the polling path can be restored
+	// if a workable server-side source appears (a proxy, an official API).
+	ServerFetch bool `yaml:"server_fetch"`
 }
 
 type ActiveHours struct {
