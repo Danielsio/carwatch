@@ -289,6 +289,10 @@ type ListingStore interface {
 	// Bookmarked copies are kept but flagged removed_at ("likely sold"); all
 	// other copies are hard-deleted. Returns the number of rows hard-deleted.
 	DropListingByToken(ctx context.Context, token string) (int64, error)
+	// MarkListingsRemoved does the same for a set of tokens but only for ONE
+	// chat, so an extension ingest push can never retire another user's
+	// listings. Returns the number of rows hard-deleted.
+	MarkListingsRemoved(ctx context.Context, chatID int64, tokens []string) (int64, error)
 }
 
 // DailyListingCount is the number of distinct listings first seen on a day.

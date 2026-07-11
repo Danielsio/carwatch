@@ -18,6 +18,11 @@ const YAD2_HOME = "https://www.yad2.co.il/";
 // many item-detail (enrichment) calls. km/city/image are absent from most feed
 // rows, so we enrich tokens we have not resolved before.
 const MAX_ENRICH_PER_CYCLE = 30;
+// Removal check: listings we have resolved before but that the feed no longer
+// returns. Feed absence alone is NOT proof (a feed can be partial), so each
+// candidate is confirmed against its item page — a 404 means sold/delisted.
+// Bounded per cycle so a large backlog cannot spike our request volume.
+const MAX_VERIFY_PER_CYCLE = 10;
 const KNOWN_TOKENS_CAP = 3000;
 const ENRICH_DELAY_MS = 1500; // jittered inside the injected fetcher
 
@@ -221,9 +226,18 @@ async function fetchViaYad2Tab(tabId, urls) {
   return (results && results[0] && results[0].result) || [];
 }
 
+// A 404/410 from the item endpoint is Yad2 telling us the listing is gone
+// (sold or delisted) — a real answer, not a block. Keep it distinct from
+// looksBlocked: treating it as a block hides removals AND triggers pointless
+// tab reloads.
+function looksGone(r) {
+  return !!r && (r.status === 404 || r.status === 410);
+}
+
 // A response whose body is HTML (Radware "302/verifying" shell) rather than
 // JSON means the tab's clearance lapsed.
 function looksBlocked(r) {
+  if (looksGone(r)) return false;
   const b = (r && r.body ? r.body : "").trimStart();
   return r && r.status !== 200 ? true : b.startsWith("<");
 }
@@ -393,8 +407,41 @@ async function runFetchCycle() {
       `[CarWatch] enrich cacheApplied=${cachedApplied} tried=${toEnrich.length} returned=${itemGot} ok=${itemOk} blocked=${itemBlocked} parseErr=${itemParseErr} gotKm=${gotKm} ${itemErr}`,
     );
 
+    // 3) Removal check. A token we resolved before but that no feed returned
+    // this cycle is only a CANDIDATE — the feed may be partial, and acting on
+    // absence alone would retire live listings. Confirm each against its item
+    // page: 404/410 means sold or delisted. Anything else (200, or a block) is
+    // left alone and re-checked next cycle.
+    const removedTokens = [];
+    let verifyTried = 0;
+    if (!blocked) {
+      const candidates = Object.keys(cache).filter((t) => !byToken.has(t));
+      const toVerify = shuffle(candidates).slice(0, MAX_VERIFY_PER_CYCLE);
+      verifyTried = toVerify.length;
+      if (toVerify.length) {
+        const byURL = new Map(
+          toVerify.map((t) => [`${GW_ITEM_URL}/${t}`, t]),
+        );
+        const results = await fetchViaYad2Tab(tabId, [...byURL.keys()]);
+        for (const r of results) {
+          const token = byURL.get(r.url);
+          if (!token || !looksGone(r)) continue;
+          removedTokens.push(token);
+          delete cache[token];
+        }
+        if (removedTokens.length) {
+          await saveEnrichedCache(cache);
+          console.log(
+            `[CarWatch] removal: confirmed ${removedTokens.length}/${toVerify.length} gone (404)`,
+          );
+        }
+      }
+    }
+
     const listings = [...byToken.values()];
-    if (listings.length > 0) await pushListings(config, listings);
+    if (listings.length > 0 || removedTokens.length > 0) {
+      await pushListings(config, listings, removedTokens);
+    }
 
     const enriched = listings.filter((l) => (l.km || 0) > 0).length;
     setBadge(String(listings.length), blocked ? "#E65100" : "#4CAF50");
@@ -402,7 +449,7 @@ async function runFetchCycle() {
       searches: activeSearches.length,
       listings: listings.length,
       enriched,
-      diag: `feeds ${feedResults.length - blocked}/${feedResults.length} ok · cache:${cachedApplied} · enrich try:${toEnrich.length} ret:${itemGot} ok:${itemOk} blk:${itemBlocked} perr:${itemParseErr} km:${gotKm}${itemErr ? " · " + itemErr : ""}`,
+      diag: `feeds ${feedResults.length - blocked}/${feedResults.length} ok · cache:${cachedApplied} · enrich try:${toEnrich.length} ret:${itemGot} ok:${itemOk} blk:${itemBlocked} perr:${itemParseErr} km:${gotKm} · gone:${removedTokens.length}/${verifyTried}${itemErr ? " · " + itemErr : ""}`,
       error: blocked ? `${blocked} feed(s) blocked by anti-bot` : null,
     });
   } catch (err) {
@@ -427,15 +474,27 @@ async function fetchSearches(config) {
 // cycle's ingestion would 400 and be lost.
 const MAX_INGEST_BATCH = 400;
 
-async function pushListings(config, listings) {
+async function pushListings(config, listings, removedTokens = []) {
   let last;
+  // Removed tokens ride the FIRST chunk only, so a multi-chunk push applies
+  // them exactly once. A push with no listings but pending removals still goes
+  // out, otherwise a sold-out cycle could never report anything.
+  let pendingRemoved = removedTokens;
   for (let i = 0; i < listings.length; i += MAX_INGEST_BATCH) {
-    last = await pushBatch(config, listings.slice(i, i + MAX_INGEST_BATCH));
+    last = await pushBatch(
+      config,
+      listings.slice(i, i + MAX_INGEST_BATCH),
+      pendingRemoved,
+    );
+    pendingRemoved = [];
+  }
+  if (listings.length === 0 && pendingRemoved.length > 0) {
+    last = await pushBatch(config, [], pendingRemoved);
   }
   return last;
 }
 
-async function pushBatch(config, listings) {
+async function pushBatch(config, listings, removedTokens = []) {
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await sleep(2000 * attempt);
     const resp = await fetchWithTimeout(
@@ -446,7 +505,7 @@ async function pushBatch(config, listings) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${config.authToken}`,
         },
-        body: JSON.stringify({ listings }),
+        body: JSON.stringify({ listings, removed_tokens: removedTokens }),
       },
       30000,
     );
