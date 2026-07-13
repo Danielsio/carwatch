@@ -82,6 +82,7 @@ var purgeable = map[string]bool{
 	"hidden_listings":         true,
 	"pending_digest":          true,
 	"notification_deliveries": true,
+	"ext_scan_status":         true,
 }
 
 func (s *Store) PurgeTable(ctx context.Context, table string) (int64, error) {
@@ -108,6 +109,7 @@ var resetTables = []string{
 	"price_list_cache",
 	"cycle_log",
 	"link_tokens",
+	"ext_scan_status",
 }
 
 func (s *Store) ResetAllData(ctx context.Context) (map[string]int64, error) {
@@ -333,6 +335,7 @@ func (s *Store) AdminDeleteUser(ctx context.Context, chatID int64) error {
 		"searches", "listing_history", "seen_listings", "listing_user_seen",
 		"saved_listings", "hidden_listings",
 		"push_subscriptions", "pending_digest", "notification_deliveries",
+		"ext_scan_status",
 	} {
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE chat_id = $1`, quoteIdent(table)), chatID); err != nil {
 			return fmt.Errorf("admin delete user data from %s: %w", table, err)

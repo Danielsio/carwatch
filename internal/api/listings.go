@@ -487,6 +487,14 @@ func (s *Server) recordExtScanStatus(ctx context.Context, chatID int64, c *inges
 			"next_run_at", c.NextRunAt, "error", err)
 		return
 	}
+	// A skewed client clock (or bug) promising a next run further out than the
+	// longest allowed cadence would freeze the web countdown on a time that
+	// never arrives — the staleness check can't catch a future timestamp.
+	if next.After(time.Now().Add(maxExtScanIntervalSec * time.Second)) {
+		log.Warn("ingest cycle report: next_run_at too far in the future, dropping report",
+			"next_run_at", c.NextRunAt)
+		return
+	}
 	started, err := time.Parse(time.RFC3339, c.StartedAt)
 	if err != nil {
 		// The schedule is still useful without an exact start; approximate it

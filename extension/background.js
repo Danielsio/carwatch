@@ -40,7 +40,10 @@ async function ensureAlarm() {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  ensureAlarm();
+  // Unconditional on install/update: create() REPLACES an existing alarm, so
+  // a version that changes FETCH_INTERVAL_MINUTES actually takes effect.
+  chrome.alarms.create(ALARM_NAME, { periodInMinutes: FETCH_INTERVAL_MINUTES });
+  console.log("[CarWatch] Alarm set: every", FETCH_INTERVAL_MINUTES, "minutes");
 });
 chrome.runtime.onStartup.addListener(() => {
   ensureAlarm();
@@ -334,6 +337,9 @@ async function runFetchCycle() {
   }
   isRunning = true;
   const cycleStartedAt = new Date().toISOString();
+  // A "Fetch Now" click still works when the alarm has vanished — use it to
+  // heal the schedule mid-session instead of waiting for a browser restart.
+  await ensureAlarm();
 
   try {
     const config = await getConfig();
@@ -350,6 +356,10 @@ async function runFetchCycle() {
       (s) => s.active && s.manufacturer_id > 0 && s.model_id > 0,
     );
     if (activeSearches.length === 0) {
+      // Nothing to scan, but the extension is alive and will check again on
+      // the next alarm — report that schedule so the web countdown stays real.
+      const idleCycle = await getScanSchedule(cycleStartedAt);
+      if (idleCycle) await pushListings(config, [], [], idleCycle);
       setBadge("0", "#888");
       await saveStatus({ searches: 0, listings: 0, error: null });
       return;

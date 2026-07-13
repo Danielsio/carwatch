@@ -212,3 +212,27 @@ func TestIngestBadCycleReportIsDropped(t *testing.T) {
 		t.Errorf("bad report should be dropped, got next_cycle_at=%s", *st.NextCycleAt)
 	}
 }
+
+// A skewed client clock promising a next run beyond the longest allowed
+// cadence would freeze the countdown on a moment that never arrives (the
+// staleness check cannot catch a future timestamp) — such reports are dropped.
+func TestIngestFarFutureCycleReportIsDropped(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	w := doRequest(t, srv, "POST", "/api/v1/ext/ingest", map[string]any{
+		"listings": []map[string]any{},
+		"cycle": map[string]any{
+			"started_at":   time.Now().UTC().Format(time.RFC3339),
+			"next_run_at":  time.Now().UTC().Add(48 * time.Hour).Format(time.RFC3339),
+			"interval_sec": 900,
+		},
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("ingest with far-future cycle should still 200: %d %s", w.Code, w.Body.String())
+	}
+
+	st := getSchedulerStatus(t, srv)
+	if st.NextCycleAt != nil {
+		t.Errorf("far-future report should be dropped, got next_cycle_at=%s", *st.NextCycleAt)
+	}
+}

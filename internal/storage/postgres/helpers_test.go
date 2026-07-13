@@ -200,6 +200,7 @@ func TestPurgeableAllowlist(t *testing.T) {
 		"saved_listings",
 		"hidden_listings",
 		"pending_digest",
+		"ext_scan_status",
 	}
 	for _, table := range allowed {
 		if !purgeable[table] {

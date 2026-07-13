@@ -2513,3 +2513,30 @@ func TestPostgres_ExtScanStatus(t *testing.T) {
 		t.Errorf("other chat should have no report: st=%+v err=%v", st, err)
 	}
 }
+
+func TestPostgres_AdminDeleteUser_RemovesExtScanStatus(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	seedPgUser(t, store, 8300)
+
+	if err := store.UpsertExtScanStatus(ctx, storage.ExtScanStatus{
+		ChatID:      8300,
+		StartedAt:   time.Now(),
+		NextRunAt:   time.Now().Add(15 * time.Minute),
+		IntervalSec: 900,
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	if err := store.AdminDeleteUser(ctx, 8300); err != nil {
+		t.Fatalf("AdminDeleteUser: %v", err)
+	}
+
+	st, err := store.GetExtScanStatus(ctx, 8300)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if st != nil {
+		t.Errorf("expected ext scan status removed with the user, got %+v", st)
+	}
+}
