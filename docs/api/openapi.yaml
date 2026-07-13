@@ -203,7 +203,7 @@ paths:
     post: { tags: [account], summary: Report web vitals, security: [{ bearerAuth: [] }, {}], requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: true } } } }, responses: { "204": { description: Accepted } } }
 
   /scheduler/status:
-    get: { tags: [scheduler], summary: Scheduler status (when enabled), responses: { "200": { description: Status, content: { application/json: { schema: { type: object, additionalProperties: true } } } } } }
+    get: { tags: [scheduler], summary: "Scan status: the extension's self-reported schedule when fresh (see /ext/ingest cycle field), else an estimate from the scheduler cycle log", responses: { "200": { description: Status, content: { application/json: { schema: { type: object, additionalProperties: true } } } } } }
 
   /admin/stats:
     get: { tags: [admin], summary: DB/runtime/HTTP stats, responses: { "200": { description: Stats, content: { application/json: { schema: { type: object, additionalProperties: true } } } }, "403": { $ref: '#/components/responses/Forbidden' } } }

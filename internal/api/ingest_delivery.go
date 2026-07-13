@@ -27,23 +27,26 @@ import (
 //
 // It is best-effort: any error is logged, never surfaced to the extension (the
 // ingest itself already succeeded once listings are persisted).
-func (s *Server) deliverIngestMatches(ctx context.Context, sr storage.Search, listings []model.Listing, log *slog.Logger) {
+//
+// Returns how many listings were actually handed to a delivery transport, so
+// the ingest can report notification counts in the user's scan status.
+func (s *Server) deliverIngestMatches(ctx context.Context, sr storage.Search, listings []model.Listing, log *slog.Logger) int {
 	if s.dedup == nil || len(listings) == 0 {
-		return
+		return 0
 	}
 	delivery := s.ingestDeliveryFor(ctx, sr, log)
 	if delivery == nil {
 		// No transport wired (no Redis publisher and not digest mode) — do not
 		// consume dedup claims we cannot act on.
-		return
+		return 0
 	}
-	s.claimAndDeliver(ctx, sr, listings, delivery, log)
+	return s.claimAndDeliver(ctx, sr, listings, delivery, log)
 }
 
 // claimAndDeliver claims the new tokens, delivers them via the chosen strategy,
 // and releases claims on failure. Split out so it can be tested with a fake
-// dedup store and delivery strategy.
-func (s *Server) claimAndDeliver(ctx context.Context, sr storage.Search, listings []model.Listing, delivery scheduler.DeliveryStrategy, log *slog.Logger) {
+// dedup store and delivery strategy. Returns the number of listings delivered.
+func (s *Server) claimAndDeliver(ctx context.Context, sr storage.Search, listings []model.Listing, delivery scheduler.DeliveryStrategy, log *slog.Logger) int {
 	newOnes := make([]model.Listing, 0, len(listings))
 	for _, l := range listings {
 		isNew, err := s.dedup.ClaimNew(ctx, l.Token, sr.ChatID, sr.ID)
@@ -57,7 +60,7 @@ func (s *Server) claimAndDeliver(ctx context.Context, sr storage.Search, listing
 		}
 	}
 	if len(newOnes) == 0 {
-		return
+		return 0
 	}
 
 	if err := delivery.DeliverBatch(ctx, sr.ChatID, newOnes); err != nil {
@@ -67,7 +70,7 @@ func (s *Server) claimAndDeliver(ctx context.Context, sr storage.Search, listing
 		if errors.Is(err, scheduler.ErrMalformedMessage) || errors.Is(err, notifier.ErrRecipientBlocked) {
 			log.ErrorContext(ctx, "ingest delivery: permanent failure, keeping claims (no retry)",
 				"count", len(newOnes), "search_id", sr.ID, "error", err)
-			return
+			return 0
 		}
 		log.ErrorContext(ctx, "ingest delivery: transient failure, releasing claims for retry",
 			"count", len(newOnes), "search_id", sr.ID, "error", err)
@@ -77,10 +80,11 @@ func (s *Server) claimAndDeliver(ctx context.Context, sr storage.Search, listing
 					"token", l.Token, "search_id", sr.ID, "error", relErr)
 			}
 		}
-		return
+		return 0
 	}
 	log.InfoContext(ctx, "ingest delivery: notified user of new listings",
 		"count", len(newOnes), "search_id", sr.ID, "search_name", sr.Name)
+	return len(newOnes)
 }
 
 // ingestDeliveryFor mirrors the scheduler's per-user delivery selection.

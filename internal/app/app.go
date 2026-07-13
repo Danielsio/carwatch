@@ -290,6 +290,7 @@ func BuildAPI(cfg *config.Config, store *postgres.Store, dynCatalog *catalog.Dyn
 		CycleLog:         store,
 		SearchCycleStats: store,
 		Activity:         store,
+		ExtScanStatus:    store,
 		PollingInterval:  cfg.Polling.Interval,
 		Fetchers:         fetcherFactory,
 		Yad2Fetcher:      yad2Source,

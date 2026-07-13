@@ -28,9 +28,25 @@ const ENRICH_DELAY_MS = 1500; // jittered inside the injected fetcher
 
 let isRunning = false;
 
+// Re-assert the alarm from every service-worker entry point, not just
+// onInstalled: if the alarm ever goes missing (cleared storage, Chrome quirk),
+// scanning AND both countdowns (popup + web UI) die silently.
+async function ensureAlarm() {
+  const existing = await chrome.alarms.get(ALARM_NAME);
+  if (!existing) {
+    chrome.alarms.create(ALARM_NAME, { periodInMinutes: FETCH_INTERVAL_MINUTES });
+    console.log("[CarWatch] Alarm set: every", FETCH_INTERVAL_MINUTES, "minutes");
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
+  // Unconditional on install/update: create() REPLACES an existing alarm, so
+  // a version that changes FETCH_INTERVAL_MINUTES actually takes effect.
   chrome.alarms.create(ALARM_NAME, { periodInMinutes: FETCH_INTERVAL_MINUTES });
   console.log("[CarWatch] Alarm set: every", FETCH_INTERVAL_MINUTES, "minutes");
+});
+chrome.runtime.onStartup.addListener(() => {
+  ensureAlarm();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -291,12 +307,39 @@ function shuffle(a) {
 
 // ---- main cycle ------------------------------------------------------------
 
+// The scan schedule as the backend should see it: when this cycle started and
+// when the alarm fires next. Sent with every ingest push so the web UI's
+// "next scan" countdown ticks toward the SAME Chrome alarm the popup shows —
+// without this the site counts down to the server's maintenance loop, which
+// no longer scans Yad2 and drifts minutes away from the real schedule.
+async function getScanSchedule(startedAtISO) {
+  try {
+    const alarm = await chrome.alarms.get(ALARM_NAME);
+    if (alarm && alarm.scheduledTime) {
+      return {
+        started_at: startedAtISO,
+        next_run_at: new Date(alarm.scheduledTime).toISOString(),
+        interval_sec: Math.round(
+          (alarm.periodInMinutes || FETCH_INTERVAL_MINUTES) * 60,
+        ),
+      };
+    }
+  } catch {
+    // alarms unavailable — push without a schedule report
+  }
+  return null;
+}
+
 async function runFetchCycle() {
   if (isRunning) {
     console.log("[CarWatch] Cycle already running, skipping");
     return;
   }
   isRunning = true;
+  const cycleStartedAt = new Date().toISOString();
+  // A "Fetch Now" click still works when the alarm has vanished — use it to
+  // heal the schedule mid-session instead of waiting for a browser restart.
+  await ensureAlarm();
 
   try {
     const config = await getConfig();
@@ -313,6 +356,10 @@ async function runFetchCycle() {
       (s) => s.active && s.manufacturer_id > 0 && s.model_id > 0,
     );
     if (activeSearches.length === 0) {
+      // Nothing to scan, but the extension is alive and will check again on
+      // the next alarm — report that schedule so the web countdown stays real.
+      const idleCycle = await getScanSchedule(cycleStartedAt);
+      if (idleCycle) await pushListings(config, [], [], idleCycle);
       setBadge("0", "#888");
       await saveStatus({ searches: 0, listings: 0, error: null });
       return;
@@ -439,8 +486,11 @@ async function runFetchCycle() {
     }
 
     const listings = [...byToken.values()];
-    if (listings.length > 0 || removedTokens.length > 0) {
-      await pushListings(config, listings, removedTokens);
+    const cycle = await getScanSchedule(cycleStartedAt);
+    // Push even with nothing to report: the push still carries the scan
+    // schedule, which keeps the web UI countdown in sync with the alarm.
+    if (listings.length > 0 || removedTokens.length > 0 || cycle) {
+      await pushListings(config, listings, removedTokens, cycle);
     }
 
     const enriched = listings.filter((l) => (l.km || 0) > 0).length;
@@ -474,27 +524,33 @@ async function fetchSearches(config) {
 // cycle's ingestion would 400 and be lost.
 const MAX_INGEST_BATCH = 400;
 
-async function pushListings(config, listings, removedTokens = []) {
+async function pushListings(config, listings, removedTokens = [], cycle = null) {
   let last;
   // Removed tokens ride the FIRST chunk only, so a multi-chunk push applies
-  // them exactly once. A push with no listings but pending removals still goes
-  // out, otherwise a sold-out cycle could never report anything.
+  // them exactly once. A push with no listings but pending removals or a
+  // schedule report still goes out, otherwise a sold-out (or empty) cycle
+  // could never report anything.
+  //
+  // The cycle report rides EVERY chunk — the backend accumulates stats for
+  // chunks that share the same started_at, so repeating it is safe and lets
+  // any chunk (including a lost first one) sync the schedule.
   let pendingRemoved = removedTokens;
   for (let i = 0; i < listings.length; i += MAX_INGEST_BATCH) {
     last = await pushBatch(
       config,
       listings.slice(i, i + MAX_INGEST_BATCH),
       pendingRemoved,
+      cycle,
     );
     pendingRemoved = [];
   }
-  if (listings.length === 0 && pendingRemoved.length > 0) {
-    last = await pushBatch(config, [], pendingRemoved);
+  if (listings.length === 0 && (pendingRemoved.length > 0 || cycle)) {
+    last = await pushBatch(config, [], pendingRemoved, cycle);
   }
   return last;
 }
 
-async function pushBatch(config, listings, removedTokens = []) {
+async function pushBatch(config, listings, removedTokens = [], cycle = null) {
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await sleep(2000 * attempt);
     const resp = await fetchWithTimeout(
@@ -505,7 +561,11 @@ async function pushBatch(config, listings, removedTokens = []) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${config.authToken}`,
         },
-        body: JSON.stringify({ listings, removed_tokens: removedTokens }),
+        body: JSON.stringify({
+          listings,
+          removed_tokens: removedTokens,
+          cycle: cycle || undefined,
+        }),
       },
       30000,
     );

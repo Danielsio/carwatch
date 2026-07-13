@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -234,7 +236,29 @@ type ingestRequest struct {
 	// confirmation matters — feed absence alone is not proof (a feed can be
 	// partial or paginated), and acting on it could retire live listings.
 	RemovedTokens []string `json:"removed_tokens,omitempty"`
+	// Cycle is the extension's self-report of its scan schedule: when this
+	// cycle started and when its Chrome alarm fires next. It feeds the web
+	// UI's "next scan" countdown so the site and the extension popup tick
+	// toward the same alarm. Optional — older extensions don't send it.
+	Cycle *ingestCycle `json:"cycle,omitempty"`
 }
+
+// ingestCycle mirrors the extension's getScanSchedule() payload. Chunked
+// pushes repeat the same report on every chunk; the store accumulates stats
+// for chunks sharing a StartedAt.
+type ingestCycle struct {
+	StartedAt   string `json:"started_at"`
+	NextRunAt   string `json:"next_run_at"`
+	IntervalSec int    `json:"interval_sec"`
+}
+
+// Bounds for a self-reported scan cadence. Outside them the report's interval
+// is untrusted (clock skew, buggy client) and falls back to the default.
+const (
+	minExtScanIntervalSec     = 60
+	maxExtScanIntervalSec     = 24 * 3600
+	defaultExtScanIntervalSec = 900
+)
 
 // maxRemovedTokensPerIngest bounds the removal work one push can ask for.
 const maxRemovedTokensPerIngest = 100
@@ -289,8 +313,9 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// A push with no listings can still carry removals (every listing in a
-	// search sold), so only short-circuit when there is nothing at all to do.
-	if len(req.Listings) == 0 && len(req.RemovedTokens) == 0 {
+	// search sold) or a scan-schedule report (nothing matched this cycle), so
+	// only short-circuit when there is nothing at all to do.
+	if len(req.Listings) == 0 && len(req.RemovedTokens) == 0 && req.Cycle == nil {
 		writeJSON(w, http.StatusOK, ingestResponse{})
 		return
 	}
@@ -355,10 +380,13 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 	// matches are re-pushed and re-upserted every cycle. Alert dedup lives in
 	// deliverIngestMatches (seen_listings.ClaimNew), not here.
 	totalSaved := 0
+	activeSearches := 0
+	notified := 0
 	for _, sr := range searches {
 		if !sr.Active || (sr.Manufacturer == 0 && sr.Model == 0) {
 			continue
 		}
+		activeSearches++
 
 		criteria := model.FilterCriteriaFromSearch(&sr)
 		filtered := filter.Apply(criteria, raw)
@@ -386,7 +414,7 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 			// Notify the user about genuinely new matches (dedup-gated) via the
 			// same delivery path the scheduler uses. Best-effort; never fails
 			// the ingest, which has already persisted the listings.
-			s.deliverIngestMatches(r.Context(), sr, pr.Listings, log)
+			notified += s.deliverIngestMatches(r.Context(), sr, pr.Listings, log)
 		}
 
 		// NOTE: removal is NOT inferred here from a listing's absence in this
@@ -423,6 +451,16 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Record the extension's scan schedule + this push's stats so the web UI
+	// counts down to the extension's real alarm (see ingestRequest.Cycle).
+	// Best-effort: the listings are already persisted.
+	s.recordExtScanStatus(r.Context(), chatID, req.Cycle, storage.ExtScanStatus{
+		Searches:        activeSearches,
+		ListingsFetched: len(raw),
+		ListingsMatched: totalSaved,
+		Notifications:   notified,
+	}, log)
+
 	log.Info("ingest complete",
 		"submitted", len(req.Listings), "parsed_with_km", parsedWithKm,
 		"parsed", len(raw), "saved", totalSaved,
@@ -433,6 +471,47 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 		NewMatches: totalSaved,
 		Removed:    removed,
 	})
+}
+
+// recordExtScanStatus persists the extension's cycle self-report (schedule +
+// stats) for the chat. No-op when the push carried no report or the store is
+// not wired; a malformed report is logged and dropped, never failing the
+// ingest that carried it.
+func (s *Server) recordExtScanStatus(ctx context.Context, chatID int64, c *ingestCycle, st storage.ExtScanStatus, log *slog.Logger) {
+	if c == nil || s.extStatus == nil {
+		return
+	}
+	next, err := time.Parse(time.RFC3339, c.NextRunAt)
+	if err != nil {
+		log.Warn("ingest cycle report: unparseable next_run_at, dropping report",
+			"next_run_at", c.NextRunAt, "error", err)
+		return
+	}
+	// A skewed client clock (or bug) promising a next run further out than the
+	// longest allowed cadence would freeze the web countdown on a time that
+	// never arrives — the staleness check can't catch a future timestamp.
+	if next.After(time.Now().Add(maxExtScanIntervalSec * time.Second)) {
+		log.Warn("ingest cycle report: next_run_at too far in the future, dropping report",
+			"next_run_at", c.NextRunAt)
+		return
+	}
+	started, err := time.Parse(time.RFC3339, c.StartedAt)
+	if err != nil {
+		// The schedule is still useful without an exact start; approximate it
+		// so chunk aggregation and duration stay roughly right.
+		started = time.Now().UTC()
+	}
+	interval := c.IntervalSec
+	if interval < minExtScanIntervalSec || interval > maxExtScanIntervalSec {
+		interval = defaultExtScanIntervalSec
+	}
+	st.ChatID = chatID
+	st.StartedAt = started
+	st.NextRunAt = next
+	st.IntervalSec = interval
+	if err := s.extStatus.UpsertExtScanStatus(ctx, st); err != nil {
+		log.Error("ingest cycle report: failed to save ext scan status", "error", err)
+	}
 }
 
 func (s *Server) getListing(w http.ResponseWriter, r *http.Request) {
