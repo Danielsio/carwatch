@@ -86,6 +86,7 @@ type Server struct {
 	cycleLog   storage.CycleLogStore
 	cycleStats storage.SearchCycleStatsStore
 	activity   storage.SearchActivityStore
+	extStatus  storage.ExtScanStatusStore
 	vitals     *vitalsRing
 
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
@@ -148,9 +149,13 @@ type Config struct {
 	CycleLog         storage.CycleLogStore
 	SearchCycleStats storage.SearchCycleStatsStore
 	Activity         storage.SearchActivityStore
-	PriceListSvc     *pricelist.Service
-	PollingInterval  time.Duration
-	Bind             string
+	// ExtScanStatus persists the extension's self-reported scan schedule so
+	// /scheduler/status can serve the real "next scan" time. Optional: nil
+	// falls back to estimating from the scheduler cycle log.
+	ExtScanStatus   storage.ExtScanStatusStore
+	PriceListSvc    *pricelist.Service
+	PollingInterval time.Duration
+	Bind            string
 }
 
 func New(c Config) *Server {
@@ -226,6 +231,7 @@ func New(c Config) *Server {
 		cycleLog:        c.CycleLog,
 		cycleStats:      c.SearchCycleStats,
 		activity:        c.Activity,
+		extStatus:       c.ExtScanStatus,
 		pollingInterval: c.PollingInterval,
 		vitals:          newVitalsRing(),
 		fetchSem:        make(chan struct{}, fetchCap),
@@ -328,7 +334,7 @@ func (s *Server) Routes() http.Handler {
 		}
 	}
 
-	if s.cycleLog != nil && s.pollingInterval > 0 {
+	if (s.cycleLog != nil && s.pollingInterval > 0) || s.extStatus != nil {
 		authMux.HandleFunc("GET /api/v1/scheduler/status", s.schedulerStatus)
 	}
 

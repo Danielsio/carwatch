@@ -711,15 +711,32 @@ type schedulerStatusResponse struct {
 func (s *Server) schedulerStatus(w http.ResponseWriter, r *http.Request) {
 	log := s.handlerLogger(r, "op", "scheduler_status")
 
-	entries, err := s.cycleLog.ListCycleLogs(r.Context(), 1)
-	if err != nil {
-		log.Error("failed to list cycle logs", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to get cycle log")
+	// The extension is the primary ingestion path: its Chrome alarm — not the
+	// server's maintenance loop — decides when the next real scan happens.
+	// When this user's extension has reported a schedule recently, serve that,
+	// so the web countdown and the extension popup tick toward the same moment.
+	if resp, ok := s.extSchedulerStatus(r, log); ok {
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 
 	resp := schedulerStatusResponse{
 		PollingIntervalSec: int(s.pollingInterval.Seconds()),
+	}
+
+	// Fallback: estimate from the server scheduler's cycle log (maintenance
+	// loop). Its cadence is unrelated to the extension's, but with no report
+	// to go on it is the only schedule the server knows.
+	if s.cycleLog == nil {
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+
+	entries, err := s.cycleLog.ListCycleLogs(r.Context(), 1)
+	if err != nil {
+		log.Error("failed to list cycle logs", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to get cycle log")
+		return
 	}
 
 	if len(entries) > 0 {
@@ -739,4 +756,51 @@ func (s *Server) schedulerStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// extSchedulerStatus builds the scheduler-status response from the extension's
+// self-reported schedule (see ingestRequest.Cycle). ok=false when there is no
+// report for this user, the lookup failed, or the report has gone stale — the
+// extension should have fired and re-reported within one interval of its
+// promised next run, so anything older means Chrome is closed and the caller
+// falls back to the legacy cycle-log estimate rather than show a dead timer.
+func (s *Server) extSchedulerStatus(r *http.Request, log *slog.Logger) (schedulerStatusResponse, bool) {
+	if s.extStatus == nil {
+		return schedulerStatusResponse{}, false
+	}
+	chatID, ok := chatIDFromContext(r.Context())
+	if !ok {
+		return schedulerStatusResponse{}, false
+	}
+	st, err := s.extStatus.GetExtScanStatus(r.Context(), s.resolveCanonicalChatID(r.Context(), chatID))
+	if err != nil {
+		log.Error("failed to get ext scan status", "error", err)
+		return schedulerStatusResponse{}, false
+	}
+	if st == nil {
+		return schedulerStatusResponse{}, false
+	}
+	if time.Since(st.NextRunAt) > time.Duration(st.IntervalSec)*time.Second {
+		return schedulerStatusResponse{}, false
+	}
+
+	started := st.StartedAt.UTC().Format(time.RFC3339)
+	next := st.NextRunAt.UTC().Format(time.RFC3339)
+	// The report is written when the push lands, i.e. at the end of the cycle
+	// — so updated_at - started_at approximates the cycle's duration.
+	durMs := int(st.UpdatedAt.Sub(st.StartedAt).Milliseconds())
+	if durMs < 0 {
+		durMs = 0
+	}
+	return schedulerStatusResponse{
+		LastCycleAt:         &started,
+		LastCycleDurationMs: durMs,
+		LastCycleStatus:     "ok",
+		NextCycleAt:         &next,
+		PollingIntervalSec:  st.IntervalSec,
+		Searches:            st.Searches,
+		ListingsFetched:     st.ListingsFetched,
+		ListingsMatched:     st.ListingsMatched,
+		Notifications:       st.Notifications,
+	}, true
 }

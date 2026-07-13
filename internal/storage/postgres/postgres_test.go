@@ -2429,3 +2429,87 @@ func TestPostgres_AdminDeleteUser_RemovesDeliveries(t *testing.T) {
 		t.Errorf("expected user's delivery rows removed, got %d", len(got))
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Extension scan status
+// ---------------------------------------------------------------------------
+
+func TestPostgres_ExtScanStatus(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+
+	// Missing report → nil, nil.
+	st, err := store.GetExtScanStatus(ctx, 8100)
+	if err != nil {
+		t.Fatalf("get missing: %v", err)
+	}
+	if st != nil {
+		t.Fatalf("expected nil for missing report, got %+v", st)
+	}
+
+	started := time.Now().UTC().Truncate(time.Millisecond)
+	next := started.Add(15 * time.Minute)
+
+	// First report roundtrips.
+	if err := store.UpsertExtScanStatus(ctx, storage.ExtScanStatus{
+		ChatID: 8100, StartedAt: started, NextRunAt: next, IntervalSec: 900,
+		Searches: 3, ListingsFetched: 40, ListingsMatched: 12, Notifications: 2,
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	st, err = store.GetExtScanStatus(ctx, 8100)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if st == nil {
+		t.Fatal("expected a report")
+	}
+	if !st.StartedAt.Equal(started) || !st.NextRunAt.Equal(next) {
+		t.Errorf("timestamps: got started=%v next=%v want %v / %v", st.StartedAt, st.NextRunAt, started, next)
+	}
+	if st.IntervalSec != 900 || st.Searches != 3 || st.ListingsFetched != 40 ||
+		st.ListingsMatched != 12 || st.Notifications != 2 {
+		t.Errorf("fields: %+v", st)
+	}
+	if st.UpdatedAt.IsZero() {
+		t.Error("updated_at should be set")
+	}
+
+	// Second chunk of the SAME cycle (same started_at) accumulates stats.
+	if err := store.UpsertExtScanStatus(ctx, storage.ExtScanStatus{
+		ChatID: 8100, StartedAt: started, NextRunAt: next, IntervalSec: 900,
+		Searches: 3, ListingsFetched: 25, ListingsMatched: 5, Notifications: 1,
+	}); err != nil {
+		t.Fatalf("upsert chunk 2: %v", err)
+	}
+	st, _ = store.GetExtScanStatus(ctx, 8100)
+	if st.ListingsFetched != 65 || st.ListingsMatched != 17 || st.Notifications != 3 {
+		t.Errorf("same-cycle chunks should accumulate: %+v", st)
+	}
+	if st.Searches != 3 {
+		t.Errorf("searches should not accumulate: %d", st.Searches)
+	}
+
+	// A NEW cycle (different started_at) replaces the counters.
+	started2 := started.Add(15 * time.Minute)
+	next2 := started2.Add(15 * time.Minute)
+	if err := store.UpsertExtScanStatus(ctx, storage.ExtScanStatus{
+		ChatID: 8100, StartedAt: started2, NextRunAt: next2, IntervalSec: 600,
+		Searches: 4, ListingsFetched: 7, ListingsMatched: 1, Notifications: 0,
+	}); err != nil {
+		t.Fatalf("upsert new cycle: %v", err)
+	}
+	st, _ = store.GetExtScanStatus(ctx, 8100)
+	if st.ListingsFetched != 7 || st.ListingsMatched != 1 || st.Notifications != 0 {
+		t.Errorf("new cycle should reset counters: %+v", st)
+	}
+	if !st.StartedAt.Equal(started2) || !st.NextRunAt.Equal(next2) || st.IntervalSec != 600 || st.Searches != 4 {
+		t.Errorf("new cycle fields: %+v", st)
+	}
+
+	// Reports are per chat.
+	st, err = store.GetExtScanStatus(ctx, 8200)
+	if err != nil || st != nil {
+		t.Errorf("other chat should have no report: st=%+v err=%v", st, err)
+	}
+}

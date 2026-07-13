@@ -437,6 +437,31 @@ type CycleLogStore interface {
 	ListCycleLogs(ctx context.Context, limit int) ([]CycleLogEntry, error)
 }
 
+// ExtScanStatus is the browser extension's self-reported scan state: when its
+// last cycle started, when its Chrome alarm fires next, and what the cycle
+// produced. The extension is the primary ingestion path, so this — not the
+// server scheduler's cycle log — is what "next scan" means to a user.
+type ExtScanStatus struct {
+	ChatID          int64
+	StartedAt       time.Time
+	NextRunAt       time.Time
+	IntervalSec     int
+	Searches        int
+	ListingsFetched int
+	ListingsMatched int
+	Notifications   int
+	UpdatedAt       time.Time
+}
+
+type ExtScanStatusStore interface {
+	// UpsertExtScanStatus records a report (one row per chat). A cycle can
+	// arrive as several chunked pushes; chunks share the same StartedAt, and
+	// their stats accumulate instead of the last chunk winning.
+	UpsertExtScanStatus(ctx context.Context, st ExtScanStatus) error
+	// GetExtScanStatus returns the chat's last report, or nil if none exists.
+	GetExtScanStatus(ctx context.Context, chatID int64) (*ExtScanStatus, error)
+}
+
 type SearchCycleStats struct {
 	SearchID    int64
 	ChatID      int64
