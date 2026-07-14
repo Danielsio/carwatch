@@ -1,0 +1,9 @@
+{
+  "name": "carwatch-extension",
+  "private": true,
+  "version": "1.5.0",
+  "description": "CarWatch Chrome extension — the sole ingestion path for Yad2 listings",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}

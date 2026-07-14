@@ -1,17 +1,14 @@
-importScripts("parser.js");
+// lib.js holds the pure logic (feed query, merge, cache, chunking, block/gone
+// classification) so it can be unit-tested without a browser; parser.js turns
+// Yad2's JSON into listings. importScripts puts their functions in this global
+// scope.
+importScripts("lib.js", "parser.js");
 
 const ALARM_NAME = "carwatch-fetch";
 const FETCH_INTERVAL_MINUTES = 15;
 const DEFAULT_API_URL = "https://carwatch.duckdns.org";
 const FETCH_TIMEOUT_MS = 15000;
 
-// Yad2's own gateway JSON API. We call these from within a real yad2.co.il tab
-// (MAIN world) so the request carries the browser's Radware clearance cookie +
-// Chrome TLS fingerprint — the HTML /vehicles/cars route is a Radware challenge
-// shell and cannot be scraped, and a plain background fetch (no browser
-// fingerprint) is blocked. See extension/README notes / parser.js.
-const GW_FEED_URL = "https://gw.yad2.co.il/feed-search-vehicles/cars";
-const GW_ITEM_URL = "https://gw.yad2.co.il/vehicles-item";
 const YAD2_HOME = "https://www.yad2.co.il/";
 
 // Bound per-cycle request volume: one feed call per search, plus at most this
@@ -23,7 +20,6 @@ const MAX_ENRICH_PER_CYCLE = 30;
 // candidate is confirmed against its item page — a 404 means sold/delisted.
 // Bounded per cycle so a large backlog cannot spike our request volume.
 const MAX_VERIFY_PER_CYCLE = 10;
-const KNOWN_TOKENS_CAP = 3000;
 const ENRICH_DELAY_MS = 1500; // jittered inside the injected fetcher
 
 let isRunning = false;
@@ -74,28 +70,6 @@ async function getConfig() {
     apiUrl: data.apiUrl || DEFAULT_API_URL,
     authToken: data.authToken || "",
   };
-}
-
-function buildFeedURL(search) {
-  const params = new URLSearchParams();
-  if (search.manufacturer_id) params.set("manufacturer", search.manufacturer_id);
-  if (search.model_id) params.set("model", search.model_id);
-  if (search.year_min || search.year_max) {
-    params.set("year", `${search.year_min || 2000}-${search.year_max || 2030}`);
-  }
-  if (search.price_min || search.price_max) {
-    params.set("price", `${search.price_min || 0}-${search.price_max || 9999999}`);
-  }
-  if (search.max_km) params.set("km", `-1-${search.max_km}`);
-  if (search.max_hand) params.set("hand", `0-${search.max_hand}`);
-  if (search.engine_min_cc) params.set("engineval", `${search.engine_min_cc}--1`);
-  if (search.seller_filter === "private") params.set("ownerID", "1");
-  else if (["commercial", "dealer"].includes(search.seller_filter))
-    params.set("ownerID", "2");
-  if (search.photo_only) params.set("imgOnly", "1");
-  params.set("Order", "1");
-  params.set("page", "1");
-  return `${GW_FEED_URL}?${params}`;
 }
 
 function sleep(ms) {
@@ -242,29 +216,6 @@ async function fetchViaYad2Tab(tabId, urls) {
   return (results && results[0] && results[0].result) || [];
 }
 
-// A 404/410 from the item endpoint is Yad2 telling us the listing is gone
-// (sold or delisted) — a real answer, not a block. Keep it distinct from
-// looksBlocked: treating it as a block hides removals AND triggers pointless
-// tab reloads.
-function looksGone(r) {
-  return !!r && (r.status === 404 || r.status === 410);
-}
-
-// A response whose body is HTML (Radware "302/verifying" shell) rather than
-// JSON means the tab's clearance lapsed.
-function looksBlocked(r) {
-  if (looksGone(r)) return false;
-  const b = (r && r.body ? r.body : "").trimStart();
-  return r && r.status !== 200 ? true : b.startsWith("<");
-}
-
-// A fetch batch is unusable when executeScript returned nothing (a discarded
-// or broken tab yields an empty array, not looksBlocked-shaped results) or
-// when every result is a block/challenge page. Either warrants a tab reload.
-function batchUnusable(results) {
-  return results.length === 0 || results.every(looksBlocked);
-}
-
 // ---- enrichment cache (token -> resolved item fields) ----------------------
 //
 // Maps a token to the fields we resolved from the item endpoint (km, city,
@@ -280,21 +231,7 @@ async function getEnrichedCache() {
 }
 
 async function saveEnrichedCache(cache) {
-  const tokens = Object.keys(cache);
-  if (tokens.length > KNOWN_TOKENS_CAP) {
-    // Object keys keep insertion order — drop the oldest overflow.
-    for (const t of tokens.slice(0, tokens.length - KNOWN_TOKENS_CAP)) delete cache[t];
-  }
-  await chrome.storage.local.set({ enrichedCache: cache });
-}
-
-// Overlay resolved fields onto a feed listing without wiping known values with
-// blanks/zeros (the feed omits km/city/image; the item endpoint fills them).
-function applyEnrichment(listing, data) {
-  for (const [k, v] of Object.entries(data)) {
-    if (k === "token") continue;
-    if (v !== undefined && v !== "" && v !== 0) listing[k] = v;
-  }
+  await chrome.storage.local.set({ enrichedCache: trimCache(cache) });
 }
 
 function shuffle(a) {
@@ -352,10 +289,8 @@ async function runFetchCycle() {
     setBadge("...", "#888");
 
     const searches = await fetchSearches(config);
-    const activeSearches = searches.filter(
-      (s) => s.active && s.manufacturer_id > 0 && s.model_id > 0,
-    );
-    if (activeSearches.length === 0) {
+    const active = activeSearches(searches);
+    if (active.length === 0) {
       // Nothing to scan, but the extension is alive and will check again on
       // the next alarm — report that schedule so the web countdown stays real.
       const idleCycle = await getScanSchedule(cycleStartedAt);
@@ -367,17 +302,20 @@ async function runFetchCycle() {
 
     const tabId = await ensureYad2Tab();
 
-    // 1) Fetch each search's list feed.
-    let feedResults = await fetchViaYad2Tab(tabId, activeSearches.map(buildFeedURL));
+    // 1) Fetch each search's list feed. NB: the arrow is load-bearing —
+    // `.map(buildFeedURL)` would hand Array.map's index to buildFeedURL's page
+    // argument and request a different page per search.
+    const feedURLs = active.map((s) => buildFeedURL(s));
+    let feedResults = await fetchViaYad2Tab(tabId, feedURLs);
     if (batchUnusable(feedResults)) {
       console.warn("[CarWatch] feed batch unusable (empty or all blocked); reloading yad2 tab and retrying");
       await reloadYad2Tab(tabId);
-      feedResults = await fetchViaYad2Tab(tabId, activeSearches.map(buildFeedURL));
+      feedResults = await fetchViaYad2Tab(tabId, feedURLs);
     }
 
     // Merge into a token->listing map, preferring the row that already has km.
-    const byToken = new Map();
     let blocked = 0;
+    const parsedFeeds = [];
     for (const r of feedResults) {
       if (looksBlocked(r)) {
         blocked++;
@@ -388,11 +326,9 @@ async function runFetchCycle() {
         console.warn("[CarWatch] feed parse:", parsed.error, r.url);
         continue;
       }
-      for (const l of parsed.listings) {
-        const prev = byToken.get(l.token);
-        if (!prev || ((prev.km || 0) <= 0 && (l.km || 0) > 0)) byToken.set(l.token, l);
-      }
+      parsedFeeds.push(parsed.listings);
     }
+    const byToken = mergeFeedListings(parsedFeeds);
 
     // 2) Re-apply everything we've already resolved (self-healing: the km is
     // re-pushed every cycle so a dropped save recovers), then enrich only what
@@ -412,7 +348,7 @@ async function runFetchCycle() {
     // Diagnostics surfaced in the popup so failures are visible without DevTools.
     let itemGot = 0, itemOk = 0, itemBlocked = 0, itemParseErr = 0, gotKm = 0, itemErr = "";
     if (toEnrich.length) {
-      const itemURLs = toEnrich.map((l) => `${GW_ITEM_URL}/${l.token}`);
+      const itemURLs = toEnrich.map((l) => itemURL(l.token));
       let itemResults = await fetchViaYad2Tab(tabId, itemURLs);
       // If the batch was unusable — empty (a discarded/broken tab makes
       // executeScript return nothing) or every result blocked (stale clearance
@@ -462,13 +398,11 @@ async function runFetchCycle() {
     const removedTokens = [];
     let verifyTried = 0;
     if (!blocked) {
-      const candidates = Object.keys(cache).filter((t) => !byToken.has(t));
+      const candidates = removalCandidates(cache, byToken);
       const toVerify = shuffle(candidates).slice(0, MAX_VERIFY_PER_CYCLE);
       verifyTried = toVerify.length;
       if (toVerify.length) {
-        const byURL = new Map(
-          toVerify.map((t) => [`${GW_ITEM_URL}/${t}`, t]),
-        );
+        const byURL = new Map(toVerify.map((t) => [itemURL(t), t]));
         const results = await fetchViaYad2Tab(tabId, [...byURL.keys()]);
         for (const r of results) {
           const token = byURL.get(r.url);
@@ -519,11 +453,6 @@ async function fetchSearches(config) {
   return resp.json();
 }
 
-// The ingest endpoint rejects > 500 listings per request, so push in chunks.
-// A user with many/broad searches can exceed that; without chunking the whole
-// cycle's ingestion would 400 and be lost.
-const MAX_INGEST_BATCH = 400;
-
 async function pushListings(config, listings, removedTokens = [], cycle = null) {
   let last;
   // Removed tokens ride the FIRST chunk only, so a multi-chunk push applies
@@ -535,13 +464,8 @@ async function pushListings(config, listings, removedTokens = [], cycle = null) 
   // chunks that share the same started_at, so repeating it is safe and lets
   // any chunk (including a lost first one) sync the schedule.
   let pendingRemoved = removedTokens;
-  for (let i = 0; i < listings.length; i += MAX_INGEST_BATCH) {
-    last = await pushBatch(
-      config,
-      listings.slice(i, i + MAX_INGEST_BATCH),
-      pendingRemoved,
-      cycle,
-    );
+  for (const chunk of chunkListings(listings)) {
+    last = await pushBatch(config, chunk, pendingRemoved, cycle);
     pendingRemoved = [];
   }
   if (listings.length === 0 && (pendingRemoved.length > 0 || cycle)) {

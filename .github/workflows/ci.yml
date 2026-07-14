@@ -13,6 +13,7 @@ on:
       - '.github/workflows/**'
       - 'docker-compose*.yaml'
       - 'web/**'
+      - 'extension/**'
 
 concurrency:
   group: ci-pr-${{ github.event.pull_request.number || github.ref }}
@@ -31,6 +32,7 @@ jobs:
       go: ${{ steps.filter.outputs.go }}
       web: ${{ steps.filter.outputs.web }}
       infra: ${{ steps.filter.outputs.infra }}
+      extension: ${{ steps.filter.outputs.extension }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
@@ -44,6 +46,8 @@ jobs:
               - 'Makefile'
             web:
               - 'web/**'
+            extension:
+              - 'extension/**'
             infra:
               - 'Dockerfile'
               - 'Caddyfile'
@@ -150,6 +154,23 @@ jobs:
         with:
           name: coverage
           path: .coverage/
+
+  extension:
+    name: Extension Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: changes
+    if: needs.changes.outputs.extension == 'true'
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+      # The extension is the ONLY path listings enter the system by, and its
+      # parser encodes assumptions about a third-party payload that changes
+      # without notice. No npm install: the suite runs on node:test alone.
+      - name: Test
+        run: cd extension && npm test
 
   web:
     name: Web Build
