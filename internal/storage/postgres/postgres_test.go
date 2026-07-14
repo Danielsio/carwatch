@@ -1203,6 +1203,19 @@ func TestPostgres_DeleteSearchCascade(t *testing.T) {
 // Prune & delete stale listings
 // ---------------------------------------------------------------------------
 
+// ageListingLastSeen backdates when the source was last seen serving a listing.
+// Retention keys on that (see PruneListings), and SaveListing always stamps it
+// with NOW() — because saving a listing IS observing it — so a test that wants
+// a listing the source has stopped serving has to say so explicitly.
+func ageListingLastSeen(t *testing.T, store *Store, token string, lastSeen time.Time) {
+	t.Helper()
+	if _, err := store.DB().Exec(
+		`UPDATE listing_history SET last_seen_at = $1 WHERE token = $2`,
+		lastSeen.UTC(), token); err != nil {
+		t.Fatalf("age last_seen_at for %q: %v", token, err)
+	}
+}
+
 func TestPostgres_PruneListings(t *testing.T) {
 	store := testStore(t)
 	ctx := context.Background()
@@ -1223,6 +1236,13 @@ func TestPostgres_PruneListings(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+
+	// Retention is measured from the last time the SOURCE still served the
+	// listing, not from when we first found it — a car can be listed for longer
+	// than the retention window and must not be pruned while it is still live.
+	// "old-1" is the one that has actually disappeared: nothing has re-observed
+	// it for 100 days.
+	ageListingLastSeen(t, store, "old-1", old)
 
 	pruned, err := store.PruneListings(ctx, 90*24*time.Hour)
 	if err != nil {
@@ -1258,6 +1278,11 @@ func TestPostgres_PruneListingsPreservesSaved(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = store.SaveBookmark(ctx, 100, "old-saved")
+
+	// Both are gone from the source (nothing has re-observed them for 100 days);
+	// only the bookmarked one may survive the prune.
+	ageListingLastSeen(t, store, "old-saved", old)
+	ageListingLastSeen(t, store, "old-unsaved", old)
 
 	pruned, _ := store.PruneListings(ctx, 90*24*time.Hour)
 	if pruned != 1 {

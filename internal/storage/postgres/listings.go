@@ -49,9 +49,16 @@ const upsertListingSQL = `
 		sub_model_id = CASE WHEN EXCLUDED.sub_model_id > 0 THEN EXCLUDED.sub_model_id ELSE listing_history.sub_model_id END,
 		body_type = CASE WHEN EXCLUDED.body_type != '' THEN EXCLUDED.body_type ELSE listing_history.body_type END,
 		year = CASE WHEN EXCLUDED.year > 0 THEN EXCLUDED.year ELSE listing_history.year END,
-		price = EXCLUDED.price,
+		-- A price CHANGE is the point of the product, so real values always win
+		-- — but 0 is not a price. It is what the parser yields when the feed row
+		-- omits the field, and letting it through erased the known price of a
+		-- listing (breaking the price_only filter, price sorting, deal scores and
+		-- the price-drop signal itself) on any partial payload. Same for hand,
+		-- which only ever counts upward: a 0 in an update is a missing field, not
+		-- a car that lost an owner. Zeros still insert fine on first sight.
+		price = CASE WHEN EXCLUDED.price > 0 THEN EXCLUDED.price ELSE listing_history.price END,
 		km = CASE WHEN EXCLUDED.km > 0 THEN EXCLUDED.km ELSE listing_history.km END,
-		hand = EXCLUDED.hand,
+		hand = CASE WHEN EXCLUDED.hand > 0 THEN EXCLUDED.hand ELSE listing_history.hand END,
 		city = CASE WHEN EXCLUDED.city != '' THEN EXCLUDED.city ELSE listing_history.city END,
 		page_link = CASE WHEN EXCLUDED.page_link != '' THEN EXCLUDED.page_link ELSE listing_history.page_link END,
 		image_url = CASE WHEN EXCLUDED.image_url != '' THEN EXCLUDED.image_url ELSE listing_history.image_url END,
@@ -68,6 +75,8 @@ const upsertListingSQL = `
 		base_price = COALESCE(EXCLUDED.base_price, listing_history.base_price),
 		posted_at = COALESCE(EXCLUDED.posted_at, listing_history.posted_at),
 		removed_at = NULL,
+		-- Re-observed: renew the retention clock (see PruneListings).
+		last_seen_at = NOW(),
 		score_condition = COALESCE(EXCLUDED.score_condition, listing_history.score_condition),
 		score_value = COALESCE(EXCLUDED.score_value, listing_history.score_value),
 		score_engine = COALESCE(EXCLUDED.score_engine, listing_history.score_engine),
@@ -862,11 +871,18 @@ func (s *Store) ResetUnenrichedAttempts(ctx context.Context) (int64, error) {
 	return result.RowsAffected()
 }
 
+// PruneListings drops listings nobody has seen for olderThan — measured from
+// the last time the source still served them, not from when we first found
+// them. A car can sit on Yad2 for longer than the retention window; pruning by
+// first_seen_at deleted such a listing while it was still live, and the next
+// ingest re-inserted it with a fresh first_seen_at — so it resurfaced in the UI
+// as newly found and lost its enrichment counters. Bookmarked listings are
+// exempt, as before.
 func (s *Store) PruneListings(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
 	result, err := s.db.ExecContext(ctx, `
 		DELETE FROM listing_history
-		WHERE first_seen_at < $1
+		WHERE last_seen_at < $1
 		  AND NOT EXISTS (
 		      SELECT 1 FROM saved_listings
 		      WHERE saved_listings.token = listing_history.token
