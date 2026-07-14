@@ -148,7 +148,7 @@ func run(configPath string, skipMigrate bool, logger *slog.Logger) error {
 	}
 	defer apiServer.Shutdown()
 
-	srv := app.BuildHTTPServer(cfg, h, apiServer, logger)
+	srv, srvErr := app.BuildHTTPServer(cfg, h, apiServer, logger)
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
@@ -161,8 +161,17 @@ func run(configPath string, skipMigrate bool, logger *slog.Logger) error {
 		"health", "http://"+cfg.HTTP.Bind+"/healthz",
 	)
 
-	// Block until shutdown signal.
-	<-ctx.Done()
-	logger.Info("api-server shutting down")
-	return nil
+	// Block until a shutdown signal — or until the listener dies. Without the
+	// second case a failed bind would leave this process alive and serving
+	// nothing: healthy to `restart: unless-stopped`, useless to everyone else.
+	select {
+	case <-ctx.Done():
+		logger.Info("api-server shutting down")
+		return nil
+	case err := <-srvErr:
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 }

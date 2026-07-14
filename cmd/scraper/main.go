@@ -105,8 +105,13 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 	h := health.New()
 	h.SetVersion(version)
 
-	// Health endpoint on a separate port.
-	healthSrv := app.BuildHealthServer(healthBind, h, logger)
+	// Health endpoint on a separate port. If its listener dies the scheduler
+	// keeps running but Docker can never see it as healthy, so abort the
+	// process instead and let the restart policy recover it.
+	healthSrv, healthErr := app.BuildHealthServer(healthBind, h, logger)
+	guard := app.GuardListeners(ctx, healthErr)
+	defer guard.Stop()
+	ctx = guard.Context()
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
@@ -193,5 +198,7 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 	)
 
 	h.MarkSchedulerStarted()
-	return sched.Run(ctx)
+	// Wrap: a listener failure becomes the process's exit error; a plain
+	// context cancellation is a signal-driven shutdown and exits cleanly.
+	return guard.Wrap(sched.Run(ctx))
 }
