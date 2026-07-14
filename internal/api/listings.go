@@ -325,10 +325,22 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The ingest endpoint is a trust boundary: any authenticated user can post
+	// to it, and what lands here is later rendered as links and images in the UI
+	// and embedded in Telegram alerts. Sanitize before anything is persisted.
+	// Bad fields are blanked rather than failing the push (one odd value must
+	// not cost the user the cycle's listings); an unusable token drops the row.
+	droppedTokens := 0
+	rejectedURLs := 0
 	raw := make([]model.RawListing, 0, len(req.Listings))
 	for _, l := range req.Listings {
-		if l.Token == "" {
+		hadPageLink, hadImage := l.PageLink != "", l.ImageURL != ""
+		if !sanitizeIngestListing(&l) {
+			droppedTokens++
 			continue
+		}
+		if (hadPageLink && l.PageLink == "") || (hadImage && l.ImageURL == "") {
+			rejectedURLs++
 		}
 		rl := model.RawListing{
 			Token:          l.Token,
@@ -439,7 +451,8 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 	// saved, so a removal failure must not fail the push.
 	removed := int64(0)
 	if len(req.RemovedTokens) > 0 {
-		tokens := req.RemovedTokens
+		// Removal deletes rows, so only well-formed tokens are ever acted on.
+		tokens := sanitizeRemovedTokens(req.RemovedTokens)
 		if len(tokens) > maxRemovedTokensPerIngest {
 			log.Warn("ingest sent more removed tokens than the cap, truncating",
 				"submitted", len(tokens), "cap", maxRemovedTokensPerIngest)
@@ -461,9 +474,22 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 		Notifications:   notified,
 	}, log)
 
+	// Rejected URLs are worth shouting about rather than silently blanking: the
+	// benign explanation is a hostile/buggy client, but the alarming one is that
+	// Yad2 moved its image CDN to a host the allowlist does not know — which
+	// would blank every listing photo at once. Same for dropped tokens: a sudden
+	// spike means the token format changed under us.
+	if rejectedURLs > 0 || droppedTokens > 0 {
+		log.Warn("ingest rejected some listing fields",
+			"rejected_urls", rejectedURLs, "dropped_tokens", droppedTokens,
+			"submitted", len(req.Listings),
+			"hint", "a spike here can mean Yad2 changed its link/image hosts or token format")
+	}
+
 	log.Info("ingest complete",
 		"submitted", len(req.Listings), "parsed_with_km", parsedWithKm,
 		"parsed", len(raw), "saved", totalSaved,
+		"dropped_tokens", droppedTokens, "rejected_urls", rejectedURLs,
 		"removed_reported", len(req.RemovedTokens), "removed_deleted", removed)
 
 	writeJSON(w, http.StatusOK, ingestResponse{
