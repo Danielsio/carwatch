@@ -24,17 +24,19 @@ ENV LDFLAGS="-s -w -X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X
 RUN CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/api-server ./cmd/api-server && \
     CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/bot-poller ./cmd/bot-poller && \
     CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/scraper ./cmd/scraper && \
-    CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/notifier ./cmd/notifier && \
-    CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/enricher ./cmd/enricher && \
-    CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/enrich-bench ./cmd/enrich-bench
+    CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o /bin/notifier ./cmd/notifier
 
+# Runtime. No chromium: the Chrome-based Yad2 fetcher (http.chrome_bin → rod)
+# is not used in production — the browser extension ingests listings from a real
+# Yad2 tab instead. Installing chromium here added ~1.1 GB to the image (more
+# than the production VM has RAM) for a code path prod never takes; without it
+# the image is ~327 MB. Setting http.chrome_bin in a container built from this
+# image will fail at startup, by design.
 FROM alpine:3.24
-RUN apk add --no-cache ca-certificates tzdata chromium \
-    && adduser -D -u 1000 carwatch \
-    && mkdir -p /home/carwatch/.local/share/chromium/Crashpad \
-    && chown -R carwatch:carwatch /home/carwatch
+RUN apk add --no-cache ca-certificates tzdata \
+    && adduser -D -u 1000 carwatch
 USER carwatch
-COPY --from=builder /bin/api-server /bin/bot-poller /bin/scraper /bin/notifier /bin/enricher /bin/enrich-bench /usr/local/bin/
+COPY --from=builder /bin/api-server /bin/bot-poller /bin/scraper /bin/notifier /usr/local/bin/
 COPY --from=builder /app/migrations /migrations
 HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
   CMD wget -q --spider http://localhost:8080/healthz || exit 1
