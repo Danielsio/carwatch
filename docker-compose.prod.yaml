@@ -1,3 +1,19 @@
+# Memory budget — the production VM has 1 GB of physical RAM.
+#
+# Limits are ceilings, not reservations: their job is to bound the blast radius
+# when something leaks, so a single sick container gets killed instead of the
+# kernel's OOM killer picking an arbitrary victim (Postgres being the worst
+# case). That only works if the ceilings FIT IN THE HOST. They must therefore
+# sum to less than physical RAM, with room left for the OS and the Docker
+# daemon (~150 MB).
+#
+#   postgres 288M + redis 80M + api 200M + scraper 96M
+#   + notifier 80M + bot-poller 80M + caddy 48M = 872M
+#
+# Keep this sum under ~900M when changing any limit below. Steady-state usage is
+# far lower (idle Go services sit at ~30 MB RSS); the headroom absorbs spikes.
+# The VM should also have 1–2 GB of swap with vm.swappiness=10 as a shock
+# absorber for brief spikes — swap is slow, but slow beats killed.
 services:
   postgres:
     image: postgres:17-alpine
@@ -25,7 +41,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 288M
 
   redis:
     image: redis:7-alpine
@@ -58,7 +74,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 80M
 
   api:
     image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
@@ -103,7 +119,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 200M
 
   bot-poller:
     image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
@@ -142,7 +158,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 80M
 
   scraper:
     image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
@@ -153,10 +169,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # Plain /tmp: the exec-able tmpfs, /dev/shm and the writable home were all
+    # for the headless Chromium the image no longer ships (see Dockerfile).
     tmpfs:
-      - /tmp:exec,uid=1000,gid=1000
-      - /dev/shm:size=128m
-      - /home/carwatch:uid=1000,gid=1000
+      - /tmp
     networks:
       - carwatch-net
     depends_on:
@@ -186,7 +202,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M
+          memory: 96M
 
   notifier:
     image: ghcr.io/danielsio/carwatch:${CARWATCH_IMAGE_TAG:?CARWATCH_IMAGE_TAG must be set}
@@ -226,7 +242,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 80M
 
   # NOTE: the per-item km `enricher` service was retired once the browser
   # extension took over ingestion (it fetches item detail + km from a real
@@ -239,9 +255,15 @@ services:
     container_name: caddy
     networks:
       - carwatch-net
+    # Deliberately NOT gated on `api: condition: service_healthy`. Caddy is the
+    # only thing holding the domain and the ACME certificate: if it waits for a
+    # healthy API, then a crash-looping API (bad config, failed migration) means
+    # the domain answers nothing at all — and TLS renewal cannot run, so a long
+    # outage can end with an expired certificate on top of the original fault.
+    # Proxying to a dead upstream returns 502, which is strictly better: the
+    # site is reachable, the failure is legible, and certs keep renewing.
     depends_on:
-      api:
-        condition: service_healthy
+      - api
     ports:
       - "80:80"
       - "443:443"
@@ -257,6 +279,10 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 48M
 
 networks:
   carwatch-net:

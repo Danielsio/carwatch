@@ -8,4 +8,11 @@
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 	}
 	reverse_proxy api:8080
+
+	# The API being down must not take the site down with it: Caddy stays up
+	# (keeping the domain and ACME renewal alive) and answers with a legible
+	# maintenance page instead of a raw gateway error or a refused connection.
+	handle_errors {
+		respond "CarWatch is temporarily unavailable — the service is restarting. Please try again in a minute." {http.error.status_code}
+	}
 }
