@@ -87,6 +87,7 @@ type Server struct {
 	cycleStats storage.SearchCycleStatsStore
 	activity   storage.SearchActivityStore
 	extStatus  storage.ExtScanStatusStore
+	removalBud *removalBudget
 	vitals     *vitalsRing
 
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
@@ -234,6 +235,7 @@ func New(c Config) *Server {
 		extStatus:       c.ExtScanStatus,
 		pollingInterval: c.PollingInterval,
 		vitals:          newVitalsRing(),
+		removalBud:      newRemovalBudget(),
 		fetchSem:        make(chan struct{}, fetchCap),
 	}
 }

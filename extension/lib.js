@@ -112,6 +112,30 @@ function removalCandidates(cache, byToken) {
   return Object.keys(cache).filter((t) => !byToken.has(t));
 }
 
+// Removal treats a 404 from the item endpoint as proof a listing is gone. That
+// is safe only as long as a 404 actually means "gone" — if Yad2 renames the
+// endpoint or changes its token format, EVERY item fetch 404s and the extension
+// would retire live listings by the cycleful, silently, over days.
+//
+// pickCanaryToken returns a token we KNOW is live right now: one present in this
+// cycle's feed. Fetching its item page before trusting any 404 is the tripwire —
+// if even the canary 404s, the endpoint is broken, not the listings, so removals
+// must be skipped this cycle. Returns null when the feed is empty (nothing to
+// vouch for, so removals are skipped anyway).
+function pickCanaryToken(byToken) {
+  const it = byToken.keys().next();
+  return it.done ? null : it.value;
+}
+
+// canaryConfirmsEndpointHealthy reports whether the canary's item response looks
+// like a real listing (a 200 that parses), i.e. the endpoint is behaving. A
+// block (stale clearance) is inconclusive, not proof of breakage — but it is
+// also not confirmation, so it returns false and removals wait for a cleaner
+// cycle. Only an unambiguous healthy response green-lights retirement.
+function canaryConfirmsEndpointHealthy(result) {
+  return !!result && result.status === 200 && !looksBlocked(result);
+}
+
 // Split a push into ingest-sized chunks. Returns [] for no listings: callers
 // decide whether a listing-less push is still worth sending (it can still carry
 // removals or a schedule report).
@@ -147,6 +171,8 @@ if (typeof module !== "undefined" && module.exports) {
     mergeFeedListings,
     trimCache,
     removalCandidates,
+    pickCanaryToken,
+    canaryConfirmsEndpointHealthy,
     chunkListings,
     activeSearches,
   };

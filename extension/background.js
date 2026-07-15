@@ -397,24 +397,49 @@ async function runFetchCycle() {
     // left alone and re-checked next cycle.
     const removedTokens = [];
     let verifyTried = 0;
+    let canarySkipped = false;
     if (!blocked) {
       const candidates = removalCandidates(cache, byToken);
       const toVerify = shuffle(candidates).slice(0, MAX_VERIFY_PER_CYCLE);
       verifyTried = toVerify.length;
       if (toVerify.length) {
+        // Tripwire: never trust this cycle's 404s until a token we KNOW is live
+        // (one in the current feed) still returns a real item page. If Yad2
+        // renamed the endpoint or changed its token format, every fetch 404s —
+        // and without this check the extension would retire live listings by the
+        // cycleful. Verify the canary in the SAME batch as the candidates, so a
+        // stale-clearance blip fails them together rather than one vouching for
+        // the other.
+        const canary = pickCanaryToken(byToken);
         const byURL = new Map(toVerify.map((t) => [itemURL(t), t]));
-        const results = await fetchViaYad2Tab(tabId, [...byURL.keys()]);
-        for (const r of results) {
-          const token = byURL.get(r.url);
-          if (!token || !looksGone(r)) continue;
-          removedTokens.push(token);
-          delete cache[token];
-        }
-        if (removedTokens.length) {
-          await saveEnrichedCache(cache);
-          console.log(
-            `[CarWatch] removal: confirmed ${removedTokens.length}/${toVerify.length} gone (404)`,
+        const urls = [...byURL.keys()];
+        if (canary) urls.push(itemURL(canary));
+        const results = await fetchViaYad2Tab(tabId, urls);
+
+        const canaryURL = canary ? itemURL(canary) : null;
+        const canaryResult = canaryURL
+          ? results.find((r) => r.url === canaryURL)
+          : null;
+
+        if (!canary || !canaryConfirmsEndpointHealthy(canaryResult)) {
+          canarySkipped = true;
+          console.warn(
+            "[CarWatch] removal: canary did not confirm the item endpoint is healthy; skipping ALL removals this cycle",
           );
+        } else {
+          for (const r of results) {
+            if (r.url === canaryURL) continue;
+            const token = byURL.get(r.url);
+            if (!token || !looksGone(r)) continue;
+            removedTokens.push(token);
+            delete cache[token];
+          }
+          if (removedTokens.length) {
+            await saveEnrichedCache(cache);
+            console.log(
+              `[CarWatch] removal: confirmed ${removedTokens.length}/${toVerify.length} gone (404)`,
+            );
+          }
         }
       }
     }
