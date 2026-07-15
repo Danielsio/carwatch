@@ -81,15 +81,16 @@ type Server struct {
 	pollingInterval  time.Duration
 	fetchSem         chan struct{}
 
-	logHub     *logstream.Hub
-	logLevel   *slog.LevelVar
-	cycleLog   storage.CycleLogStore
-	cycleStats storage.SearchCycleStatsStore
-	activity   storage.SearchActivityStore
-	extStatus  storage.ExtScanStatusStore
-	extTokens  storage.ExtTokenStore
-	removalBud *removalBudget
-	vitals     *vitalsRing
+	logHub        *logstream.Hub
+	logLevel      *slog.LevelVar
+	cycleLog      storage.CycleLogStore
+	cycleStats    storage.SearchCycleStatsStore
+	activity      storage.SearchActivityStore
+	extStatus     storage.ExtScanStatusStore
+	extTokens     storage.ExtTokenStore
+	removalBud    *removalBudget
+	confirmTokens *confirmTokenStore
+	vitals        *vitalsRing
 
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
 	httpReqTotal   atomic.Uint64
@@ -242,6 +243,7 @@ func New(c Config) *Server {
 		pollingInterval: c.PollingInterval,
 		vitals:          newVitalsRing(),
 		removalBud:      newRemovalBudget(),
+		confirmTokens:   newConfirmTokenStore(),
 		fetchSem:        make(chan struct{}, fetchCap),
 	}
 }
@@ -331,6 +333,7 @@ func (s *Server) Routes() http.Handler {
 		authMux.HandleFunc("GET /api/v1/admin/users", s.requireAdmin(s.adminListUsers))
 		authMux.HandleFunc("PATCH /api/v1/admin/users/{chatID}", s.requireAdmin(s.adminSetUserActive))
 		authMux.HandleFunc("DELETE /api/v1/admin/users/{chatID}", s.requireAdmin(s.adminDeleteUser))
+		authMux.HandleFunc("GET /api/v1/admin/confirm-token", s.requireAdmin(s.adminConfirmToken))
 		authMux.HandleFunc("POST /api/v1/admin/purge", s.requireAdmin(s.adminPurgeTable))
 		authMux.HandleFunc("POST /api/v1/admin/reset-all", s.requireAdmin(s.adminResetAll))
 		authMux.HandleFunc("POST /api/v1/admin/vacuum", s.requireAdmin(s.adminVacuum))
