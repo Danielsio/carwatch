@@ -462,6 +462,42 @@ type ExtScanStatusStore interface {
 	GetExtScanStatus(ctx context.Context, chatID int64) (*ExtScanStatus, error)
 }
 
+// ExtToken is a browser extension's own long-lived credential. The secret
+// itself is never stored or returned — only its hash — so this describes a
+// token without being able to reproduce it.
+type ExtToken struct {
+	ID         int64
+	ChatID     int64
+	Label      string
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
+	ExpiresAt  time.Time
+}
+
+// ExtTokenStore issues and resolves the extension's credentials.
+//
+// The extension used to borrow the web session's Firebase ID token, which
+// expires in about an hour and which it cannot refresh — so scanning died about
+// an hour after the user closed their last CarWatch tab, silently, even though
+// the extension is the only path listings enter the system by.
+type ExtTokenStore interface {
+	// CreateExtToken stores a new credential. tokenHash is a SHA-256 hex digest;
+	// the plaintext must never reach this layer.
+	CreateExtToken(ctx context.Context, chatID int64, tokenHash, label string, expiresAt time.Time) (int64, error)
+	// ResolveExtToken maps a token hash to its owner, refreshing the token's
+	// sliding expiry and last-used stamp. Returns ErrNotFound when the token is
+	// unknown, revoked or expired.
+	ResolveExtToken(ctx context.Context, tokenHash string) (int64, error)
+	// RevokeExtTokens invalidates every live token for a chat.
+	RevokeExtTokens(ctx context.Context, chatID int64) (int64, error)
+	// RevokeOldestExtTokens revokes live tokens beyond the newest `keep`.
+	RevokeOldestExtTokens(ctx context.Context, chatID int64, keep int) (int64, error)
+	// ListExtTokens returns the chat's live tokens (metadata only).
+	ListExtTokens(ctx context.Context, chatID int64) ([]ExtToken, error)
+	// PruneExtTokens deletes tokens revoked or expired longer ago than olderThan.
+	PruneExtTokens(ctx context.Context, olderThan time.Duration) (int64, error)
+}
+
 type SearchCycleStats struct {
 	SearchID    int64
 	ChatID      int64

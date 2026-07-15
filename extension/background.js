@@ -64,12 +64,43 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
+// The extension's own credential (cwx_…), issued by the backend and stored in
+// chrome.storage.local — never .sync, which would roam a live bearer token
+// through Google's servers to every profile the user is signed into.
+//
+// It supersedes the old scheme of borrowing the web app's Firebase ID token:
+// that token expires in about an hour and cannot be refreshed here, so scanning
+// silently stopped roughly an hour after the user closed their last CarWatch
+// tab — and since this extension is the only way listings enter CarWatch,
+// "silently stopped" meant the whole product stopped.
+//
+// The legacy Firebase token is still accepted as a fallback so an extension
+// that updates before the user next opens the site keeps working until the
+// bridge can exchange it.
 async function getConfig() {
-  const data = await chrome.storage.sync.get(["apiUrl", "authToken"]);
+  const local = await chrome.storage.local.get(["deviceToken"]);
+  const synced = await chrome.storage.sync.get(["apiUrl", "authToken"]);
   return {
-    apiUrl: data.apiUrl || DEFAULT_API_URL,
-    authToken: data.authToken || "",
+    apiUrl: synced.apiUrl || DEFAULT_API_URL,
+    authToken: local.deviceToken || synced.authToken || "",
+    isDeviceToken: !!local.deviceToken,
   };
+}
+
+// A credential the server rejected is worthless: drop it so the next visit to
+// the site mints a fresh one, and say so plainly in the popup. Silence here is
+// what made the original bug so hard to see.
+async function handleAuthFailure(config) {
+  if (config.isDeviceToken) {
+    await chrome.storage.local.remove(["deviceToken", "deviceTokenExpiresAt"]);
+  } else {
+    await chrome.storage.sync.remove(["authToken"]);
+  }
+  setBadge("!", "#F44");
+  await saveStatus({
+    error: "Extension disconnected — open carwatch.duckdns.org while logged in to reconnect",
+    disconnected: true,
+  });
 }
 
 function sleep(ms) {
@@ -282,13 +313,28 @@ async function runFetchCycle() {
     const config = await getConfig();
     if (!config.authToken) {
       setBadge("!", "#F44");
-      await saveStatus({ error: "No auth token — open carwatch.duckdns.org while logged in" });
+      await saveStatus({
+        error: "Not connected — open carwatch.duckdns.org while logged in",
+        disconnected: true,
+      });
       return;
     }
 
     setBadge("...", "#888");
 
-    const searches = await fetchSearches(config);
+    let searches;
+    try {
+      searches = await fetchSearches(config);
+    } catch (err) {
+      // A rejected credential must NOT look like "you have no searches" — that
+      // conflation is exactly what let scanning die in silence for an hour
+      // after the last CarWatch tab closed.
+      if (err instanceof AuthError) {
+        await handleAuthFailure(config);
+        return;
+      }
+      throw err;
+    }
     const active = activeSearches(searches);
     if (active.length === 0) {
       // Nothing to scan, but the extension is alive and will check again on
@@ -463,17 +509,31 @@ async function runFetchCycle() {
     });
   } catch (err) {
     console.error("[CarWatch] Cycle error:", err);
-    setBadge("!", "#F44");
-    await saveStatus({ error: err.message });
+    if (err instanceof AuthError) {
+      await handleAuthFailure(await getConfig());
+    } else {
+      setBadge("!", "#F44");
+      await saveStatus({ error: err.message });
+    }
   } finally {
     isRunning = false;
   }
 }
 
+// Raised when the server rejects our credential. Distinct from any other
+// failure: it is the one error whose fix is "reconnect", not "retry".
+class AuthError extends Error {}
+
+// /ext/searches, not /searches: the extension's routes are the only ones that
+// accept a cwx_ credential, so the token's scope is enforced by the router
+// rather than by an allowlist someone has to remember to maintain.
 async function fetchSearches(config) {
-  const resp = await fetchWithTimeout(`${config.apiUrl}/api/v1/searches`, {
+  const resp = await fetchWithTimeout(`${config.apiUrl}/api/v1/ext/searches`, {
     headers: { Authorization: `Bearer ${config.authToken}` },
   });
+  if (resp.status === 401 || resp.status === 403) {
+    throw new AuthError(`searches API rejected our token (${resp.status})`);
+  }
   if (!resp.ok) throw new Error(`searches API returned ${resp.status}`);
   return resp.json();
 }
@@ -522,6 +582,10 @@ async function pushBatch(config, listings, removedTokens = [], cycle = null) {
       const result = await resp.json();
       console.log("[CarWatch] Ingest result:", result);
       return result;
+    }
+    if (resp.status === 401 || resp.status === 403) {
+      // Retrying a rejected credential just burns the retry budget.
+      throw new AuthError(`ingest rejected our token (${resp.status})`);
     }
     if (attempt === 2) {
       const text = await resp.text();

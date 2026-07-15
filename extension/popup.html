@@ -36,6 +36,9 @@
     button:hover { filter: brightness(0.96); } button:disabled { opacity: .55; cursor: default; }
     .row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); margin-top: 10px; }
     .err { color: var(--err); font-size: 12px; margin-top: 8px; display: none; }
+    /* A disconnected extension scans nothing until the user acts, so it reads
+       as a call to action rather than as one more warning line. */
+    .err.disconnected { font-weight: 600; line-height: 1.45; }
     .toggle { font-size: 11px; color: var(--accent); cursor: pointer; user-select: none; }
     .diag { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 10px;
       color: var(--muted); background: var(--card); border: 1px solid var(--border); border-radius: 7px;
@@ -71,7 +74,7 @@
   </div>
   <div class="err" id="err"></div>
   <div class="diag" id="diag">no data yet</div>
-  <div class="hint" id="hint">Not authenticated — open <b>carwatch.duckdns.org</b> while logged in so the token is captured, then Fetch&nbsp;Now.</div>
+  <div class="hint" id="hint">Not connected — open <b>carwatch.duckdns.org</b> while logged in. The extension then gets its own token and keeps scanning even after you close the tab.</div>
 
   <script src="popup.js"></script>
 </body>

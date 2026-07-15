@@ -29,13 +29,18 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function refresh() {
+  // The extension's own credential (chrome.storage.local.deviceToken) is the
+  // real signal now. The legacy borrowed Firebase token in .sync is only a
+  // fallback for an extension that has updated but not yet had a chance to
+  // exchange it, so it still counts as "connected" until it does.
+  const { deviceToken } = await chrome.storage.local.get(["deviceToken"]);
   const { authToken } = await chrome.storage.sync.get(["authToken"]);
-  const authed = !!authToken;
+  const authed = !!(deviceToken || authToken);
   el("authDot").className = "dot " + (authed ? "ok" : "warn");
   el("hint").style.display = authed ? "none" : "block";
 
   const d = await chrome.storage.local.get([
-    "lastRun", "searches", "listings", "enriched", "diag", "error",
+    "lastRun", "searches", "listings", "enriched", "diag", "error", "disconnected",
   ]);
   el("sSearches").textContent = d.searches ?? "—";
   el("sListings").textContent = d.listings ?? "—";
@@ -47,9 +52,14 @@ async function refresh() {
 
   if (d.error) {
     el("err").style.display = "block";
-    el("err").textContent = "⚠ " + d.error;
+    // "Disconnected" is not just another error: nothing will be scanned until
+    // the user acts, and the whole point of this state existing is that the old
+    // extension failed here in total silence.
+    el("err").textContent = (d.disconnected ? "🔌 " : "⚠ ") + d.error;
+    el("err").classList.toggle("disconnected", !!d.disconnected);
   } else {
     el("err").style.display = "none";
+    el("err").classList.remove("disconnected");
   }
 
   tickCountdown();
