@@ -5,10 +5,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	tgbot "github.com/go-telegram/bot"
@@ -320,9 +322,30 @@ func BuildPriceListService(cfg *config.Config, store *postgres.Store, logger *sl
 	return svc, cleanup, nil
 }
 
+// serve starts srv in the background and reports a listener failure on the
+// returned channel. A failed listener is fatal, not a warning: the process it
+// belongs to keeps running with nothing served — Docker sees an *unhealthy*
+// container, and `restart: unless-stopped` does not restart unhealthy
+// containers, so the zombie survives until a human notices. Callers must turn
+// this into a non-zero exit (see GuardListeners).
+//
+// The channel is buffered so the goroutine never blocks if nobody is listening,
+// and closed on a clean Shutdown so a receiver sees a nil error, not a hang.
+func serve(srv *http.Server, logger *slog.Logger, what string) <-chan error {
+	errCh := make(chan error, 1)
+	go func() {
+		defer close(errCh)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error(what+" failed", "addr", srv.Addr, "error", err)
+			errCh <- fmt.Errorf("%s (%s): %w", what, srv.Addr, err)
+		}
+	}()
+	return errCh
+}
+
 // BuildHTTPServer creates and starts the HTTP server with health, API, SPA,
-// and metrics endpoints.
-func BuildHTTPServer(cfg *config.Config, h *health.Status, apiServer *api.Server, logger *slog.Logger) *http.Server {
+// and metrics endpoints. The returned channel reports a fatal listener failure.
+func BuildHTTPServer(cfg *config.Config, h *health.Status, apiServer *api.Server, logger *slog.Logger) (*http.Server, <-chan error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.PublicHandler())
 	mux.Handle("/api/v1/", apiServer.Routes())
@@ -343,17 +366,13 @@ func BuildHTTPServer(cfg *config.Config, h *health.Status, apiServer *api.Server
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("http server failed", "error", err)
-		}
-	}()
-	return srv
+	return srv, serve(srv, logger, "http server")
 }
 
 // BuildHealthServer creates and starts a minimal HTTP server with only the
-// health endpoint, for use by headless services (scraper, notifier).
-func BuildHealthServer(bind string, h *health.Status, logger *slog.Logger) *http.Server {
+// health endpoint, for use by headless services (scraper, notifier). The
+// returned channel reports a fatal listener failure.
+func BuildHealthServer(bind string, h *health.Status, logger *slog.Logger) (*http.Server, <-chan error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.PublicHandler())
 
@@ -365,12 +384,75 @@ func BuildHealthServer(bind string, h *health.Status, logger *slog.Logger) *http
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("health server failed", "error", err)
-		}
-	}()
-	return srv
+	return srv, serve(srv, logger, "health server")
+}
+
+// ListenGuard ties a service's lifetime to its listeners: when one of them
+// fails to serve, the guarded context is cancelled — unwinding whatever
+// blocking loop the service is running (scheduler, Redis consumer, bot poller)
+// — and Wrap turns the resulting shutdown into the listener's error, so the
+// process exits non-zero and Docker's restart policy takes over.
+type ListenGuard struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	mu  sync.Mutex
+	err error
+}
+
+// GuardListeners derives a context from parent that is cancelled as soon as any
+// of errChs reports a failure. Callers must defer Stop.
+func GuardListeners(parent context.Context, errChs ...<-chan error) *ListenGuard {
+	ctx, cancel := context.WithCancel(parent)
+	g := &ListenGuard{ctx: ctx, cancel: cancel}
+	for _, ch := range errChs {
+		go func(ch <-chan error) {
+			select {
+			case err, ok := <-ch:
+				if !ok || err == nil {
+					return // clean shutdown closed the channel
+				}
+				g.mu.Lock()
+				if g.err == nil {
+					g.err = err
+				}
+				g.mu.Unlock()
+				cancel()
+			case <-ctx.Done():
+			}
+		}(ch)
+	}
+	return g
+}
+
+// Context returns the context services should run under.
+func (g *ListenGuard) Context() context.Context { return g.ctx }
+
+// Stop releases the guard's resources.
+func (g *ListenGuard) Stop() { g.cancel() }
+
+// Err reports the listener failure that aborted the service, if any.
+func (g *ListenGuard) Err() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.err
+}
+
+// Wrap resolves a service's exit into the error the process should die with.
+//
+// A listener failure wins: whatever the service's blocking loop returned is
+// just the echo of the cancellation we triggered. Otherwise a context
+// cancellation means a signal-driven shutdown — that is a *clean* exit, not a
+// fatal error, so it resolves to nil (previously every SIGTERM logged "fatal"
+// and exited 1, making a graceful stop indistinguishable from a crash).
+func (g *ListenGuard) Wrap(runErr error) error {
+	if err := g.Err(); err != nil {
+		return err
+	}
+	if errors.Is(runErr, context.Canceled) {
+		return nil
+	}
+	return runErr
 }
 
 // NewLogHandler creates a slog.Handler, choosing between pretty (tint) and

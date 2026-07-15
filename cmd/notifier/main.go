@@ -109,8 +109,12 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 	h := health.New()
 	h.SetVersion(version)
 
-	// Health endpoint on a separate port.
-	healthSrv := app.BuildHealthServer(healthBind, h, logger)
+	// Health endpoint on a separate port. A dead listener means Docker can
+	// never see this worker as healthy — abort rather than linger as a zombie.
+	healthSrv, healthErr := app.BuildHealthServer(healthBind, h, logger)
+	guard := app.GuardListeners(ctx, healthErr)
+	defer guard.Stop()
+	ctx = guard.Context()
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
@@ -136,7 +140,9 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 	)
 
 	consumerLoop(ctx, cons, logger)
-	return nil
+	// consumerLoop returns only on shutdown; Wrap surfaces a listener failure
+	// as the exit error so the container restarts instead of idling.
+	return guard.Wrap(nil)
 }
 
 type runner interface {

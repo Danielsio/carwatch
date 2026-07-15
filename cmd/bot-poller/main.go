@@ -112,7 +112,12 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 	}
 	defer func() { _ = bb.Multi.Disconnect() }()
 
-	healthSrv := app.BuildHealthServer(healthBind, h, logger)
+	// A dead health listener means Docker can never see this poller as healthy
+	// — abort rather than linger as a zombie the restart policy ignores.
+	healthSrv, healthErr := app.BuildHealthServer(healthBind, h, logger)
+	guard := app.GuardListeners(ctx, healthErr)
+	defer guard.Stop()
+	ctx = guard.Context()
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
@@ -128,7 +133,9 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 	)
 
 	pollingLoop(ctx, h, func(c context.Context) { bb.TgNotifier.Bot().Start(c) }, logger)
-	return nil
+	// pollingLoop returns only on shutdown; Wrap surfaces a listener failure as
+	// the exit error so the container restarts instead of idling.
+	return guard.Wrap(nil)
 }
 
 type backoffConfig struct {

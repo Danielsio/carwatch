@@ -120,7 +120,10 @@ func run(configPath, healthBind string, skipMigrate bool, logger *slog.Logger) e
 	h := health.New()
 	h.SetVersion(version)
 
-	healthSrv := app.BuildHealthServer(healthBind, h, logger)
+	healthSrv, healthErr := app.BuildHealthServer(healthBind, h, logger)
+	guard := app.GuardListeners(ctx, healthErr)
+	defer guard.Stop()
+	ctx = guard.Context()
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
