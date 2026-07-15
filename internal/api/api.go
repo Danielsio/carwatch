@@ -87,6 +87,7 @@ type Server struct {
 	cycleStats storage.SearchCycleStatsStore
 	activity   storage.SearchActivityStore
 	extStatus  storage.ExtScanStatusStore
+	extTokens  storage.ExtTokenStore
 	removalBud *removalBudget
 	vitals     *vitalsRing
 
@@ -153,7 +154,11 @@ type Config struct {
 	// ExtScanStatus persists the extension's self-reported scan schedule so
 	// /scheduler/status can serve the real "next scan" time. Optional: nil
 	// falls back to estimating from the scheduler cycle log.
-	ExtScanStatus   storage.ExtScanStatusStore
+	ExtScanStatus storage.ExtScanStatusStore
+	// ExtTokens issues the browser extension its own long-lived, revocable
+	// credential. Optional: nil keeps the legacy behaviour where the extension
+	// borrows the web session's Firebase token (which expires in ~1h).
+	ExtTokens       storage.ExtTokenStore
 	PriceListSvc    *pricelist.Service
 	PollingInterval time.Duration
 	Bind            string
@@ -233,6 +238,7 @@ func New(c Config) *Server {
 		cycleStats:      c.SearchCycleStats,
 		activity:        c.Activity,
 		extStatus:       c.ExtScanStatus,
+		extTokens:       c.ExtTokens,
 		pollingInterval: c.PollingInterval,
 		vitals:          newVitalsRing(),
 		removalBud:      newRemovalBudget(),
@@ -299,7 +305,14 @@ func (s *Server) Routes() http.Handler {
 	authMux.HandleFunc("POST /api/v1/searches/{id}/refresh", s.refreshListings)
 	authMux.HandleFunc("GET /api/v1/listings/{token}", s.getListing)
 	authMux.HandleFunc("GET /api/v1/listings/{token}/price-history", s.listingPriceHistory)
-	authMux.HandleFunc("POST /api/v1/ext/ingest", s.ingestListings)
+
+	// Minting and revoking an extension credential require a real login — that
+	// is the whole point — so they live behind strict auth, not on the ext mux.
+	if s.extTokens != nil {
+		authMux.HandleFunc("POST /api/v1/ext/token", s.createExtToken)
+		authMux.HandleFunc("GET /api/v1/ext/token", s.listExtTokensHandler)
+		authMux.HandleFunc("DELETE /api/v1/ext/token", s.revokeExtTokens)
+	}
 
 	if s.cycleStats != nil {
 		authMux.HandleFunc("GET /api/v1/searches/cycle-stats", s.listSearchCycleStats)
@@ -371,6 +384,26 @@ func (s *Server) Routes() http.Handler {
 	authChain = s.withRateLimit(authChain)
 	authChain = s.authMiddleware(authChain)
 
+	// --- Extension routes (accept the extension's own credential) ---
+	//
+	// These, and only these, accept a cwx_ extension token. Scoping is
+	// structural: there is no allowlist to keep in sync, so a stolen extension
+	// token can do exactly what the extension does — read the searches to scan
+	// and push listings back — and nothing else. Minting and revoking that
+	// credential stay on the strict-auth mux above, where a real login is
+	// required.
+	//
+	// /ext/searches is the extension's view of GET /searches. It exists so the
+	// extension never has to reach a route that also serves the web app, which
+	// is what keeps the token's scope honest.
+	extMux := http.NewServeMux()
+	extMux.HandleFunc("GET /api/v1/ext/searches", s.listSearches)
+	extMux.HandleFunc("POST /api/v1/ext/ingest", s.ingestListings)
+
+	extChain := s.withMaxBody(extMux)
+	extChain = s.withRateLimit(extChain)
+	extChain = s.extAuthMiddleware(extChain)
+
 	// --- Optional-auth routes (read-only, return empty data for guests) ---
 	optAuthMux := http.NewServeMux()
 	optAuthMux.HandleFunc("GET /api/v1/me", s.getMe)
@@ -413,6 +446,11 @@ func (s *Server) Routes() http.Handler {
 	top.Handle("/api/v1/guest/", guestChain)
 	top.Handle("/api/v1/catalog/", catalogChain)
 	top.Handle("GET /api/v1/capabilities", capChain)
+	// The extension's two routes only. /api/v1/ext/token is deliberately NOT
+	// here — it falls through to the strict-auth mux, so an extension token can
+	// never mint another one.
+	top.Handle("GET /api/v1/ext/searches", extChain)
+	top.Handle("POST /api/v1/ext/ingest", extChain)
 	top.Handle("GET /api/v1/me", optAuthChain)
 	top.Handle("GET /api/v1/searches", optAuthChain)
 	if s.notifs != nil {
@@ -485,6 +523,15 @@ func (s *Server) optionalAuthMiddleware(next http.Handler) http.Handler {
 		// still an attempt to authenticate — do not silently downgrade it.
 		credentialOffered := strings.TrimSpace(authHdr) != ""
 
+		// An extension credential is valid ONLY on the /ext/ routes. Reaching a
+		// non-ext route with one is an attempt to use it out of scope; reject it
+		// rather than let it ride the Firebase path (where, in production, it
+		// would fail verification anyway — but scope should not depend on that).
+		if isExtToken(bearer) {
+			writeAuthError(w, "extension token not valid here")
+			return
+		}
+
 		var chatID int64
 		var userEmail string
 
@@ -542,6 +589,13 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHdr := r.Header.Get("Authorization")
 		bearer := bearerFromAuthHeader(authHdr)
+
+		// An extension credential belongs only on the /ext/ routes; anywhere
+		// else it is out of scope (see optionalAuthMiddleware).
+		if isExtToken(bearer) {
+			writeAuthError(w, "extension token not valid here")
+			return
+		}
 
 		var chatID int64
 
