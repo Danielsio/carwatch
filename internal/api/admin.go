@@ -188,10 +188,14 @@ func humanBytes(b int64) string {
 
 func (s *Server) adminPurgeTable(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Table string `json:"table"`
+		Table        string `json:"table"`
+		ConfirmToken string `json:"confirm_token"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Table == "" {
 		writeError(w, http.StatusBadRequest, "table is required")
+		return
+	}
+	if !s.requireConfirmToken(w, r, body.ConfirmToken, "admin_purge") {
 		return
 	}
 
@@ -210,6 +214,15 @@ func (s *Server) adminPurgeTable(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) adminResetAll(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ConfirmToken string `json:"confirm_token"`
+	}
+	// Body is optional in shape but the confirm token within it is not.
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	if !s.requireConfirmToken(w, r, body.ConfirmToken, "admin_reset_all") {
+		return
+	}
+
 	counts, err := s.admin.ResetAllData(r.Context())
 	if err != nil {
 		s.logger.Error("admin: reset all data", "error", err)

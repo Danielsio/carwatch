@@ -777,15 +777,74 @@ func TestAdminListListings(t *testing.T) {
 func TestAdminPurgeTable(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
-	w := doRequest(t, srv, "POST", "/api/v1/admin/purge", map[string]string{"table": "seen_listings"})
+	w := doRequest(t, srv, "POST", "/api/v1/admin/purge",
+		map[string]string{"table": "seen_listings", "confirm_token": adminConfirm(t, srv)})
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	w = doRequest(t, srv, "POST", "/api/v1/admin/purge", map[string]string{"table": "users"})
+	w = doRequest(t, srv, "POST", "/api/v1/admin/purge",
+		map[string]string{"table": "users", "confirm_token": adminConfirm(t, srv)})
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for non-purgeable table, got %d", w.Code)
 	}
+}
+
+// adminConfirm fetches a fresh confirm token for the destructive admin ops.
+func adminConfirm(t *testing.T, srv *Server) string {
+	t.Helper()
+	w := doRequest(t, srv, "GET", "/api/v1/admin/confirm-token", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("confirm-token: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		ConfirmToken string `json:"confirm_token"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode confirm token: %v", err)
+	}
+	if resp.ConfirmToken == "" {
+		t.Fatal("confirm-token returned an empty token")
+	}
+	return resp.ConfirmToken
+}
+
+// The interlock: destructive admin endpoints must refuse without a fresh
+// confirm token, so a misclick or a replayed request cannot wipe production
+// data in one shot.
+func TestAdminDestructiveOps_RequireConfirmToken(t *testing.T) {
+	t.Run("purge without a token is refused", func(t *testing.T) {
+		srv, _ := setupTestServer(t)
+		w := doRequest(t, srv, "POST", "/api/v1/admin/purge", map[string]string{"table": "seen_listings"})
+		if w.Code != http.StatusPreconditionRequired {
+			t.Fatalf("expected 428 without a confirm token, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("reset-all without a token is refused", func(t *testing.T) {
+		srv, _ := setupTestServer(t)
+		w := doRequest(t, srv, "POST", "/api/v1/admin/reset-all", nil)
+		if w.Code != http.StatusPreconditionRequired {
+			t.Fatalf("expected 428 without a confirm token, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("a confirm token is single-use", func(t *testing.T) {
+		srv, _ := setupTestServer(t)
+		tok := adminConfirm(t, srv)
+
+		w := doRequest(t, srv, "POST", "/api/v1/admin/purge",
+			map[string]string{"table": "seen_listings", "confirm_token": tok})
+		if w.Code != http.StatusOK {
+			t.Fatalf("first use should succeed, got %d: %s", w.Code, w.Body.String())
+		}
+		// Replaying the same token must not work.
+		w = doRequest(t, srv, "POST", "/api/v1/admin/purge",
+			map[string]string{"table": "seen_listings", "confirm_token": tok})
+		if w.Code != http.StatusPreconditionRequired {
+			t.Fatalf("a replayed confirm token was accepted (got %d)", w.Code)
+		}
+	})
 }
 
 func TestAdminDeleteListing(t *testing.T) {
