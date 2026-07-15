@@ -458,9 +458,22 @@ func (s *Server) ingestListings(w http.ResponseWriter, r *http.Request) {
 				"submitted", len(tokens), "cap", maxRemovedTokensPerIngest)
 			tokens = tokens[:maxRemovedTokensPerIngest]
 		}
-		var err error
-		if removed, err = s.listings.MarkListingsRemoved(r.Context(), chatID, tokens); err != nil {
-			log.Error("mark listings removed failed", "tokens", len(tokens), "error", err)
+		// Daily backstop: even past the extension's canary tripwire, no client
+		// may retire an unbounded number of a user's listings. A user really
+		// losing this many cars in a day does not happen; a broken item endpoint
+		// retiring them by the cycleful does.
+		allowed, capped := s.removalBud.take(chatID, len(tokens))
+		if capped {
+			log.Warn("ingest removal exceeded the daily budget, refusing the excess",
+				"requested", len(tokens), "allowed", allowed, "cap_per_day", removalBudgetPerDay,
+				"hint", "a spike here can mean Yad2 changed its item endpoint or token format")
+		}
+		tokens = tokens[:allowed]
+		if len(tokens) > 0 {
+			var err error
+			if removed, err = s.listings.MarkListingsRemoved(r.Context(), chatID, tokens); err != nil {
+				log.Error("mark listings removed failed", "tokens", len(tokens), "error", err)
+			}
 		}
 	}
 
