@@ -53,9 +53,9 @@ Follow this workflow for every change:
 1. **Plan** — Understand the task, explore the codebase, design the approach
 2. **Execute** — Implement with clean, focused commits (one concern per commit)
 3. **Raise PR** — Push branch, create PR with clear description
-4. **Fix CodeRabbit comments** — Address all review feedback in follow-up commits, reply to every thread
-5. **Monitor CI** — Watch all CI checks pass (lint, test, build, secret scanning)
-6. **Merge** — PR auto-merges once checks pass, or merge with `--admin` if needed
+4. **Address review feedback** — Fix any review comments in follow-up commits on the same branch
+5. **Monitor CI** — Watch all required checks pass (lint, test, build)
+6. **Merge** — PR auto-merges once required checks pass, or merge with `--admin` if needed
 7. **Close issues** — Verify linked issues are closed, manually close if `Closes #N` didn't work
 
 Use `closes #N` (lowercase, one per line) in PR body to auto-close issues on merge.
@@ -76,17 +76,13 @@ Every PR must be reviewed by the `ce:review` skill agents before merging. Includ
 
 List the agents that ran and their verdict. If any agent flagged P0/P1 issues, they must be fixed before merging.
 
-## CodeRabbit Comments (merge blocker)
+## Branch Protection (required checks)
 
-PRs are blocked until every CodeRabbit review comment is resolved. For each comment:
-- If it has a valid point, fix it in a follow-up commit on the same branch.
-- If it does not apply, reply to the thread explaining why and resolve it.
-
-Never merge a PR with open/unaddressed CodeRabbit threads. Check with:
-```bash
-gh pr view <N> --comments
-gh api repos/Danielsio/carwatch/pulls/<N>/comments
-```
+`main` requires these status checks before a PR can merge: **Lint**, **Test**, **Build**.
+CodeRabbit is no longer a required check and no longer gates merges (removed
+2026-07-15). If a PR review tool posts comments, address the valid ones in a
+follow-up commit on the same branch, but nothing blocks the merge except the
+three required CI checks above.
 
 ## Pre-Push Checks
 
