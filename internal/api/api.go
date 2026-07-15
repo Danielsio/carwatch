@@ -464,33 +464,62 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// optionalAuthMiddleware tries to authenticate the request but does not
-// reject it when credentials are missing or invalid. If authentication
-// succeeds the resolved chatID and email are injected into the context;
-// otherwise chatID is set to 0 (guest sentinel) and the request is
-// allowed to proceed.  Handlers behind this middleware can call
-// chatIDFromContext to distinguish guests (0) from real users.
+// optionalAuthMiddleware authenticates the request when a credential is
+// offered, but allows anonymous callers through as guests (chatID 0) when none
+// is. Handlers behind it call chatIDFromContext to tell guests from real users.
+//
+// "No credential" and "a credential that does not work" are NOT the same thing.
+// A request that presents a Bearer token we cannot verify — expired, revoked,
+// malformed — is a failed authentication and gets 401, not a guest response.
+// Treating it as anonymous is how a stale token turns into silent data loss:
+// GET /searches answered `200 []`, and the caller could not distinguish "you
+// have no searches" from "your session expired". The browser extension, whose
+// token expires roughly hourly, would then scan nothing while reporting
+// success; a web client with a broken refresh would render an empty dashboard
+// instead of sending the user to log in.
 func (s *Server) optionalAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHdr := r.Header.Get("Authorization")
 		bearer := bearerFromAuthHeader(authHdr)
+		// An Authorization header we could not read a bearer token out of is
+		// still an attempt to authenticate — do not silently downgrade it.
+		credentialOffered := strings.TrimSpace(authHdr) != ""
 
 		var chatID int64
 		var userEmail string
 
-		if s.firebaseAuth != nil && bearer != "" {
+		switch {
+		case s.firebaseAuth != nil && bearer != "":
 			tok, err := s.firebaseAuth.VerifyIDToken(r.Context(), bearer)
-			if err == nil {
-				userEmail = emailFromClaims(tok)
-				id, upsertErr := s.users.UpsertWebUser(r.Context(), tok.UID, userEmail)
-				if upsertErr == nil {
-					chatID = id
-				}
+			if err != nil {
+				writeAuthError(w, "invalid or expired token")
+				return
 			}
-		} else if s.firebaseAuth == nil {
-			if s.cfg.AuthToken != "" && bearer == s.cfg.AuthToken {
-				chatID = s.cfg.DevChatID
-			} else if s.cfg.AuthToken == "" {
+			userEmail = emailFromClaims(tok)
+			id, upsertErr := s.users.UpsertWebUser(r.Context(), tok.UID, userEmail)
+			if upsertErr != nil {
+				s.logger.Error("upsert web user", "error", upsertErr)
+				writeError(w, http.StatusInternalServerError, "internal error")
+				return
+			}
+			chatID = id
+
+		case s.firebaseAuth != nil && credentialOffered:
+			// Authorization present but not a usable Bearer token.
+			writeAuthError(w, "invalid or expired token")
+			return
+
+		case s.firebaseAuth == nil:
+			// Dev auth. A configured dev token must still be presented correctly
+			// when one is offered at all.
+			if s.cfg.AuthToken != "" {
+				if bearer == s.cfg.AuthToken {
+					chatID = s.cfg.DevChatID
+				} else if credentialOffered {
+					writeAuthError(w, "invalid or expired token")
+					return
+				}
+			} else {
 				chatID = s.cfg.DevChatID
 			}
 		}
@@ -499,6 +528,14 @@ func (s *Server) optionalAuthMiddleware(next http.Handler) http.Handler {
 		ctx = context.WithValue(ctx, emailKey, userEmail)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// writeAuthError rejects a failed authentication. The WWW-Authenticate header
+// tells clients (and the extension) that the credential — not the request — is
+// what went wrong, so they re-authenticate instead of retrying blindly.
+func writeAuthError(w http.ResponseWriter, msg string) {
+	w.Header().Set("WWW-Authenticate", `Bearer realm="carwatch", error="invalid_token"`)
+	writeError(w, http.StatusUnauthorized, msg)
 }
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
@@ -512,7 +549,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		if s.firebaseAuth != nil && bearer != "" {
 			tok, err := s.firebaseAuth.VerifyIDToken(r.Context(), bearer)
 			if err != nil {
-				writeError(w, http.StatusUnauthorized, "invalid or missing token")
+				writeAuthError(w, "invalid or missing token")
 				return
 			}
 			userEmail = emailFromClaims(tok)
@@ -524,12 +561,12 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			}
 			chatID = id
 		} else if s.firebaseAuth != nil && bearer == "" {
-			writeError(w, http.StatusUnauthorized, "invalid or missing token")
+			writeAuthError(w, "invalid or missing token")
 			return
 		} else if s.firebaseAuth == nil {
 			if s.cfg.AuthToken != "" {
 				if bearer != s.cfg.AuthToken {
-					writeError(w, http.StatusUnauthorized, "invalid or missing token")
+					writeAuthError(w, "invalid or missing token")
 					return
 				}
 			}
@@ -539,7 +576,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 				return
 			}
 		} else {
-			writeError(w, http.StatusUnauthorized, "invalid or missing token")
+			writeAuthError(w, "invalid or missing token")
 			return
 		}
 
