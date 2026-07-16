@@ -139,10 +139,6 @@ type HTTPConfig struct {
 	// per-listing data (km, city, bodyType) and lets us skip most
 	// per-item enrichment fetches.
 	UseGwFeed bool `yaml:"use_gw_feed"`
-	// RelayURL is a Cloudflare Worker URL that proxies requests to Yad2,
-	// bypassing IP-based anti-bot blocks by using Cloudflare edge IPs.
-	RelayURL    string `yaml:"relay_url"`
-	RelaySecret string `yaml:"relay_secret"`
 	// ChromeBin is the path to a Chrome/Chromium binary. When set, the scraper
 	// uses a real headless Chrome instance (via rod) instead of the HTTP stealth
 	// client. This bypasses Radware's TLS fingerprint detection.
@@ -197,9 +193,6 @@ func warnHardcodedSecrets(raw string) {
 	}
 	if storage, ok := doc["storage"].(map[string]any); ok {
 		checkSecret("storage.dsn", "DATABASE_URL", storage, "dsn")
-	}
-	if httpSec, ok := doc["http"].(map[string]any); ok {
-		checkSecret("http.relay_secret", "RELAY_SECRET", httpSec, "relay_secret")
 	}
 }
 
@@ -349,16 +342,6 @@ func validate(cfg *Config) error {
 
 	if cfg.Enricher.MaxDelay < cfg.Enricher.BaseDelay {
 		return fmt.Errorf("enricher.max_delay (%s) must be >= enricher.base_delay (%s)", cfg.Enricher.MaxDelay, cfg.Enricher.BaseDelay)
-	}
-
-	if cfg.HTTP.RelayURL != "" {
-		u, err := url.Parse(cfg.HTTP.RelayURL)
-		if err != nil || u.Scheme != "https" {
-			return fmt.Errorf("http.relay_url %q: must be an HTTPS URL", cfg.HTTP.RelayURL)
-		}
-		if cfg.HTTP.RelaySecret == "" {
-			return fmt.Errorf("http.relay_secret is required when relay_url is set")
-		}
 	}
 
 	for _, origin := range cfg.API.CORSOrigins {

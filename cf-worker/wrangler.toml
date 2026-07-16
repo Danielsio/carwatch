@@ -1,5 +1,0 @@
-name = "yad2-relay"
-main = "relay.js"
-compatibility_date = "2024-09-23"
-
-# RELAY_SECRET is set via: npx wrangler secret put RELAY_SECRET
