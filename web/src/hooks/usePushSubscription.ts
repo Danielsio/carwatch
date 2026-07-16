@@ -66,11 +66,20 @@ export function usePushSubscription(enabled: boolean) {
   };
 }
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+// Returns a Uint8Array explicitly backed by an ArrayBuffer (not the wider
+// ArrayBufferLike the bare `Uint8Array` type now defaults to in TS 5.9's
+// lib.dom.d.ts). PushManager.subscribe's applicationServerKey wants a
+// BufferSource, which a Uint8Array<ArrayBufferLike> — possibly SharedArrayBuffer
+// backed — does not satisfy; pinning the buffer type makes the assignment valid.
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding)
     .replace(/-/g, "+")
     .replace(/_/g, "/");
   const rawData = atob(base64);
-  return Uint8Array.from(rawData, (char) => char.charCodeAt(0));
+  const bytes = new Uint8Array(new ArrayBuffer(rawData.length));
+  for (let i = 0; i < rawData.length; i++) {
+    bytes[i] = rawData.charCodeAt(i);
+  }
+  return bytes;
 }
