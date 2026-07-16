@@ -93,8 +93,39 @@ function itemToListing(item, isCommercial) {
   return listing;
 }
 
+// firstPositiveInt returns the first argument that is a positive integer, or 0.
+function firstPositiveInt(...vals) {
+  for (const v of vals) {
+    const n = typeof v === "string" ? Number(v) : v;
+    if (typeof n === "number" && Number.isFinite(n) && n > 0) return Math.floor(n);
+  }
+  return 0;
+}
+
+// How many pages this search's result set spans, read from the feed's
+// pagination block. Yad2 has never documented the exact field names and has
+// changed its payload before, so this is deliberately defensive: it tries the
+// several shapes seen in the wild and DEFAULTS TO 1 when none match. A wrong
+// guess therefore costs nothing — pagination just does not kick in until the
+// field is confirmed — rather than causing over- or under-fetching.
+function extractTotalPages(root) {
+  const src = root && root.data && typeof root.data === "object" ? root.data : root;
+  const p = src && src.pagination;
+  if (p && typeof p === "object") {
+    const tp = firstPositiveInt(p.total_pages, p.pages_count, p.pages, p.last_page, p.totalPages);
+    if (tp) return tp;
+    const totalItems = firstPositiveInt(p.total_items, p.items_count, p.total, p.totalItems);
+    const perPage = firstPositiveInt(p.per_page, p.page_size, p.limit, p.perPage);
+    if (totalItems && perPage) return Math.ceil(totalItems / perPage);
+  }
+  return 1;
+}
+
 // Accepts the raw gw response (object or JSON string). Buckets live under
-// `.data`, but tolerate a top-level bucket object too.
+// `.data`, but tolerate a top-level bucket object too. Returns the parsed
+// listings plus `totalPages` so the caller can decide whether to fetch more
+// pages of the same search (a broad search spans several feed pages, and only
+// page 1 was ever fetched before — everything past it was silently missed).
 function parseFeed(json) {
   let data;
   try {
@@ -127,7 +158,7 @@ function parseFeed(json) {
     seen.add(l.token);
     return true;
   });
-  return { listings: deduped };
+  return { listings: deduped, totalPages: extractTotalPages(data) };
 }
 
 // Parses the per-item detail endpoint
@@ -181,5 +212,5 @@ function parseItemDetail(json) {
 
 // Export for Node-based tests; harmless in the service worker.
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { parseFeed, parseItemDetail, itemToListing };
+  module.exports = { parseFeed, parseItemDetail, itemToListing, extractTotalPages };
 }

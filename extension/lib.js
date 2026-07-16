@@ -16,6 +16,15 @@ const GW_ITEM_URL = "https://gw.yad2.co.il/vehicles-item";
 // the whole cycle's ingestion would 400 and be lost.
 const MAX_INGEST_BATCH = 400;
 
+// Feed pagination bounds. Only page 1 of each search was ever fetched, so a
+// broad search silently missed everything on page 2+. These cap the extra work:
+// at most MAX_PAGES_PER_SEARCH pages of any one search, and at most
+// MAX_EXTRA_FEED_PAGES_PER_CYCLE extra page-fetches across ALL searches in a
+// cycle — so a user with many broad searches cannot make one cycle balloon into
+// dozens of requests against Yad2.
+const MAX_PAGES_PER_SEARCH = 3;
+const MAX_EXTRA_FEED_PAGES_PER_CYCLE = 8;
+
 // Bound on the token->fields enrichment cache kept in chrome.storage.local.
 const KNOWN_TOKENS_CAP = 3000;
 
@@ -154,6 +163,33 @@ function activeSearches(searches) {
   );
 }
 
+// Plan which extra feed pages to fetch after page 1.
+//
+// Input: one entry per active search giving how many pages that search spans
+// (from the page-1 response's pagination). Output: a flat, bounded list of
+// { searchIndex, page } for pages 2..N, fairly distributed so one very broad
+// search cannot eat the whole per-cycle budget while others get nothing.
+//
+// Fairness matters: without it, a search with 50 pages would consume the entire
+// budget and a second search's page 2 would never be fetched. So this fills
+// round-robin — every search's page 2 before any search's page 3 — up to the
+// per-cycle cap.
+function planExtraFeedPages(
+  perSearchTotalPages,
+  maxPagesPerSearch = MAX_PAGES_PER_SEARCH,
+  maxTotal = MAX_EXTRA_FEED_PAGES_PER_CYCLE,
+) {
+  const plan = [];
+  // page goes 2, 3, ... up to the per-search cap; for each page, sweep searches.
+  for (let page = 2; page <= maxPagesPerSearch && plan.length < maxTotal; page++) {
+    for (let i = 0; i < perSearchTotalPages.length && plan.length < maxTotal; i++) {
+      const total = perSearchTotalPages[i] || 1;
+      if (page <= total) plan.push({ searchIndex: i, page });
+    }
+  }
+  return plan;
+}
+
 // Export for Node-based tests; harmless in the service worker, where these are
 // just globals defined by importScripts.
 if (typeof module !== "undefined" && module.exports) {
@@ -162,6 +198,9 @@ if (typeof module !== "undefined" && module.exports) {
     GW_ITEM_URL,
     MAX_INGEST_BATCH,
     KNOWN_TOKENS_CAP,
+    MAX_PAGES_PER_SEARCH,
+    MAX_EXTRA_FEED_PAGES_PER_CYCLE,
+    planExtraFeedPages,
     buildFeedURL,
     itemURL,
     looksGone,
