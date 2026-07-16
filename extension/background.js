@@ -348,9 +348,10 @@ async function runFetchCycle() {
 
     const tabId = await ensureYad2Tab();
 
-    // 1) Fetch each search's list feed. NB: the arrow is load-bearing —
-    // `.map(buildFeedURL)` would hand Array.map's index to buildFeedURL's page
-    // argument and request a different page per search.
+    // 1) Fetch page 1 of each search's list feed. NB: the arrow is
+    // load-bearing — `.map(buildFeedURL)` would hand Array.map's index to
+    // buildFeedURL's page argument and request a different page per search.
+    // Results come back in URL order, so feedResults[i] belongs to active[i].
     const feedURLs = active.map((s) => buildFeedURL(s));
     let feedResults = await fetchViaYad2Tab(tabId, feedURLs);
     if (batchUnusable(feedResults)) {
@@ -359,10 +360,14 @@ async function runFetchCycle() {
       feedResults = await fetchViaYad2Tab(tabId, feedURLs);
     }
 
-    // Merge into a token->listing map, preferring the row that already has km.
+    // Parse page 1, and remember how many pages each search spans so broad
+    // searches can have their later pages fetched too (page 1 alone silently
+    // dropped everything past it).
     let blocked = 0;
     const parsedFeeds = [];
-    for (const r of feedResults) {
+    const perSearchTotalPages = new Array(active.length).fill(1);
+    for (let i = 0; i < feedResults.length; i++) {
+      const r = feedResults[i];
       if (looksBlocked(r)) {
         blocked++;
         continue;
@@ -373,7 +378,34 @@ async function runFetchCycle() {
         continue;
       }
       parsedFeeds.push(parsed.listings);
+      if (i < perSearchTotalPages.length && parsed.totalPages > 0) {
+        perSearchTotalPages[i] = parsed.totalPages;
+      }
     }
+
+    // Fetch a bounded, fairly-distributed set of extra pages for the searches
+    // that span more than one. Skipped entirely when the feed was being blocked
+    // (no point spending the tab's clearance on more pages that will also fail).
+    let extraPagesFetched = 0;
+    if (!blocked) {
+      const plan = planExtraFeedPages(perSearchTotalPages);
+      if (plan.length) {
+        const extraURLs = plan.map((p) => buildFeedURL(active[p.searchIndex], p.page));
+        const extraResults = await fetchViaYad2Tab(tabId, extraURLs);
+        for (const r of extraResults) {
+          if (looksBlocked(r)) continue;
+          const parsed = parseFeed(r.body);
+          if (parsed.error) {
+            console.warn("[CarWatch] extra-page parse:", parsed.error, r.url);
+            continue;
+          }
+          parsedFeeds.push(parsed.listings);
+          extraPagesFetched++;
+        }
+      }
+    }
+
+    // Merge into a token->listing map, preferring the row that already has km.
     const byToken = mergeFeedListings(parsedFeeds);
 
     // 2) Re-apply everything we've already resolved (self-healing: the km is
@@ -504,7 +536,7 @@ async function runFetchCycle() {
       searches: activeSearches.length,
       listings: listings.length,
       enriched,
-      diag: `feeds ${feedResults.length - blocked}/${feedResults.length} ok · cache:${cachedApplied} · enrich try:${toEnrich.length} ret:${itemGot} ok:${itemOk} blk:${itemBlocked} perr:${itemParseErr} km:${gotKm} · gone:${removedTokens.length}/${verifyTried}${itemErr ? " · " + itemErr : ""}`,
+      diag: `feeds ${feedResults.length - blocked}/${feedResults.length} ok · pages+${extraPagesFetched} · cache:${cachedApplied} · enrich try:${toEnrich.length} ret:${itemGot} ok:${itemOk} blk:${itemBlocked} perr:${itemParseErr} km:${gotKm} · gone:${removedTokens.length}/${verifyTried}${itemErr ? " · " + itemErr : ""}`,
       error: blocked ? `${blocked} feed(s) blocked by anti-bot` : null,
     });
   } catch (err) {
