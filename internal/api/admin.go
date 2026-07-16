@@ -229,6 +229,10 @@ func (s *Server) adminResetAll(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to reset data")
 		return
 	}
+	// Every user row is gone; drop any cached UID→chatID mappings with them.
+	if s.uidCache != nil {
+		s.uidCache.clear()
+	}
 	var total int64
 	for _, n := range counts {
 		total += n
@@ -477,6 +481,11 @@ func (s *Server) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("admin: delete user", "chat_id", chatID, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to delete user")
 		return
+	}
+	// Drop the UID→chatID cache so the deleted account cannot keep resolving
+	// from a stale entry for the rest of the TTL.
+	if s.uidCache != nil {
+		s.uidCache.clear()
 	}
 	s.logger.Info("admin: deleted user", "chat_id", chatID)
 	w.WriteHeader(http.StatusNoContent)

@@ -90,6 +90,7 @@ type Server struct {
 	extTokens     storage.ExtTokenStore
 	removalBud    *removalBudget
 	confirmTokens *confirmTokenStore
+	uidCache      *uidCache
 	vitals        *vitalsRing
 
 	// Cumulative HTTP API metrics (since process start); see observeHTTPRequest.
@@ -244,6 +245,7 @@ func New(c Config) *Server {
 		vitals:          newVitalsRing(),
 		removalBud:      newRemovalBudget(),
 		confirmTokens:   newConfirmTokenStore(),
+		uidCache:        newUIDCache(),
 		fetchSem:        make(chan struct{}, fetchCap),
 	}
 }
@@ -546,9 +548,9 @@ func (s *Server) optionalAuthMiddleware(next http.Handler) http.Handler {
 				return
 			}
 			userEmail = emailFromClaims(tok)
-			id, upsertErr := s.users.UpsertWebUser(r.Context(), tok.UID, userEmail)
-			if upsertErr != nil {
-				s.logger.Error("upsert web user", "error", upsertErr)
+			id, resolveErr := s.resolveWebUser(r.Context(), tok.UID, userEmail)
+			if resolveErr != nil {
+				s.logger.Error("resolve web user", "error", resolveErr)
 				writeError(w, http.StatusInternalServerError, "internal error")
 				return
 			}
@@ -610,9 +612,9 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 				return
 			}
 			userEmail = emailFromClaims(tok)
-			id, err := s.users.UpsertWebUser(r.Context(), tok.UID, userEmail)
+			id, err := s.resolveWebUser(r.Context(), tok.UID, userEmail)
 			if err != nil {
-				s.logger.Error("upsert web user", "error", err)
+				s.logger.Error("resolve web user", "error", err)
 				writeError(w, http.StatusInternalServerError, "internal error")
 				return
 			}
