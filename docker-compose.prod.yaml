@@ -104,7 +104,6 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN must be set}
       - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
       - TELEMETRY_AUTH_TOKEN=${TELEMETRY_AUTH_TOKEN:?TELEMETRY_AUTH_TOKEN must be set}
-      - RELAY_SECRET=${RELAY_SECRET:-}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
       interval: 60s
@@ -187,7 +186,6 @@ services:
       - TZ=Asia/Jerusalem
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN must be set}
       - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
-      - RELAY_SECRET=${RELAY_SECRET:-}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/healthz"]
       interval: 60s
